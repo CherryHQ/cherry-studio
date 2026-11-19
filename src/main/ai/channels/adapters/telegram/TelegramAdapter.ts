@@ -34,13 +34,14 @@ const withGetUpdatesTimeout: Transformer = async (prev, method, payload, signal)
   if (method !== 'getUpdates') return prev(method, payload, signal)
 
   const controller = new AbortController()
-  const abort = () => controller.abort((signal as unknown as { reason?: unknown } | undefined)?.reason)
+  const abort = () => controller.abort(signal && 'reason' in signal ? signal.reason : undefined)
   if (signal?.aborted) abort()
   else signal?.addEventListener('abort', abort, { once: true })
   const timeout = setTimeout(() => controller.abort(), TELEGRAM_GET_UPDATES_TIMEOUT_MS)
 
   try {
-    return await prev(method, payload, controller.signal as unknown as GrammyAbortSignal)
+    // SAFETY: grammY reads aborted and abort listeners from its legacy shim type; the native signal supplies both.
+    return await prev(method, payload, controller.signal as AbortSignal & GrammyAbortSignal)
   } finally {
     clearTimeout(timeout)
     signal?.removeEventListener('abort', abort)
