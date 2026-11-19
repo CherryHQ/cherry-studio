@@ -22,6 +22,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -211,6 +212,7 @@ describe('lifecycle memory owner', () => {
       .insert(agentSessionMessageTable)
       .values({
         sessionId,
+        parentId: ensureAgentSessionRootTx(dbh.db, sessionId),
         role: 'assistant',
         status: 'success',
         data: { parts: [{ type: 'text', text: 'New answer' }] }
@@ -308,6 +310,7 @@ describe('lifecycle memory owner', () => {
         .insert(agentSessionMessageTable)
         .values({
           sessionId,
+          parentId: ensureAgentSessionRootTx(dbh.db, sessionId),
           role: kind === 'reply' ? 'assistant' : 'user',
           runtimeResumeToken: kind === 'resume-token' ? 'old-native' : null,
           status: 'success',

@@ -1311,6 +1311,10 @@ describe('desktop Pi Durable connection', () => {
       }
       const terminals = events.filter((event) => event.type === 'compaction-complete' || event.type === 'turn-complete')
       expect(terminals.map((event) => event.type)).toEqual(['compaction-complete', 'turn-complete'])
+      events.length = 0
+      await connection.send({ message: message('Continue after compaction') })
+      await done(events)
+      expect(script.calls.at(-1)?.systemPrompt).toContain(`MEMORY_ENTRY_${input.sessionId}`)
       expect(events.filter((event) => event.type === 'error')).toEqual([])
     }
   )

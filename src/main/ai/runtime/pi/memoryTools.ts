@@ -1,27 +1,66 @@
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { ExtensionFactory, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import * as z from 'zod'
 
 import { application } from '@application'
+import { decideApproval } from '@cherrystudio/agent-behavior'
 import { agentMemoryAuthority } from '@main/ai/memory/memoryAuthority'
 import { MEMORY_MAX_BYTES } from '@main/ai/memory/memoryFiles'
 import type { MemorySession } from '@main/ai/memory/MemoryService'
 import type { MemoryApproval, MemoryCommitResult } from '@main/ai/memory/MemoryStore'
 import { memoryTarget, type MemoryTarget } from '@main/ai/memory/memoryTarget'
 import { normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
-import { createPiToolAuthorizer, type PiApprovalContext } from './approvalExtension'
+import type { AgentRuntimeEvent } from '../types'
+import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
 import type { loadPiSdk } from './piSdk'
+import { requestPiToolApproval } from './piToolApprovalRequest'
 
 export const PI_MEMORY_FILE_TOOLS: ReadonlySet<string> = new Set(['read', 'write', 'edit'])
 
 export function createPiMemoryTools(
   pi: Awaited<ReturnType<typeof loadPiSdk>>,
-  context: PiApprovalContext,
+  context: PiApprovalContext & { emit(event: AgentRuntimeEvent): void },
   nativeApprovalHandled = false
 ) {
-  const authorize = createPiToolAuthorizer(context)
+  async function authorize(name: string, toolCallId: string, input: Record<string, unknown>, signal?: AbortSignal) {
+    const args = z.record(z.string(), z.json()).parse(input)
+    // The outer gate delegates managed writes. The computed proposal now needs the actual file policy.
+    const facts = await readPiApprovalFacts({ ...context, executionOwnedTools: undefined }, name, args)
+    const decision = decideApproval(
+      { tool: name },
+      facts,
+      context.getPermissionMode() ?? 'default',
+      context.getInteractionState().userResponse,
+      undefined
+    )
+    if (decision.kind === 'block') throw new Error(decision.reason)
+    if (decision.kind === 'allow') return
+    const answer = await requestPiToolApproval({
+      id: randomUUID(),
+      sessionId: context.sessionId,
+      toolCallId,
+      name,
+      args,
+      signal: signal ?? new AbortController().signal,
+      presentation: decision.presentation,
+      emit: context.emit
+    })
+    if (!answer?.approved)
+      throw new Error(
+        answer?.reasonSource === 'user'
+          ? withUserDenialFeedback(answer.reason)
+          : (answer?.reason ?? 'Memory tool approval was declined')
+      )
+    if (answer.updatedInput) {
+      for (const key of Object.keys(input)) delete input[key]
+      Object.assign(input, answer.updatedInput)
+    }
+  }
   const sessions = new Map<string, MemorySession>()
   const reads = new Map<string, { path: string; scope: string; hash: string | null }>()
   let epoch = 0
@@ -128,10 +167,7 @@ export function createPiMemoryTools(
         const target = await memoryTarget(args.path)
         if (target && original.name === 'read') sessionFor(target, signal)
         if (!target || original.name === 'read') {
-          const decision = nativeApprovalHandled
-            ? undefined
-            : await authorize({ toolName: original.name, toolCallId, input: args, signal })
-          if (decision?.block) throw new Error(decision.reason)
+          if (!nativeApprovalHandled) await authorize(original.name, toolCallId, args, signal)
           args.path = resolve(args.path)
           const approvedTarget = await memoryTarget(args.path)
           if (!approvedTarget) return original.execute(toolCallId, args, signal, onUpdate, ctx)
@@ -176,8 +212,7 @@ export function createPiMemoryTools(
           const input = { ...args, memoryPreview: changes }
           const before = JSON.stringify(input)
           const mode = context.getPermissionMode()
-          const decision = await authorize({ toolName: original.name, toolCallId, input, signal })
-          if (decision?.block) throw new Error(decision.reason)
+          await authorize(original.name, toolCallId, input, signal)
           if (JSON.stringify(input) !== before)
             throw new Error('The approved input changed. Read again and submit the revised memory edit.')
           return () => {
