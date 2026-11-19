@@ -92,7 +92,6 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       .poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0))
       .toBe(true)
   }
-  const server = await startMockChatServer()
   testInfo.annotations.push({
     type: 'data-source',
     description:
@@ -123,6 +122,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
     return items
   }
   const originalIds = new Set((await entries()).map(({ id }) => id))
+  const server = await startMockChatServer()
   try {
     await test.step('1. Upload simple.rtf through Files and assert formatted read-only content', async () => {
       await selectSidebarApp(page, 'Files')
@@ -334,12 +334,14 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       await screenshot('MP-150 formatted RTF after restart')
     })
   } finally {
-    await server.close()
-    if (inspectorUrl)
-      await evaluateCdpExpression(
-        inspectorUrl,
-        `(() => { if (globalThis.__mp150) { process.mainModule.require('electron').shell.openExternal = globalThis.__mp150.original; delete globalThis.__mp150 } })()`
-      )
+    await Promise.all([
+      server.close(),
+      inspectorUrl &&
+        evaluateCdpExpression(
+          inspectorUrl,
+          `(() => { if (globalThis.__mp150) { process.mainModule.require('electron').shell.openExternal = globalThis.__mp150.original; delete globalThis.__mp150 } })()`
+        )
+    ])
     await page.evaluate(
       async ({ preferences, assistantId, providerId }) => {
         await window.api.preference.setMultiple({
