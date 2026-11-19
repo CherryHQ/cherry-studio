@@ -237,6 +237,7 @@
     "@copilotkit/aimock": "1.46.0",
     "@dagrejs/dagre": "^3.0.0",
     "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/helpers": "0.5.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@e965/xlsx": "^0.20.3",
