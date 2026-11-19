@@ -229,7 +229,7 @@ export function useAgentChatRuntimeState({
         ? t(`agent.edit_resend.error.${editReason}`)
         : forkReason
           ? agentSessionForkReasonLabel(t, forkReason)
-          : originalError
+          : undefined
       const details = [
         description,
         error instanceof IpcError ? `code: ${error.code}` : undefined,
@@ -243,7 +243,7 @@ export function useAgentChatRuntimeState({
       const notification: ToastConfig = {
         title: t('agent.edit_resend.label'),
         description,
-        details,
+        cause: error,
         timeout: 0,
         action: {
           label: t('common.copy'),

@@ -1,12 +1,13 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { isAbortError } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
   type ErrorToastAction,
   type ErrorToastPresentation,
   errorToastPresentations,
+  LocalizedToastError,
   serializeToastError
 } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
@@ -26,7 +27,6 @@ import { openExternalWebsite } from './website'
  */
 const resolveToastLabels = (): Partial<ToastLabels> => ({
   close: i18n.t('common.close'),
-  details: i18n.t('error.diagnosis.view_details'),
   error: i18n.t('common.error'),
   errorDescription: i18n.t('error.unknown'),
   loading: i18n.t('common.loading'),
@@ -37,6 +37,8 @@ const notifications = getToastUtilities(resolveToastLabels)
 
 export interface ErrorToastContext {
   key?: string
+  /** Localized conclusion used when the error is unclassified; raw text stays in details. */
+  title?: string
   category?: ErrorCategory
   provider?: Pick<Provider, 'id' | 'name' | 'websites'>
   modelName?: string
@@ -47,6 +49,7 @@ export interface ErrorToastContext {
 }
 
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
+  if (error instanceof LocalizedToastError) return errorFromException(error.cause, { ...context, title: error.message })
   const serialized = serializeToastError(error)
   const classification = classifyError(serialized, context.provider?.id)
   const category = context.category ?? classification.category
@@ -54,7 +57,6 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -71,25 +73,37 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
+  // Raw error text never titles a toast; it stays reachable through the detail (cause).
+  const title = planQuota
+    ? i18n.t('models.detail.quota_insufficient_for_request')
+    : category === 'unknown'
+      ? (context.title ?? i18n.t('toast.error.unexpected'))
+      : i18n.t(diagnosisKey)
   let running = false
-  const key = notifications[presentation.type]({
+  const config = {
     key: context.key,
-    title: planQuota
-      ? i18n.t('models.detail.quota_insufficient_for_request')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
-    description:
-      [
-        context.mcpServer?.name ?? provider?.name,
-        context.modelName,
-        category === 'rate_limit' && context.retryAfterSeconds !== undefined
-          ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
-          : undefined
-      ]
-        .filter(Boolean)
-        .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    title,
+    // Plan-quota text is Cherry's own localized wording (plan name, when it resets), not provider text.
+    description: planQuota
+      ? cloudPresentation.text || undefined
+      : [
+          context.mcpServer?.name ?? provider?.name,
+          context.modelName,
+          category === 'rate_limit' && context.retryAfterSeconds !== undefined
+            ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
+            : undefined,
+          category === 'unknown' && !context.title ? i18n.t('toast.error.interrupted') : undefined
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined,
+    cause: error,
+    data: {
+      ...(context.mcpServer ? { source: 'mcp' } : provider ? { source: 'provider' } : {}),
+      operation: `toast.${category}`,
+      localizedErrorMessage: title,
+      ...(provider ? { providerId: provider.id } : {}),
+      ...(context.mcpServer ? { recordId: context.mcpServer.id } : {})
+    },
     action:
       run && actionKind
         ? {
@@ -121,6 +135,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
                     ...context,
                     key,
                     category: undefined,
+                    title: undefined,
                     actions: tracksCompletion ? context.actions : {}
                   })
               } finally {
@@ -129,8 +144,17 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
             }
           }
         : undefined
-  })
+  }
+  const key = notifications[presentation.type](config)
   return key
+}
+
+/** An error toast that must not open another error-detail dialog. */
+export function toastInlineError(message: string): string {
+  return notifications.error({
+    title: message,
+    data: { suppressDetail: true }
+  })
 }
 
 export const toast = { ...notifications, errorFromException }

@@ -34,6 +34,12 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   unknown: { type: 'error' }
 }
 
+/**
+ * A failure whose message is an app-authored localized conclusion, for paths that throw instead of
+ * calling the toast (e.g. recovery actions). The toast titles with the message and classifies `cause`.
+ */
+export class LocalizedToastError extends Error {}
+
 export function serializeToastError(error: unknown): SerializedError {
   const detail = aiErrorDetail(error)
   if (detail) return detail

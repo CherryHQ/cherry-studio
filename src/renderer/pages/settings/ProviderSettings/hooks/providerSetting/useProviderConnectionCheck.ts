@@ -16,6 +16,7 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
+import { LocalizedToastError } from '@renderer/utils/errorToast'
 import type { Model } from '@shared/data/types/model'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
@@ -132,7 +133,9 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
             })
             if (notify) toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
             else if (result.kind === 'ok') {
-              throw new Error(i18n.t('settings.provider.enable_failed_after_connection'), { cause: error })
+              throw new LocalizedToastError(i18n.t('settings.provider.enable_failed_after_connection'), {
+                cause: error
+              })
             }
           }
         }

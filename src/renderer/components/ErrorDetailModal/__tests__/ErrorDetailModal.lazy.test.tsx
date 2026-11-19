@@ -36,7 +36,7 @@ describe('ErrorDetailModal lazy dependencies', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ error: { name: 'ProviderError', message: 'unavailable', stack: null } })
+      void showErrorDetailPopup({ error: { name: 'ProviderError', message: 'unavailable', stack: null } })
     })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()

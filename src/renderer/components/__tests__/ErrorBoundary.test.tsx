@@ -4,6 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
+
+const detail = vi.hoisted(() => ({ open: vi.fn(async () => 'opened' as const) }))
+
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: InlineErrorDetailInput) => ({
+    context: { id: 'fault', message: '', occurredAt: '', operation: input.operation, source: input.source },
+    error: input.error
+  }),
+  appErrorDetailService: { openAppErrorDetail: detail.open }
+}))
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
@@ -21,6 +32,8 @@ describe('ErrorBoundary', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    detail.open.mockClear()
   })
 
   it('logs caught render errors through loggerService', () => {
@@ -58,27 +71,43 @@ describe('ErrorBoundary', () => {
     expect(errorSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('discloses error details on demand and keeps recovery actions available', async () => {
+  it('shows a localized conclusion without raw error text inline and keeps reload available', async () => {
     const user = userEvent.setup()
     const request = vi.fn().mockResolvedValue({ ok: true, data: undefined })
     vi.stubGlobal('api', { ipcApi: { request } })
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(
       <ErrorBoundary>
         <Bomb />
       </ErrorBoundary>
     )
 
-    const details = screen.getByText(boomError.message)
-    expect(details).not.toBeVisible()
-    await user.click(screen.getByText(i18n.t('error.boundary.details')))
-    expect(details).toBeVisible()
-    await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
-    expect(writeText).toHaveBeenCalledWith(boomError.message)
-    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.devtools') }))
-    expect(request).toHaveBeenCalledWith('system.toggle_dev_tools', undefined)
+    expect(screen.getByText(i18n.t('error.boundary.default.title'))).toBeInTheDocument()
+    // Raw text and copy live in the error detail modal, not in the fallback.
+    expect(screen.queryByText(boomError.message, { exact: false })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
     expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
+  })
+
+  it('opens the error detail for this fault when the card is clicked, but not from its reload action', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('api', { ipcApi: { request: vi.fn().mockResolvedValue({ ok: true, data: undefined }) } })
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
+    expect(detail.open).not.toHaveBeenCalled()
+
+    await user.click(screen.getByText(i18n.t('error.boundary.default.title')))
+    await vi.waitFor(() => expect(detail.open).toHaveBeenCalledTimes(1))
+    expect(detail.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ source: 'renderer', operation: 'react.render' }),
+        error: boomError
+      })
+    )
   })
 
   // B6: the boundary wraps every window's provider stack (incl. the lightest
