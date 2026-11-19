@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarStoredItem
+} from '@shared/data/preference/preferenceTypes'
 
 import {
   addSidebarShortcut,
@@ -43,8 +47,12 @@ describe('sidebar shortcut storage transforms', () => {
 
   it('preserves prototype-named future items without treating them as legacy resource types', () => {
     const future = ['constructor', 'toString', '__proto__'].map((type) => ({ type, id: `future-${type}` }))
-    expect(normalizeSidebarShortcutItems(future)).toEqual(future)
-    expect(getVisibleSidebarShortcutItems(future)).toEqual([])
+    const normalized = normalizeSidebarShortcutItems(future)
+    const visible = getVisibleSidebarShortcutItems(future)
+    expectTypeOf(normalized).toEqualTypeOf<SidebarStoredItem[]>()
+    expectTypeOf(visible).toEqualTypeOf<SidebarShortcutItem[]>()
+    expect(normalized).toEqual(future)
+    expect(visible).toEqual([])
   })
   it('migrates legacy leaves, deduplicates them, and preserves future top-level items', () => {
     const future = { type: 'group', id: 'future', children: ['x'] }
@@ -89,7 +97,7 @@ describe('sidebar shortcut storage transforms', () => {
     const assistant = shortcut('core.app', 'assistants')
     const agent = shortcut('core.agent', 'agent-1')
     const topic = shortcut('core.topic', 'topic-1')
-    const future = { type: 'group', id: 'future' } as unknown as SidebarShortcutItem
+    const future = { type: 'group', id: 'future' }
     const stored = [agent, future, assistant, topic]
 
     expect(removeSidebarShortcut(stored, assistant.target)).toEqual([agent, future, topic])

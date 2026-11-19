@@ -1,14 +1,18 @@
 import { createMockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarStoredItem
+} from '@shared/data/preference/preferenceTypes'
 
 import { createSidebarShortcutTarget } from '../../utils/sidebar'
 import { SidebarShortcutService } from '../SidebarShortcutService'
 
-function createClient(initial: SidebarShortcutItem[] = []) {
+function createClient(initial: SidebarStoredItem[] = []) {
   let current = initial
-  const set = vi.fn(async (_key: string, value: SidebarShortcutItem[]) => {
+  const set = vi.fn(async (_key: string, value: SidebarStoredItem[]) => {
     current = value
   })
   return {
@@ -34,6 +38,24 @@ describe('SidebarShortcutService', () => {
       { type: 'shortcut', id: createSidebarShortcutId(target), target }
     ])
     expect(preferences.getCachedValue('ui.sidebar.favorites')).toEqual(legacy)
+  })
+
+  it('preserves future sidebar variants when shortcuts are pinned and removed', async () => {
+    const future = { type: 'group', id: 'future', children: ['child'] }
+    const preferences = createMockPreferenceService({ 'ui.sidebar_shortcut': [future] })
+    const service = new SidebarShortcutService(preferences)
+    const target = createSidebarShortcutTarget('core.agent', 'agent-1')
+
+    await service.setPinned(target, true)
+
+    expect(preferences.getCachedValue('ui.sidebar_shortcut')).toEqual([
+      future,
+      { type: 'shortcut', id: createSidebarShortcutId(target), target }
+    ])
+
+    await service.remove(target)
+
+    expect(preferences.getCachedValue('ui.sidebar_shortcut')).toEqual([future])
   })
 
   it('keeps repeated stale add intents pinned and repeated remove intents unpinned', async () => {

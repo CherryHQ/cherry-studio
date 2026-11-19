@@ -193,6 +193,9 @@ export interface SidebarShortcutItem {
   fallbackLabel?: string
 }
 
+/** Storage retains future sidebar variants; renderers must narrow entries before using their fields. */
+export type SidebarStoredItem = SidebarShortcutItem | { type: string; id: string }
+
 export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
   const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
   if (target.activationId !== undefined) parts.push(target.activationId)
