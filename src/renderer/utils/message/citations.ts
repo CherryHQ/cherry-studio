@@ -24,7 +24,6 @@
  * prefers that path whenever reference metadata is present.
  */
 
-import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 import type * as z from 'zod'
 
@@ -83,8 +82,6 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
 
-type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -121,8 +118,8 @@ function citableCherryToolName(wireName: string): string | null {
  * to share a name are deliberately excluded.
  */
 function resolveCitableToolName(part: CherryMessagePart): string | null {
-  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
-  const toolPart = part as unknown as ToolResponsePart
+  if (!isToolUIPart(part)) return null
+  const toolPart = part
   if (toolPart.state !== 'output-available') return null
 
   const rawName = getToolName(toolPart)
