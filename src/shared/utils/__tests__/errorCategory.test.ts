@@ -516,3 +516,18 @@ describe('classifyErrorCategory invalid inline image', () => {
     expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
   })
 })
+
+describe('request body buffer limit', () => {
+  it.each([undefined, 400, 413])('recognizes the proxy rejection with status %s', (status) => {
+    expect(
+      classifyErrorCategory({ text: '413 Failed to buffer the request body: length limit exceeded', status })
+    ).toBe('payload')
+  })
+
+  it.each([
+    'Failed to buffer the response body: length limit exceeded',
+    'Failed to buffer the request body: connection closed'
+  ])('does not infer a request size rejection from %s', (text) => {
+    expect(classifyErrorCategory({ text })).not.toBe('payload')
+  })
+})
