@@ -262,6 +262,14 @@ describe('lifecycle memory owner', () => {
       (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
     )
     expect(await (await transport('https://test.invalid')).json()).toEqual({ answer: 'OK' })
+    dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, replyId)).run()
+    if (!enabled) {
+      const later = service.open(authority())
+      const onDisk = await fs.readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), `${onDisk}\nAnother preference`)
+      await later.clear((await later.previewClear()).token, approve)
+      later.dispose()
+    }
     await service._doStop()
     BaseService.resetInstances()
     service = new MemoryService()

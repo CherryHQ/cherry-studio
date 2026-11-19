@@ -99,6 +99,12 @@ vi.mock('@application', async () => {
   }
   return mockApplicationFactory(overrides)
 })
+vi.mock('@main/ai/memory/memoryRuntime', () => ({
+  openRuntimeMemoryGuard: () => ({ check: async () => {}, assertActive: () => {}, dispose: () => {} })
+}))
+vi.mock('@main/ai/memory/memoryPrompt', () => ({
+  agentMemoryReference: async (sessionId: string) => `MEMORY_ENTRY_${sessionId}`
+}))
 vi.mock('../pi/piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
@@ -211,6 +217,7 @@ describe('desktop Pi Durable connection', () => {
     await current.connection.send({ message: message('Identify your model') })
     await done(current.events)
 
+    expect(script.calls[0].systemPrompt).toContain(`MEMORY_ENTRY_${input.sessionId}`)
     expect(script.calls[0].systemPrompt).toContain('My model is Captured model.')
     expect(script.calls[0].systemPrompt).not.toContain('My model is Agent default.')
   })
