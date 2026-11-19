@@ -2613,7 +2613,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'data-translation', data: { content: 'translated answer', targetLanguage: 'en' } },
         {
           type: 'data-compaction-anchor',
-          data: { status: 'done', phase: 'in-loop', trigger: 'auto', completedAt: '2026-01-01T00:00:00Z' }
+          data: { status: 'done', phase: 'agent-session', trigger: 'auto', completedAt: '2026-01-01T00:00:00Z' }
         },
         { type: 'data-error', data: { name: 'Err', message: 'visible error' } },
         { type: 'file', url: 'https://img.test/result.png', mediaType: 'image/png' },
