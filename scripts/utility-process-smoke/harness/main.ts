@@ -24,13 +24,18 @@ const WATCHDOG_MS = 90_000
 const logger = createEvidenceLogger()
 let failures = 0
 
-const hostFor = (definition: typeof smokeEchoProcess) =>
-  new ProcessHost<SmokeContract, SmokeInitData>(definition, {
-    adapter: measureStreams(electronProcessAdapter),
-    logger,
-    resolveEntry: (entry) => path.join(app.getAppPath(), 'out', 'utility-process', `${entry}.js`),
-    getTempDir: () => app.getPath('temp')
-  })
+const hostFor = (definition: typeof smokeEchoProcess, instanceId?: string, restart?: 'never') =>
+  new ProcessHost<SmokeContract, SmokeInitData>(
+    definition,
+    {
+      adapter: measureStreams(electronProcessAdapter),
+      logger,
+      resolveEntry: (entry) => path.join(app.getAppPath(), 'out', 'utility-process', `${entry}.js`),
+      getTempDir: () => app.getPath('temp')
+    },
+    instanceId,
+    restart
+  )
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -85,6 +90,58 @@ async function withHost(
 }
 
 async function runChecks(): Promise<void> {
+  await check('independent-single-generation-instances', async () => {
+    const first = hostFor(
+      { ...smokeEchoProcess, createInitData: () => ({ label: 'conversation-a' }) },
+      'conversation-a',
+      'never'
+    )
+    const second = hostFor(
+      { ...smokeEchoProcess, createInitData: () => ({ label: 'conversation-b' }) },
+      'conversation-b',
+      'never'
+    )
+    try {
+      const [a, b] = await Promise.all([first.request('identity', undefined), second.request('identity', undefined)])
+      assert(
+        a.label === 'conversation-a' && b.label === 'conversation-b' && a.pid !== b.pid,
+        'instance initialization or process isolation failed'
+      )
+      await first.stop()
+      assert(
+        isUtilityProcessError(await rejectionOf(first.request('identity', undefined)), 'PROCESS_BLOCKED'),
+        'old stopped handle spawned a replacement'
+      )
+      const stillAlive = await second.request('identity', undefined)
+      assert(stillAlive.pid === b.pid && stillAlive.label === b.label, 'stopping a sibling replaced the live instance')
+      assert(
+        isUtilityProcessError(await rejectionOf(second.request('crash', undefined)), 'PROCESS_EXITED'),
+        'crash was not reported'
+      )
+      assert(
+        isUtilityProcessError(await rejectionOf(second.request('identity', undefined)), 'PROCESS_BLOCKED'),
+        'old crashed handle spawned a replacement'
+      )
+      record({ event: 'instance-identities', first: a, second: b })
+    } finally {
+      await Promise.all([first.dispose(), second.dispose()])
+    }
+  })
+  await check('headless-ghostty-assets-and-replies', () =>
+    withHost(smokeEchoProcess, async (host) => {
+      const result = await host.request('ghostty', path.join(app.getAppPath(), 'resources', 'terminal', 'ghostty'))
+      assert(
+        result.unicode === '世界' && result.restored === '世界',
+        'Unicode grid or primary screen restoration failed'
+      )
+      assert(result.reply === '\x1b[1;5R', 'headless cursor query was not answered')
+      assert(result.normalKey === '\x1b[A' && result.applicationKey === '\x1bOA', 'key encoding ignored terminal mode')
+      assert(result.paste === '\x1b[200~中文\x1b[201~', 'bracketed paste encoding failed')
+      assert(result.alternate === 'ALT' && result.cols === 10 && result.rows === 6, 'alternate screen or resize failed')
+      assert(result.siblingText === 'alive' && result.siblingReply === '\x1b[0n', 'core disposal damaged its sibling')
+      record({ event: 'ghostty', ...result })
+    })
+  )
   await check('stream-duplex-slow-consumer', () => withHost(smokeEchoProcess, checkDuplexStream))
   await check('stream-cooperative-cancel', () => withHost(smokeEchoProcess, checkStreamCancel))
   await check('stream-terminate-cancel', () => withHost(smokeTerminateProcess, checkStreamCancel))

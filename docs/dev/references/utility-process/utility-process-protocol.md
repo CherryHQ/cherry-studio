@@ -78,6 +78,8 @@ An uncaught exception or unhandled rejection in the child logs at `error`, abort
 
 A generation is one process from fork to observed exit. There is never more than one live at a time — the successor is created only after the predecessor's `exit` event, which is why a stuck stop blocks respawn instead of doubling up.
 
+This limit is per host: cached clients share a host per definition, while independently owned instances have separate hosts. An instance created with `restart: 'never'` refuses a successor even after confirmed exit; subsequent requests and streams fail with `PROCESS_BLOCKED`. Startup failure also consumes that instance's only generation. The [consumer guide](README.md#independently-owned-instances) defines replacement ownership.
+
 ```
       first request
             │

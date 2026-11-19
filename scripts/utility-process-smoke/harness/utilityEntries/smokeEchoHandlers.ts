@@ -7,9 +7,14 @@ import type {
   UtilityProcessStreamHandlers
 } from '../../../../src/main/core/utilityProcess/runtime/serveUtilityProcess'
 import { checksum, type SmokeContract, type SmokeInitData } from '../smokeContract'
+import { checkGhostty } from './ghosttyScenario'
+
+let label = ''
 
 export const smokeHandlers: UtilityProcessHandlers<SmokeContract> = {
   ping: () => 'pong',
+  identity: () => ({ label, pid: process.pid }),
+  ghostty: (assetDirectory, { logger }) => checkGhostty(assetDirectory, (message) => logger.debug(message)),
   echoBytes: (bytes) => {
     if (!(bytes instanceof Uint8Array)) throw new TypeError('echoBytes did not receive a Uint8Array')
     return { byteLength: bytes.byteLength, checksum: checksum(bytes), bytes }
@@ -31,8 +36,9 @@ export const smokeHandlers: UtilityProcessHandlers<SmokeContract> = {
   }
 }
 
-export function initialize({ label }: SmokeInitData, context: { logger: { info: (message: string) => void } }): void {
-  if (typeof label !== 'string') throw new TypeError('initData.label must be a string')
+export function initialize(initData: SmokeInitData, context: { logger: { info: (message: string) => void } }): void {
+  if (typeof initData.label !== 'string') throw new TypeError('initData.label must be a string')
+  label = initData.label
   context.logger.info(`initialized as ${label}`)
 }
 

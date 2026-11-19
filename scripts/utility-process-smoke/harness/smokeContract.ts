@@ -22,6 +22,25 @@ export type SmokeContract = {
   }
   methods: {
     ping: UtilityProcessMethod<void, string>
+    identity: UtilityProcessMethod<void, { label: string; pid: number }>
+    ghostty: UtilityProcessMethod<
+      string,
+      {
+        node: string
+        revision: string
+        unicode: string
+        reply: string
+        normalKey: string
+        applicationKey: string
+        paste: string
+        alternate: string
+        restored: string
+        cols: number
+        rows: number
+        siblingText: string
+        siblingReply: string
+      }
+    >
     /** Round-trips a large typed array and reports what the child received. */
     echoBytes: UtilityProcessMethod<Uint8Array, { byteLength: number; checksum: number; bytes: Uint8Array }>
     /** Never settles and ignores its abort signal — models a wedged native call. */

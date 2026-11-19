@@ -77,7 +77,20 @@ const client = application.get('UtilityProcessManager').client(embeddingInferenc
 const vectors = await client.request('embed', { modelDir, dtype, texts }, { signal })
 ```
 
-Nothing spawns until the first `request()`. The client exposes exactly three operations — `request`, `stop`, `withStopped` — and never a fork, pid, port, or generation number.
+Nothing spawns until the first request or stream. Clients expose `request`, `openStream`, `stop`, and `withStopped`, without exposing a fork, pid, port, or generation number.
+
+### Independently owned instances
+
+`client(definition)` caches one client per registered definition. `createInstance(definition, options?)` creates an independently owned client, whose `dispose()` permanently closes it. Stopping or disposing one instance does not stop siblings. The consumer owns instance identity and resource admission; core does not key instances by conversation or workspace.
+
+```typescript
+const instance = application.get('UtilityProcessManager').createInstance(terminalDefinition, {
+  createInitData: () => ({ conversationId, hostGeneration }),
+  restart: 'never'
+})
+```
+
+`createInitData` overrides the registered definition's factory for that instance only, retaining its declared init-data type and startup budget. `restart: 'never'` permits at most one generation, including a failed startup. After its exit, old requests and streams fail with `PROCESS_BLOCKED`; `stop({ resetFailures: true })` cannot reopen it. A cancelled request that never started the process does not consume this generation. Dispose the old instance and explicitly create a replacement after reconciling the consumer's resources. Instances without this option retain the recovery behavior below.
 
 ### Consumer recovery contract
 

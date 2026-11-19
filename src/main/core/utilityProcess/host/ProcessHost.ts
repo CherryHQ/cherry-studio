@@ -156,7 +156,8 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   constructor(
     private readonly definition: UtilityProcessDefinition<Contract, InitData>,
     private readonly deps: ProcessHostDeps,
-    instanceId?: string
+    instanceId?: string,
+    private readonly restart?: 'never'
   ) {
     this.serviceName = `${SERVICE_NAME_PREFIX}${definition.id}${instanceId ? `:${instanceId}` : ''}`
   }
@@ -252,6 +253,9 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
           `circuit open after ${this.failureCount} consecutive failures; reset with stop({ resetFailures: true })`
         )
       this.clearIdleTimer()
+      if (this.live === null && this.generationCounter > 0 && this.restart === 'never') {
+        throw this.error('PROCESS_BLOCKED', 'instance generation ended; create a new instance explicitly')
+      }
       const generation = this.live ?? this.spawnGeneration()
       if (generation.phase === 'stopping') {
         await abortable(generation.exit.promise, signal)

@@ -43,7 +43,7 @@ import {
 } from './hostTestUtils'
 import { createMemoryProcessAdapter, flushMicrotasks, type MemoryChild, waitUntil } from './memoryProcessAdapter'
 
-const echoDefinition = defineUtilityProcess<EchoContract>({
+const echoDefinition = defineUtilityProcess<EchoContract, unknown>({
   id: ECHO_ID,
   entry: 'test-echo',
   cancellation: 'cooperative'
@@ -128,6 +128,104 @@ describe('UtilityProcessManager', () => {
     expect(await second.request('echo', 'still alive')).toBe('still alive')
     await manager._doStop()
     await expect(second.request('ping', undefined)).rejects.toThrow('closed')
+  })
+
+  it('initializes each independent instance without changing the registered definition', async () => {
+    const initialized: unknown[] = []
+    const { manager } = createManager({
+      serve: {
+        initialize: (data) => {
+          initialized.push(data)
+        }
+      }
+    })
+    await manager._doInit()
+    const first = manager.createInstance(echoDefinition, { createInitData: async () => ({ conversation: 'a' }) })
+    const second = manager.createInstance(echoDefinition, { createInitData: () => ({ conversation: 'b' }) })
+
+    await first.request('ping', undefined)
+    await second.request('ping', undefined)
+    await manager.client(echoDefinition).request('ping', undefined)
+
+    expect(initialized).toEqual([{ conversation: 'a' }, { conversation: 'b' }, undefined])
+    await manager._doStop()
+  })
+
+  it('blocks old handles after stop while ordinary instances can still restart', async () => {
+    const { manager, adapter } = createManager()
+    await manager._doInit()
+    const owned = manager.createInstance(echoDefinition, { restart: 'never' })
+    const ordinary = manager.createInstance(echoDefinition)
+    await owned.request('ping', undefined)
+    await ordinary.request('ping', undefined)
+
+    await owned.stop()
+    const error = await rejectionOf(owned.request('ping', undefined))
+    expect(isUtilityProcessError(error, 'PROCESS_BLOCKED')).toBe(true)
+    await owned.withStopped(() => undefined, { resetFailures: true })
+    await expect(owned.request('echo', 'old output handle')).rejects.toThrow('generation ended')
+    await ordinary.stop()
+    await expect(ordinary.request('ping', undefined)).resolves.toBe('pong')
+    expect(adapter.spawns).toHaveLength(3)
+    await manager._doStop()
+  })
+
+  it('cannot restart a crashed generation and leaves a sibling and explicit replacement usable', async () => {
+    const { manager, adapter } = createManager()
+    await manager._doInit()
+    const owned = manager.createInstance(echoDefinition, { restart: 'never' })
+    const sibling = manager.createInstance(echoDefinition, { restart: 'never' })
+    await owned.request('ping', undefined)
+    await sibling.request('ping', undefined)
+
+    const waiting = rejectionOf(owned.request('wait', undefined))
+    await waitUntil(
+      () => adapter.spawns[0].child.frames.some((frame) => frame.kind === 'request' && frame.method === 'wait'),
+      'wait started'
+    )
+    adapter.spawns[0].child.exit(9)
+    const failure = await waiting
+    expect(isUtilityProcessError(failure, 'PROCESS_EXITED')).toBe(true)
+    await expect(owned.request('ping', undefined)).rejects.toThrow('generation ended')
+    await expect(sibling.request('echo', 'alive')).resolves.toBe('alive')
+    expect(adapter.spawns).toHaveLength(2)
+    const replacement = manager.createInstance(echoDefinition, { restart: 'never' })
+    await expect(replacement.request('ping', undefined)).resolves.toBe('pong')
+    expect(adapter.spawns).toHaveLength(3)
+    await manager._doStop()
+  })
+
+  it('does not silently retry an instance whose initialization failed', async () => {
+    const { manager, adapter } = createManager({
+      serve: {
+        initialize: () => {
+          throw new Error('bad init data')
+        }
+      }
+    })
+    await manager._doInit()
+    const owned = manager.createInstance(echoDefinition, { restart: 'never' })
+
+    const failure = await rejectionOf(owned.request('ping', undefined))
+    expect(isUtilityProcessError(failure, 'PROCESS_START_FAILED')).toBe(true)
+    await waitUntil(() => adapter.spawns[0].child.exited, 'failed generation exit')
+    await expect(owned.request('ping', undefined)).rejects.toThrow('generation ended')
+    expect(adapter.spawns).toHaveLength(1)
+    await manager._doStop()
+  })
+
+  it('does not consume the single generation when a request is cancelled before startup', async () => {
+    const { manager, adapter } = createManager()
+    await manager._doInit()
+    const owned = manager.createInstance(echoDefinition, { restart: 'never' })
+    const abort = new AbortController()
+    abort.abort(new Error('wait cancelled'))
+
+    await expect(owned.request('ping', undefined, { signal: abort.signal })).rejects.toThrow('wait cancelled')
+    expect(adapter.spawns).toHaveLength(0)
+    await expect(owned.request('ping', undefined)).resolves.toBe('pong')
+    expect(adapter.spawns).toHaveLength(1)
+    await manager._doStop()
   })
 
   it('rejects a definition object that was not registered', async () => {

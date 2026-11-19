@@ -133,3 +133,9 @@ export interface UtilityProcessInstance<
 > extends UtilityProcessClient<Contract> {
   dispose(): Promise<void>
 }
+
+export interface UtilityProcessInstanceOptions<InitData> {
+  createInitData?: () => InitData | Promise<InitData>
+  /** A resource owner must explicitly create a replacement after the first generation ends. */
+  restart?: 'never'
+}

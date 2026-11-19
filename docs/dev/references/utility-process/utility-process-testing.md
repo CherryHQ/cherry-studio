@@ -10,7 +10,7 @@ sources:
 ## Three layers
 
 1. **Child runtime, no host** — `serveUtilityProcess.test.ts` drives the real runtime through a fake `parentPort`: ready ordering, terminal shape, violations and their exit codes, cancellation, shutdown.
-2. **Host and manager, no Electron** — the `ProcessHost.*.test.ts` files drive the real engine through an in-memory adapter: lifecycle, cancellation and protocol violations, the breaker, and the stop/`withStopped` barriers. `UtilityProcessManager.test.ts` checks registration, stable clients, and maintenance exclusion across stop/restart, including queued callbacks and callback failure. Timers are faked, so the 10 s ready timeout and the 4 s stop budget cost nothing.
+2. **Host and manager, no Electron** — the `ProcessHost.*.test.ts` files drive the real engine through an in-memory adapter: lifecycle, cancellation and protocol violations, the breaker, and the stop/`withStopped` barriers. `UtilityProcessManager.test.ts` checks registration, stable clients, independent init data, single-generation instances, and maintenance exclusion across stop/restart, including queued callbacks and callback failure. Timers are faked, so the 10 s ready timeout and the 4 s stop budget cost nothing.
 3. **Real Electron, manual** — `pnpm smoke:utility-process` builds a throwaway app and runs it twice on real processes.
 
 `ProcessHost.stream.test.ts` and `utilityProcessStream.test.ts` additionally cover stream capacity, EOF ordering, cancellation before iteration, cleanup acknowledgement, protocol failures, and stop/exit ownership.
@@ -43,6 +43,8 @@ The harness covers transport and process behavior. Stream checks exercise real M
 
 | Check | What only a real process proves |
 | --- | --- |
+| `independent-single-generation-instances` | Distinct processes receive their own init data; stopping one leaves its sibling alive; stopped/crashed handles cannot spawn another generation |
+| `headless-ghostty-assets-and-replies` | The child reads pinned WASM from each app layout and produces Unicode cells, replies, mode-aware input, alternate-screen restoration, resize, and sibling core isolation without a renderer |
 | `stream-duplex-slow-consumer` | Ordered bidirectional data and EOF under delayed consumption; measured outstanding byte/frame peaks in each direction |
 | `stream-cooperative-cancel` | A blocked producer cleans up and acknowledges cancellation over the real port |
 | `stream-terminate-cancel` | Native-style termination closes the stream only after process exit |
@@ -57,6 +59,8 @@ The harness covers transport and process behavior. Stream checks exercise real M
 | `net-proxy` | `electron.net.fetch()` in the child honours `app.setProxy()` |
 
 `stream-capacity` evidence records measure unconsumed metadata/payload bytes and frame counts, including the current iterator frame. They are queue measurements, not process RSS. Audio-model production and renderer playback require separate consumer integration evidence.
+
+The Ghostty fixture does not establish conversation admission, PTY or pipe execution, aggregate Host budgets, independent view projection, Windows process-scope cleanup, or final-installer compatibility. Those remain terminal-consumer checks.
 
 The build assertions matter as much as the checks: the runner rejects any `require()` in an entry bundle that is not relative, `electron`, or a Node builtin, and greps both trees for `LoggerService` / `winston` / `ServiceContainer`.
 

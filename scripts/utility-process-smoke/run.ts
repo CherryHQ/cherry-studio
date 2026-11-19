@@ -125,6 +125,11 @@ async function main(): Promise<void> {
   fs.mkdirSync(EVIDENCE_DIR, { recursive: true })
   build('electron.vite.main.config.ts')
   build('electron.vite.entries.config.ts')
+  fs.cpSync(
+    path.join(REPO_ROOT, 'resources', 'terminal', 'ghostty'),
+    path.join(APP_DIR, 'resources', 'terminal', 'ghostty'),
+    { recursive: true }
+  )
   fs.writeFileSync(
     path.join(APP_DIR, 'package.json'),
     `${JSON.stringify({ name: 'utility-process-smoke', version: '0.0.0', main: 'out/main/index.js' }, null, 2)}\n`
