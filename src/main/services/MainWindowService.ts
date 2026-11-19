@@ -11,12 +11,12 @@ import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
-import { fitMainWindowBounds } from '@main/core/window/mainWindowBounds'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
+import { fitMainWindowBounds, resolveMainWindowOptions } from '@main/services/mainWindowBounds'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -275,6 +275,7 @@ export class MainWindowService extends BaseService {
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
       initData,
+      configureOptions: resolveMainWindowOptions,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && { icon: linuxIcon }),

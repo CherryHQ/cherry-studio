@@ -12,6 +12,8 @@ Main uses its 960 × 600 minimum as its initial size. Remembered bounds can shri
 
 The main window starts at 90% of the primary work area, capped at 1440 × 900 DIPs and floored at 960 × 600 where the work area permits. Valid remembered geometry takes precedence. Both the initial rectangle and native size limits fit the work area, including displays with negative coordinates.
 
+`MainWindowService` owns the sizing policy in `src/main/services/mainWindowBounds.ts` and supplies it through `OpenWindowArgs.configureOptions`. WindowManager invokes the callback after restoring saved bounds and before construction, without a Main-specific branch. Singleton reuse does not reapply construction sizing.
+
 Screen fitting runs when constructing the window and on explicit minimum-size changes from compact mode. MainWindowService limits the requested minimum to the current work area and fits ordinary geometry when applying it. It updates the minimum without explicitly resizing maximized, fullscreen, or minimized windows. There is no screen-based maximum size or ongoing display/move correction, so users retain control of window size and placement after creation.
 
 ## Alternatives considered
@@ -26,6 +28,7 @@ Existing valid saved sizes are not automatically enlarged. Screens smaller than 
 
 ## Verification
 
+- Regression — `WindowManager.test.ts`: construction configuration receives restored bounds, applies changes before construction, and does not run on singleton reuse.
 - Regression — `mainWindowBounds.test.ts`: initial sizes, work-area offsets, ultrawide and portrait screens, negative coordinates, removed displays, invalid records, and minimum expansion keep the resulting rectangle within the work area.
 - Regression — `MainWindowService.test.ts`: explicit minimum changes fit both dimensions to small screens, minimum reset grows compact geometry within the work area, lowering the minimum preserves user geometry, and special window states receive minimum updates without explicit resizing.
 - Prior macOS Electron 45.2.2 runtime verification covered initial 1440 × 900 bounds within a 1728 × 1024 work area and restart restoration to 1200 × 760. The removal of ongoing size limits and correction is covered by focused source and unit checks; interactive verification of this revision remains pending.

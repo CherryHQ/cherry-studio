@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { WindowType, type WindowOptions } from '@main/core/window/types'
+import { injectSavedBounds } from '@main/core/window/windowBoundsTracker'
 
 import { fitMainWindowBounds, resolveMainWindowOptions } from '../mainWindowBounds'
-import { injectSavedBounds } from '../windowBoundsTracker'
 
 vi.mock('electron', () => ({ screen: { getPrimaryDisplay: vi.fn(), getDisplayMatching: vi.fn() } }))
 

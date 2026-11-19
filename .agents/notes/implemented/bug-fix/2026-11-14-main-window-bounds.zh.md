@@ -12,6 +12,8 @@ Status: implemented
 
 主窗口首次使用主屏幕可用区域的 90%，上限为 1440 × 900 DIP；可用区域允许时，下限为 960 × 600。有效历史边界优先。初始矩形和原生尺寸限制均适配可用区域，包括坐标为负的显示器。
 
+`MainWindowService` 在 `src/main/services/mainWindowBounds.ts` 中拥有尺寸策略，并通过 `OpenWindowArgs.configureOptions` 提供。WindowManager 在恢复历史边界后、构造窗口前调用该回调，不包含 Main 专用分支。单例复用时不重新应用构造尺寸。
+
 屏幕适配在构造窗口及紧凑模式显式变更最小尺寸时执行。MainWindowService 将请求的最小尺寸限制在当前可用区域内，并在应用时适配普通窗口边界。最大化、全屏和最小化窗口只更新最小尺寸，不显式调整边界。不设置基于屏幕的最大尺寸，也不持续监听显示器或移动事件来修正边界，让用户在创建后自行控制窗口大小和位置。
 
 ## Alternatives considered
@@ -26,6 +28,7 @@ Status: implemented
 
 ## Verification
 
+- Regression — `WindowManager.test.ts`：配置回调接收已恢复的历史边界，在构造前应用变更，且不在单例复用时执行。
 - Regression — `mainWindowBounds.test.ts`：初始尺寸、可用区域偏移、超宽屏和竖屏、负坐标、显示器移除、无效记录及最小尺寸扩展，均保证最终矩形处于可用区域内。
 - Regression — `MainWindowService.test.ts`：显式变更最小尺寸时适配小屏幕的宽高两个维度，重置最小尺寸在可用区域内扩展紧凑窗口，降低最小尺寸保留用户边界，特殊窗口状态只更新最小尺寸而不显式调整大小。
 - 先前的 macOS Electron 45.2.2 实机验证覆盖了在 1728 × 1024 可用区域内使用 1440 × 900 初始边界，以及重启恢复 1200 × 760。本次移除持续尺寸限制和边界修正由定向源码检查和单元测试覆盖；本次修订的交互验证尚待执行。

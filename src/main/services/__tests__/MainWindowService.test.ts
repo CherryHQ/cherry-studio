@@ -63,7 +63,7 @@ const {
     ),
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
-    open: vi.fn(() => 'mock-window-id'),
+    open: vi.fn<(type: WindowType, args?: OpenWindowArgs) => string>(() => 'mock-window-id'),
     pushInitDataToType: vi.fn(),
     // Bounds are restored declaratively by WindowManager; setupMainWindow reads
     // the saved maximized flag back through this to re-apply maximize itself.
@@ -204,7 +204,7 @@ import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
 import { screen } from 'electron'
 
-import { WindowType } from '@main/core/window/types'
+import { type OpenWindowArgs, WindowType, type WindowOptions } from '@main/core/window/types'
 import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
@@ -1520,6 +1520,19 @@ describe('MainWindowService', () => {
         expect(windowManagerMock.open).not.toHaveBeenCalled()
       }
     )
+
+    it('provides screen fitting for fresh main window construction', () => {
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        workArea: { x: -800, y: 25, width: 800, height: 540 }
+      } as any)
+      svc.showMainWindow()
+      const args = windowManagerMock.open.mock.calls.at(-1)?.[1]
+      const config: WindowOptions = { x: -700, y: 100, width: 1200, height: 760 }
+
+      args?.configureOptions?.(config)
+
+      expect(config).toEqual({ x: -800, y: 25, width: 800, height: 540, minWidth: 800, minHeight: 540 })
+    })
 
     it.each(['missing', 'destroyed'])('passes init data into WindowManager when the main window is %s', (state) => {
       const initData = { kind: 'navigation' as const, to: '/settings/provider' as const, requestId: 1 }
