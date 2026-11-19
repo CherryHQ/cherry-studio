@@ -483,7 +483,7 @@ async function apiFetch<TSchema extends z.ZodType>(
   schema: TSchema,
   baseUrlOrigin: string,
   endpoint: string,
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Message, typing, upload and lifecycle requests have distinct bodies; this transport owns JSON serialization before the endpoint parses its response schema.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Message, typing, upload and lifecycle requests have distinct bodies; this transport serializes them and validates responses with endpoint-specific schemas.
   body: unknown,
   token: string,
   uin: string,
