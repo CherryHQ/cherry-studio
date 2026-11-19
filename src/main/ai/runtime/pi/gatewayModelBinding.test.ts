@@ -631,7 +631,7 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
 
 // The binding is shared by root and selected child configurations.
 it.each([
-  [49_152, 16_384, 12_288],
+  [49_152, 16_384, 20_000],
   [1_000_000, 108_192, 20_000]
 ])('returns native compaction budgets for a %s-token model', async (contextWindow, reserveTokens, keepRecentTokens) => {
   gateway.baseUrl = 'http://127.0.0.1:23333'
