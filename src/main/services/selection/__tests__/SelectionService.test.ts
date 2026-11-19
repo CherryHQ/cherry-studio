@@ -1,11 +1,12 @@
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { screen } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { type BrowserWindow, screen } from 'electron'
+import { afterEach, assert, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
+import type { WindowManager } from '@main/core/window/WindowManager'
 import type { SelectionAction } from '@shared/types/selection'
 
 const { getApplicationIdMock } = vi.hoisted(() => ({
@@ -27,13 +28,21 @@ const { SelectionService } = await import('../SelectionService')
 
 // Reach the protected onAllReady/activate without widening the public surface.
 type TestableSelectionService = InstanceType<typeof SelectionService> & {
-  onAllReady(): void
-  activate(): Promise<boolean>
-  deactivate(): Promise<boolean>
+  onAllReady: InstanceType<typeof SelectionService>['onAllReady']
+  activate: InstanceType<typeof SelectionService>['activate']
+  deactivate: InstanceType<typeof SelectionService>['deactivate']
 }
 
 /** Drain the setImmediate queue so the deferred warm-up runs. */
 const flushImmediate = () => new Promise((resolve) => setImmediate(resolve))
+
+beforeEach(() => {
+  Object.assign(screen, {
+    getDisplayNearestPoint: vi.fn(() => ({
+      workArea: { x: 0, y: 0, width: 1280, height: 800 }
+    }))
+  })
+})
 
 describe('SelectionService.onAllReady — deferred warm-up', () => {
   let svc: TestableSelectionService
@@ -72,16 +81,11 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 
   /** Fetch the `feature.selection.enabled` change handler that onInit() subscribed. */
   const getEnabledChangeHandler = () => {
-    const subscribeChange = (
-      application.get('PreferenceService') as unknown as {
-        subscribeChange: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-      }
-    ).subscribeChange
-    const handler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
-      | ((enabled: boolean) => void)
-      | undefined
-    expect(handler).toBeDefined()
-    return handler!
+    const subscribeChange = vi.mocked(application.get('PreferenceService').subscribeChange<'feature.selection.enabled'>)
+    // Generic mock history spans every key; select the enabled subscription before invoking its typed callback.
+    const handler = subscribeChange.mock.calls.find(([key]) => key === 'feature.selection.enabled')?.[1]
+    assert.isDefined(handler, 'Expected the selection enabled subscription')
+    return handler
   }
 
   it('skips activation entirely when the feature is disabled', async () => {
@@ -119,9 +123,7 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     // so only the subscription's direct suspend stops the eager warmup.
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
-    const suspendPool = (
-      application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
-    ).suspendPool
+    const suspendPool = vi.mocked(application.get('WindowManager').suspendPool)
 
     await svc._doInit()
     expect(suspendPool).not.toHaveBeenCalled()
@@ -140,10 +142,7 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     // onActivate(), so only the subscription's direct resume undoes the direct suspend.
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
-    const wm = application.get('WindowManager') as unknown as {
-      suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-      resumePool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-    }
+    const wm = vi.mocked(application.get('WindowManager'))
 
     await svc._doInit()
     svc.onAllReady()
@@ -167,16 +166,14 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 describe('SelectionService.onInit — SelectionAction pool suspension', () => {
   let svc: TestableSelectionService
   let prefGet: ReturnType<typeof vi.spyOn>
-  let suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  let suspendPool: Mock<WindowManager['suspendPool']>
 
   beforeEach(() => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     svc = new SelectionService() as TestableSelectionService
     prefGet = vi.spyOn(application.get('PreferenceService'), 'get')
-    suspendPool = (
-      application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
-    ).suspendPool
+    suspendPool = vi.mocked(application.get('WindowManager').suspendPool)
   })
 
   afterEach(() => {
@@ -204,11 +201,6 @@ describe('SelectionService toolbar sizing contract', () => {
     BaseService.resetInstances()
     svc = new SelectionService()
     prefGet = vi.spyOn(application.get('PreferenceService'), 'get')
-    Object.assign(screen, {
-      getDisplayNearestPoint: vi.fn(() => ({
-        workArea: { x: 0, y: 0, width: 1280, height: 800 }
-      }))
-    })
   })
 
   afterEach(async () => {
@@ -232,13 +224,11 @@ describe('SelectionService toolbar sizing contract', () => {
       setVisibleOnAllWorkspaces: vi.fn(),
       showInactive: vi.fn()
     }
-    const access = svc as unknown as {
-      toolbarWindow: typeof toolbarWindow
-      showToolbarAtPosition: (point: { x: number; y: number }, orientation: 'bottomMiddle', programName: string) => void
-    }
-    access.toolbarWindow = toolbarWindow
+    // SAFETY: The geometry fixture implements the toolbar operations consumed here; Electron cannot run in this Node suite.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Keep the partial native window at its fixture boundary.
+    svc['toolbarWindow'] = toolbarWindow as unknown as BrowserWindow
     svc.determineToolbarSize(widthCss, 43)
-    const show = () => access.showToolbarAtPosition({ x: 1278, y: 300 }, 'bottomMiddle', 'com.kangfenmao.CherryStudio')
+    const show = () => svc['showToolbarAtPosition']({ x: 1278, y: 300 }, 'bottomMiddle', 'com.kangfenmao.CherryStudio')
 
     return { toolbarWindow, show }
   }
@@ -302,23 +292,21 @@ describe('SelectionService macOS toolbar', () => {
     const svc = new SelectionService()
     const toolbarWindow = {
       isDestroyed: vi.fn(() => false),
+      webContents: {
+        isDestroyed: vi.fn(() => false),
+        getZoomFactor: vi.fn(() => 1)
+      },
       setBounds: vi.fn(),
       setFocusable: vi.fn(),
       setPosition: vi.fn(),
       setVisibleOnAllWorkspaces: vi.fn(),
       showInactive: vi.fn()
     }
-    const access = svc as unknown as {
-      toolbarWindow: typeof toolbarWindow
-      calculateToolbarPosition: () => { x: number; y: number }
-      getToolbarRealSize: () => { toolbarWidth: number; toolbarHeight: number }
-      showToolbarAtPosition: (point: { x: number; y: number }, orientation: string, programName: string) => void
-    }
-    access.toolbarWindow = toolbarWindow
-    vi.spyOn(access, 'calculateToolbarPosition').mockReturnValue({ x: 10, y: 20 })
-    vi.spyOn(access, 'getToolbarRealSize').mockReturnValue({ toolbarWidth: 100, toolbarHeight: 40 })
+    // SAFETY: The fixture supplies native toolbar operations; sizing and positioning run through the real service.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Electron windows are unavailable in the Node runner.
+    svc['toolbarWindow'] = toolbarWindow as unknown as BrowserWindow
 
-    return { access, toolbarWindow }
+    return { show: svc['showToolbarAtPosition'].bind(svc), toolbarWindow }
   }
 
   beforeEach(() => {
@@ -336,9 +324,9 @@ describe('SelectionService macOS toolbar', () => {
     ['China', 'com.cherryai.cherrystudio.cn']
   ])('preserves selection inside the %s edition', (_edition, applicationId) => {
     getApplicationIdMock.mockReturnValue(applicationId)
-    const { access, toolbarWindow } = createToolbarHarness()
+    const { show, toolbarWindow } = createToolbarHarness()
 
-    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', applicationId)
+    show({ x: 10, y: 20 }, 'bottomLeft', applicationId)
 
     expect(toolbarWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
@@ -346,9 +334,9 @@ describe('SelectionService macOS toolbar', () => {
 
   it('treats the other edition as an external app', () => {
     getApplicationIdMock.mockReturnValue('com.kangfenmao.CherryStudio')
-    const { access, toolbarWindow } = createToolbarHarness()
+    const { show, toolbarWindow } = createToolbarHarness()
 
-    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.cherryai.cherrystudio.cn')
+    show({ x: 10, y: 20 }, 'bottomLeft', 'com.cherryai.cherrystudio.cn')
 
     expect(toolbarWindow.setFocusable).toHaveBeenCalledWith(false)
     expect(toolbarWindow.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
@@ -416,74 +404,78 @@ describe('SelectionService macOS action window', () => {
     vi.restoreAllMocks()
   })
 
-  it.each([false, true])('keeps the invoking Space when showing a recycled panel (fullscreen=%s)', (fullScreen) => {
-    vi.useFakeTimers()
-    try {
-      let activeSpace = 'invoking-space'
-      let panelSpace = 'previous-space'
-      let visible = false
-      const handle = Buffer.alloc(8)
-      const svc = new SelectionService() as unknown as {
-        nativePanel: { moveToActiveSpace(handle: Buffer): void }
-        showActionWindow(actionWindow: unknown, isFullScreen: boolean): void
-      }
-      svc.nativePanel = {
-        moveToActiveSpace: vi.fn((actualHandle) => {
-          expect(actualHandle).toBe(handle)
-          panelSpace = activeSpace
-        })
-      }
-      const show = () => {
-        activeSpace = panelSpace
-        visible = true
-      }
-      const actionWindow = {
-        getNativeWindowHandle: () => handle,
-        setPosition: vi.fn(),
-        setBounds: vi.fn(),
-        setFocusable: vi.fn(),
-        alwaysOnTop: false,
-        isAlwaysOnTop: () => actionWindow.alwaysOnTop,
-        setAlwaysOnTop: vi.fn((value: boolean) => {
-          actionWindow.alwaysOnTop = value
-        }),
-        show: vi.fn(show),
-        showInactive: vi.fn(show),
-        isDestroyed: () => false,
-        focus: vi.fn()
-      }
+  it.each([false, true])(
+    'moves a recycled panel before showing it and restores flags (fullscreen=%s)',
+    (fullScreen) => {
+      vi.useFakeTimers()
+      try {
+        let activeSpace = 'invoking-space'
+        let panelSpace = 'previous-space'
+        let visible = false
+        const handle = Buffer.alloc(8)
+        const svc = new SelectionService()
+        const nativePanel: NonNullable<InstanceType<typeof SelectionService>['nativePanel']> = {
+          configurePanel: vi.fn(),
+          moveToActiveSpace: vi.fn((actualHandle: Buffer) => {
+            expect(actualHandle).toBe(handle)
+            panelSpace = activeSpace
+          })
+        }
+        svc['nativePanel'] = nativePanel
+        const show = () => {
+          activeSpace = panelSpace
+          visible = true
+        }
+        const actionWindow = {
+          getNativeWindowHandle: () => handle,
+          setPosition: vi.fn(),
+          setBounds: vi.fn(),
+          setFocusable: vi.fn(),
+          alwaysOnTop: false,
+          isAlwaysOnTop: () => actionWindow.alwaysOnTop,
+          setAlwaysOnTop: vi.fn((value: boolean) => {
+            actionWindow.alwaysOnTop = value
+          }),
+          show: vi.fn(show),
+          showInactive: vi.fn(show),
+          isDestroyed: () => false,
+          focus: vi.fn()
+        }
 
-      svc.showActionWindow(actionWindow, fullScreen)
+        // SAFETY: This fixture records the native show/focus operations exercised by the panel sequence.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Electron windows are unavailable in the Node runner.
+        svc['showActionWindow'](actionWindow as unknown as BrowserWindow, fullScreen)
 
-      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
-      const moveToActiveSpace = vi.mocked(svc.nativePanel.moveToActiveSpace)
-      expect(actionWindow.setAlwaysOnTop.mock.invocationCallOrder[0]).toBeLessThan(
-        moveToActiveSpace.mock.invocationCallOrder[0]
-      )
-      const showWindow = fullScreen ? actionWindow.showInactive : actionWindow.show
-      expect(moveToActiveSpace.mock.invocationCallOrder[0]).toBeLessThan(showWindow.mock.invocationCallOrder[0])
-      if (!fullScreen) {
-        expect(showWindow.mock.invocationCallOrder[0]).toBeLessThan(
-          actionWindow.setAlwaysOnTop.mock.invocationCallOrder[1]
+        expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
+        const moveToActiveSpace = vi.mocked(nativePanel.moveToActiveSpace)
+        expect(actionWindow.setAlwaysOnTop.mock.invocationCallOrder[0]).toBeLessThan(
+          moveToActiveSpace.mock.invocationCallOrder[0]
         )
-        expect(actionWindow.isAlwaysOnTop()).toBe(false)
-      }
-      expect(fullScreen ? actionWindow.show : actionWindow.showInactive).not.toHaveBeenCalled()
-      expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false]] : [])
-      expect(actionWindow.focus).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(49)
-      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
-      vi.runAllTimers()
+        const showWindow = fullScreen ? actionWindow.showInactive : actionWindow.show
+        expect(moveToActiveSpace.mock.invocationCallOrder[0]).toBeLessThan(showWindow.mock.invocationCallOrder[0])
+        if (!fullScreen) {
+          expect(showWindow.mock.invocationCallOrder[0]).toBeLessThan(
+            actionWindow.setAlwaysOnTop.mock.invocationCallOrder[1]
+          )
+          expect(actionWindow.isAlwaysOnTop()).toBe(false)
+        }
+        expect(fullScreen ? actionWindow.show : actionWindow.showInactive).not.toHaveBeenCalled()
+        expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false]] : [])
+        expect(actionWindow.focus).not.toHaveBeenCalled()
+        vi.advanceTimersByTime(49)
+        expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
+        vi.runAllTimers()
 
-      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual([[true], [false]])
-      expect(actionWindow.isAlwaysOnTop()).toBe(false)
-      expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false], [true]] : [])
-      expect(actionWindow.focus).toHaveBeenCalledTimes(fullScreen ? 1 : 0)
-      expect(visible).toBe(true)
-      expect(activeSpace).toBe('invoking-space')
-      expect(panelSpace).toBe('invoking-space')
-    } finally {
-      vi.useRealTimers()
+        expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual([[true], [false]])
+        expect(actionWindow.isAlwaysOnTop()).toBe(false)
+        expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false], [true]] : [])
+        expect(actionWindow.focus).toHaveBeenCalledTimes(fullScreen ? 1 : 0)
+        expect(visible).toBe(true)
+        expect(activeSpace).toBe('invoking-space')
+        expect(panelSpace).toBe('invoking-space')
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 })
