@@ -121,10 +121,23 @@ const {
 } = await import('../settingsBuilder')
 const { resolveMountedMcpServers } = await import('@main/ai/agents/builtin/builtinAgentCapabilities')
 
-const agent = { id: 'agent-1', mcps: [] } as unknown as AgentEntity
+const createdAt = '2026-05-20T00:00:00.000Z'
+const agent = {
+  id: 'agent-1',
+  name: 'Agent',
+  type: 'claude-code',
+  model: null,
+  modelName: null,
+  mcps: [],
+  orderKey: 'a0',
+  createdAt,
+  updatedAt: createdAt
+} satisfies AgentEntity
 const session = {
   id: 'sess-1',
   agentId: 'agent-1',
+  name: 'Session',
+  isNameManuallyEdited: false,
   workspaceId: 'ws-1',
   workspace: {
     id: 'ws-1',
@@ -132,26 +145,25 @@ const session = {
     path: resolvePath('/tmp/workspace'),
     type: 'user',
     orderKey: 'a0',
-    createdAt: '2026-05-20T00:00:00.000Z',
-    updatedAt: '2026-05-20T00:00:00.000Z'
-  }
-} as unknown as AgentSessionEntity
+    createdAt,
+    updatedAt: createdAt
+  },
+  orderKey: 'a0',
+  lastActivityAt: createdAt,
+  createdAt,
+  updatedAt: createdAt
+} satisfies AgentSessionEntity
 
 function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessionEntity {
   return {
+    ...session,
     id: 'sess-workspace',
-    agentId: 'agent-1',
-    workspaceId: 'ws-1',
     workspace: {
-      id: 'ws-1',
-      name: 'Workspace',
+      ...session.workspace,
       path,
-      type,
-      orderKey: 'a0',
-      createdAt: '2026-05-20T00:00:00.000Z',
-      updatedAt: '2026-05-20T00:00:00.000Z'
+      type
     }
-  } as unknown as AgentSessionEntity
+  }
 }
 
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
@@ -159,7 +171,7 @@ const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'as
 
 describe('resolveMountedMcpServers', () => {
   it('withdraws Cherry Assistant host servers once the session is channel-linked', () => {
-    const agentRef = { type: 'claude-code', configuration: { builtin_role: 'assistant' } } as never
+    const agentRef = { ...agent, configuration: { builtin_role: 'assistant' } } satisfies AgentEntity
     expect(resolveMountedMcpServers(agentRef, { channelLinked: false }).has('assistant')).toBe(true)
     expect(resolveMountedMcpServers(agentRef, { channelLinked: true }).has('assistant')).toBe(false)
   })
@@ -169,6 +181,13 @@ describe('adjustAllowedToolsForMcp', () => {
   it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
     const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [])
 
+    expect(allowed).toEqual(
+      expect.arrayContaining([
+        'mcp__cherry-tools__web_search',
+        'mcp__agent-memory__memory',
+        'mcp__skills__search_skills'
+      ])
+    )
     // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
@@ -183,6 +202,7 @@ describe('adjustAllowedToolsForMcp', () => {
   it('auto-approves only read-only Assistant tools', () => {
     const allowed = adjustAllowedToolsForMcp(WITH_HOST_TOOLS, [])
 
+    expect(allowed).toEqual(expect.arrayContaining(['mcp__assistant__navigate', 'mcp__assistant__product_info']))
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
     expect(allowed).not.toContain('mcp__assistant__apply_setting')
@@ -257,8 +277,8 @@ describe('buildMcpServers', () => {
       connect: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined)
     } as never)
-    const withOverride = { ...session, model: 'provider::session-model' } as unknown as AgentSessionEntity
-    const agentWithModel = { ...agent, model: 'provider::agent-model' } as unknown as AgentEntity
+    const withOverride = { ...session, model: 'provider::session-model' } satisfies AgentSessionEntity
+    const agentWithModel = { ...agent, model: 'provider::agent-model' } satisfies AgentEntity
 
     // A session-level override steers the assistant default even though the
     // agent's own model is unchanged.
@@ -320,7 +340,7 @@ describe('buildMcpServers', () => {
   })
 
   it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
-    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
+    const boundAgent = { ...agent, knowledgeBaseIds: ['kb_a'] } satisfies AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
     const names = await cherryToolNames(buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS))
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
@@ -337,11 +357,10 @@ describe('buildMcpServers', () => {
 
   it('revokes unrestricted knowledge access when the built-in Assistant is deleted', async () => {
     const assistant = {
-      id: 'agent-1',
-      mcps: [],
+      ...agent,
       knowledgeBaseIds: [],
       configuration: { builtin_role: 'assistant' }
-    } as unknown as AgentEntity
+    } satisfies AgentEntity
     mockGetAgent.mockReturnValue(assistant)
     const servers = buildMcpServers(session, assistant, WITH_HOST_TOOLS)
 
@@ -363,7 +382,7 @@ describe('buildMcpServers', () => {
   // both orders leave the scope non-empty, so the tools show up either way while the trust boundary
   // silently inverts. These two pin the resolved id set instead.
   it('narrows a bound Agent to the frozen composer selection', async () => {
-    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb-a', 'kb-b'] } as unknown as AgentEntity
+    const boundAgent = { ...agent, knowledgeBaseIds: ['kb-a', 'kb-b'] } satisfies AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
@@ -374,7 +393,7 @@ describe('buildMcpServers', () => {
   })
 
   it('keeps the Agent binding when the frozen composer selection falls outside it', async () => {
-    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb-bound'] } as unknown as AgentEntity
+    const boundAgent = { ...agent, knowledgeBaseIds: ['kb-bound'] } satisfies AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
@@ -396,7 +415,7 @@ describe('buildMcpServers', () => {
   })
 
   it('re-reads knowledge bindings for each new cherry-tools connection', async () => {
-    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
+    const boundAgent = { ...agent, knowledgeBaseIds: ['kb_a'] } satisfies AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
     const servers = buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS)
 
