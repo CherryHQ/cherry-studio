@@ -1,10 +1,12 @@
+import type { mockApplicationFactory } from '@test-mocks/main/application'
 import { shell } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
+import type { WarmupState } from '../types'
 
 /**
  * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed) now
@@ -361,8 +363,29 @@ const { WindowManager } = await import('../WindowManager')
 
 // ─── Helpers ───────────────────────────────────────────────
 
+function findWindowFixture(nativeWindow: Electron.BrowserWindow | undefined): MockBrowserWindow | undefined {
+  if (nativeWindow === undefined) return undefined
+  const fixture = createdWindows.find((candidate) => Object.is(candidate, nativeWindow))
+  assert.isDefined(fixture, 'Expected a window constructed by the Electron mock')
+  return fixture
+}
+
+function requireWindowFixture(nativeWindow: Electron.BrowserWindow | undefined): MockBrowserWindow {
+  const fixture = findWindowFixture(nativeWindow)
+  assert.isDefined(fixture, 'Expected a managed window')
+  return fixture
+}
+
+function warmupStateFor(wm: InstanceType<typeof WindowManager>, type: string): WarmupState {
+  // The mocked registry adds test-only names; read-only lookup keeps the actual WarmupState.
+  const states: ReadonlyMap<string, WarmupState> = wm['warmupStates']
+  const state = states.get(type)
+  assert.isDefined(state, `Expected warmup state for ${type}`)
+  return state
+}
+
 function simulateWindowClosed(wm: InstanceType<typeof WindowManager>, windowId: string): void {
-  const win = wm.getWindow(windowId) as unknown as MockBrowserWindow | undefined
+  const win = findWindowFixture(wm.getWindow(windowId))
   win?.emit('closed')
 }
 
@@ -421,14 +444,14 @@ describe('WindowManager', () => {
   describe('content loading (htmlPath)', () => {
     it('loads the registry htmlPath on create (production path → loadFile)', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
 
       expect(win.loadFile).toHaveBeenCalledTimes(1)
     })
 
     it('skips content loading when htmlPath is empty (consumer-loaded window)', () => {
       const id = wm.open('consumerLoaded' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
 
       // Empty htmlPath = domain service owns loading; WM must not loadFile/loadURL.
       expect(win).toBeDefined()
@@ -455,7 +478,7 @@ describe('WindowManager', () => {
 
     it('blocks navigation to non-http(s) URLs instead of letting it pass', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       const handler = getWillNavigateHandler(win)
 
       for (const url of ['file:///etc/passwd', 'cherry://settings', 'about:blank']) {
@@ -468,7 +491,7 @@ describe('WindowManager', () => {
 
     it('allows same-origin http(s) navigation unchanged', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       win.webContents.getURL.mockReturnValue('https://app.local/index.html')
       const handler = getWillNavigateHandler(win)
 
@@ -481,7 +504,7 @@ describe('WindowManager', () => {
 
     it('blocks cross-origin http(s) without owning external navigation policy', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       win.webContents.getURL.mockReturnValue('https://app.local/index.html')
       const handler = getWillNavigateHandler(win)
 
@@ -512,7 +535,7 @@ describe('WindowManager', () => {
 
     it('blocks subframe navigation initiated from inside a frame (link click)', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       const handler = getWillFrameNavigateHandler(win)
 
       const preventDefault = vi.fn()
@@ -528,7 +551,7 @@ describe('WindowManager', () => {
 
     it('blocks subframe navigation with no initiator identity (fail-closed)', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       const handler = getWillFrameNavigateHandler(win)
 
       for (const initiator of [null, undefined, {}]) {
@@ -543,7 +566,7 @@ describe('WindowManager', () => {
 
     it('allows subframe loads the app main frame itself initiated (iframe src/srcdoc)', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       const handler = getWillFrameNavigateHandler(win)
 
       // A distinct wrapper instance with the main frame's id: Electron does not
@@ -561,7 +584,7 @@ describe('WindowManager', () => {
 
     it('leaves main-frame navigation to the will-navigate guard', () => {
       const id = wm.open('default' as never)
-      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const win = requireWindowFixture(wm.getWindow(id))
       const handler = getWillFrameNavigateHandler(win)
 
       const preventDefault = vi.fn()
@@ -626,21 +649,6 @@ describe('WindowManager', () => {
   // ─── Singleton warmup / retention ──────────────────────
 
   describe('singleton warmup / retention', () => {
-    type WmInternals = {
-      activeWarmupTypes: Set<string>
-      warmupStates: Map<
-        string,
-        {
-          idle: string[]
-          managed: Set<string>
-          lastActivityAt: number
-          standbyFloor: number
-          inactivityTimeoutMs: number
-        }
-      >
-      warmupGcTick: () => void
-    }
-
     describe('eager warmup (singletonEagerWarmup)', () => {
       it('pre-creates the hidden instance during onAllReady and does not show it', async () => {
         const before = createdWindows.length
@@ -661,7 +669,7 @@ describe('WindowManager', () => {
         expect(createdWindows.length).toBe(baseline)
         expect(id).toBeDefined()
         // showMode is 'manual' in the mock, so show/focus must NOT be called on reuse.
-        const win = wm.getWindow(id) as unknown as MockBrowserWindow
+        const win = requireWindowFixture(wm.getWindow(id))
         expect(win.show).not.toHaveBeenCalled()
         expect(win.focus).not.toHaveBeenCalled()
       })
@@ -700,12 +708,11 @@ describe('WindowManager', () => {
         expect(win.destroy).not.toHaveBeenCalled()
 
         // Rewind lastActivityAt past retentionTime (10s → 10_000ms).
-        const internals = wm as unknown as WmInternals
-        const state = internals.warmupStates.get('singletonRetention')
+        const state = warmupStateFor(wm, 'singletonRetention')
         expect(state).toBeDefined()
-        state!.lastActivityAt = Date.now() - 60_000
+        state.lastActivityAt = Date.now() - 60_000
 
-        internals.warmupGcTick()
+        wm['warmupGcTick']()
 
         expect(win.destroy).toHaveBeenCalled()
       })
@@ -721,11 +728,10 @@ describe('WindowManager', () => {
         expect(win.destroy).not.toHaveBeenCalled()
 
         // Rewind far into the past; permanent → gcDisabled short-circuits trim.
-        const internals = wm as unknown as WmInternals
-        const state = internals.warmupStates.get('singletonPermanent')
-        state!.lastActivityAt = Date.now() - 365 * 24 * 60 * 60 * 1000
+        const state = warmupStateFor(wm, 'singletonPermanent')
+        state.lastActivityAt = Date.now() - 365 * 24 * 60 * 60 * 1000
 
-        internals.warmupGcTick()
+        wm['warmupGcTick']()
 
         expect(win.destroy).not.toHaveBeenCalled()
       })
@@ -958,7 +964,7 @@ describe('WindowManager', () => {
         const id = wm.open('pooled' as never)
         wm.close(id)
 
-        const win = wm.getWindow(id) as unknown as MockBrowserWindow
+        const win = requireWindowFixture(wm.getWindow(id))
         win.emit.mockClear()
 
         wm.open('pooled' as never)
@@ -1107,7 +1113,7 @@ describe('WindowManager', () => {
         it('close() destroys the window when recycling is disabled', async () => {
           await bootEagerPools()
           const id = wm.open('standbyOnly' as never)
-          const win = wm.getWindow(id) as unknown as MockBrowserWindow
+          const win = requireWindowFixture(wm.getWindow(id))
 
           wm.close(id)
 
@@ -1140,7 +1146,7 @@ describe('WindowManager', () => {
           const baseline = await bootEagerPools()
 
           const id = wm.open('hybrid' as never)
-          const win = wm.getWindow(id) as unknown as MockBrowserWindow
+          const win = requireWindowFixture(wm.getWindow(id))
 
           await flushImmediate()
           // Standby replenished (one new window).
@@ -1163,7 +1169,7 @@ describe('WindowManager', () => {
           // id1 used the standby; id2/id3 sync-created. Replenish created one standby window.
           // Pool state: in-use = {id1, id2, id3}, idle = 1 standby, managed.size = 4 > recycleMaxSize=3.
           wm.close(id1)
-          const win1 = wm.getWindow(id1) as unknown as MockBrowserWindow
+          const win1 = requireWindowFixture(wm.getWindow(id1))
           // managed + inflight > 3 → destroy the closing window.
           expect(win1.destroy).toHaveBeenCalled()
           expect([id2, id3].every((x) => typeof x === 'string')).toBe(true)
@@ -1217,29 +1223,26 @@ describe('WindowManager', () => {
           wm.close(id2)
 
           // Force inactivity by rewinding lastActivityAt past inactivityTimeout (300s).
-          const warmupStates = (
-            wm as unknown as { warmupStates: Map<string, { lastActivityAt: number; idle: string[] }> }
-          ).warmupStates
-          const state = warmupStates.get('hybrid')
+          const state = warmupStateFor(wm, 'hybrid')
           expect(state).toBeDefined()
-          const idleBefore = state!.idle.length
+          const idleBefore = state.idle.length
           const expectedDestroys = Math.max(0, idleBefore - 1) // standbySize = 1
-          state!.lastActivityAt = Date.now() - 10_000_000
+          state.lastActivityAt = Date.now() - 10_000_000
 
           // Snapshot destroy-call counts for idle windows before the tick.
-          const idleIdsBefore = [...state!.idle]
+          const idleIdsBefore = [...state.idle]
           const destroyCallsBefore = idleIdsBefore.map((id) => {
-            const win = wm.getWindow(id) as unknown as MockBrowserWindow | undefined
+            const win = findWindowFixture(wm.getWindow(id))
             return win?.destroy.mock.calls.length ?? 0
           })
 
           // Trigger a GC tick manually.
-          ;(wm as unknown as { warmupGcTick: () => void }).warmupGcTick()
+          wm['warmupGcTick']()
 
           // Verify: the trim destroyed exactly (idleBefore - standbySize) windows
           // from the FRONT of the idle queue (oldest first).
           const destroyCallsAfter = idleIdsBefore.map((id) => {
-            const win = wm.getWindow(id) as unknown as MockBrowserWindow | undefined
+            const win = findWindowFixture(wm.getWindow(id))
             return win?.destroy.mock.calls.length ?? 0
           })
           const newlyDestroyed = destroyCallsAfter.filter((after, i) => after > destroyCallsBefore[i]).length
@@ -1478,7 +1481,7 @@ describe('WindowManager', () => {
     it('getWindowsByType() skips destroyed windows', () => {
       const id1 = wm.open('default' as never)
       const id2 = wm.open('default' as never)
-      const w1 = wm.getWindow(id1) as unknown as MockBrowserWindow
+      const w1 = requireWindowFixture(wm.getWindow(id1))
       w1.isDestroyed.mockReturnValue(true)
 
       const remaining = wm.getWindowsByType('default' as never)
@@ -1732,9 +1735,10 @@ describe('WindowManager', () => {
     })
 
     it('does not intercept close for pooled windows when app is quitting', async () => {
-      const { application } = (await import('@application')) as unknown as { application: { isQuitting: boolean } }
-      const previousQuitting = application.isQuitting
-      application.isQuitting = true
+      const { application: mockApplication } =
+        await vi.importMock<ReturnType<typeof mockApplicationFactory>>('@application')
+      const previousQuitting = mockApplication.isQuitting
+      mockApplication.isQuitting = true
       try {
         wm.open('pooled' as never)
         const win = createdWindows[createdWindows.length - 1]
@@ -1746,7 +1750,7 @@ describe('WindowManager', () => {
         expect(event.preventDefault).not.toHaveBeenCalled()
         expect(win.hide).not.toHaveBeenCalled()
       } finally {
-        application.isQuitting = previousQuitting
+        mockApplication.isQuitting = previousQuitting
       }
     })
   })
