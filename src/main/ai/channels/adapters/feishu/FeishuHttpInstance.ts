@@ -1,3 +1,4 @@
+import { Blob as NodeBlob } from 'node:buffer'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
@@ -31,9 +32,9 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
         for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
           if (value === undefined || value === null) continue
           if (Buffer.isBuffer(value)) {
-            // Buffer is a valid BlobPart at runtime; the cast sidesteps the SharedArrayBuffer
-            // variance in Buffer's type without copying the bytes.
-            form.append(key, new Blob([value as unknown as BlobPart]), key)
+            const blob = new NodeBlob([value])
+            // SAFETY: Node's global Blob is node:buffer.Blob; DOM typings narrow its bytes and stream declarations.
+            form.append(key, blob as NodeBlob & Blob, key)
           } else {
             form.append(key, String(value))
           }
