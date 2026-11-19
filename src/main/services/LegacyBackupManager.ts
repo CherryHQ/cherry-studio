@@ -1024,7 +1024,9 @@ class BackupManager {
     }
   }
 
-  private async readDirectBackupMetadata(extractionDir: string): Promise<DirectBackupMetadata> {
+  private async readDirectBackupMetadata(
+    extractionDir: string
+  ): Promise<Pick<DirectBackupMetadata, 'resources'> & { platform?: unknown; appVersion?: unknown }> {
     const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as Record<string, unknown>
 
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
@@ -1058,7 +1060,8 @@ class BackupManager {
       throw new Error(`Backup version ${String(raw.version)} metadata is incomplete`)
     }
 
-    return raw as unknown as DirectBackupMetadata
+    // SAFETY: Resource flags are checked above; opaque platform/appVersion values are only used in diagnostics.
+    return raw as typeof raw & Pick<DirectBackupMetadata, 'resources'>
   }
 
   private async assertArchiveFile(filePath: string, label: string): Promise<void> {
