@@ -1423,7 +1423,10 @@ describe('applyMigrations over a populated database', () => {
     const before = tables.map((table) => sqlite.prepare('SELECT * FROM ' + table + ' ORDER BY id').all())
     // The subject-group migration (0042) adds topic.group_id after this fixture's schema, so
     // migrated rows gain the column as null.
-    before[tables.indexOf('topic')] = before[tables.indexOf('topic')].map((row) => ({ ...row, group_id: null }))
+    before[tables.indexOf('topic')] = before[tables.indexOf('topic')].map((row) => ({
+      ...(row as Record<string, unknown>),
+      group_id: null
+    }))
     sqlite.close()
     sqlite = new Database(join(tempDir, 'test.db'))
     db = drizzle({ client: sqlite, casing: 'snake_case' })

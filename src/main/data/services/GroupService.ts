@@ -242,7 +242,7 @@ export class GroupService {
         scopeColumn: groupTable.entityType
       })
     )
-    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order' }])
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order', dimension: 'orderKey' }])
   }
 
   /**
@@ -256,7 +256,7 @@ export class GroupService {
         scopeColumn: groupTable.entityType
       })
     )
-    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order' }])
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order', dimension: 'orderKey' }])
   }
 }
 
