@@ -85,7 +85,7 @@ describe('durable extraction scheduling', () => {
     const old = ticket('old')
     enqueueExtraction(old, 0, new Set(['old']))
     const state = readExtractionState(key)!
-    const { recent: _recent, generation: _generation, ...legacy } = state
+    const legacy = { ...state, recent: undefined, generation: undefined }
     const db = application.get('DbService').getDb()
     db.update(appStateTable).set({ value: legacy }).where(eq(appStateTable.key, key)).run()
     expect(readExtractionState(key)).toMatchObject({ recent: [], generation: 0, pending: [{ hash: old.hash }] })
