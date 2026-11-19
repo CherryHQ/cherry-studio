@@ -194,10 +194,7 @@ type ManagerInstance = InstanceType<typeof AiStreamManager>
 
 function createManager(config?: Partial<AiStreamManagerConfig>): ManagerInstance {
   BaseService.resetInstances()
-  // Cast through unknown to bypass the lifecycle-decorated no-arg signature
-  // in tests — the runtime constructor accepts `Partial<AiStreamManagerConfig>`.
-  const Ctor = AiStreamManager as unknown as new (config?: Partial<AiStreamManagerConfig>) => ManagerInstance
-  return new Ctor(config)
+  return new AiStreamManager(config)
 }
 
 /**
@@ -240,7 +237,7 @@ async function flushMicrotasksUntil(predicate: () => boolean, maxTicks = 100): P
 }
 
 function chunk(text: string): UIMessageChunk {
-  return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
+  return { type: 'text-delta', delta: text, id: 'p1' }
 }
 
 function error(msg: string): SerializedError {
@@ -1843,7 +1840,7 @@ describe('AiStreamManager', () => {
     })
 
     it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
-      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      mgr['markReconciled']()
       let releaseB!: () => void
       const a = new FakeListener('cleanup-a:a', 'cleanup')
       const aDone = new Promise<void>((resolve) => {
