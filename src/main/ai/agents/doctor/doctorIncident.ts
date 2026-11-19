@@ -61,6 +61,7 @@ export function truncateText(text: string, limit: number): string {
 }
 
 /** Redacts secrets, then neutralizes prompt-boundary tricks in every string. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Incident errors, conversation evidence, logs and native transcripts have different shapes; redact all values before neutralizing every model-bound string.
 export function untrustedForModel(value: unknown): Serializable {
   const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return defangSystemReminderTags(sanitizeUntrustedText(val))
@@ -261,6 +262,7 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): Seri
   return untrustedForModel({ count: matches.length, entries })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored provider errors carry arbitrary requestBodyValues; inspect containers and expose content counts/roles instead of conversation text.
 function requestShape(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
   const shape: Record<string, unknown> = { keys: Object.keys(body) }
@@ -279,8 +281,18 @@ function requestShape(body: unknown): Record<string, unknown> | undefined {
       }
     } else if (key === 'tools' && Array.isArray(value)) {
       shape.tools = value.map((tool) => {
-        const entry = tool as { name?: unknown; type?: unknown; function?: { name?: unknown } }
-        return entry.name ?? entry.function?.name ?? entry.type
+        if (typeof tool !== 'object' || tool === null) return undefined
+        if ('name' in tool && typeof tool.name === 'string') return tool.name
+        const definition = 'function' in tool ? tool.function : undefined
+        if (
+          typeof definition === 'object' &&
+          definition !== null &&
+          'name' in definition &&
+          typeof definition.name === 'string'
+        ) {
+          return definition.name
+        }
+        return 'type' in tool && typeof tool.type === 'string' ? tool.type : undefined
       })
     } else {
       const text = JSON.stringify(value)
@@ -291,6 +303,7 @@ function requestShape(body: unknown): Record<string, unknown> | undefined {
   return shape
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical data-error.url is untyped alongside the current route URL; accept only valid strings when comparing request origins.
 function originOf(url: unknown): string | undefined {
   try {
     return typeof url === 'string' ? new URL(url).origin : undefined
