@@ -7,7 +7,7 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { eq } from 'drizzle-orm'
+import { eq, like } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -28,6 +28,7 @@ import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree
 import { assistantDataService } from '@data/services/AssistantService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { topicService } from '@data/services/TopicService'
 import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
 import * as sdkConfig from '@main/ai/provider/sdkConfig'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -346,7 +347,7 @@ describe('lifecycle memory owner', () => {
     const model = makeModel({ contextWindow: 1000 })
     vi.spyOn(modelService, 'getByKey').mockReturnValue({ ...model, contextWindow: 32000 })
     vi.spyOn(providerService, 'getByProviderId').mockReturnValue(makeProvider({ id: model.providerId }))
-    const send = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+    const send = vi.fn<typeof fetch>(async () =>
       Response.json({
         id: 'summary',
         model: 'summary',
@@ -388,6 +389,57 @@ describe('lifecycle memory owner', () => {
     expect(stages.mock.calls.map(([, anchor]) => anchor.status)).toEqual(['compacting', 'skipped'])
     expect(send).not.toHaveBeenCalled()
   })
+
+  it.each(['fresh', 'rollout', 'legacy'] as const)(
+    'keeps shared exposure with the topic after moving it back to its %s owner',
+    async (kind) => {
+      MockApplicationUtils.setService('MemoryService', service)
+      const owner = seedAssistantTopic()
+      if (kind === 'rollout') {
+        dbh.db
+          .insert(appStateTable)
+          .values({ key: 'seedRunner:bootstrapCompleted', value: { completedAt: 1 } })
+          .run()
+        new SharedMemoryRolloutSeeder().run(dbh.db)
+      }
+      const { assistantId } = seedAssistantTopic(true)
+      const outgoing = vi.fn(async () => Response.json({}))
+      const transport = memoryRuntimeFetch(outgoing, (signal) => runtimeMemoryAuthorities(owner, signal))
+      await transport('https://test.invalid')
+      topicService.update(owner.topicId, { assistantId })
+      const editor = service.open(authority())
+      await editor.entry()
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
+      const reference = await assistantMemoryReference(
+        { topicId: owner.topicId, assistantId },
+        { assertActive: () => undefined, isHeadless: () => false }
+      )
+      expect(reference).toContain('OLD_HOME')
+      dbh.db
+        .update(messageTable)
+        .set({ status: 'success', data: { parts: [{ type: 'text', text: 'OLD_HOME' }] } })
+        .where(eq(messageTable.id, owner.replyId))
+        .run()
+      topicService.update(owner.topicId, { assistantId: owner.assistantId })
+      if (kind === 'legacy') {
+        dbh.db.delete(appStateTable).where(like(appStateTable.key, 'memory:runtime:%')).run()
+        const oldKey = (id: string) =>
+          `memory:runtime:${JSON.stringify(['assistant', id, owner.topicId, 'shared', ''])}`
+        dbh.db
+          .insert(appStateTable)
+          .values([
+            { key: oldKey(owner.assistantId), value: 'never-exposed' },
+            { key: oldKey(assistantId), value: { version: 1, protection: null } }
+          ])
+          .run()
+        new SharedMemoryRolloutSeeder().run(dbh.db)
+      }
+      await editor.clear((await editor.previewClear()).token, approve)
+      editor.dispose()
+      await expect(transport('https://test.invalid')).rejects.toThrow('isolation')
+      expect(outgoing).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it.each([false, true])(
     'baselines pre-rollout history only on a pre-feature database (preview=%s)',
