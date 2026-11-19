@@ -6,6 +6,7 @@ function quotePropertyName(name: string): string {
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : JSON.stringify(name)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Schema const/enum entries are unvalidated; emit literals only for supported scalar values and fall back to unknown otherwise.
 function literalType(value: unknown): string {
   if (value === null) return 'null'
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -18,10 +19,12 @@ function docText(value: string): string {
   return value.trim().split('\n')[0].replaceAll('*/', '*\\/')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This declaration converter accepts raw schema values; its recursive walker checks containers and supported keywords before emitting types.
 export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
   return schemaToTypeScript(schema, schema, depth, new Set())
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested keywords and local JSON pointers can resolve to arbitrary schema values; check each container and bound recursion before rendering.
 function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resolvingRefs: ReadonlySet<string>): string {
   if (!schema || typeof schema !== 'object' || depth >= MAX_NESTING_DEPTH) return 'unknown'
   const value = schema as JsonSchema
@@ -129,7 +132,9 @@ export function toolsToTypeScript(tools: readonly ToolTypeScriptInput[]): string
 export function toolToTypeScript(
   toolName: string,
   description: string | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool declaration inputs retain raw schemas; jsonSchemaToTypeScript owns keyword inspection and unsupported-value fallback.
   inputSchema: unknown,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional output schemas use the same raw-schema converter as inputs rather than asserting a fully validated schema dialect.
   outputSchema?: unknown
 ): string {
   return toolsToTypeScript([{ name: toolName, description, inputSchema, outputSchema }])
