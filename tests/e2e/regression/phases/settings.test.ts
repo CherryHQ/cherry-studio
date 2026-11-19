@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import type { Page } from '@playwright/test'
 import JSZip from 'jszip'
 import { parse } from 'yaml'
 
@@ -16,6 +17,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import en from '../../../../src/renderer/i18n/locales/en-us.json'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { startMockUpdateServer } from '../../../helpers/http/mockUpdateServer'
 import { expect, test } from '../fixture'
@@ -164,6 +166,96 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
   } finally {
     await page.evaluate((language) => window.api.preference.set('app.language', language), language)
   }
+})
+
+const readActiveRoute = (page: Page) =>
+  page.evaluate(() => {
+    const raw = localStorage.getItem('cs_cache_persist')
+    if (!raw) return null
+    const cache = JSON.parse(raw) as {
+      'ui.tab.normal_tabs'?: { id: string; url: string }[]
+      'ui.tab.pinned_tabs'?: { id: string; url: string }[]
+      'ui.tab.active_tab_id'?: string
+    }
+    const tabs = [...(cache['ui.tab.normal_tabs'] ?? []), ...(cache['ui.tab.pinned_tabs'] ?? [])]
+    const tab = tabs.find((candidate) => candidate.id === cache['ui.tab.active_tab_id'])
+    if (!tab) return null
+    const url = new URL(tab.url, 'https://settings-test.invalid')
+    return { id: tab.id, pathname: url.pathname, hasQ: url.searchParams.has('q'), q: url.searchParams.get('q') }
+  })
+
+async function openSettingsSearch(mainWindow: Page) {
+  await selectSidebarApp(mainWindow, 'Settings')
+  const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
+  await expect(settings).toHaveCount(1)
+  const navigation = settings.locator('[data-ui~="settings.navigation"]')
+  const content = settings.locator('[data-ui~="settings.content"]')
+  await navigation.getByRole('button', { name: en['settings.appearance.title'], exact: true }).click()
+  const owningTabId = await mainWindow
+    .locator('[data-ui~="app.focused-tab-button"]:visible')
+    .getAttribute('data-tab-id')
+  expect(owningTabId).toBeTruthy()
+  await expect
+    .poll(() => readActiveRoute(mainWindow))
+    .toMatchObject({ id: owningTabId, pathname: '/settings/appearance' })
+  const searchButton = navigation.getByRole('button', { name: en['settings.search.placeholder'], exact: true })
+  await searchButton.click()
+  const input = navigation.getByRole('combobox', { name: en['settings.search.placeholder'], exact: true })
+  const clear = navigation.getByRole('button', { name: en['common.clear'], exact: true })
+  await expect(input).toBeVisible()
+  await expect(input).toBeFocused()
+  await mainWindow.keyboard.type('proxy')
+  await expect(content.getByRole('listbox')).toBeVisible()
+  await expect
+    .poll(() => readActiveRoute(mainWindow))
+    .toEqual({
+      id: owningTabId,
+      pathname: '/settings/search',
+      hasQ: true,
+      q: 'proxy'
+    })
+  return { input, clear, content, owningTabId }
+}
+
+test(...caseDefinition('SET-01'), async ({ mainWindow }) => {
+  const { input, clear, content, owningTabId } = await openSettingsSearch(mainWindow)
+  await clear.click()
+  await expect(input, 'Issue #22782: pointer clear must keep the settings combobox visible').toBeVisible()
+  await expect(input).toHaveValue('')
+  await expect(input).toBeFocused()
+  await expect
+    .poll(() => readActiveRoute(mainWindow))
+    .toEqual({
+      id: owningTabId,
+      pathname: '/settings/search',
+      hasQ: false,
+      q: null
+    })
+  await expect(content.getByText(en['settings.search.noResults'], { exact: true })).toHaveCount(0)
+  await mainWindow.keyboard.type('theme')
+  await expect(input).toHaveValue('theme')
+  await expect(input).toBeFocused()
+  await expect
+    .poll(() => readActiveRoute(mainWindow))
+    .toEqual({
+      id: owningTabId,
+      pathname: '/settings/search',
+      hasQ: true,
+      q: 'theme'
+    })
+  await expect(content.getByRole('listbox')).toBeVisible()
+})
+
+test(...caseDefinition('SET-02'), async ({ mainWindow }) => {
+  const { clear, content } = await openSettingsSearch(mainWindow)
+  await clear.click()
+  const prompt = content.getByText(en['settings.search.placeholder'], { exact: true })
+  const noResults = content.getByText(en['settings.search.noResults'], { exact: true })
+  await expect(prompt).toBeVisible()
+  await expect(noResults).toHaveCount(0)
+  await mainWindow.keyboard.type('zzzz22782nomatch')
+  await expect(noResults).toBeVisible()
+  await expect(prompt).toHaveCount(0)
 })
 
 test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {

@@ -1,4 +1,4 @@
-import type { Platform } from './types'
+import type { Platform, RunMode } from './types'
 
 export const REGRESSION_CASES = [
   {
@@ -514,6 +514,20 @@ export const REGRESSION_CASES = [
     tasks: ['settings']
   },
   {
+    id: 'SET-01',
+    title: 'Keep settings search open and focused after pointer clear',
+    tasks: ['settings', 'settings-search'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
+    id: 'SET-02',
+    title: 'Distinguish a blank settings search from a query with no matches',
+    tasks: ['settings', 'settings-search'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
     id: 'MP-105',
     title: 'Theme, appearance, and window style',
     tasks: ['settings'],
@@ -750,13 +764,22 @@ export function serializeTaskSelection(selection: TaskSelection): string {
   return typeof selection === 'string' ? selection : selection.join(',')
 }
 
-export function resolveWorkflowTasks(inputs: Record<string, unknown>) {
-  const selection = parseTaskSelection(String(inputs.task ?? 'all'))
-  const task = serializeTaskSelection(selection)
+export function resolveWorkflowTasks(inputs: Record<string, unknown>, mode: RunMode = 'branch') {
+  const suite = inputs.suite ?? 'all'
+  if (suite !== 'all' && suite !== 'regression' && suite !== 'smoke') {
+    throw new Error(`Invalid E2E suite: ${suite}`)
+  }
+  if (suite === 'smoke' && mode === 'tag') {
+    throw new Error('Standalone smoke requires a branch checkout')
+  }
+
+  const regression = suite !== 'smoke'
+  const selection = regression ? parseTaskSelection(String(inputs.task ?? 'all')) : 'all'
   return {
-    task,
-    prepare_mcp: selectCases(selection).some(({ id }) => id === 'MCP-01') ? 'true' : 'false',
-    smoke: task === 'all' ? 'all' : inputs.settings_search_smoke === true ? 'settings-search' : 'none'
+    task: serializeTaskSelection(selection),
+    regression: String(regression),
+    prepare_mcp: regression && selectCases(selection).some(({ id }) => id === 'MCP-01') ? 'true' : 'false',
+    smoke: suite !== 'regression' && mode === 'branch' ? 'all' : 'none'
   }
 }
 

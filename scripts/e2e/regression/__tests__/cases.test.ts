@@ -58,7 +58,8 @@ describe('regression execution plan', () => {
 
   it('accepts comma-separated tasks while preserving full regression as the default', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    const task = workflow.on.workflow_dispatch.inputs.task
+    const { suite, task } = workflow.on.workflow_dispatch.inputs
+    expect(suite).toMatchObject({ type: 'choice', default: 'all', options: ['all', 'regression', 'smoke'] })
     expect(task.type).toBe('string')
     expect(task.default).toBe('all')
   })
@@ -124,25 +125,55 @@ describe('regression execution plan', () => {
     expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
-  it('prepares native and utility-process dependencies before the first branch launch only', () => {
+  it('builds each platform once and restores that artifact before either suite can launch', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string; run?: string }>
-    const prepare = steps.findIndex((step) => step.name === 'Prepare application runtime once')
-    expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
-    expect(prepare).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
-    expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
-    const build = steps.findIndex((step) => step.name === 'Build application once')
-    expect(build).toBeGreaterThan(prepare)
-    expect(build).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
-    expect(steps[build].if).toBe("needs.resolve.outputs.mode == 'branch'")
-    const commands = steps.flatMap((step) => step.run?.split('\n') ?? [])
+    const { build, test, smoke } = workflow.jobs
+    expect(build.strategy.matrix.include.map(({ platform }: { platform: string }) => platform)).toEqual([
+      'macos',
+      'windows'
+    ])
+    const buildSteps = build.steps as Array<{ name: string; run?: string; with?: { name?: string } }>
+    const commands = buildSteps.flatMap(({ run }) => run?.split('\n') ?? [])
     expect(commands.filter((command) => command.includes('electron-vite build'))).toHaveLength(1)
-    expect(commands.filter((command) => command.includes('rebuild:electron'))).toEqual([
-      'pnpm --dir target-app rebuild:electron'
-    ])
-    expect(commands.filter((command) => command.includes('build:utility-process'))).toEqual([
-      'pnpm --dir target-app run build:utility-process'
-    ])
+    expect(commands).toContain('pnpm run build:utility-process')
+    const upload = buildSteps.find(({ name }) => name === 'Upload platform build')
+
+    for (const [suite, launch] of [
+      [test, 'Launch controlled Cherry Studio once'],
+      [smoke, 'Run standalone smoke suite']
+    ] as const) {
+      expect(suite.needs).toEqual(['resolve', 'build'])
+      expect(suite.strategy.matrix).toEqual(build.strategy.matrix)
+      const steps = suite.steps as Array<{ name: string; run?: string; with?: { name?: string } }>
+      const download = steps.find(({ name }) => name === 'Download platform build')
+      expect(download?.with?.name).toBe(upload?.with?.name)
+      const find = (name: string) => steps.findIndex((step) => step.name === name)
+      const restore = find('Verify and restore platform build')
+      const rebuild = find('Rebuild the application native module')
+      expect(restore).toBeGreaterThan(find('Download platform build'))
+      expect(rebuild).toBeGreaterThan(restore)
+      expect(find(launch)).toBeGreaterThan(rebuild)
+      expect(steps.some(({ run }) => run?.includes('electron-vite build'))).toBe(false)
+    }
+  })
+
+  it.each([
+    ['branch', 'all', 'success', true, true],
+    ['branch', 'regression', 'success', true, false],
+    ['branch', 'smoke', 'success', false, true],
+    ['branch', 'all', 'failure', false, false],
+    ['tag', 'all', 'skipped', true, false]
+  ] as const)('schedules %s %s after build %s', (mode, suite, build, regression, smoke) => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const context = {
+      cancelled: () => false,
+      needs: {
+        resolve: { result: 'success', outputs: { mode, ...resolveWorkflowTasks({ suite }, mode) } },
+        build: { result: build }
+      }
+    }
+    expect(runInNewContext(workflow.jobs.test.if, context)).toBe(regression)
+    expect(runInNewContext(workflow.jobs.smoke.if, context)).toBe(smoke)
   })
 
   it('selects only the requested task within its workflow phase', () => {

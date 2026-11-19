@@ -65,7 +65,7 @@ module task also includes the implemented knowledge case-library scenarios.
 3. Establish its preconditions in the scenario or domain helper. Keep selectors scoped to the relevant product surface.
 4. Run manifest tests, typechecking, and Playwright enumeration. Add a workflow step only when introducing a new phase.
 
-Use the task IDs from the manifest in the workflow's string `task` input (`all` selects every case). Combine modules or focused tasks with commas, for example `chat-core,browser,settings`; overlapping cases execute once in manifest order. For branch runs, `settings_search_smoke=true` adds only the standalone settings-search smoke file. Within an initialized run, execute a phase through the same controller as CI:
+Select `suite=regression` to run just the desktop regression. Use the task IDs from the manifest in the workflow's string `task` input (`all` selects every case). Combine modules or focused tasks with commas, for example `chat-core,browser,settings`; overlapping cases execute once in manifest order. Within an initialized run, execute a phase through the same controller as CI:
 
 ```sh
 pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
@@ -73,6 +73,10 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
 ```
 
 `cherryin-chat` selects M-01 on macOS and Windows. It starts in Model Provider settings, completes real CherryIN OAuth in an isolated Chromium session, checks the desktop balance, syncs `deepseek/deepseek-flash` and verifies a completed chat reply before signing out. The workflow reads `CHERRY_TEST_CHERRYIN_ACCOUNT` and `CHERRY_TEST_CHERRYIN_PASSWORD` from repository Actions secrets. The account needs an enabled API Key in the `default` group that can call this model. For a local run, initialize with `--task cherryin-chat`, install the browser with `pnpm exec playwright install --only-shell chromium` and pass the same variables in the environment of `run-phase --phase cherryIn`.
+
+`settings-search` selects SET-01 and SET-02. They verify that pointer clearing keeps
+search open, focused, and on the same tab, and that a blank query and a query
+with no matches show different prompts.
 
 `native-notifications` selects MP-110 for notification settings, actual system delivery,
 native activation and disabled-category suppression. `native-settings` selects the same case.
