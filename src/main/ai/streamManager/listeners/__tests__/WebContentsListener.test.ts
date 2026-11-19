@@ -14,18 +14,15 @@ import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebContentsListener } from '../WebContentsListener'
 
-interface FakeWebContents {
-  id: number
-  send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-}
-
-function fakeWc(): FakeWebContents {
-  return {
+function fakeWc() {
+  const wc = {
     id: 1,
-    send: vi.fn(),
-    isDestroyed: vi.fn(() => false)
-  }
+    send: vi.fn<Electron.WebContents['send']>(),
+    isDestroyed: vi.fn<Electron.WebContents['isDestroyed']>(() => false)
+  } satisfies Pick<Electron.WebContents, 'id' | 'send' | 'isDestroyed'>
+  // SAFETY: The listener uses these members; the unified WindowManager mock handles native window lookup.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Node unit tests cannot construct Electron's native WebContents.
+  return wc as unknown as Electron.WebContents & typeof wc
 }
 
 function chunk(type: UIMessageChunk['type'], opts: Record<string, unknown> = {}): UIMessageChunk {
@@ -43,7 +40,7 @@ afterEach(() => {
 describe('WebContentsListener coalescing', () => {
   it('reports the complete source range of coalesced live output', () => {
     const wc = fakeWc()
-    const listener = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const listener = new WebContentsListener(wc, 'topic-1')
     for (const [index, delta] of ['AA', 'BB', 'CC', 'DD', 'EE'].entries())
       listener.onChunk({ type: 'text-delta', id: 'p', delta }, undefined, 'answer', 1, index + 3)
     listener.flushPending()
@@ -58,7 +55,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('merges consecutive text-deltas with same id into one send', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'Hello' }))
     l.onChunk(chunk('text-delta', { id: 't1', delta: ', ' }))
@@ -80,7 +77,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('flushes pending buffer when a non-mergeable chunk arrives', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'Hi' }))
     l.onChunk(chunk('text-delta', { id: 't1', delta: '!' }))
@@ -94,7 +91,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge across different message ids', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 'a', delta: 'foo' }))
     l.onChunk(chunk('text-delta', { id: 'b', delta: 'bar' }))
@@ -109,7 +106,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge across different sourceModelIds (multi-model)', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }), 'openai::gpt-4o')
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'B' }), 'anthropic::claude')
@@ -129,7 +126,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge across different anchorMessageIds for the same model', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }), 'openai::gpt-4o', 'assistant-1')
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'B' }), 'openai::gpt-4o', 'assistant-2')
@@ -151,7 +148,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('includes execution identity and topic attempt watermark on terminal events', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onDone({
       modelId: 'openai::gpt-4o',
@@ -188,7 +185,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge a delta that carries providerMetadata', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }))
     l.onChunk(
@@ -211,7 +208,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('sends an oversized tool output as a reference without mutating the persistence input', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const l = new WebContentsListener(wc, 'agent-session:session-1')
     const output = { content: 'x'.repeat(64 * 1024) }
     const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output })
 
@@ -250,7 +247,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('sends a small tool output through untouched', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const l = new WebContentsListener(wc, 'agent-session:session-1')
     const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output: { content: 'small' } })
 
     l.onChunk(toolChunk, undefined, 'assistant-1')
@@ -264,7 +261,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('coalesces reasoning-delta independently from text-delta', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('reasoning-delta', { id: 'r1', delta: 'think' }))
     l.onChunk(chunk('reasoning-delta', { id: 'r1', delta: 'ing' }))
@@ -281,7 +278,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('flushes pending buffer on onDone before sending the terminal event', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'Final' }))
     l.onDone({ modelId: 'openai::gpt-4o', status: 'success', isTopicDone: true } as never)
@@ -294,7 +291,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('flushes pending buffer on onError before sending the terminal event', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'Partial' }))
     l.onError({
@@ -310,7 +307,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('drops pending buffer and sends nothing when the WebContents is destroyed', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }))
     wc.isDestroyed.mockReturnValue(true)
@@ -326,7 +323,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('coalesces consecutive tool-input-delta chunks with same toolCallId', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '{"q":' }))
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '"hi' }))
@@ -346,7 +343,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge tool-input-deltas across different toolCallIds', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'a', inputTextDelta: '1' }))
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'b', inputTextDelta: '2' }))
@@ -361,7 +358,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('does not merge tool-input-delta with text-delta even within window', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '{' }))
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }))
@@ -380,7 +377,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('flushes pending tool-input-delta when tool-input-start arrives', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '{"q":"x"}' }))
     l.onChunk(chunk('tool-input-start', { toolCallId: 'call-2', toolName: 'next' }))
@@ -396,7 +393,7 @@ describe('WebContentsListener coalescing', () => {
 
   it('isAlive() returns false and clears state when WebContents is destroyed', () => {
     const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    const l = new WebContentsListener(wc, 'topic-1')
 
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }))
     wc.isDestroyed.mockReturnValue(true)
