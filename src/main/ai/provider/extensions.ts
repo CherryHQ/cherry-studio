@@ -11,7 +11,7 @@ import type { GroqProviderSettings } from '@ai-sdk/groq'
 import type { HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import type { MistralProviderSettings } from '@ai-sdk/mistral'
 import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
-import type { ProviderV3 } from '@ai-sdk/provider'
+import { NoSuchModelError, type ProviderV3 } from '@ai-sdk/provider'
 import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import type { GitHubCopilotProviderSettings } from '@opeoginni/github-copilot-openai-compatible'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
@@ -104,11 +104,21 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   name: 'github-copilot-openai-compatible',
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
-  // Cast because the upstream package doesn't fully implement `ProviderV3`.
-  create: async (options?: GitHubCopilotProviderSettings) =>
-    (await import('@opeoginni/github-copilot-openai-compatible')).createGitHubCopilotOpenAICompatible(
+  create: async (options?: GitHubCopilotProviderSettings) => {
+    const provider = (await import('@opeoginni/github-copilot-openai-compatible')).createGitHubCopilotOpenAICompatible(
       options
-    ) as unknown as ProviderV3
+    )
+    // Copilot is language-only; preserve its callable factory while completing the SDK contract.
+    return Object.assign(provider, {
+      specificationVersion: 'v3' as const,
+      embeddingModel(modelId: string) {
+        throw new NoSuchModelError({ modelId, modelType: 'embeddingModel' })
+      },
+      imageModel(modelId: string) {
+        throw new NoSuchModelError({ modelId, modelType: 'imageModel' })
+      }
+    })
+  }
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
   ProviderV3,
