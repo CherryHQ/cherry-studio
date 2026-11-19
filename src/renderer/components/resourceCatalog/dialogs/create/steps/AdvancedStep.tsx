@@ -58,11 +58,19 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   return (
     <div className="flex flex-col gap-5">
       {agentType === 'pi-durable' ? (
-        <PiPromptField
-          value={prompt}
-          onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
-          draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
-        />
+        <section className="flex flex-col gap-3">
+          <h3 className="flex items-baseline gap-1.5 font-medium text-foreground text-sm">
+            {t('library.config.prompt.label')}
+            <span className="font-normal text-muted-foreground text-xs">
+              {t('library.config.agent.prompt.row_hint')}
+            </span>
+          </h3>
+          <PiPromptField
+            value={prompt}
+            onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
+            draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
+          />
+        </section>
       ) : (
         <SystemPromptStep
           form={form}

@@ -970,6 +970,8 @@ describe('ResourceCreateWizard agent steps', () => {
     await user.click(screen.getByRole('button', { name: 'select MCP server' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    // The prompt list and its runtime blocks read as one titled System Prompt setting.
+    expect(screen.getByRole('heading', { name: /^library\.config\.prompt\.label/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: AGENT_PROMPT_ROW }))
     await user.clear(screen.getByRole('textbox', { name: AGENT_PROMPT }))
     await user.type(screen.getByRole('textbox', { name: AGENT_PROMPT }), 'Review carefully')
