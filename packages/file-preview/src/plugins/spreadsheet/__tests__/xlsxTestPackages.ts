@@ -40,9 +40,11 @@ const escapeXml = (value: string): string =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;')
 
-const toArrayBuffer = async (workbook: ExcelJS.Workbook): Promise<ArrayBuffer> => {
+export const toArrayBuffer = async (workbook: ExcelJS.Workbook): Promise<ArrayBuffer> => {
   const buf = await workbook.xlsx.writeBuffer()
-  const view = buf as unknown as Uint8Array
+  const view = ArrayBuffer.isView(buf)
+    ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+    : new Uint8Array(buf)
   const arrayBuffer = new ArrayBuffer(view.byteLength)
   new Uint8Array(arrayBuffer).set(view)
   return arrayBuffer
