@@ -1206,6 +1206,20 @@ describe('FilesPage file operations', () => {
     expect(await screen.findByRole('region', { name: 'report.md' })).toBeInTheDocument()
   })
 
+  it('reports preview failure even when the path lookup rejection cannot be coerced to a string', async () => {
+    ipcMocks.request.mockImplementation((route: string) =>
+      route === 'file.batch_get_physical_paths'
+        ? Promise.reject({ toString: null, valueOf: null })
+        : Promise.resolve({})
+    )
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('files.preview.error'))
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
+  })
+
   it('reports a file preview path resolution failure', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     renderFilesPage()
