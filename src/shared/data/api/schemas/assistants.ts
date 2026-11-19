@@ -171,6 +171,24 @@ export interface DeleteAssistantResult {
 /**
  * Assistant API Schema definitions
  */
+/** One of an Assistant's most recently active topics, as its profile lists them. */
+export interface AssistantRecentTopic {
+  id: string
+  name: string
+  lastActivityAt: string
+  messageCount: number
+}
+
+/** Activity of one Assistant: its own topics, messages and recent token use only. */
+export interface AssistantStats {
+  topicCount: number
+  messageCount: number
+  /** Tokens attributed to this Assistant over the last 7 days (rolling). */
+  recentTokens: number
+  /** Up to 5, most recently active first. */
+  recentTopics: AssistantRecentTopic[]
+}
+
 export type AssistantSchemas = {
   /**
    * Assistants collection endpoint
@@ -198,6 +216,14 @@ export type AssistantSchemas = {
     POST: {
       body: ImportAssistantDto
       response: Assistant
+    }
+  }
+
+  /** Usage overview and recent topics of one Assistant, for its profile. */
+  '/assistants/:id/stats': {
+    GET: {
+      params: { id: string }
+      response: AssistantStats
     }
   }
 

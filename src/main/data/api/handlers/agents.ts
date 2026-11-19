@@ -67,6 +67,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  '/agents/:agentId/stats': {
+    GET: async ({ params }) => {
+      const stats = agentService.getStats(params.agentId)
+      if (!stats) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return stats
+    }
+  },
+
   '/agents/:agentId': {
     GET: async ({ params }) => {
       const agent = agentService.getAgent(params.agentId)

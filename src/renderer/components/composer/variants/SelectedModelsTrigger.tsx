@@ -273,7 +273,7 @@ export const SelectedModelsTrigger = ({
           ref={ref}
           variant="ghost"
           size="sm"
-          className={cn(className, 'min-w-0', iconOnly && hasVisibleTriggerIcon && 'w-8 justify-center px-0')}
+          className={cn('min-w-0', className, iconOnly && hasVisibleTriggerIcon && 'w-8 justify-center px-0')}
           aria-label={ariaLabel ?? selectedModelsLabel}
           {...buttonProps}
           onClick={handleTriggerClick}

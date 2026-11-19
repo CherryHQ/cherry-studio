@@ -1,0 +1,196 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Topic } from '@shared/data/types/topic'
+
+import { AssistantProfilePane } from '../AssistantProfilePane'
+import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
+
+const knowledgeBase = (id: string, name: string, itemCount: number) => ({ id, name, itemCount })
+
+const assistant = {
+  id: 'assistant-1',
+  name: 'Writing Assistant',
+  emoji: '✍️',
+  description: 'Turns scattered ideas into a clean draft',
+  prompt: 'You are a writing assistant.',
+  modelId: null,
+  modelName: 'GPT-5.1',
+  knowledgeBaseIds: [],
+  mcpServerIds: [],
+  settings: { enableBrowser: true }
+} as unknown as Assistant
+
+describe('AssistantProfilePane', () => {
+  let dialog: ReturnType<typeof recordEditDialogRequests>
+
+  beforeEach(async () => {
+    MockUseDataApiUtils.resetMocks()
+    await i18n.changeLanguage('en-US')
+    serveQueries({ '/assistants/:id': ({ params }) => (params?.id === assistant.id ? assistant : undefined) })
+    dialog = recordEditDialogRequests()
+  })
+
+  afterEach(() => dialog.stop())
+
+  it('shows who the Assistant is', () => {
+    renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
+
+    expect(screen.getByRole('heading', { name: 'Writing Assistant' })).toBeInTheDocument()
+    expect(screen.getByText('Turns scattered ideas into a clean draft')).toBeInTheDocument()
+  })
+
+  it('lists only the knowledge bases linked to this Assistant, in its order, and manages them in the edit dialog', async () => {
+    MockUseDataApiUtils.seedInfiniteQuery(
+      '/knowledge-bases',
+      [
+        {
+          items: [
+            knowledgeBase('kb-brand', 'Brand guide', 12),
+            knowledgeBase('kb-other', 'Another team wiki', 40),
+            knowledgeBase('kb-style', 'Style rules', 1)
+          ],
+          nextCursor: undefined
+        }
+      ] as never,
+      { query: { sortBy: 'orderKey', sortOrder: 'asc' }, limit: KNOWLEDGE_BASES_MAX_LIMIT }
+    )
+    serveQueries({
+      '/assistants/:id': () => ({ ...assistant, knowledgeBaseIds: ['kb-style', 'kb-brand'] })
+    })
+    renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
+    const section = screen.getByRole('region', { name: 'Knowledge bases' })
+
+    expect(
+      within(section)
+        .getAllByText(/Brand guide|Style rules|Another team wiki/)
+        .map((node) => node.textContent)
+    ).toEqual(['Style rules', 'Brand guide'])
+    expect(within(section).getByText('12 docs')).toBeInTheDocument()
+
+    fireEvent.click(within(section).getByRole('button', { name: 'Manage' }))
+    await waitFor(() =>
+      expect(dialog.requests).toEqual([{ kind: 'assistant', id: assistant.id, initialTab: 'tools.knowledge' }])
+    )
+  })
+
+  it('leaves out the knowledge base section when none is linked', () => {
+    renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
+
+    expect(screen.queryByRole('region', { name: 'Knowledge bases' })).toBeNull()
+  })
+
+  it('opens the edit dialog on the page of each settings entry', async () => {
+    renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
+    const settings = screen.getByRole('region', { name: 'Settings' })
+
+    fireEvent.click(within(settings).getByRole('button', { name: 'All' }))
+    fireEvent.click(within(settings).getByRole('button', { name: 'Model: GPT-5.1' }))
+
+    await waitFor(() =>
+      expect(dialog.requests).toEqual([
+        { kind: 'assistant', id: assistant.id, initialTab: undefined },
+        { kind: 'assistant', id: assistant.id, initialTab: 'basic' }
+      ])
+    )
+    expect(within(settings).getByRole('switch', { name: 'Browser' })).toBeChecked()
+  })
+
+  it("shows this Assistant's usage and recent topics and opens them", () => {
+    const now = Date.now()
+    serveQueries({
+      '/assistants/:id': () => assistant,
+      '/assistants/:id/stats': ({ params }) =>
+        params?.id === assistant.id
+          ? {
+              topicCount: 12,
+              messageCount: 248,
+              recentTokens: 36_000,
+              recentTopics: [
+                { id: 'topic-a', name: 'Weekly report', lastActivityAt: new Date(now).toISOString(), messageCount: 3 },
+                { id: 'topic-b', name: '', lastActivityAt: new Date(now - 86_400_000).toISOString(), messageCount: 1 }
+              ]
+            }
+          : undefined
+    })
+    const opened: string[] = []
+    renderInRightPane(
+      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-a" onOpenTopic={(id) => opened.push(id)} />
+    )
+
+    for (const [value, label] of [
+      ['12', 'Topics'],
+      ['248', 'Messages'],
+      ['36K', 'Tokens, 7 days']
+    ]) {
+      expect(screen.getByText(label).closest('div')).toHaveTextContent(`${label}${value}`)
+    }
+    const recent = screen.getByRole('region', { name: 'Recent topics' })
+    const [current, older] = within(recent).getAllByRole('button', { name: /message/ })
+    expect(current).toHaveTextContent('Weekly report')
+    expect(current).toHaveTextContent('3 messages')
+    expect(within(current).getByTitle('Current topic')).toBeInTheDocument()
+    expect(older).toHaveTextContent('Default Conversation')
+    expect(older).toHaveTextContent('1 message')
+    expect(within(older).queryByTitle('Current topic')).toBeNull()
+
+    fireEvent.click(older)
+    expect(opened).toEqual(['topic-b'])
+  })
+
+  it('lists every topic of this Assistant on a page of the pane from All, and goes back', () => {
+    const now = Date.now()
+    const at = (daysAgo: number) => new Date(now - daysAgo * 86_400_000).toISOString()
+    const topic = (id: string, name: string, assistantId: string, daysAgo: number) =>
+      ({ id, name, assistantId, lastActivityAt: at(daysAgo) }) as Topic
+    serveQueries({
+      '/assistants/:id': () => assistant,
+      '/assistants/:id/stats': () => ({
+        topicCount: 7,
+        messageCount: 20,
+        recentTokens: 0,
+        recentTopics: [{ id: 'topic-1', name: 'Topic 1', lastActivityAt: at(1), messageCount: 2 }]
+      })
+    })
+    // Six topics of this Assistant, more than the recent list shows, plus one of another Assistant.
+    MockUseDataApiUtils.seedInfiniteQuery(
+      '/topics',
+      [
+        {
+          items: [
+            ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
+            topic('other', 'Someone else', 'assistant-2', 0)
+          ]
+        }
+      ],
+      { limit: 200 }
+    )
+    const opened: string[] = []
+    renderInRightPane(
+      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-2" onOpenTopic={(id) => opened.push(id)} />
+    )
+
+    fireEvent.click(within(screen.getByRole('region', { name: 'Recent topics' })).getByRole('button', { name: 'All' }))
+
+    const rows = screen.getAllByRole('button', { name: /^Topic \d/ })
+    expect(rows.map((row) => row.textContent?.match(/Topic \d/)?.[0])).toEqual([
+      'Topic 1',
+      'Topic 2',
+      'Topic 3',
+      'Topic 4',
+      'Topic 5',
+      'Topic 6'
+    ])
+    expect(screen.queryByText('Someone else')).toBeNull()
+    expect(within(rows[1]).getByTitle('Current topic')).toBeInTheDocument()
+    fireEvent.click(rows[2])
+    expect(opened).toEqual(['topic-3'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'All topics' }))
+    expect(screen.getByRole('region', { name: 'Recent topics' })).toBeInTheDocument()
+  })
+})
