@@ -42,7 +42,7 @@ import { collectDiagnosticSystemInfo } from '../systemInfo'
 import type { DiagnosticWarning } from '../types'
 import { DoctorExecution } from './execution'
 import { doctorCheckRegistry } from './registry'
-import type { DoctorContext, DoctorEngineDefinition, DoctorFixOutcome } from './types'
+import type { DoctorContext, DoctorContextBase, DoctorFixOutcome } from './types'
 
 const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['quick'], live: ['quick', 'live'] }
 
@@ -397,12 +397,19 @@ export class DoctorService extends BaseService {
       let outcome: DoctorFixOutcome
       try {
         const context = runContext(controller.signal, new Map(), subject)
-        const definition = doctorCheckRegistry[request.checkId] as unknown as DoctorEngineDefinition
-        const handler = definition.fixes[request.fixId]
-        if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
-        const input: Parameters<typeof handler>[0] = { ...context }
-        if ('target' in request) Object.assign(input, { target: request.target })
-        outcome = await handler(input)
+        if (request.checkId === 'mcp-servers-connected') {
+          const handler = doctorCheckRegistry[request.checkId].fixes[request.fixId]
+          if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
+          outcome = await handler({ ...context, target: request.target })
+        } else {
+          const fixes: Readonly<Record<string, (ctx: DoctorContextBase) => Promise<DoctorFixOutcome>>> =
+            doctorCheckRegistry[request.checkId].fixes
+          const handler = fixes[request.fixId]
+          if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
+          const input: Parameters<typeof handler>[0] = { ...context }
+          if ('target' in request) Object.assign(input, { target: request.target })
+          outcome = await handler(input)
+        }
       } catch (error) {
         outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }

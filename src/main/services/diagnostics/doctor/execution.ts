@@ -83,9 +83,8 @@ export class DoctorExecution {
   ): Promise<DoctorExecutionSnapshot> {
     const active = new Set<DoctorCheckId>()
     const settled = new Map(this.results.map((result) => [result.id, result]))
-    const definitions = new Map(
-      this.ids.map((id) => [id, doctorCheckRegistry[id] as unknown as DoctorEngineDefinition])
-    )
+    const definitions = new Map<DoctorCheckId, DoctorEngineDefinition>()
+    for (const id of this.ids) definitions.set(id, doctorCheckRegistry[id])
     this.results = (await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
       signal,
       initialResults: this.results,

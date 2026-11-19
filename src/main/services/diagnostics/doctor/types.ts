@@ -22,12 +22,11 @@ export interface DoctorContext extends DoctorContextBase {
   readonly subject: DoctorSubject | null
 }
 
-/** Checks that read no facts (`scope: 'global' | 'any'`) get no `subject` to read. */
-type DoctorSubjectSlot<Id extends DoctorCheckId> =
-  DoctorSubjectFor<Id> extends undefined ? { readonly subject?: undefined } : { readonly subject: DoctorSubjectFor<Id> }
-
 /** What a check's `run` sees: `subject` narrowed to the facts its catalog `scope` declared. */
-export type DoctorCheckContext<Id extends DoctorCheckId> = DoctorContextBase & DoctorSubjectSlot<Id>
+export type DoctorCheckContext<Id extends DoctorCheckId> =
+  DoctorSubjectFor<Id> extends undefined
+    ? DoctorContextBase
+    : DoctorContextBase & { readonly subject: DoctorSubjectFor<Id> }
 
 export type DoctorProbeOutcome<Id extends DoctorCheckId> = DoctorCheckOutcome<Id> & {
   readonly devMessage?: string
@@ -86,7 +85,4 @@ export interface DoctorEngineDefinition {
   readonly timeoutMs?: number
   run(ctx: DoctorContext): Promise<DoctorProbeOutcome<DoctorCheckId>>
   getConfirmation?(ctx: DoctorContext): Promise<DoctorPreparedConfirmation | DoctorProbeOutcome<DoctorCheckId>>
-  readonly fixes: Readonly<
-    Record<string, (ctx: DoctorContextBase & { readonly target?: string }) => Promise<DoctorFixOutcome>>
-  >
 }
