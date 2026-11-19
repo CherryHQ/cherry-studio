@@ -235,8 +235,13 @@ describe('AgentFileSnapshotService', () => {
     expect(await readdir(path.join(testDir, 'snapshots/session/reply/blobs'))).toHaveLength(1)
   })
   it('leaves an oversized write untouched while restoring other files', async () => {
+    BaseService.resetInstances()
+    service = new AgentFileSnapshotService({ maxFileBytes: 1024 })
+    vi.spyOn(service, 'workspaceRoots').mockResolvedValue([])
+    await service.admitRound(round)
     const large = path.join(root, 'large')
     const other = path.join(root, 'other')
+    const content = 'x'.repeat(2048)
     await writeFile(large, 'before')
     await writeFile(other, 'before')
     const { attemptId } = await service.protectWrite({
@@ -244,19 +249,21 @@ describe('AgentFileSnapshotService', () => {
       callId: 'large',
       runtime: 'pi',
       toolName: 'write',
-      intent: { toolName: 'write', input: { content: '\0'.repeat(65 * 1024 * 1024) } },
+      intent: { toolName: 'write', input: { content } },
       filePath: large,
       cwd: root
     })
-    const handle = await open(large, 'w')
-    await handle.truncate(65 * 1024 * 1024)
-    await handle.close()
+    await writeFile(large, content)
     await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     await write(other, 'after', 'other')
+    const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
+    expect(manifest.files.find((file: { path: string }) => file.path === large).attempts[0].status).toBe('unverifiable')
     const result = await undo()
     expect(result.reason).toBe('unverifiable')
     expect(result.files).toContainEqual({ path: large, status: 'unverifiable', reason: 'unverifiable' })
-    expect((await stat(large)).size).toBe(65 * 1024 * 1024)
+    expect(result.files).toContainEqual({ path: other, status: 'restored' })
+    expect((await stat(large)).size).toBe(2048)
+    expect(await readFile(large, 'utf8')).toBe(content)
     expect(await readFile(other, 'utf8')).toBe('before')
   })
   it('does not delete a user file created after a rejected write', async () => {
@@ -272,8 +279,10 @@ describe('AgentFileSnapshotService', () => {
     })
     await writeFile(target, 'user content')
     await service.settleWrite({ round, attemptId: attemptId!, outcome: 'failure' })
-    expect((await undo()).files).toEqual([{ path: target, status: 'skipped' }])
+    const result = await undo()
     expect(await readFile(target, 'utf8')).toBe('user content')
+    expect(result.files.some((file) => file.status === 'restored' || file.status === 'already-restored')).toBe(false)
+    for (const file of result.files.filter((file) => file.path === target)) expect(file.status).toBe('skipped')
   })
   it('refuses undo while a write is pending', async () => {
     const target = path.join(root, 'pending')
@@ -406,12 +415,17 @@ describe('AgentFileSnapshotService', () => {
   it('rejects an unreadable baseline', async () => {
     const target = path.join(root, 'unreadable')
     await writeFile(target, 'secret')
-    await chmod(target, 0)
-    try {
-      await expect(service.protectWrite(call(target, '1'))).rejects.toThrow()
-    } finally {
-      await chmod(target, 0o600)
-    }
+    const originalOpen = fs.open.bind(fs)
+    vi.spyOn(fs, 'open').mockImplementation(async (filePath, flags, mode) => {
+      if (filePath === target) throw Object.assign(new Error('Permission denied'), { code: 'EACCES' })
+      return originalOpen(filePath, flags, mode)
+    })
+    await expect(service.protectWrite(call(target, '1'))).rejects.toMatchObject({ code: 'EACCES' })
+    expect(await readFile(target, 'utf8')).toBe('secret')
+    const snapshotDir = path.join(testDir, 'snapshots/session/reply')
+    expect(await readdir(path.join(snapshotDir, 'blobs'))).toEqual([])
+    const manifest = JSON.parse(await readFile(path.join(snapshotDir, 'manifest.json'), 'utf8'))
+    expect(manifest.files).toEqual([])
   })
   it('rejects an oversized baseline', async () => {
     const target = path.join(root, 'large')

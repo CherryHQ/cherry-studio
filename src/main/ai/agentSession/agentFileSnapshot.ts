@@ -56,7 +56,10 @@ export function safeSegment(value: string): string {
   return value
 }
 
-export async function inspectFile(filePath: string): Promise<{ state: FileState; bytes: Buffer | null }> {
+export async function inspectFile(
+  filePath: string,
+  maxFileBytes = MAX_SNAPSHOT_BYTES
+): Promise<{ state: FileState; bytes: Buffer | null }> {
   let handle: fs.FileHandle
   try {
     handle = await fs.open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
@@ -69,7 +72,7 @@ export async function inspectFile(filePath: string): Promise<{ state: FileState;
     const before = await handle.stat({ bigint: true })
     if (!before.isFile() || before.nlink !== 1n)
       throw new Error('Snapshot target must be a regular file without hard links')
-    if (before.size > BigInt(MAX_SNAPSHOT_BYTES)) throw new Error('Snapshot target exceeds size limit')
+    if (before.size > BigInt(maxFileBytes)) throw new Error('Snapshot target exceeds size limit')
     const bytes = await handle.readFile()
     const after = await handle.stat({ bigint: true })
     const entry = await fs.lstat(filePath, { bigint: true })
