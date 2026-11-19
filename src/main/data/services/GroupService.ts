@@ -19,13 +19,18 @@
 import { and, asc, eq } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { topicTable } from '@data/db/schemas/topic'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
 
@@ -145,6 +150,7 @@ export class GroupService {
     )
 
     const mapped = rowToGroup(row as GroupRow)
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'membership', entityIds: [mapped.id] }])
     logger.info('Created group', { id: mapped.id, entityType: mapped.entityType })
     return mapped
   }
@@ -169,6 +175,7 @@ export class GroupService {
       throw DataApiErrorFactory.notFound('Group', id)
     }
 
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'projection', entityIds: [id] }])
     logger.info('Updated group', { id, changes: Object.keys(dto) })
     return rowToGroup(row)
   }
@@ -177,14 +184,49 @@ export class GroupService {
    * Delete a group.
    */
   delete(id: string): void {
+    let affectedTopicIds: string[] = []
+    let affectedAssistantIds: string[] = []
+    let affectedKnowledgeBaseIds: string[] = []
     application.get('DbService').withWriteTx((tx) => {
       const group = this.findByIdTx(tx, id)
       if (!group) throw DataApiErrorFactory.notFound('Group', id)
+      // Membership rows lose their groupId with the delete (FK set-null or explicit
+      // ungroup), so capture affected entity ids inside the tx for post-commit effects.
+      affectedTopicIds = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(eq(topicTable.groupId, id))
+        .all()
+        .map((row) => row.id)
+      affectedAssistantIds = tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(eq(assistantTable.groupId, id))
+        .all()
+        .map((row) => row.id)
       if (group.entityType === 'knowledge') {
+        affectedKnowledgeBaseIds = tx
+          .select({ id: knowledgeBaseTable.id })
+          .from(knowledgeBaseTable)
+          .where(eq(knowledgeBaseTable.groupId, id))
+          .all()
+          .map((row) => row.id)
         getDataService('KnowledgeBaseService').ungroupTx(tx, id)
       }
       tx.delete(groupTable).where(eq(groupTable.id, id)).run()
     })
+
+    const effects: DataApiDataChangeEffect[] = [{ endpoint: '/groups', kind: 'membership', entityIds: [id] }]
+    if (affectedTopicIds.length > 0) {
+      effects.push({ endpoint: '/topics', kind: 'projection', entityIds: affectedTopicIds })
+    }
+    if (affectedAssistantIds.length > 0) {
+      effects.push({ endpoint: '/assistants', kind: 'projection', entityIds: affectedAssistantIds })
+    }
+    if (affectedKnowledgeBaseIds.length > 0) {
+      effects.push({ endpoint: '/knowledge-bases', kind: 'projection', entityIds: affectedKnowledgeBaseIds })
+    }
+    notifyDataApiDataChange(effects)
 
     logger.info('Deleted group', { id })
   }
@@ -200,6 +242,7 @@ export class GroupService {
         scopeColumn: groupTable.entityType
       })
     )
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order' }])
   }
 
   /**
@@ -213,6 +256,7 @@ export class GroupService {
         scopeColumn: groupTable.entityType
       })
     )
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order' }])
   }
 }
 
