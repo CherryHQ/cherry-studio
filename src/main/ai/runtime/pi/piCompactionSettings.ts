@@ -17,8 +17,9 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 8_192
  * overflow the summarize call and keep its oversized history.
  */
 export function resolvePiCompactionSettings(model: Model): { reserveTokens: number; keepRecentTokens: number } {
-  const window = resolveAgentContextWindow(model)
-  const maxOutput = model.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS
+  // Pi rejects fractional budgets, and model metadata only has to be numeric: derive integers.
+  const window = Math.max(0, Math.floor(resolveAgentContextWindow(model)))
+  const maxOutput = Math.max(0, Math.floor(model.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS))
   const reserveTokens = Math.min(
     Math.max(DEFAULT_RESERVE_TOKENS, maxOutput + Math.ceil(window * 0.1)),
     Math.floor(window / 2)

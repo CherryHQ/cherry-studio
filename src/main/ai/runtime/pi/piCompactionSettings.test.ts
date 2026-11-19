@@ -22,6 +22,13 @@ describe('resolvePiCompactionSettings', () => {
     expect(savedHistoryTokens - keepRecentTokens).toBeLessThanOrEqual(49_152)
   })
 
+  it('derives integer budgets from fractional model metadata', () => {
+    const { reserveTokens, keepRecentTokens } = resolvePiCompactionSettings(model(32_768.5, 8_192.5))
+    expect(Number.isSafeInteger(reserveTokens)).toBe(true)
+    expect(Number.isSafeInteger(keepRecentTokens)).toBe(true)
+    expect(keepRecentTokens).toBeGreaterThanOrEqual(0)
+  })
+
   it('shrinks the retained tail only as far as small-window room requires', () => {
     expect(resolvePiCompactionSettings(model(32_768, 8_192)).keepRecentTokens).toBe(8_192)
     expect(resolvePiCompactionSettings(model(20_000, 8_192)).keepRecentTokens).toBe(5_000)
