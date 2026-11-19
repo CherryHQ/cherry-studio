@@ -1,6 +1,6 @@
 # Conversation terminal pane
 
-`TerminalPane` lists this product conversation's persistent terminals and fresh shell executions. Running Bash calls can be promoted explicitly; pipe output remains read-only. The pane does not start a process merely by opening or refreshing a view. Closing the pane leaves its resources running.
+`TerminalPane` lists this product conversation's persistent terminals and fresh shell executions. Running Bash calls can be promoted explicitly; pipe output remains read-only. The pane does not start a process merely by opening or refreshing a view. Closing the pane leaves its resources running. New user terminals start the user's configured shell and load its existing configuration; colors and input highlighting come from the shell and programs.
 
 `TerminalCanvas` draws window-bound cell frames from the authoritative Host Ghostty core. It has no VT parser or renderer-side WASM instance. Content and cursor/selection use separate Canvas layers; dirty rows render in animation frames. The real textarea handles keyboard input, paste and IME, with a bounded accessible viewport log. Canvas/key normalization derives from T3 Code revision `0a8aaa3ccb944dadb70054ae4ef2e29897b0db03`; see the [asset provenance and licenses](../../../../resources/terminal/ghostty/README.md).
 

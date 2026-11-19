@@ -279,8 +279,9 @@ export class TerminalHost {
       if (resource.state.shellFacts.revision !== command.promptRevision) return rejected('stale_control')
       if (Buffer.byteLength(command.data) > 32 * 1024 || !command.data || command.data.includes('\0'))
         return rejected('unsupported')
-      const quoted = command.data.replaceAll("'", resource.state.shell === 'bash' ? "'\\''" : "''")
-      const data = resource.state.shell === 'bash' ? `builtin eval -- '${quoted}'\r` : `Invoke-Expression '${quoted}'\r`
+      const quoted = command.data.replaceAll("'", resource.state.shell === 'powershell' ? "''" : "'\\''")
+      const data =
+        resource.state.shell === 'powershell' ? `Invoke-Expression '${quoted}'\r` : `builtin eval -- '${quoted}'\r`
       if (Buffer.byteLength(data) > 64 * 1024) return rejected('capacity_exceeded')
       if (resource.writes >= 2) return rejected('busy')
       claim()
@@ -395,14 +396,27 @@ export class TerminalHost {
   private async start(command: Extract<TerminalMutation['command'], { kind: 'start' }>): Promise<TerminalReceipt> {
     let { launch } = command
     const token = randomUUID()
-    if (launch.kind === 'pty' && this.init.integrationDirectory) {
+    if (launch.kind === 'pty' && this.init.integrationDirectory && launch.shell !== 'other') {
+      const directory = this.init.integrationDirectory
       launch = {
         ...launch,
-        env: { ...launch.env, CHERRY_TERMINAL_TOKEN: token },
+        env: {
+          ...launch.env,
+          CHERRY_TERMINAL_TOKEN: token,
+          ...(launch.shell === 'zsh'
+            ? {
+                ...('ZDOTDIR' in launch.env ? { CHERRY_TERMINAL_ZDOTDIR: launch.env.ZDOTDIR } : {}),
+                CHERRY_TERMINAL_ZSH_INTEGRATION: path.join(directory, 'zsh'),
+                ZDOTDIR: path.join(directory, 'zsh')
+              }
+            : {})
+        },
         args:
           launch.shell === 'bash'
-            ? ['--noprofile', '--rcfile', path.join(this.init.integrationDirectory, 'bash.bash'), '-i']
-            : ['-NoLogo', '-NoProfile', '-NoExit', '-File', path.join(this.init.integrationDirectory, 'powershell.ps1')]
+            ? ['--noprofile', '--rcfile', path.join(directory, 'bash.bash'), '-i']
+            : launch.shell === 'zsh'
+              ? ['-il']
+              : ['-NoLogo', '-NoExit', '-File', path.join(directory, 'powershell.ps1')]
       }
     }
     const capture = new TerminalCapture()
@@ -487,7 +501,7 @@ export class TerminalHost {
         }
       })
     }
-    if (launch.kind === 'pty' && this.init.integrationDirectory)
+    if (launch.kind === 'pty' && this.init.integrationDirectory && launch.shell !== 'other')
       resource.integration = new ShellIntegration(token, (event) => this.shellEvent(resource, event))
     this.resources.set(command.id, resource)
     this.changed(resource)

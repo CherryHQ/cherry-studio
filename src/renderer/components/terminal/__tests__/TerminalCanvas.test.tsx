@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import type { InputFor } from '@shared/ipc/types'
@@ -95,6 +96,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+  Reflect.deleteProperty(HTMLElement.prototype, 'hasPointerCapture')
   if (fonts) Object.defineProperty(document, 'fonts', fonts)
   else Reflect.deleteProperty(document, 'fonts')
 })
@@ -103,6 +106,21 @@ async function input() {
   await waitFor(() => expect(area).not.toHaveAttribute('readonly'))
   return area
 }
+
+it('keeps keyboard focus after clicking the terminal surface', async () => {
+  const user = userEvent.setup()
+  HTMLElement.prototype.setPointerCapture = () => {}
+  HTMLElement.prototype.hasPointerCapture = () => false
+  const { container } = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const area = await input()
+  // The painted click target is hidden from assistive technology; the textarea is the accessible input.
+  const surface = container.querySelector('canvas')
+  if (!surface) throw new Error('No terminal surface')
+  await user.click(surface)
+  expect(area).toHaveFocus()
+  await user.keyboard('pwd')
+  await waitFor(() => expect(stdin).toBe('pwd'))
+})
 
 it('commits IME once and preserves later intentional identical text and characters', async () => {
   render(<TerminalCanvas resource={current} active onResource={() => {}} />)

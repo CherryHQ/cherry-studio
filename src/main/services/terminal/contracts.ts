@@ -60,7 +60,7 @@ const text = z
   .max(64 * 1024)
   .refine((value) => !value.includes('\0'), 'NUL is not allowed')
 const commonLaunch = {
-  shell: z.enum(['bash', 'powershell']),
+  shell: z.enum(['bash', 'powershell', 'zsh', 'other']),
   file: text.min(1).refine(path.isAbsolute, 'Executable must be absolute'),
   args: z.array(text).max(256),
   cwd: text.min(1).refine(path.isAbsolute, 'Working directory must be absolute'),

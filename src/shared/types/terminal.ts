@@ -31,7 +31,7 @@ export interface TerminalResourceState {
   id: TerminalResourceId
   host: TerminalHostIdentity
   kind: 'pipe' | 'pty'
-  shell: 'bash' | 'powershell'
+  shell: 'bash' | 'powershell' | 'zsh' | 'other'
   context: TerminalContext
   process: TerminalProcessState
   cleanup: TerminalCleanup

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import path from 'node:path'
 
 import type * as z from 'zod'
 
@@ -114,7 +115,7 @@ export class TerminalService extends BaseService {
   async createUserTerminal(
     conversationId: string,
     cwd: string,
-    shell: 'bash' | 'powershell',
+    shell: 'default' | 'bash' | 'powershell',
     replayKey: string
   ): Promise<TerminalReceipt> {
     const conversation = this.conversation(conversationId)
@@ -122,18 +123,34 @@ export class TerminalService extends BaseService {
     try {
       const lease = await this.attachRuntime({ conversationId, contextId: 'user-terminal', bindingId: 'user-terminal' })
       const env = await getShellEnv()
+      const requested =
+        shell === 'default'
+          ? env.SHELL ||
+            process.env.SHELL ||
+            (process.platform === 'win32' ? 'powershell' : process.platform === 'darwin' ? 'zsh' : 'bash')
+          : shell
       const file =
-        shell === 'bash'
+        requested === 'bash'
           ? process.platform === 'win32'
             ? (autoDiscoverGitBash() ?? (await findExecutableInEnv('bash', { env })))
             : await findExecutableInEnv('bash', { env })
-          : ((await findExecutableInEnv('pwsh', { env })) ?? (await findExecutableInEnv('powershell', { env })))
+          : requested === 'powershell'
+            ? ((await findExecutableInEnv('pwsh', { env })) ?? (await findExecutableInEnv('powershell', { env })))
+            : path.isAbsolute(requested)
+              ? requested
+              : await findExecutableInEnv(requested, { env })
       if (!file) throw new Error('Terminal shell is unavailable')
+      const name = path
+        .basename(file)
+        .replace(/\.exe$/i, '')
+        .toLowerCase()
+      const flavor =
+        name === 'bash' || name === 'zsh' ? name : name === 'pwsh' || name === 'powershell' ? 'powershell' : 'other'
       const receipt = await this.start({
         lease,
         replayKey,
         turnId: replayKey,
-        launch: { kind: 'pty', shell, file, args: [], cwd, env, cols: 80, rows: 24 }
+        launch: { kind: 'pty', shell: flavor, file, args: ['-l'], cwd, env, cols: 80, rows: 24 }
       })
       if (receipt.kind !== 'resource') return receipt
       return this.mutate(

@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import * as shellEnv from '@main/utils/shellEnv'
 
 import type {
   UtilityProcessDefinition,
@@ -159,6 +160,31 @@ afterEach(async () => {
 })
 
 describe.skipIf(process.platform === 'win32')('TerminalService with real Host kernels', () => {
+  it('starts the configured default shell rather than forcing Bash', async () => {
+    const environment = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue({
+      PATH: '/usr/bin:/bin',
+      HOME: path.join(root, '.context/terminal-test-home'),
+      SHELL: '/bin/zsh'
+    })
+    try {
+      const receipt = await service.createUserTerminal('user-default', root, 'default', 'user-default-shell')
+      if (receipt.kind !== 'resource') throw new Error('No user terminal')
+      expect(receipt.resource.shell).toBe('zsh')
+      const ref = { host: receipt.resource.host, id: receipt.resource.id }
+      await expect.poll(() => service.list(ref.host.conversationId)[0]?.shellFacts?.kind).toBe('prompt')
+      await service.mutate(ref, {
+        kind: 'input',
+        id: ref.id,
+        actor: { kind: 'user' },
+        controlRevision: receipt.resource.controlRevision,
+        data: 'printf "USER_ZSH:%s\\n" "$ZSH_VERSION"\n'
+      })
+      await expect.poll(() => Buffer.from(service.read(ref).data).toString()).toMatch(/USER_ZSH:[0-9]+\.[0-9.]+\r\n/)
+    } finally {
+      environment.mockRestore()
+    }
+  })
+
   it('coalesces concurrent first launches and retains replay receipts after Host retirement', async () => {
     const lease = await service.attachRuntime({
       conversationId: 'conversation',

@@ -76,7 +76,11 @@ export const terminalRequestSchemas = {
   }),
   'terminal.create': defineRoute({
     input: z
-      .object({ sessionId: z.string().min(1).max(512), shell: z.enum(['bash', 'powershell']), operationId: z.uuid() })
+      .object({
+        sessionId: z.string().min(1).max(512),
+        shell: z.enum(['default', 'bash', 'powershell']),
+        operationId: z.uuid()
+      })
       .strict(),
     output: z.custom<TerminalReceipt>()
   }),

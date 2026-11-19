@@ -57,7 +57,7 @@ export function TerminalPane({ sessionId, active }: { sessionId: string; active:
       if (timer) clearTimeout(timer)
     }
   }, [active, sessionId])
-  const create = async (shell: 'bash' | 'powershell') => {
+  const create = async (shell: 'default' | 'powershell') => {
     setCreating(true)
     try {
       const receipt = await ipcApi.request('terminal.create', { sessionId, shell, operationId: crypto.randomUUID() })
@@ -81,9 +81,14 @@ export function TerminalPane({ sessionId, active }: { sessionId: string; active:
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
         <TerminalSquare className="size-4 text-muted-foreground" aria-hidden="true" />
         <span className="shrink-0 text-sm font-medium">{t('terminal.title')}</span>
-        <Button className="ml-auto" size="sm" variant="outline" disabled={creating} onClick={() => void create('bash')}>
+        <Button
+          className="ml-auto"
+          size="sm"
+          variant="outline"
+          disabled={creating}
+          onClick={() => void create('default')}>
           <Plus className="size-3.5" aria-hidden="true" />
-          {t('terminal.new_bash')}
+          {t('terminal.new_terminal')}
         </Button>
         <Button size="sm" variant="ghost" disabled={creating} onClick={() => void create('powershell')}>
           {t('terminal.new_powershell')}
@@ -106,7 +111,13 @@ export function TerminalPane({ sessionId, active }: { sessionId: string; active:
                 variant={selected === item.id ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setSelected(item.id)}>
-                {item.shell === 'bash' ? 'Bash' : 'PowerShell'}{' '}
+                {item.shell === 'bash'
+                  ? 'Bash'
+                  : item.shell === 'powershell'
+                    ? 'PowerShell'
+                    : item.shell === 'zsh'
+                      ? 'zsh'
+                      : t('terminal.title')}{' '}
                 <span className="font-mono text-xs">{item.id.slice(0, 6)}</span>
                 <Badge variant="outline" className="text-xs">
                   {t(

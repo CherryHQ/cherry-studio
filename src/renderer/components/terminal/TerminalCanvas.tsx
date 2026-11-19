@@ -578,6 +578,7 @@ export function TerminalCanvas({
         className="relative min-h-0 flex-1 overflow-auto bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring"
         style={{ fontFamily: 'var(--app-user-code-font-family, monospace)' }}
         onPointerDown={(event) => {
+          event.preventDefault()
           if ((event.metaKey || event.ctrlKey) && view.current) {
             const at = point(event)
             void ipcApi
@@ -594,7 +595,7 @@ export function TerminalCanvas({
               .catch((cause: unknown) => setError(String(cause)))
             return
           }
-          input.current?.focus()
+          input.current?.focus({ preventScroll: true })
           event.currentTarget.setPointerCapture(event.pointerId)
           const at = point(event)
           selection.current = { start: at, end: at, epoch: epoch.current }

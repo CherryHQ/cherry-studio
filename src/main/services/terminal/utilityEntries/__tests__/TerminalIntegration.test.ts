@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { decodeTerminalRows } from '@shared/utils/terminalFrame'
 
@@ -62,8 +64,25 @@ function create() {
   }
   return { host, states, mutation, run, dispose }
 }
-describe.skipIf(process.platform === 'win32')('managed interactive shell', () => {
-  beforeAll(() => execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root }))
+describe.skipIf(process.platform === 'win32').each([
+  { shell: 'bash', customZdotdir: false },
+  { shell: 'zsh', customZdotdir: false },
+  { shell: 'zsh', customZdotdir: true }
+] as const)('managed $shell shell (custom ZDOTDIR: $customZdotdir)', ({ shell, customZdotdir }) => {
+  let home: string
+  let profiles: string
+  beforeAll(async () => {
+    execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root })
+    home = await mkdtemp(path.join(tmpdir(), 'cherry-terminal-home-'))
+    profiles = customZdotdir ? await mkdtemp(path.join(tmpdir(), 'cherry-terminal-zdotdir-')) : home
+    for (const name of ['.zshenv', '.zprofile', '.zshrc', '.zlogin']) {
+      await writeFile(path.join(profiles, name), `export CHERRY_PROFILE_ORDER="\${CHERRY_PROFILE_ORDER}${name},"\n`)
+    }
+  })
+  afterAll(async () => {
+    await rm(home, { recursive: true, force: true })
+    if (customZdotdir) await rm(profiles, { recursive: true, force: true })
+  })
   it('preserves shell state, records real command failure, refuses busy commands and admits fenced REPL stdin', async () => {
     const item = create()
     const id = terminalResourceId.parse(randomUUID())
@@ -77,11 +96,11 @@ describe.skipIf(process.platform === 'win32')('managed interactive shell', () =>
         retention: { kind: 'session' },
         launch: {
           kind: 'pty',
-          shell: 'bash',
-          file: '/bin/bash',
+          shell,
+          file: `/bin/${shell}`,
           args: [],
           cwd: root,
-          env: { PATH: '/usr/bin:/bin', HOME: path.join(root, '.context/terminal-test-home') },
+          env: { PATH: '/usr/bin:/bin', HOME: home, ...(customZdotdir ? { ZDOTDIR: profiles } : {}) },
           cols: 80,
           rows: 24
         }
@@ -108,6 +127,15 @@ describe.skipIf(process.platform === 'win32')('managed interactive shell', () =>
       await vi.waitFor(() => expect(state().command).toMatchObject({ id: 'second', status: 'completed', exitCode: 0 }))
       const output = () => Buffer.from(item.host.read(item.host.init.host, id, 0, 60 * 1024).data).toString()
       expect(output()).toContain('STATE:persisted')
+      if (shell === 'zsh') {
+        await command('printf "PROFILE:%s:%s\\n" "$CHERRY_PROFILE_ORDER" "${ZDOTDIR-unset}"', 'profile')
+        await vi.waitFor(() =>
+          expect(state().command).toMatchObject({ id: 'profile', status: 'completed', exitCode: 0 })
+        )
+        expect(output()).toContain(
+          `PROFILE:.zshenv,.zprofile,.zshrc,.zlogin,:${customZdotdir ? profiles : 'unset'}\r\n`
+        )
+      }
       expect(output()).not.toContain(']633;Cherry;')
       await command(
         `${JSON.stringify(process.execPath)} -e 'process.stdout.write("REPL_READY"); process.stdin.once("data",d=>{process.stdout.write("RECEIVED:"+d);process.exit(0)})'`,
