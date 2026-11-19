@@ -2888,11 +2888,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const events = cache.getShared(key) ?? {}
     // Merge instead of replace: identity fields and the row title may exist only on the start edge.
     // A completion overwriting it wholesale would strip the task of its type and display name.
-    const merged: Record<string, unknown> = { ...events[data.taskId] }
+    const merged: AgentTaskEventPartData & Record<string, unknown> = {
+      ...events[data.taskId],
+      event: data.event,
+      taskId: data.taskId
+    }
     for (const [field, value] of Object.entries(data)) {
       if (value !== undefined) merged[field] = value
     }
-    cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+    cache.setShared(key, { ...events, [data.taskId]: merged })
     const projections = [...(entry.rootProjections?.values() ?? [])]
     let retired: RootMessageProjection | undefined
     if (
@@ -2918,7 +2922,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
     for (const projection of projections) {
-      const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
+      const update = projection.taskEvent(merged)
       const messageId =
         update?.messageId ??
         (projection === retired ? projection.toolCallMessageId(merged.toolUseId as string) : undefined)
@@ -2928,7 +2932,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.deliverRuntimeChunk(entry, {
         type: 'data-agent-task-event',
         id: uuidv7(),
-        data: merged as unknown as AgentTaskEventPartData
+        data: merged
       })
     }
   }
