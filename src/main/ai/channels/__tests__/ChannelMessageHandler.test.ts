@@ -1205,7 +1205,7 @@ describe('ChannelMessageHandler', () => {
 
       expect(adapter.sendMessage).toHaveBeenCalledWith(
         'group-1',
-        'common.channel_topics_title\n#7 → agent-research\n#9 → agent-cooking',
+        'Topic agents:\n#7 → agent-research\n#9 → agent-cooking',
         expect.objectContaining({ threadId: '7' })
       )
     })
@@ -1221,7 +1221,7 @@ describe('ChannelMessageHandler', () => {
         command: 'topics'
       })
 
-      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'common.channel_topics_none', expect.anything())
+      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', "No topic agents are configured. Every topic uses this channel's agent.", expect.anything())
     })
 
     it('reports no topic agents for a non-telegram channel', async () => {
@@ -1234,7 +1234,7 @@ describe('ChannelMessageHandler', () => {
         command: 'topics'
       })
 
-      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'common.channel_topics_none', expect.anything())
+      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', "No topic agents are configured. Every topic uses this channel's agent.", expect.anything())
     })
   })
 
