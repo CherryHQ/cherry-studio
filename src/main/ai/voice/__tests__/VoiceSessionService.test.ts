@@ -78,10 +78,13 @@ const runtime = {
   permissionRequest: undefined as ((...args: any[]) => void) | null | undefined
 }
 
-function owner(): VoiceOwner {
+function owner() {
   const events = new EventEmitter()
   const result = {
     windowId: randomUUID(),
+    events,
+    // SAFETY: VoiceOwner only needs id, liveness and event registration, provided by this real EventEmitter.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Bridge Electron's native listener declarations only inside the Node fixture.
     webContents: Object.assign(events, {
       id: Math.random(),
       isDestroyed: () => false
@@ -90,7 +93,7 @@ function owner(): VoiceOwner {
   managedWindows.set(result.windowId, { webContents: result.webContents, type: WindowType.Main })
   return result
 }
-function ownerDestroyedWhileReattaching(): VoiceOwner {
+function ownerDestroyedWhileReattaching() {
   const events = new EventEmitter()
   let destroyed = false
   let destroyedRegistrations = 0
@@ -104,6 +107,9 @@ function ownerDestroyedWhileReattaching(): VoiceOwner {
   }) as typeof events.once
   const result = {
     windowId: randomUUID(),
+    events,
+    // SAFETY: VoiceOwner only needs id, liveness and event registration, provided by this real EventEmitter.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Bridge Electron's native listener declarations only inside the Node fixture.
     webContents: Object.assign(events, {
       id: Math.random(),
       isDestroyed: () => destroyed
@@ -136,7 +142,7 @@ describe('VoiceSessionService file and admission contract', () => {
   let service: VoiceSessionService
   let media: MediaProtocolService
   let files: InstanceType<typeof FileManager>
-  let a: VoiceOwner
+  let a: ReturnType<typeof owner>
   let cleanupFailed: boolean
   beforeEach(async () => {
     cleanupFailed = false
@@ -580,9 +586,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(outputResponse(next.result.output.id).status).toBe(200)
   })
   function outputResponse(id: string): Response {
-    return (media as unknown as { handleRequest(request: Request): Response }).handleRequest(
-      new Request(media.getUrl(MediaKind.Audio, id))
-    )
+    return media['handleRequest'](new Request(media.getUrl(MediaKind.Audio, id)))
   }
   async function outputBytes(id: string) {
     return new Uint8Array(await outputResponse(id).arrayBuffer())
@@ -659,7 +663,7 @@ describe('VoiceSessionService file and admission contract', () => {
       durationMs: 1_000
     })
     expect(await files.read(entry.id, { encoding: 'binary' })).toMatchObject({ content: webm })
-    expect((challenger.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(challenger.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('rejects a second recording while recognition retains its input and completes', async () => {
@@ -727,7 +731,7 @@ describe('VoiceSessionService file and admission contract', () => {
       [a.webContents, 'media', trustedUrl, { isMainFrame: true, mediaType: 'video', requestingUrl: trustedUrl }],
       [a.webContents, 'media', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl }]
     ] as const) {
-      expect(check(...(args as unknown as Parameters<typeof check>))).toBe(false)
+      expect(check(...args)).toBe(false)
     }
     expect(check(a.webContents, 'notifications', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl })).toBe(
       true
@@ -963,7 +967,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId: admitted.input.sessionId })
     expect(outputResponse(admitted.result.output.id).status).toBe(200)
     expect(native.speech).toHaveBeenCalledTimes(1)
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('cleans the displaced contender when manual replacements race an active generation', async () => {
@@ -984,7 +988,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await expect(active).rejects.toMatchObject({ reason: 'aborted' })
     await expect(contender).rejects.toMatchObject({ reason: 'aborted' })
     await expect(winner).resolves.toMatchObject({ result: { output: { mimeType: 'audio/wav' } } })
-    expect((contenderOwner.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(contenderOwner.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('gates sequential chunks on owner release and exposes bytes without paths', async () => {
@@ -1313,7 +1317,7 @@ describe('VoiceSessionService file and admission contract', () => {
     for (const terminalEvent of ['render-process-gone', 'destroyed', 'did-start-navigation'] as const) {
       a = owner()
       const playback = await speech(a)
-      const contents = a.webContents as unknown as EventEmitter
+      const contents = a.events
       contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true, url: '#same' })
       contents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false, url: 'https://frame.test' })
       expect(outputResponse(playback.result.output.id).status).toBe(200)
@@ -1348,7 +1352,7 @@ describe('VoiceSessionService file and admission contract', () => {
     const replacement = speech(replacementOwner)
     const replacementFailure = expect(replacement).rejects.toMatchObject({ reason: 'aborted' })
     await vi.waitFor(() => expect(finishAbort).toBeTypeOf('function'))
-    const contents = replacementOwner.webContents as unknown as EventEmitter
+    const contents = replacementOwner.events
     contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'file:///new' })
     finishAbort()
 
@@ -1714,7 +1718,7 @@ describe('VoiceSessionService file and admission contract', () => {
         })
       ).rejects.toMatchObject({ reason: 'invalid_audio' })
     }
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
     expect((await recording()).fileEntryId).toBeTruthy()
   })
 
@@ -1739,7 +1743,7 @@ describe('VoiceSessionService file and admission contract', () => {
         })
       ).rejects.toMatchObject({ reason: 'busy' })
     }
-    const listenerCount = (a.webContents as unknown as EventEmitter).listenerCount('destroyed')
+    const listenerCount = a.events.listenerCount('destroyed')
     finish()
     await work
     expect(listenerCount).toBe(1)
@@ -1881,9 +1885,9 @@ describe('VoiceSessionService file and admission contract', () => {
     const input = await recording()
     native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('asset_required'))
     await expect(service.transcribe(a, input)).rejects.toBeInstanceOf(VoiceRuntimeError)
-    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    a.events.emit('destroyed')
     await vi.waitFor(() => expect(fileEntryService.findById(input.fileEntryId)).toBeNull())
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('owner destruction releases failed deletion ownership for FileManager recovery', async () => {
@@ -1893,7 +1897,7 @@ describe('VoiceSessionService file and admission contract', () => {
       .spyOn(files, 'deleteRetainedTemporaryEntry')
       .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EPERM' }))
 
-    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    a.events.emit('destroyed')
     await vi.waitFor(() => expect(deletion).toHaveBeenCalledWith(input.fileEntryId))
     await vi.waitFor(async () => {
       await files.runEntryCleanup()
@@ -1924,9 +1928,9 @@ describe('VoiceSessionService file and admission contract', () => {
     )
 
     await expect(service.discard(a, input.sessionId)).rejects.toMatchObject({ code: 'EPERM' })
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(1)
+    expect(a.events.listenerCount('destroyed')).toBe(1)
 
-    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    a.events.emit('destroyed')
     await vi.waitFor(async () => {
       await files.runEntryCleanup()
       expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
@@ -1942,7 +1946,7 @@ describe('VoiceSessionService file and admission contract', () => {
     )
 
     await expect(service.discard(a, input.sessionId)).rejects.toMatchObject({ code: 'EPERM' })
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
     await vi.waitFor(async () => {
       await files.runEntryCleanup()
       expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
@@ -2135,7 +2139,7 @@ describe('VoiceSessionService file and admission contract', () => {
     resume()
     await Promise.all([stop, failure])
     expect(fileEntryService.findMany()).toHaveLength(0)
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('does not register audio returned after cancellation', async () => {
@@ -2153,9 +2157,7 @@ describe('VoiceSessionService file and admission contract', () => {
     const abort = service.abort(a, input, 'speech')
     finish({ audio: wav(), mediaType: 'audio/wav' })
     await Promise.all([abort, failure])
-    expect(
-      (media as unknown as { stores: Map<string, Map<string, unknown>> }).stores.get(MediaKind.Audio)?.size ?? 0
-    ).toBe(0)
+    expect(media['stores'].get(MediaKind.Audio)?.size ?? 0).toBe(0)
     expect(fileEntryService.findMany()).toHaveLength(0)
   })
 
@@ -2244,7 +2246,7 @@ describe('VoiceSessionService file and admission contract', () => {
     vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
       Object.assign(new Error('private-text private-transcript ' + root), { code: 'EPERM', path: root, content: webm })
     )
-    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    a.events.emit('destroyed')
     await vi.waitFor(() =>
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
         'Voice terminal file cleanup failed',
@@ -2286,7 +2288,7 @@ describe('VoiceSessionService file and admission contract', () => {
       (error: VoiceRuntimeError) => error.reason
     )
     await vi.waitFor(() => expect(probeSignals).toHaveLength(2))
-    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    a.events.emit('destroyed')
     const cancelled = probeSignals[0].aborted
     const otherCancelled = probeSignals[1].aborted
     const speech = await service
@@ -2301,7 +2303,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(otherCancelled).toBe(false)
     expect(await simultaneous).toBe('success')
     expect(speech).toBe('busy')
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
   })
 
   it('stop aborts active work, clears retained input and refuses new requests until restart', async () => {
@@ -2329,7 +2331,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await service._doDestroy()
 
     expect(outputResponse(playback.result.output.id).status).toBe(404)
-    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    expect(a.events.listenerCount('destroyed')).toBe(0)
     expect(runtime.permissionCheck).toBeNull()
     expect(runtime.permissionRequest).toBeNull()
     await expect(speech(a)).rejects.toMatchObject({ reason: 'stopped' })
