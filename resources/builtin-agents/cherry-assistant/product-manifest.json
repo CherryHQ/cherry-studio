@@ -1186,6 +1186,11 @@
       "label": "日本語"
     },
     {
+      "value": "ko-KR",
+      "flag": "🇰🇷",
+      "label": "한국어"
+    },
+    {
       "value": "ru-RU",
       "flag": "🇷🇺",
       "label": "Русский"

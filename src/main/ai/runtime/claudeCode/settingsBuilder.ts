@@ -135,6 +135,7 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  compactionPercent?: number
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
@@ -498,7 +499,8 @@ export async function buildClaudeCodeSessionSettings(
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
-    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
+    const triggerPct = options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(triggerPct)
     // A floored window can exceed a small declared window at the trigger
     // point (80% of a 100K floor + 32K cap against a 64K declaration), so fit
     // the trigger to the smallest declared window the shared budget covers.
@@ -509,7 +511,7 @@ export async function buildClaudeCodeSessionSettings(
       const pinnedCap = Number(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
       if (declaredWindows.length > 0 && Number.isInteger(pinnedCap) && pinnedCap > 0) {
         const fitted = Math.floor(((Math.min(...declaredWindows) - pinnedCap) / autoCompactWindow) * 100)
-        if (fitted < AUTO_COMPACT_TRIGGER_PCT) {
+        if (fitted < triggerPct) {
           env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(Math.max(fitted, 1))
         }
       }

@@ -1,6 +1,3 @@
-import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
-
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -23,6 +20,9 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 import {
   compactHistory,
   compactModelMessages,
