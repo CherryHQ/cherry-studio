@@ -1249,7 +1249,7 @@ describe('ResourceList', () => {
     const indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
-    expect(indicators[0].parentElement).toBe(screen.getByText('Item B1').closest('[data-sortable-id="item:b1"]'))
+    expect(indicators[0].parentElement).toContainElement(screen.getByRole('option', { name: 'Item B1' }))
     for (const [label, id] of [
       ['B', 'inner:b'],
       ['C', 'inner:c']
@@ -1259,8 +1259,8 @@ describe('ResourceList', () => {
       expect(header?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
     }
     expect(
-      screen.getByText('Item C1').closest('[data-sortable-id]')?.querySelector('[data-drop-indicator]')
-    ).not.toBeInTheDocument()
+      screen.getByRole('option', { name: 'Item C1' }).parentElement?.querySelector('[data-drop-indicator]')
+    ).toBeNull()
     for (const label of ['X', 'Y']) {
       const header = screen.getByRole('button', { name: label }).closest('[data-drop-blocked="true"]')
       expect(header).toBeInTheDocument()
@@ -1308,7 +1308,7 @@ describe('ResourceList', () => {
     let indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
-    expect(indicators[0].parentElement).toBe(screen.getByText('Item D1').closest('[data-sortable-id="item:d1"]'))
+    expect(indicators[0].parentElement).toContainElement(screen.getByRole('option', { name: 'Item D1' }))
     act(() => dndMocks.onDragEnd?.(downward))
 
     const upward = previewGroupDrag('group:section:y', 'group:section:x')
