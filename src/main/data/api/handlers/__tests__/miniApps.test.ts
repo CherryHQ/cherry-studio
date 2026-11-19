@@ -344,12 +344,13 @@ describe('miniAppHandlers', () => {
   })
 
   describe('DELETE /mini-apps/:appId', () => {
-    it('should delegate to service with path appId', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+    it('deletes a website row through the data service alone', async () => {
+      getByAppIdMock.mockReturnValueOnce({ kind: 'site' })
 
       await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'custom-app' } })
 
       expect(deleteMock).toHaveBeenCalledWith('custom-app')
+      expect(getByAppIdMock).not.toHaveBeenCalled()
     })
   })
 })

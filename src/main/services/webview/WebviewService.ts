@@ -259,8 +259,8 @@ export class WebviewService extends BaseService {
     return this.regions.setCountry(appId, country, senderId)
   }
 
-  removeSiteMiniApp(appId: string) {
-    return this.regions.removeApp(appId)
+  removeSiteMiniApp(appId: string, senderId: WindowId | null) {
+    return this.regions.removeApp(appId, senderId)
   }
 
   async waitForRegion(webviewId: number, senderId: WindowId | null): Promise<void> {

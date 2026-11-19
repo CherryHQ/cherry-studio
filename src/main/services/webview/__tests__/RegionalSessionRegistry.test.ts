@@ -9,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { miniAppHandlers } from '@data/api/handlers/miniApps'
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { miniAppHandlers as miniAppCommands } from '@main/ipc/handlers/miniApp'
+import type { WindowId } from '@shared/ipc/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { MINI_APP_REGIONS } from '@shared/types/miniAppRegion'
 import { getMiniAppRegionPartition } from '@shared/utils/miniAppRegion'
 
@@ -91,7 +94,7 @@ describe('regional session ownership and data removal', () => {
     MockApplicationUtils.setService('ProxyService', { registerSession, unregisterSession })
     registry = new RegionalSessionRegistry(() => () => {})
     MockApplicationUtils.setService('WebviewService', {
-      removeSiteMiniApp: (appId: string) => registry.removeApp(appId)
+      removeSiteMiniApp: (appId: string, senderId: WindowId | null) => registry.removeApp(appId, senderId)
     })
   })
 
@@ -197,7 +200,7 @@ describe('regional session ownership and data removal', () => {
 
   it('deletes the website row only after all regional data has been cleared', async () => {
     const alpha = await registry.prepare('alpha', 'one')
-    await registry.removeApp('alpha')
+    await miniAppCommands['mini_app.delete_site']({ appId: 'alpha' }, { senderId: 'one' })
     expect(sessions.get(alpha.partition)!.cookie).toBeNull()
     expect(
       dbh.db
@@ -209,20 +212,54 @@ describe('regional session ownership and data removal', () => {
     await expect(registry.setCountry('alpha', 'JP', 'one')).rejects.toThrow()
   })
 
-  it('deletes a custom file site through the DataApi without clearing default site data', async () => {
+  it('deletes a custom file site through IPC without clearing default site data', async () => {
     await miniAppHandlers['/mini-apps'].POST({
       body: { appId: 'file-site', name: 'File site', url: 'file:///C:/mini-app/index.html' }
     })
     const shared = session.fromPartition('persist:webview') as TestSession
 
-    await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'file-site' } })
+    await miniAppCommands['mini_app.delete_site']({ appId: 'file-site' }, { senderId: 'one' })
 
     await expect(miniAppHandlers['/mini-apps/:appId'].GET({ params: { appId: 'file-site' } })).rejects.toMatchObject({
       code: 'NOT_FOUND'
     })
+    await expect(
+      miniAppCommands['mini_app.delete_site']({ appId: 'file-site' }, { senderId: 'two' })
+    ).rejects.toMatchObject({ name: 'IpcError', code: 'NOT_FOUND' })
     expect(shared.cookie).toBe('persist:webview')
     expect(shared.httpCache).toBe('persist:webview')
     expect(shared.codeCache).toBe('persist:webview')
+  })
+
+  it('refuses to delete a website MiniApp for an unmanaged sender', async () => {
+    await expect(miniAppCommands['mini_app.delete_site']({ appId: 'alpha' }, { senderId: null })).rejects.toThrow(
+      'A managed host window is required'
+    )
+
+    expect(await miniAppHandlers['/mini-apps/:appId'].GET({ params: { appId: 'alpha' } })).toMatchObject({
+      appId: 'alpha'
+    })
+    expect(sessions.size).toBe(0)
+  })
+
+  it('allows deletion to be retried after a preference write fails with profiles disabled', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', false)
+    const formerRegion = session.fromPartition(getMiniAppRegionPartition('alpha', 'JP')) as TestSession
+    const mainError = new Error('preference write failed')
+    vi.mocked(application.get('PreferenceService').setMultiple).mockRejectedValueOnce(mainError)
+
+    await expect(miniAppCommands['mini_app.delete_site']({ appId: 'alpha' }, { senderId: 'one' })).rejects.toBe(
+      mainError
+    )
+    expect(formerRegion.cookie).toBeNull()
+    expect(await miniAppHandlers['/mini-apps/:appId'].GET({ params: { appId: 'alpha' } })).toMatchObject({
+      appId: 'alpha'
+    })
+    await expect(registry.prepare('alpha', 'one')).rejects.toThrow()
+    await miniAppCommands['mini_app.delete_site']({ appId: 'alpha' }, { senderId: 'one' })
+    await expect(miniAppHandlers['/mini-apps/:appId'].GET({ params: { appId: 'alpha' } })).rejects.toMatchObject({
+      code: 'NOT_FOUND'
+    })
   })
 
   it('clears historical HTTPS regions before deleting a site edited to a file URL', async () => {
@@ -243,7 +280,9 @@ describe('regional session ownership and data removal', () => {
         })
     )
 
-    const deleting = miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'alpha' } })
+    const broadcast = vi.mocked(application.get('WindowManager').broadcast)
+    broadcast.mockClear()
+    const deleting = miniAppCommands['mini_app.delete_site']({ appId: 'alpha' }, { senderId: 'one' })
     const finished = deleting.then(
       () => null,
       (error) => error
@@ -254,8 +293,12 @@ describe('regional session ownership and data removal', () => {
       url: 'file:///C:/mini-app/index.html'
     })
     expect(registry.isPrepared(alpha.partition, hosts.get('one')!.id)).toBe(false)
+    expect(broadcast).not.toHaveBeenCalled()
     finish()
     expect(await finished).toBeNull()
+    expect(broadcast).toHaveBeenCalledWith(IpcChannel.DataApi_DataChanged, [
+      { endpoint: '/mini-apps', kind: 'membership' }
+    ])
 
     for (const country of Object.keys(MINI_APP_REGIONS) as Array<keyof typeof MINI_APP_REGIONS>) {
       expect(sessions.get(getMiniAppRegionPartition('alpha', country))).toMatchObject({
@@ -499,20 +542,230 @@ describe('regional session ownership and data removal', () => {
     vi.mocked(webContents.getAllWebContents).mockReturnValue([guest])
     vi.useFakeTimers()
     try {
-      const release = registry.release(alpha.leaseId!, 'one')
-      const failed = expect(release).rejects.toThrow('did not close')
+      const release = registry.release(alpha.leaseId!, 'one').catch((error) => error)
       await vi.advanceTimersByTimeAsync(10_001)
-      await failed
+      const timeout = expect.objectContaining({ message: expect.stringContaining('did not close') })
+      if (shared) {
+        expect(await release).toMatchObject({ errors: [timeout, timeout] })
+      } else {
+        expect(await release).toEqual(timeout)
+      }
       expect(registry.isPrepared(alpha.partition, hosts.get('two')!.id)).toBe(false)
       await expect(registry.prepare('alpha', 'one')).rejects.toThrow()
+      await expect(registry.setCountry('alpha', 'DE', 'two')).rejects.toThrow()
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.region_profiles', { alpha: 'DE', beta: 'US' })
+      await expect(registry.prepare('alpha', 'two')).rejects.toThrow()
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', false)
+      await expect(registry.prepare('alpha', 'two')).rejects.toThrow()
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', true)
+      expect(await registry.prepare('beta', 'two')).toMatchObject({ fake: true })
       expect(unregisterSession).toHaveBeenCalledWith(sessions.get(alpha.partition))
       canClose = true
       await registry.clearData('alpha', 'one')
       expect(destroyed).toBe(true)
       expect(sessions.get(alpha.partition)!.cookie).toBeNull()
-      expect(await registry.prepare('alpha', 'one')).toMatchObject({ partition: alpha.partition, fake: true })
+      expect(await registry.prepare('alpha', 'one')).toMatchObject({
+        partition: getMiniAppRegionPartition('alpha', 'DE'),
+        fake: true
+      })
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('waits for the old partition to retire before preparing another country', async () => {
+    const alpha = await registry.prepare('alpha', 'one')
+    const unregistering = Promise.withResolvers<void>()
+    const finishUnregister = Promise.withResolvers<void>()
+    const error = new Error('cannot close the old connections')
+    unregisterSession.mockImplementationOnce(async () => {
+      unregistering.resolve()
+      await finishUnregister.promise
+    })
+    const oldLease = registry.release(alpha.leaseId!, 'one')
+    const oldFailure = expect(oldLease).rejects.toBe(error)
+    await unregistering.promise
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.region_profiles', { alpha: 'DE' })
+    const preparation = registry.prepare('alpha', 'two')
+    const outcome = preparation.catch((reason) => reason)
+
+    try {
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(registerSession).toHaveBeenCalledTimes(1)
+    } finally {
+      finishUnregister.reject(error)
+      await oldFailure
+      await registry.clearData('alpha', 'one')
+    }
+    expect(await outcome).toBe(error)
+  })
+
+  it.each(['suspend', 'dispose'] as const)('waits for every other session when %s cleanup fails', async (stop) => {
+    const alpha = await registry.prepare('alpha', 'one')
+    const beta = await registry.prepare('beta', 'two')
+    const error = new Error('cannot unregister alpha')
+    const slowCleanup = Promise.withResolvers<void>()
+    unregisterSession.mockRejectedValueOnce(error).mockReturnValueOnce(slowCleanup.promise)
+
+    let settled = false
+    const stopping = registry[stop]().finally(() => {
+      settled = true
+    })
+    const failure = expect(stopping).rejects.toBe(error)
+    try {
+      await vi.waitFor(() => {
+        expect(unregisterSession).toHaveBeenCalledWith(sessions.get(alpha.partition))
+        expect(unregisterSession).toHaveBeenCalledWith(sessions.get(beta.partition))
+      })
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(settled).toBe(false)
+    } finally {
+      slowCleanup.resolve()
+      await failure
+      await registry.clearData('alpha', 'one')
+    }
+  })
+
+  it('waits for every guest in a pending retirement and reports distinct shutdown errors', async () => {
+    const alpha = await registry.prepare('alpha', 'one')
+    await registry.prepare('beta', 'two')
+    const closeError = new Error('cannot close the first guest')
+    const unregisterError = new Error('cannot unregister beta')
+    const started = Promise.withResolvers<void>()
+    let delayedDestroyed = false
+    const delayed = Object.assign(new EventEmitter(), {
+      session: sessions.get(alpha.partition),
+      isDestroyed: () => delayedDestroyed,
+      close: () => started.resolve()
+    }) as unknown as Electron.WebContents
+    const first = Object.assign(new EventEmitter(), {
+      session: sessions.get(alpha.partition),
+      isDestroyed: () => false,
+      close: () => {
+        throw closeError
+      }
+    }) as unknown as Electron.WebContents
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([first, delayed])
+    const release = registry.release(alpha.leaseId!, 'one')
+    const retired = expect(release).rejects.toBe(closeError)
+    await started.promise
+
+    unregisterSession.mockRejectedValueOnce(unregisterError)
+    let settled = false
+    const stopping = registry.suspend().finally(() => {
+      settled = true
+    })
+    const failure = expect(stopping).rejects.toMatchObject({ errors: [unregisterError, closeError] })
+    try {
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(settled).toBe(false)
+    } finally {
+      delayedDestroyed = true
+      delayed.emit('destroyed')
+      await retired
+      await failure
+      vi.mocked(webContents.getAllWebContents).mockReturnValue([])
+      await registry.clearData('alpha', 'one')
+    }
+  })
+
+  it('drains an in-flight host release during suspension and reports each original failure once', async () => {
+    const lease = await registry.prepare('alpha', 'one')
+    await registry.prepare('alpha', 'two')
+    const retirementError = new Error('the second close failed')
+    const close = vi
+      .fn()
+      .mockImplementationOnce(() => {})
+      .mockImplementationOnce(() => {
+        throw retirementError
+      })
+    const guest = Object.assign(new EventEmitter(), {
+      session: sessions.get(lease.partition),
+      hostWebContents: hosts.get('one'),
+      isDestroyed: () => false,
+      close
+    }) as unknown as Electron.WebContents
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([guest])
+    vi.useFakeTimers()
+    try {
+      const release = registry.release(lease.leaseId!, 'one').catch((error) => error)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(close).toHaveBeenCalledTimes(1)
+      const stopped = vi.fn()
+      const stopping = registry.suspend().then(stopped, (error) => {
+        stopped(error)
+        return error
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(stopped).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(5_000)
+      const releasingError = (await release) as AggregateError
+      expect(releasingError.errors).toEqual([
+        expect.objectContaining({ message: expect.stringContaining('did not close') }),
+        retirementError
+      ])
+      expect(await stopping).toMatchObject({ errors: releasingError.errors })
+      expect(close).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+      vi.mocked(webContents.getAllWebContents).mockReturnValue([])
+      await registry.clearData('alpha', 'one')
+    }
+  })
+
+  it('does not stop while a regional reset is still clearing data', async () => {
+    const sessionToClear = session.fromPartition(getMiniAppRegionPartition('alpha', 'FR'))
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    vi.mocked(sessionToClear.clearStorageData).mockImplementationOnce(async () => {
+      started.resolve()
+      await finish.promise
+    })
+    const reset = registry.clearData('alpha', 'one')
+    await started.promise
+    const settled = vi.fn()
+    const stopping = registry.suspend().then(settled)
+    try {
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(settled).not.toHaveBeenCalled()
+    } finally {
+      finish.resolve()
+      await reset
+      await stopping
+    }
+    expect(settled).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a host cleanup failure that starts and finishes during a slow shutdown', async () => {
+    const lease = await registry.prepare('alpha', 'one')
+    await registry.prepare('alpha', 'two')
+    await registry.prepare('beta', 'two')
+    const error = new Error('the first close failed')
+    let destroyed = false
+    const guest = Object.assign(new EventEmitter(), {
+      session: sessions.get(lease.partition),
+      hostWebContents: hosts.get('one'),
+      isDestroyed: () => destroyed,
+      close: vi
+        .fn()
+        .mockImplementationOnce(() => {
+          throw error
+        })
+        .mockImplementationOnce(() => {
+          destroyed = true
+          guest.emit('destroyed')
+        })
+    }) as unknown as Electron.WebContents
+    vi.mocked(webContents.getAllWebContents).mockReturnValue([guest])
+    const slowCleanup = Promise.withResolvers<void>()
+    unregisterSession.mockResolvedValueOnce(undefined).mockReturnValueOnce(slowCleanup.promise)
+    const stopping = registry.suspend().catch((reason) => reason)
+    try {
+      await expect(registry.release(lease.leaseId!, 'one')).rejects.toBe(error)
+      expect(destroyed).toBe(true)
+    } finally {
+      slowCleanup.resolve()
+    }
+    expect(await stopping).toBe(error)
   })
 })

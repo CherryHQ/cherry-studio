@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
+import { ErrorCode } from '@shared/data/api/errors'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string }>,
@@ -371,8 +373,6 @@ describe('useMiniApps', () => {
     })
 
     it('closes only matching tabs after removing a custom miniapp', async () => {
-      const trigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
       mockTabs.tabs = [
         { id: 'tab-1', url: '/app/mini-app/custom-app' },
         { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
@@ -384,14 +384,12 @@ describe('useMiniApps', () => {
         await result.current.removeCustomMiniApp('custom-app')
       })
 
-      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(mocks.request).toHaveBeenCalledWith('mini_app.delete_site', { appId: 'custom-app' })
       expect(mockTabs.closeTabs).toHaveBeenCalledWith(['tab-1'])
       expect(mockTabs.closeTabs).not.toHaveBeenCalledWith(expect.arrayContaining(['tab-2']))
     })
 
     it('should remove deleted custom miniapps from sidebar favorites', async () => {
-      const trigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
       MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [
         sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.mini-app', 'custom-app'),
@@ -404,11 +402,43 @@ describe('useMiniApps', () => {
         await result.current.removeCustomMiniApp('custom-app')
       })
 
-      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(mocks.request).toHaveBeenCalledWith('mini_app.delete_site', { appId: 'custom-app' })
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut')).toEqual([
         sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.mini-app', 'other-app')
       ])
+    })
+
+    it('keeps the tab and sidebar shortcut if the main process rejects deletion', async () => {
+      const shortcut = sidebarShortcut('core.mini-app', 'custom-app')
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [shortcut])
+      mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'mini_app.delete_site') throw new Error('regional cleanup failed')
+        return 'CN'
+      })
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.removeCustomMiniApp('custom-app')).rejects.toThrow('regional cleanup failed')
+      })
+
+      expect(mockTabs.closeTabs).not.toHaveBeenCalled()
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut')).toEqual([shortcut])
+    })
+
+    it('preserves the missing-site error for the existing warning', async () => {
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'mini_app.delete_site') throw new IpcError('NOT_FOUND', 'MiniApp not found')
+        return 'CN'
+      })
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.removeCustomMiniApp('custom-app')).rejects.toMatchObject({
+          code: ErrorCode.NOT_FOUND
+        })
+      })
     })
   })
 

@@ -28,13 +28,41 @@ interface RegionalLease {
   country: MiniAppCountry
 }
 
+interface RegionalRetirement {
+  appId: string
+  done: Promise<void>
+}
+
+class RegionalCleanupError extends AggregateError {}
+
+function throwCleanupErrors(outcomes: PromiseSettledResult<unknown>[], message: string): void {
+  const errors = new Set<unknown>()
+  for (const outcome of outcomes) {
+    if (outcome.status !== 'rejected') continue
+    const reason: unknown = outcome.reason
+    if (reason instanceof RegionalCleanupError) {
+      for (const error of reason.errors) errors.add(error)
+    } else {
+      errors.add(reason)
+    }
+  }
+  if (errors.size === 1) throw errors.values().next().value
+  if (errors.size > 1) throw new RegionalCleanupError(errors, message)
+}
+
+async function drainCleanup(tasks: Iterable<Promise<unknown>>, message: string): Promise<void> {
+  throwCleanupErrors(await Promise.allSettled(tasks), message)
+}
+
 /** Owns persistent session registrations and revocable host preparation leases. */
 export class RegionalSessionRegistry {
   readonly sessions = new Map<Electron.Session, RegionalSession>()
   private readonly leases = new Map<string, RegionalLease>()
   private readonly hosts = new Map<Electron.WebContents, () => void>()
-  private readonly retirements = new Map<string, Promise<void>>()
-  private readonly clearingApps = new Set<string>()
+  private readonly retirements = new Map<string, RegionalRetirement>()
+  private readonly hostCleanups = new Map<Promise<void>, string>()
+  private readonly dataCleanups = new Map<string, Promise<void>>()
+  private readonly stopDrains = new Set<Set<Promise<void>>>()
   private readonly cleanupBlockedApps = new Set<string>()
   private readonly guests = new Map<Electron.WebContents, { host?: Electron.WebContents; cleanup: () => void }>()
   private suspended = false
@@ -76,6 +104,10 @@ export class RegionalSessionRegistry {
     )
   }
 
+  private appRetirements(appId: string): RegionalRetirement[] {
+    return [...this.retirements.values()].filter((retirement) => retirement.appId === appId)
+  }
+
   setCountry(appId: string, country: MiniAppCountry | null, senderId: WindowId | null): Promise<void> {
     const write = this.selectionQueue.then(async () => {
       this.requireHost(senderId)
@@ -103,11 +135,23 @@ export class RegionalSessionRegistry {
   async prepare(appId: string, senderId: WindowId | null) {
     const host = this.requireHost(senderId)
     if (this.suspended || this.cleanupBlockedApps.has(appId)) throw new Error('Regional session is unavailable')
+    let pending = this.appRetirements(appId)
+    while (pending.length) {
+      await drainCleanup(
+        pending.map(({ done }) => done),
+        'Failed to retire regional sessions for this MiniApp'
+      )
+      pending = this.appRetirements(appId)
+    }
+    if (host.isDestroyed() || this.cleanupBlockedApps.has(appId) || this.suspended) {
+      throw new Error('Regional preparation was revoked')
+    }
     const country = this.country(appId)
     if (!country) return { partition: 'persist:webview', fake: false, leaseId: null }
     if (!isMiniAppRegionEligible(this.requireSite(appId))) {
-      await Promise.all(
-        [...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id))
+      await drainCleanup(
+        [...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id)),
+        'Failed to retire regional sessions for this MiniApp'
       )
       if (host.isDestroyed() || this.cleanupBlockedApps.has(appId) || this.suspended) {
         throw new Error('Regional preparation was revoked')
@@ -115,11 +159,6 @@ export class RegionalSessionRegistry {
       return { partition: 'persist:webview', fake: false, leaseId: null }
     }
     const partition = getMiniAppRegionPartition(appId, country)
-    await this.retirements.get(partition)
-    if (host.isDestroyed() || this.cleanupBlockedApps.has(appId) || this.country(appId) !== country || this.suspended) {
-      throw new Error('Regional preparation was revoked')
-    }
-    this.requireRegionalSite(appId)
     const guestSession = session.fromPartition(partition)
     let regional = this.sessions.get(guestSession)
     if (!regional) {
@@ -157,7 +196,7 @@ export class RegionalSessionRegistry {
   }
 
   isPrepared(partition: string | undefined, hostId: number | undefined, src = 'about:blank'): boolean {
-    if (this.suspended || src !== 'about:blank' || this.retirements.has(partition ?? '')) return false
+    if (this.suspended || src !== 'about:blank') return false
     for (const lease of this.leases.values()) {
       if (
         lease.ready &&
@@ -166,6 +205,7 @@ export class RegionalSessionRegistry {
         lease.host.id === hostId &&
         !lease.host.isDestroyed() &&
         !this.cleanupBlockedApps.has(lease.appId) &&
+        this.appRetirements(lease.appId).length === 0 &&
         this.country(lease.appId) === lease.country
       ) {
         try {
@@ -206,7 +246,10 @@ export class RegionalSessionRegistry {
   }
 
   private async releaseHost(host: Electron.WebContents): Promise<void> {
-    await Promise.all([...this.leases].filter(([, lease]) => lease.host === host).map(([id]) => this.releaseLease(id)))
+    await drainCleanup(
+      [...this.leases].filter(([, lease]) => lease.host === host).map(([id]) => this.releaseLease(id)),
+      'Failed to release regional leases for this window'
+    )
   }
 
   private forgetLease(leaseId: string): RegionalLease | undefined {
@@ -224,46 +267,71 @@ export class RegionalSessionRegistry {
   private async releaseLease(leaseId: string): Promise<void> {
     const lease = this.forgetLease(leaseId)
     if (!lease) return
+    const regional = this.sessions.get(lease.guestSession)
+    if (!regional) return
     if (![...this.leases.values()].some((other) => other.guestSession === lease.guestSession)) {
-      await this.retire(lease.guestSession, lease.partition)
+      await this.retire(lease, regional)
     } else if (
       ![...this.leases.values()].some((other) => other.guestSession === lease.guestSession && other.host === lease.host)
     ) {
+      const cleanup = Promise.resolve().then(() => this.closeHostGuests(lease, regional))
+      this.hostCleanups.set(cleanup, lease.appId)
+      this.includeInStop(cleanup)
       try {
-        await this.closeGuests(lease.guestSession, lease.host)
-      } catch (error) {
-        await this.retire(lease.guestSession, lease.partition)
-        throw error
+        await cleanup
+      } finally {
+        this.hostCleanups.delete(cleanup)
       }
     }
   }
 
-  private retire(guestSession: Electron.Session, partition: string): Promise<void> {
+  private async closeHostGuests(lease: RegionalLease, regional: RegionalSession): Promise<void> {
+    try {
+      await this.closeGuests(lease.guestSession, lease.host)
+    } catch (error) {
+      await drainCleanup(
+        [Promise.reject(error), this.retire(lease, regional)],
+        'Failed to close a window’s regional guests'
+      )
+    }
+  }
+
+  private sessionCleanup(guestSession: Electron.Session, regional: RegionalSession): Promise<void>[] {
+    return [
+      Promise.resolve().then(regional.cleanup),
+      Promise.resolve().then(() => application.get('ProxyService').unregisterSession(guestSession)),
+      regional.ready.catch(() => {})
+    ]
+  }
+
+  private retire({ guestSession, partition, appId }: RegionalLease, regional: RegionalSession): Promise<void> {
     const existing = this.retirements.get(partition)
-    if (existing) return existing
-    const regional = this.sessions.get(guestSession)
+    if (existing) return existing.done
+    if (this.sessions.get(guestSession) !== regional) return Promise.resolve()
     const remaining = [...this.leases].filter(([, lease]) => lease.guestSession === guestSession)
     for (const [id] of remaining) this.forgetLease(id)
     this.sessions.delete(guestSession)
-    regional?.cleanup()
-    const unregister = application.get('ProxyService').unregisterSession(guestSession)
-    const closing = this.closeGuests(guestSession)
-    const task = Promise.all([regional?.ready.catch(() => {}), unregister, closing]).then(() => {
-      if (remaining.length && regional) {
-        application.get('IpcApiService').broadcast('webview.region.invalidated', { appId: regional.appId })
-      }
+    const done = drainCleanup(
+      [...this.sessionCleanup(guestSession, regional), Promise.resolve().then(() => this.closeGuests(guestSession))],
+      'Failed to retire a regional session'
+    ).catch((error) => {
+      this.cleanupBlockedApps.add(appId)
+      throw error
     })
-    this.retirements.set(partition, task)
-    void task
+    const retirement = { appId, done }
+    this.retirements.set(partition, retirement)
+    this.includeInStop(done)
+    void done
       .then(() => {
-        if (this.retirements.get(partition) === task) this.retirements.delete(partition)
+        if (this.retirements.get(partition) === retirement) this.retirements.delete(partition)
+        if (remaining.length) application.get('IpcApiService').broadcast('webview.region.invalidated', { appId })
       })
-      .catch(() => {})
-    return task
+      .catch((error) => logger.warn('Regional session retirement failed', error))
+    return done
   }
 
   private async closeGuests(guestSession: Electron.Session, host?: Electron.WebContents): Promise<void> {
-    await Promise.all(
+    await drainCleanup(
       webContents
         .getAllWebContents()
         .filter((guest) => !guest.isDestroyed() && guest.session === guestSession)
@@ -288,12 +356,13 @@ export class RegionalSessionRegistry {
                 reject(error)
               }
             })
-        )
+        ),
+      'Failed to close regional guests'
     )
   }
 
   async revokeInactive(): Promise<void> {
-    await Promise.all(
+    await drainCleanup(
       [...this.leases]
         .filter(([, lease]) => {
           if (this.country(lease.appId) !== lease.country) return true
@@ -304,7 +373,8 @@ export class RegionalSessionRegistry {
             return true
           }
         })
-        .map(([id]) => this.releaseLease(id))
+        .map(([id]) => this.releaseLease(id)),
+      'Failed to revoke inactive regional leases'
     )
   }
 
@@ -314,14 +384,14 @@ export class RegionalSessionRegistry {
     await this.withDataCleared(appId, () => {})
   }
 
-  async removeApp(appId: string): Promise<void> {
+  async removeApp(appId: string, senderId: WindowId | null): Promise<void> {
+    this.requireHost(senderId)
     const app = this.requireSite(appId)
     if (app.presetMiniAppId !== null) {
       miniAppService.delete(appId)
       return
     }
     await this.withDataCleared(appId, async () => {
-      miniAppService.delete(appId)
       const write = this.selectionQueue.then(async () => {
         const preferences = application.get('PreferenceService')
         const profiles = { ...preferences.get('feature.mini_app.region_profiles') }
@@ -332,6 +402,7 @@ export class RegionalSessionRegistry {
             .get('feature.mini_app.us_environment_app_ids')
             .filter((id) => id !== appId)
         })
+        miniAppService.delete(appId)
       })
       this.selectionQueue = write.catch(() => {})
       await write
@@ -339,31 +410,38 @@ export class RegionalSessionRegistry {
   }
 
   private async withDataCleared(appId: string, action: () => void | Promise<void>): Promise<void> {
-    if (this.clearingApps.has(appId)) throw new Error('Regional data cleanup is already running')
-    this.clearingApps.add(appId)
+    if (this.dataCleanups.has(appId)) throw new Error('Regional data cleanup is already running')
     this.cleanupBlockedApps.add(appId)
+    const cleanup = Promise.resolve().then(() => this.clearDataAndRun(appId, action))
+    this.dataCleanups.set(appId, cleanup)
+    this.includeInStop(cleanup)
     try {
-      await Promise.allSettled(
-        [...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id))
-      )
-      for (const country of Object.keys(MINI_APP_REGIONS) as MiniAppCountry[]) {
-        const partition = getMiniAppRegionPartition(appId, country)
-        await this.retirements.get(partition)?.catch(() => {})
-        const guestSession = session.fromPartition(partition)
-        guestSession.webRequest.onBeforeRequest((_details, callback) => callback({ cancel: true }))
-        await this.closeGuests(guestSession)
-        await guestSession.closeAllConnections()
-        await guestSession.clearStorageData()
-        await guestSession.clearCache()
-        await guestSession.clearCodeCaches({ urls: [] })
-        this.retirements.delete(partition)
-      }
-      await action()
-      this.cleanupBlockedApps.delete(appId)
-      application.get('IpcApiService').broadcast('webview.region.invalidated', { appId })
+      await cleanup
     } finally {
-      this.clearingApps.delete(appId)
+      this.dataCleanups.delete(appId)
     }
+  }
+
+  private async clearDataAndRun(appId: string, action: () => void | Promise<void>): Promise<void> {
+    await Promise.allSettled([
+      ...[...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id)),
+      ...[...this.hostCleanups].filter(([, ownerAppId]) => ownerAppId === appId).map(([task]) => task)
+    ])
+    for (const country of Object.keys(MINI_APP_REGIONS) as MiniAppCountry[]) {
+      const partition = getMiniAppRegionPartition(appId, country)
+      await this.retirements.get(partition)?.done.catch(() => {})
+      const guestSession = session.fromPartition(partition)
+      guestSession.webRequest.onBeforeRequest((_details, callback) => callback({ cancel: true }))
+      await this.closeGuests(guestSession)
+      await guestSession.closeAllConnections()
+      await guestSession.clearStorageData()
+      await guestSession.clearCache()
+      await guestSession.clearCodeCaches({ urls: [] })
+      this.retirements.delete(partition)
+    }
+    await action()
+    this.cleanupBlockedApps.delete(appId)
+    application.get('IpcApiService').broadcast('webview.region.invalidated', { appId })
   }
 
   async resume(): Promise<void> {
@@ -393,18 +471,43 @@ export class RegionalSessionRegistry {
 
   async suspend(): Promise<void> {
     this.suspended = true
-    await Promise.all(
-      [...this.sessions].map(async ([guestSession, regional]) => {
-        regional.cleanup()
-        await application.get('ProxyService').unregisterSession(guestSession)
-      })
+    await this.drainBeforeStop(
+      [...this.sessions].flatMap(([guestSession, regional]) => this.sessionCleanup(guestSession, regional)),
+      'Failed to suspend regional sessions'
     )
-    await Promise.all(this.retirements.values())
   }
 
   async dispose(): Promise<void> {
     this.suspended = true
-    await Promise.all([...this.leases.keys()].map((id) => this.releaseLease(id)))
-    await Promise.all(this.retirements.values())
+    await this.drainBeforeStop(
+      [...this.leases.keys()].map((id) => this.releaseLease(id)),
+      'Failed to dispose regional sessions'
+    )
+  }
+
+  private includeInStop(task: Promise<void>): void {
+    for (const pending of this.stopDrains) pending.add(task)
+  }
+
+  private async drainBeforeStop(tasks: Promise<void>[], message: string): Promise<void> {
+    const pending = new Set([
+      ...tasks,
+      ...this.hostCleanups.keys(),
+      ...this.dataCleanups.values(),
+      ...[...this.retirements.values()].map(({ done }) => done)
+    ])
+    const outcomes: PromiseSettledResult<void>[] = []
+    // Keep jobs started during stop even if they finish before the next batch.
+    this.stopDrains.add(pending)
+    try {
+      while (pending.size) {
+        const batch = [...pending]
+        pending.clear()
+        outcomes.push(...(await Promise.allSettled(batch)))
+      }
+      throwCleanupErrors(outcomes, message)
+    } finally {
+      this.stopDrains.delete(pending)
+    }
   }
 }
