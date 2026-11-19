@@ -96,7 +96,7 @@ export function crossPlatformSpawn(
  * ESRCH and we fall back to a direct `child.kill()`. Best-effort throughout: also falls
  * back when the pid is missing or taskkill is unavailable.
  */
-export function killProcessTree(child: ChildProcess): void {
+export function killProcessTree(child: Pick<ChildProcess, 'pid' | 'kill'>): void {
   if (isWin && child.pid) {
     execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], (error) => {
       if (error) {
