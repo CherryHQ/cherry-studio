@@ -3,6 +3,7 @@ import {
   Archive,
   AudioLines,
   Bell,
+  Bot,
   Cloud,
   Command,
   Crop,
@@ -65,6 +66,7 @@ export const BUILTIN_TOOLS_GROUP_KEY = 'settings.menuGroups.builtinTools'
 export const settingsMenu: readonly SettingsMenuEntry[] = [
   { route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) },
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
+  { route: '/settings/local-agents', titleKey: 'local_agents.title', icon: createElement(Bot) },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
   {
     route: '/settings/local-models',

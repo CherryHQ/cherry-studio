@@ -190,6 +190,18 @@ const text = (id: string, value: string): CherryUIMessage => ({
   parts: [{ type: 'text', text: value, state: 'done' }]
 })
 
+it('defaults to authoritative projections without accumulating duplicate control text', async () => {
+  const f = await fixture()
+  await f.emit({ type: 'chunk', chunk: { type: 'text-start', id: 'control' } })
+  await f.emit({ type: 'chunk', chunk: { type: 'text-delta', id: 'control', delta: 'Not authoritative' } })
+  await f.emit({ type: 'chunk', chunk: { type: 'text-end', id: 'control' } })
+  await f.project([text('native', 'Authoritative answer')])
+  await f.emit({ type: 'turn-complete' })
+  const result = await f.done
+  expect(result.threw).toBeUndefined()
+  expect(result.finalMessage?.parts).toEqual(text('', 'Authoritative answer').parts)
+})
+
 async function settleFirstTurn(f: Awaited<ReturnType<typeof fixture>>) {
   await f.project([text('first', 'First answer')])
   await f.emit({ type: 'turn-complete' })

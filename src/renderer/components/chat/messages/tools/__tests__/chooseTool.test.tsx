@@ -1,7 +1,10 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import MessageTools from '../MessageTools'
 import { buildToolResponseFromPart } from '../toolResponse'
 
 describe('tool response classification', () => {
@@ -37,11 +40,21 @@ describe('tool response classification', () => {
   })
 })
 
+it('renders ACP tool calls through the agent tool card', async () => {
+  const response = buildToolResponseFromPart({
+    type: 'dynamic-tool',
+    toolCallId: 'acp-edit',
+    toolName: 'ACP: Edit example',
+    state: 'input-available',
+    input: { localAcpTool: { title: 'Edit example' } }
+  })
+  if (!response) throw new Error('Expected ACP tool response')
+  render(<MessageTools toolResponse={response} />)
+  expect(await screen.findByText('Edit example')).toBeVisible()
+})
+
 // Provider history must not vanish just because its tool name is absent from the current runtime registry.
 it('renders completed provider calls through the standard input/output tool card', async () => {
-  const { render, screen } = await import('@testing-library/react')
-  const { default: userEvent } = await import('@testing-library/user-event')
-  const { default: MessageTools } = await import('../MessageTools')
   const response = buildToolResponseFromPart({
     type: 'dynamic-tool',
     toolName: 'deepseek_search',

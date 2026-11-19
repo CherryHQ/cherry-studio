@@ -1,4 +1,5 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
+export { AcpTool } from './AcpTool'
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
 export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
@@ -19,4 +20,5 @@ export {
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'
 export { getSubagentTaskStatus } from './subagentStatus'
+export { TaskListView } from './TaskTool'
 export { TerminalOutput } from './TerminalOutput'

@@ -38,6 +38,8 @@ import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
+  AGENT_DELEGATE_TOOL_NAME,
+  DELEGATION_CANCEL_TOOL_NAME,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -317,6 +319,20 @@ const SessionCreateInputSchema = z.object({
   target_agent_id: z.string().optional().describe('Optional target Agent id.')
 })
 
+const AgentDelegateInputSchema = z.strictObject({
+  target_agent_id: z.string().trim().min(1).describe('Enabled local Agent id from agent_list.'),
+  message: z.string().trim().min(1).describe('Task to delegate to the local Agent.'),
+  title: z.string().trim().max(255).optional().describe('Optional task title.'),
+  workspace_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Existing user workspace id. Omit to use the current project; without a user project, create a fresh managed workspace.'
+    )
+})
+
 const SessionSendInputSchema = z.object({
   target_session_id: z.string().describe('Target sessionId returned by session_list or delivery sender.'),
   message: z.string().describe('Message for the target Agent.'),
@@ -381,16 +397,19 @@ function listSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionLi
 }
 
 function listAgents(): CallToolResult {
-  const agents = agentService.listAgents().agents.map((agent) => ({
-    id: agent.id,
-    name: agent.name,
-    description: agent.description ?? '',
-    runtime: {
-      type: agent.type,
-      available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
-    },
-    modelConfigured: agent.model !== null
-  }))
+  const agents = agentService
+    .listAgents()
+    .agents.filter((agent) => agent.type !== 'local' || agent.configuration?.localRuntime?.enabled)
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description ?? '',
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      ...(agent.type === 'local' ? { readiness: 'unchecked' } : { modelConfigured: agent.model !== null })
+    }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
 }
 
@@ -522,6 +541,42 @@ function resolveWorkspaceForNewSession(
   return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
     ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
     : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+}
+
+function delegateAgent(ctx: AutonomyToolsContext, args: z.output<typeof AgentDelegateInputSchema>): CallToolResult {
+  const target = agentService.getAgent(args.target_agent_id)
+  if (!target || target.type !== 'local' || !target.configuration?.localRuntime?.enabled) {
+    throw new Error('Delegation requires an enabled local Agent from Agent Services')
+  }
+  if (!runtimeDriverRegistry.getAgentSessionDriver(target.type)) {
+    throw new Error('The target Agent runtime is unavailable')
+  }
+  const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
+    delegation: true,
+    senderAgentId: ctx.agentId,
+    senderSessionId: ctx.sessionId,
+    targetAgentId: target.id,
+    sessionName: args.title ?? '',
+    workspace: args.workspace_id
+      ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: args.workspace_id }
+      : ctx.workspaceSource,
+    content: args.message
+  })
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ok: true,
+          agentId: created.session.agentId,
+          sessionId: created.session.id,
+          requestId: created.message.id,
+          workspace: created.session.workspace,
+          delivery: created.message.delivery
+        })
+      }
+    ]
+  }
 }
 
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
@@ -1225,6 +1280,28 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
+  )
+  server.registerTool(
+    DELEGATION_CANCEL_TOOL_NAME,
+    {
+      description:
+        'Cancel one delegated task owned by this Session, using its requestId. Stopping a parent reply does not cancel its tasks.',
+      inputSchema: z.strictObject({ request_id: z.string().trim().min(1) })
+    },
+    (args) =>
+      runSessionTool(ctx, async () => {
+        await application.get('AgentDelegationService').cancel(ctx.sessionId, args.request_id)
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, requestId: args.request_id }) }] }
+      })
+  )
+  server.registerTool(
+    AGENT_DELEGATE_TOOL_NAME,
+    {
+      description:
+        'Delegate a project task to an enabled local Agent in a new dedicated Session. Uses the current project unless workspace_id is provided. Returns a durable request immediately; one terminal result arrives asynchronously. Runtime availability does not prove CLI authentication or model access.',
+      inputSchema: AgentDelegateInputSchema
+    },
+    (args) => runSessionTool(ctx, () => delegateAgent(ctx, args))
   )
   server.registerTool(
     SESSION_DELIVERIES_TOOL_NAME,

@@ -24,8 +24,9 @@ const execFileAsync = promisify(execFile)
 // Timeout for command lookup operations (in milliseconds)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
 
-// Regex to validate command names - must start with alphanumeric or underscore, max 128 chars
-const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,127}$/
+// Regex to validate command names - must start with alphanumeric or underscore, max 128 chars.
+// Dots are allowed for declared executables such as `agy_acp_server.par`; a leading dot is not.
+const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$/
 
 // Maximum output size to prevent buffer overflow (10KB)
 const MAX_OUTPUT_SIZE = 10240
@@ -172,7 +173,9 @@ export async function findCommandInShellEnv(
 
   // Validate command name to prevent command injection
   if (!VALID_COMMAND_NAME_REGEX.test(command)) {
-    logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)
+    logger.warn(
+      `Invalid command name '${command}' - must only contain alphanumeric characters, underscore, hyphen, or dot`
+    )
     return null
   }
 

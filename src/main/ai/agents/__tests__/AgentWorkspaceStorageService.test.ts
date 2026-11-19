@@ -20,7 +20,7 @@ vi.mock('@application', async () => {
       cancelSessionForks: async () => {},
       closeSessionForArchive: mocks.close
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 describe(`workspace storage protocol (${process.platform})`, () => {

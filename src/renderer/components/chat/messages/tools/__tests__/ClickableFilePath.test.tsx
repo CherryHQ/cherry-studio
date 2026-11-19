@@ -155,6 +155,17 @@ describe('ClickableFilePath', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(expectedPath)
   })
 
+  it('opens a structured source location without putting the line number into the file path', async () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/中文 项目/report.ts" line={42} />, {
+      openArtifactFile: mockOpenArtifactFile
+    })
+    const link = screen.getByRole('link', { name: /report\.ts\s*:42/ })
+    await userEvent.click(link)
+    expect(mockOpenArtifactFile).toHaveBeenLastCalledWith('/tmp/中文 项目/report.ts', { line: 42 })
+    await userEvent.keyboard('{Enter}')
+    expect(mockOpenArtifactFile).toHaveBeenCalledTimes(2)
+  })
+
   it('should open relative paths directly', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/index.tsx" />, {
       openArtifactFile: mockOpenArtifactFile

@@ -422,6 +422,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
 
 const mcpStatusTool = defineTool({
   key: 'mcp_status',
+  condition: ({ session }) => session?.agentType !== 'local',
   label: 'MCP',
   visibleInScopes: [TopicType.Chat, TopicType.Session],
   composer: {

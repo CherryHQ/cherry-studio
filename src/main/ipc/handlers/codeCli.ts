@@ -15,7 +15,7 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
   },
   'code_cli.write_config': async (input) => {
     try {
-      await application.get('CodeCliService').writeConfigFiles(input.cliTool, input.files)
+      await application.get('CodeCliService').writeConfigFiles(input)
       return { success: true as const }
     } catch (error) {
       return { success: false as const, message: error instanceof Error ? error.message : 'Unknown error' }

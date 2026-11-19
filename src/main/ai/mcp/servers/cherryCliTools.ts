@@ -28,18 +28,30 @@ const cliInstallInputSchema = z
   })
   .strict()
 
+async function listCliInventory(signal?: AbortSignal) {
+  const manager = application.get('BinaryManager')
+  const inventory = await manager.getToolInventory(signal)
+  const names = inventory.filter((entry) => CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[entry.name]).map((entry) => entry.name)
+  if (!names.length) return inventory
+  const snapshots = await manager.getToolSnapshots(names)
+  signal?.throwIfAborted()
+  return inventory.map((entry) => {
+    const availability = snapshots[entry.name]?.availability
+    return availability?.source === 'system' ? { ...entry, status: 'ready' as const, version: undefined } : entry
+  })
+}
+
 export function registerCliTools(server: McpServer): void {
   server.registerTool(
     CLI_LIST_TOOL_NAME,
     {
-      description:
-        'List Cherry-managed CLIs (bundled, mise, custom, Code CLI presets). Does not inspect the system PATH.',
+      description: 'List bundled, managed and system-installed Code CLIs with their runnable availability.',
       inputSchema: z.strictObject({})
     },
     async (_args, ctx) =>
       modelOutputToMcpResult({
         type: 'json',
-        value: { tools: await application.get('BinaryManager').getToolInventory(ctx.mcpReq.signal) }
+        value: { tools: await listCliInventory(ctx.mcpReq.signal) }
       })
   )
 
@@ -58,7 +70,7 @@ export function registerCliTools(server: McpServer): void {
     CLI_INSTALL_TOOL_NAME,
     {
       description:
-        "Install a CLI into Cherry's isolated mise environment. Use a name from cli_search; requires user approval.",
+        "Install a CLI using its supported installation method. Code CLI presets install globally; other tools use Cherry's mise environment. Requires user approval.",
       inputSchema: cliInstallInputSchema
     },
     async (definition, ctx) => {
@@ -84,7 +96,7 @@ export function registerCliTools(server: McpServer): void {
         })
       }
 
-      const installed = (await binaryManager.getToolInventory(signal)).find((entry) => entry.name === definition.name)
+      const installed = (await listCliInventory(signal)).find((entry) => entry.name === definition.name)
       const result = modelOutputToMcpResult({ type: 'json', value: { tool: installed } })
       return installed?.status === 'ready' ? result : { ...result, isError: true }
     }

@@ -310,7 +310,24 @@ describe('OAuthRuntimeService', () => {
       service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), vi.fn(), {
         notSignedInMessage: 'please sign in'
       })
-    ).rejects.toThrow('please sign in')
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      providerId: 'codex',
+      message: expect.stringContaining('please sign in')
+    })
+  })
+
+  it('keeps terminal refresh failures actionable and releases the rejected response', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: FUTURE() })
+    h.refreshMock.mockRejectedValue(new OAuthHttpError('Refresh rejected', 401, 'invalid_grant'))
+    const cancel = vi.fn()
+    const doFetch = vi.fn().mockResolvedValue({ status: 401, body: { cancel } })
+    await expect(service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), doFetch)).rejects.toMatchObject({
+      statusCode: 401,
+      providerId: 'codex'
+    })
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(h.providerStore.get('codex')).toMatchObject({ authConfig: { type: 'api-key' }, isEnabled: false })
   })
 
   // item4: a transient refresh blip mid-chat must surface as a retriable error,

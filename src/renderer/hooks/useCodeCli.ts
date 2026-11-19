@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -32,7 +32,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (tool: CodeCli) => void) => {
+export const useCodeCli = (selectedCliTool: CodeCli = DEFAULT_TOOL) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -41,18 +41,6 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   const configsRef = useRef(configs)
   configsRef.current = configs
   const writeQueueRef = useRef(new Sequencer())
-
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
-
-  useEffect(() => setSelectedCliTool(initialTool), [initialTool])
-
-  const selectTool = useCallback(
-    (tool: CodeCli) => {
-      setSelectedCliTool(tool)
-      onToolChange?.(tool)
-    },
-    [onToolChange]
-  )
 
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
@@ -181,7 +169,6 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   }, [setDirectory])
 
   return {
-    configs,
     selectedCliTool,
     currentToolState,
     currentProviderId,
@@ -193,7 +180,6 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
     deleteProviderConfig,
     setCurrentProvider,
     reorderProviders,
-    selectTool,
     setTerminal,
     setDirectory,
     selectFolder

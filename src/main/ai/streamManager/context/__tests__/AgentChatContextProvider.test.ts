@@ -582,6 +582,43 @@ describe('AgentChatContextProvider', () => {
     })
   })
 
+  it('does not auto-name a busy follow-up turn', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
+  })
+
+  it.each([false, true])('repairs technical OpenClaw titles only when not manually named: %s', async (manual) => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'agent:main:acp-bridge:uuid',
+      isNameManuallyEdited: manual
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      configuration: { localRuntime: { presetId: 'openclaw' } }
+    })
+    const validated = await provider.validateDispatch(openReq())
+    expect(validated.shouldAutoNameInitialTurn).toBe(!manual)
+  })
+
+  it('does not auto-name a later idle turn in a session with messages', async () => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
+  })
+
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })

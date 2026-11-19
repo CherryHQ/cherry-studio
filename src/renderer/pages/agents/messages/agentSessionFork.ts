@@ -25,6 +25,8 @@ export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionFo
   switch (reason) {
     case 'cancelled':
       return t('message.tools.cancelled')
+    case 'runtime_unsupported':
+      return t('agent_session_fork.runtime_unsupported')
     case 'legacy_history':
       return t('agent_session_fork.legacy_history')
     case 'not_turn_boundary':

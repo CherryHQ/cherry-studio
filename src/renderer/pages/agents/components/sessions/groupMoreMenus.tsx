@@ -15,6 +15,7 @@ import {
 
 export function AgentGroupMoreMenu({
   agentId,
+  isLocalAgent,
   assistantIconType,
   deleteAgentDisabled,
   deleteSessionsOnly,
@@ -31,6 +32,7 @@ export function AgentGroupMoreMenu({
   sidebarPinned
 }: {
   agentId: string
+  isLocalAgent: boolean
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
   deleteSessionsOnly?: boolean
@@ -49,6 +51,7 @@ export function AgentGroupMoreMenu({
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
+    isLocalAgent,
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,

@@ -172,6 +172,8 @@ describe('AgentJobsService', () => {
           return service
         case 'AgentLifecycleService':
           return lifecycle
+        case 'AgentDelegationService':
+          return { cancelOwnedBy: async () => {} }
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,

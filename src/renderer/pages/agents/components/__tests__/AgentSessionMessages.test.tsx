@@ -47,6 +47,28 @@ describe('AgentSessionMessages', () => {
     ipcRequestMock.mockClear()
   })
 
+  it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[]}
+        activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
+        partsByMessageId={{}}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantProfile: expect.objectContaining({
+          name: 'Blank avatar agent',
+          avatar: '🤖'
+        })
+      })
+    )
+  })
+
   it('uses the active session workspace path for message actions', () => {
     render(
       <AgentSessionMessages

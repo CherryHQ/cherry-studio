@@ -448,6 +448,8 @@ const AgentPage = () => {
       if (defaults.workspace) return defaults.workspace
       if (defaults.workspaceMode === 'system') return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (defaults.workspaceId) return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaults.workspaceId }
+      if (agents.some((agent) => agent.id === defaults.agentId && agent.type === 'local'))
+        return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (fallbackSession && (!defaults.agentId || defaults.agentId === fallbackSession.agentId)) {
         return getWorkspaceSourceFromSession(fallbackSession)
       }
@@ -465,7 +467,7 @@ const AgentPage = () => {
         return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       }
     },
-    [lastUsedWorkspaceId, setLastUsedWorkspaceId]
+    [agents, lastUsedWorkspaceId, setLastUsedWorkspaceId]
   )
 
   const activateSession = useCallback(
@@ -486,7 +488,7 @@ const AgentPage = () => {
 
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
-      const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      const workspaceSource = await resolveCreateWorkspaceSource({ ...defaults, agentId }, visibleSession)
       const result = await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)

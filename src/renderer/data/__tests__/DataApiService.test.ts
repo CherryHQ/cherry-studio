@@ -50,7 +50,7 @@ async function createService(options: { capturePayloads?: boolean } = {}) {
 }
 
 describe('DataApiService devtools instrumentation', () => {
-  it('records a successful request with truncated request and response previews', async () => {
+  it('records a successful request with redacted and truncated payload previews', async () => {
     const service = await createService({ capturePayloads: true })
     expect(window.__CHERRY_DATA_API_DEVTOOLS__).toBeDefined()
     request.mockImplementationOnce(async (req) => ({
@@ -86,16 +86,16 @@ describe('DataApiService devtools instrumentation', () => {
       state: 'success',
       method: 'POST',
       path: '/providers',
-      query: { authorization: 'Bearer secret' },
+      query: { authorization: '<redacted>' },
       body: {
-        apiKey: 'request-key',
-        cookie: 'session-cookie',
-        nested: { token: 'nested-token' },
-        privateKey: 'private-key',
-        sessionId: 'session-id'
+        apiKey: '<redacted>',
+        cookie: '<redacted>',
+        nested: { token: '<redacted>' },
+        privateKey: '<redacted>',
+        sessionId: '<redacted>'
       },
       status: 200,
-      response: { ok: true, token: 'response-token' },
+      response: { ok: true, token: '<redacted>' },
       mainDuration: 7,
       handlerDuration: 5
     })

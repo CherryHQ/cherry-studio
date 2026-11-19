@@ -49,6 +49,7 @@ import type {
 import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { ElicitationFormSchema, type ElicitationForm } from '@shared/ai/elicitation'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -187,23 +188,28 @@ export const ToolSearchToolOutputSchema = z.union([
 export type ToolSearchToolOutput = z.infer<typeof ToolSearchToolOutputSchema>
 
 export const AskUserQuestionOptionSchema = z.object({
+  id: z.string().optional(),
   label: z.string(),
   description: z.string().optional(),
   preview: z.string().optional()
 })
 
 export const AskUserQuestionItemSchema = z.object({
+  id: z.string().optional(),
   question: z.string(),
   header: z.string(),
-  options: z.array(AskUserQuestionOptionSchema).min(2).max(4),
+  options: z.array(AskUserQuestionOptionSchema),
   multiSelect: z.boolean().default(false)
 })
 
 export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
 export const AskUserQuestionToolInputSchema = z.object({
-  questions: z.array(AskUserQuestionItemSchema).min(1).max(4),
+  elicitation: z.object({ schema: ElicitationFormSchema, message: z.string(), agentName: z.string() }).optional(),
+  questions: z.array(AskUserQuestionItemSchema).min(1),
   answers: AskUserQuestionAnswerSchema.optional(),
+  choiceOnly: z.boolean().optional(),
+  answerSelections: z.record(z.string(), z.array(z.string())).optional(),
   annotations: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 })
@@ -212,12 +218,17 @@ type SDKAskUserQuestionItem = AskUserQuestionInput['questions'][number]
 type SDKAskUserQuestionOption = SDKAskUserQuestionItem['options'][number]
 
 export type AskUserQuestionOption = Omit<SDKAskUserQuestionOption, 'description'> & {
+  id?: string
   description?: string
 }
 export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
+  id?: string
   options: AskUserQuestionOption[]
 }
 export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
+  elicitation?: { schema: ElicitationForm; message: string; agentName: string }
+  choiceOnly?: boolean
+  answerSelections?: Record<string, string[]>
   questions: AskUserQuestionItem[]
 }
 export type AskUserQuestionToolOutput = AskUserQuestionOutput

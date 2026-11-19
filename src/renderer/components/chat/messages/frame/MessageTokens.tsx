@@ -151,15 +151,27 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
     [i18n.resolvedLanguage]
   )
 
-  if (!stats) {
-    return null
-  }
+  const totalTokens =
+    (stats ? getMessageTokenUsage(stats).totalTokens : undefined) ?? message.localTurnUsage?.usage.totalTokens
+  const hasDetails =
+    message.role === 'assistant' &&
+    !!(
+      stats?.costs?.length ||
+      stats?.requestCount ||
+      stats?.estimatedRequestCount ||
+      stats?.unpricedRequestCount ||
+      stats?.providerPerformance ||
+      stats?.runtimeTiming ||
+      stats?.timeFirstTokenMs !== undefined ||
+      stats?.timeCompletionMs !== undefined ||
+      stats?.timeThinkingMs !== undefined
+    )
+  if (totalTokens === undefined && !hasDetails) return null
 
-  const totalTokens = getMessageTokenUsage(stats).totalTokens
-  const tokenLabel = t('chat.message.token_details.tokens', {
-    value:
-      totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
-  })
+  const tokenLabel =
+    totalTokens === undefined
+      ? t(stats?.costs?.length ? 'chat.message.token_details.cost' : 'chat.message.token_details.more_details')
+      : t('chat.message.token_details.tokens', { value: compactFormatter.format(totalTokens) })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {
@@ -167,7 +179,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (message.role === 'assistant') {
-    const tokensPerSecond = getMessageModelTokensPerSecond(stats)
+    const tokensPerSecond = stats ? getMessageModelTokensPerSecond(stats) : undefined
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined

@@ -3,9 +3,11 @@ import type { FC } from 'react'
 import { getProviderIconAssetMetrics } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
+import { TAB_ICON_CLI_PREFIX } from '@renderer/utils/tabIcons'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import { getIconDisplayConfig } from './iconDisplayConfig'
+import { LocalAgentIcon } from './LocalAgentIcon'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
@@ -26,6 +28,14 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
   // A preset key resolves to a CompoundIcon; an uploaded logo arrives as a
   // ready `logoSrc` URL (or a pre-resolved url on `logo` for sidebar tabs).
   const src = app.logoSrc ?? app.logo
+
+  if (src?.startsWith(TAB_ICON_CLI_PREFIX)) {
+    return (
+      <span style={style}>
+        <LocalAgentIcon cliId={src.slice(TAB_ICON_CLI_PREFIX.length)} size={size} />
+      </span>
+    )
+  }
 
   // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
   if (logoRef) {

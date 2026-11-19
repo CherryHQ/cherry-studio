@@ -12,10 +12,12 @@ import {
 
 import { useQuery, useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useTabs } from '@renderer/hooks/tab'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 
 import type { SidebarShortcutRegistry } from './registry'
 import type {
@@ -271,6 +273,10 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
 
   const openWorkspace = useCallback<SidebarActivationGateway['openWorkspace']>(
     (destination, options) => {
+      if (isSettingsPath(destination.url)) {
+        openRoute(destination.url)
+        return
+      }
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
         const existing = destination.conversation

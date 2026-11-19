@@ -1,5 +1,5 @@
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { AiStreamAdmissionReason } from '@shared/ai/transport'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 export type LiveExecutionChangeAdmission =
   | { mode: 'replace-live' }
@@ -9,7 +9,7 @@ export type LiveExecutionChangeAdmission =
 export type LiveExecutionChangeIntent =
   | {
       mode: 'append'
-      modelId: UniqueModelId
+      modelId: ExecutionId
       targetMessageId: string
       parentAnchorId: string
       siblingsGroupId?: number
@@ -17,7 +17,7 @@ export type LiveExecutionChangeIntent =
     }
   | {
       mode: 'replace'
-      modelId: UniqueModelId
+      modelId: ExecutionId
       anchorMessageId: string
       parentAnchorId: string
       siblingsGroupId?: number

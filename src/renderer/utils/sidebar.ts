@@ -98,7 +98,7 @@ const SIDEBAR_APP_DEFINITIONS = [
   },
   {
     id: 'code_tools',
-    routePrefix: '/app/code'
+    routePrefix: '/settings/local-agents'
   },
   {
     id: 'notes',
@@ -164,7 +164,8 @@ export const SIDEBAR_SHORTCUT_PROVIDER_IDS = {
   TOPIC: 'core.topic',
   AGENT_SESSION: 'core.agent-session',
   FILE_ENTRY: 'core.file-entry',
-  CODE_CLI: 'core.code-cli'
+  CODE_CLI: 'core.code-cli',
+  LOCAL_AGENT: 'core.local-agent'
 } as const
 
 const RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS = new Set(['core.skill', 'core.mcp-server', 'core.provider'])

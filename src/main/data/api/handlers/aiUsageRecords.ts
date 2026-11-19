@@ -1,6 +1,7 @@
 /** Read-only DataApi handlers for internally captured AI usage records. */
 
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { LocalAgentUsageQuerySchema } from '@shared/ai/localAgentUsage'
 import type { AiUsageRecordSchemas } from '@shared/data/api/schemas/aiUsageRecords'
 import {
   AiUsageRecordListQuerySchema,
@@ -10,6 +11,9 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
+  '/ai-usage-records/local': {
+    GET: async ({ query }) => aiUsageRecordService.listLocalUsage(LocalAgentUsageQuerySchema.parse(query))
+  },
   '/ai-usage-records': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordListQuerySchema.parse(query ?? {})

@@ -231,6 +231,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
+  const groupHeaderLabelSuffix = meta.getGroupHeaderLabelSuffix?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -341,6 +342,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
               {group.label}
             </span>
+            {groupHeaderLabelSuffix}
           </button>
           <button
             type="button"
@@ -378,6 +380,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
             {group.label}
           </span>
+          {groupHeaderLabelSuffix}
           <span aria-hidden="true" className={GROUP_HEADER_CHEVRON_SLOT_CLASS}>
             {chevron}
           </span>
@@ -392,6 +395,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
             {group.label}
           </span>
+          {groupHeaderLabelSuffix}
         </div>
       )}
       {groupHeaderAction && (

@@ -10,6 +10,7 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
@@ -106,6 +107,9 @@ const AgentSessionMessages = ({
         ? {
             id: activeAgent.id,
             name: activeAgent.name,
+            avatarIcon: activeAgent.configuration?.localRuntime ? (
+              <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={30} />
+            ) : undefined,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
@@ -159,6 +163,11 @@ const AgentSessionMessages = ({
     streamingLayers,
     assistantProfile,
     assistantId: agentId,
+    supportsNativeFork: !!activeAgent && activeAgent.type !== 'local',
+    providerErrorSettingsPath:
+      activeAgent?.type === 'local'
+        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.configuration?.localRuntime?.presetId ?? activeAgent.id)}`
+        : undefined,
     isLoading,
     hasOlder,
     loadOlder,

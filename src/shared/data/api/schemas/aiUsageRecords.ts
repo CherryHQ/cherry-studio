@@ -4,6 +4,8 @@
 
 import * as z from 'zod'
 
+import type { LocalAgentUsageQuery, LocalAgentUsageResponse } from '@shared/ai/localAgentUsage'
+
 import {
   type AiUsageRecordAttribution,
   type AiUsageRecordEntry,
@@ -225,6 +227,12 @@ export interface AiUsageRecordTimelineResponse {
 }
 
 export type AiUsageRecordSchemas = {
+  '/ai-usage-records/local': {
+    GET: {
+      query: Partial<LocalAgentUsageQuery> & Pick<LocalAgentUsageQuery, 'from' | 'to'>
+      response: LocalAgentUsageResponse
+    }
+  }
   '/ai-usage-records': {
     GET: {
       query?: AiUsageRecordListQueryParams

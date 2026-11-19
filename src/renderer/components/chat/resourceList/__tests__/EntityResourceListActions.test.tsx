@@ -2436,7 +2436,11 @@ describe('classic layout entity resource list actions', () => {
     expect(onCreateSession).toHaveBeenCalledWith('agent-1')
   })
 
-  it('lets the classic agent rail switch icon display mode from the context menu', () => {
+  it.each([false, true])('offers icon display settings only for non-local agents (local=%s)', (local) => {
+    if (local)
+      agentDataMocks.agents[0].configuration = {
+        localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true, args: [], env: {} }
+      }
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -2447,7 +2451,13 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.icon.type')
+    const menu = screen.getByTestId('agent-1-context-menu')
+    if (local) {
+      expect(menu).not.toHaveTextContent('agent.icon.type')
+      expect(within(menu).queryByRole('button', { name: 'settings.assistant.icon.type.none' })).not.toBeInTheDocument()
+      return
+    }
+    expect(menu).toHaveTextContent('agent.icon.type')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
 

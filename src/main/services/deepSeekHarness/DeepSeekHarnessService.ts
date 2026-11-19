@@ -8,11 +8,19 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { parseUniqueModelId, type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
-import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
+import {
+  CodeCli,
+  isApiGatewayProviderId,
+  normalizeDeepSeekHarnessSettings,
+  type DeepSeekHarnessPermissionMode,
+  type DeepSeekHarnessSettings
+} from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { ManagedToolStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
@@ -27,7 +35,8 @@ import {
   type DeepSeekHarnessProjection,
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
-  writeDeepSeekHarnessConfig
+  writeDeepSeekHarnessConfig,
+  withDeepSeekHarnessConfigLock
 } from './config'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
@@ -76,6 +85,38 @@ export class DeepSeekHarnessService extends BaseService {
 
   getStatus(): ManagedToolStatusState {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+  }
+
+  async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.operationMutex.runExclusive(async () => {
+      if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
+        throw new Error(t('code_cli.config.service_running', { tool: 'DeepSeek Harness' }))
+      }
+      return withDeepSeekHarnessConfigLock(application.getPath('external.deepseek_harness.config'), write)
+    })
+  }
+
+  async applyModel(input: DeepSeekHarnessStartInput): Promise<void> {
+    await this.operationMutex.runExclusive(async () => {
+      await this.syncConfig(input)
+    })
+  }
+
+  async prepareAgent(): Promise<string | undefined> {
+    const state = application.get('PreferenceService').get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]
+    if (!state?.current) return
+    const selected = state.providers[state.current]
+    const uniqueModelId = selected?.modelId
+    if (!uniqueModelId) return
+    const mode = isApiGatewayProviderId(state.current) ? 'gateway' : 'direct'
+    return this.operationMutex.runExclusive(async () => {
+      const { projection } = await this.syncConfig({
+        uniqueModelId,
+        mode,
+        ...normalizeDeepSeekHarnessSettings(selected.config)
+      })
+      return JSON.stringify([projection.route, projection.modelId])
+    })
   }
 
   /** Single status-transition point for the main-owned shared snapshot. */
@@ -234,7 +275,15 @@ export class DeepSeekHarnessService extends BaseService {
     const uniqueModelId = UniqueModelIdSchema.parse(input.uniqueModelId)
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
-    const model = modelService.getByKey(providerId, modelId)
+    let model: Model
+    try {
+      model = modelService.getByKey(providerId, modelId)
+    } catch (error) {
+      if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+        throw new Error(t('deepseek_harness.model_unavailable'))
+      }
+      throw error
+    }
     if (!provider.isEnabled || !model.isEnabled) throw new Error('The selected DeepSeek Harness model is disabled')
     if (isNonChatModel(model)) throw new Error('The selected DeepSeek Harness model must support chat')
 

@@ -283,6 +283,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
  */
 const mcpResourceTool = defineTool({
   key: 'mcp_resources',
+  condition: ({ session }) => session?.agentType !== 'local',
   label: (t) => t('chat.input.mcp_resources.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
 

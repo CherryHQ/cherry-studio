@@ -64,7 +64,7 @@ describe('useDeepSeekHarnessController', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('starts directly without passing a directory, terminal, URL, port, or key and opens the Mini App', async () => {
+  it('starts the service without opening a view and opens only on explicit request', async () => {
     const { result } = renderController()
     await act(async () => result.current.onLaunch())
 
@@ -74,18 +74,19 @@ describe('useDeepSeekHarnessController', () => {
       agentPreset: 'code',
       permissionMode: 'read-only'
     })
-    const descriptor = mocks.openSmartMiniApp.mock.calls[0][0]
-    expect(descriptor).toMatchObject({
-      appId: 'deepseek-harness-web',
-      name: 'DeepSeek Harness',
-      logo: 'deepseek'
-    })
-    expect(new URL(descriptor.url).searchParams.get('cherry_navigation_revision')).toBe('1776000000000')
-    // Running state is no longer written locally — it arrives as a main-pushed event.
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
     await act(async () => {
       emitStatusChanged({ status: 'running', url: 'http://127.0.0.1:43123' })
     })
     expect(result.current.running).toBe(true)
+    await act(async () => result.current.onOpenWebUi())
+    const descriptor = mocks.openSmartMiniApp.mock.calls[0][0]
+    expect(descriptor).toMatchObject({
+      appId: 'deepseek-harness-web',
+      name: 'DeepSeek Harness',
+      logo: 'cli:deepseek-harness'
+    })
+    expect(new URL(descriptor.url).searchParams.get('cherry_navigation_revision')).toBe('1776000000000')
   })
 
   it('uses gateway mode for the synthetic gateway provider', async () => {

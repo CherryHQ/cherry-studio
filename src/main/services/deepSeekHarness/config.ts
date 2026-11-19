@@ -11,6 +11,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
 export type DeepSeekHarnessProtocol = 'anthropic-messages' | 'openai-responses' | 'openai-completions'
@@ -35,6 +36,9 @@ interface FileSnapshot {
 export interface DeepSeekHarnessConfigReceipt {
   credentials: FileSnapshot & { written: string }
   settings: FileSnapshot & { written: string }
+  profile: FileSnapshot & { written: string }
+  headless: FileSnapshot & { written: string }
+  acp: FileSnapshot & { written: string }
 }
 
 interface HeldLock {
@@ -48,8 +52,9 @@ interface LockOwner {
   token: string
 }
 
-const SETTINGS_FILE = 'settings.yaml'
-const CREDENTIALS_FILE = '.credentials.yaml'
+const SETTINGS_FILE = CLI_CONFIG_FILE_SPECS['dsh-settings'].path
+const CREDENTIALS_FILE = CLI_CONFIG_FILE_SPECS['dsh-credentials'].path
+const PROFILE_FILE = CLI_CONFIG_FILE_SPECS['dsh-profile'].path
 const FILE_MODE = 0o600
 const LOCK_TIMEOUT_MS = 2000
 const LOCK_INITIAL_DELAY_MS = 20
@@ -164,11 +169,10 @@ async function acquireLock(filePath: string): Promise<HeldLock> {
   }
 }
 
-async function acquireConfigLocks(credentialsPath: string, settingsPath: string): Promise<HeldLock[]> {
+async function acquireConfigLocks(...paths: string[]): Promise<HeldLock[]> {
   const locks: HeldLock[] = []
   try {
-    locks.push(await acquireLock(credentialsPath))
-    locks.push(await acquireLock(settingsPath))
+    for (const file of paths) locks.push(await acquireLock(file))
     return locks
   } catch (error) {
     await releaseLocks(locks)
@@ -242,8 +246,11 @@ function projectReasoningEfforts(model: Model): false | Record<string, string | 
   return undefined
 }
 
-function updateManagedModel(document: Document, projection: DeepSeekHarnessProjection): void {
-  const modelsPath = ['llm-pi-ai', 'providers', projection.route, 'models']
+function updateManagedModel(
+  document: Document,
+  projection: DeepSeekHarnessProjection,
+  modelsPath: (string | number)[]
+): void {
   if (!document.hasIn(modelsPath)) document.setIn(modelsPath, document.createNode([]))
   const models = document.getIn(modelsPath, true)
   if (!isSeq(models)) throw new Error(`DeepSeek Harness route ${projection.route} has a non-list models field`)
@@ -267,9 +274,11 @@ function updateManagedModel(document: Document, projection: DeepSeekHarnessProje
   else model.set('reasoningEfforts', reasoningEfforts)
 }
 
-function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProjection): string {
-  const document = parseMappingDocument(snapshot)
-  const routePath = ['llm-pi-ai', 'providers', projection.route]
+function updateManagedProvider(
+  document: Document,
+  projection: DeepSeekHarnessProjection,
+  routePath: (string | number)[]
+) {
   if (document.hasIn(routePath)) {
     const credentialRef = document.getIn([...routePath, 'apiKeyEnv'])
     if (credentialRef !== projection.credentialRef) {
@@ -282,18 +291,110 @@ function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProje
   document.setIn([...routePath, 'api'], projection.protocol)
   document.setIn([...routePath, 'baseURL'], projection.baseUrl)
   document.deleteIn([...routePath, 'headers'])
-  updateManagedModel(document, projection)
-  document.setIn(['agent-default-model', 'provider'], projection.route)
-  document.setIn(['agent-default-model', 'model'], projection.modelId)
-  document.deleteIn(['agent-default-model', 'reasoningEffort'])
+  updateManagedModel(document, projection, [...routePath, 'models'])
+}
+
+function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProjection): string {
+  const document = parseMappingDocument(snapshot)
+  updateManagedProvider(document, projection, ['llm-pi-ai', 'providers', projection.route])
+  document.delete('agent-default-model')
   if (projection.agentPreset !== 'inherit') {
     document.setIn(['agent-presets', 'default'], projection.agentPreset)
   }
   return document.toString()
 }
 
+function parseProfileDocument(snapshot: FileSnapshot) {
+  const document =
+    snapshot.content === undefined
+      ? new Document([])
+      : parseDocument(snapshot.content, {
+          customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value) => value }]
+        })
+  if (document.errors.length)
+    throw new Error(
+      `Invalid DeepSeek Harness YAML in ${path.basename(snapshot.path)}: ${describeYamlError(document.errors[0])}`
+    )
+  if (document.contents === null) document.contents = document.createNode([])
+  if (!isSeq(document.contents))
+    throw new Error(`DeepSeek Harness ${path.basename(snapshot.path)} must contain a YAML sequence`)
+  return { document, entries: document.contents }
+}
+
+function renderProfile(
+  snapshot: FileSnapshot,
+  projection: DeepSeekHarnessProjection,
+  id = 'agent-default-model',
+  catalogs: unknown[] = []
+): string {
+  const { document, entries } = parseProfileDocument(snapshot)
+  let index = entries.items.findLastIndex(
+    (item) =>
+      isMap(item) &&
+      item.get('id') === id &&
+      !item.has('insert') &&
+      (!item.has('name') || item.get('name') === `@deepseek-ai/dsh-${id}`)
+  )
+  if (index < 0) {
+    index = entries.items.length
+    entries.add(document.createNode({ id, config: {} }))
+  }
+  document.setIn([index, 'config', 'provider'], projection.route)
+  document.setIn([index, 'config', 'model'], projection.modelId)
+  document.deleteIn([index, 'config', 'reasoningEffort'])
+  let providerIndex = entries.items.findLastIndex(
+    (item) => isMap(item) && item.get('id') === 'llm-pi-ai' && !item.has('insert')
+  )
+  if (providerIndex < 0) {
+    providerIndex = entries.items.length
+    entries.add(document.createNode({ id: 'llm-pi-ai', config: {} }))
+  }
+  const providersPath = [providerIndex, 'config', 'providers']
+  // DSH migrates settings into just the active profile; retain its catalogs in the shared home layer.
+  for (const catalog of catalogs) {
+    if (!isMap(catalog)) continue
+    for (const { key, value } of catalog.items) {
+      if (!isMap(value)) continue
+      const credentialRef = value.get('apiKeyEnv')
+      if (typeof credentialRef !== 'string' || !MANAGED_CREDENTIAL_REF_RE.test(credentialRef)) continue
+      const routePath = [...providersPath, String(key)]
+      if (!document.hasIn(routePath)) document.setIn(routePath, value.clone())
+      else {
+        if (document.getIn([...routePath, 'apiKeyEnv']) !== credentialRef)
+          throw new Error(`DeepSeek Harness route ${String(key)} is not owned by CodeMate`)
+        const sourceModels = value.get('models')
+        const targetModels = document.getIn([...routePath, 'models'])
+        if (isSeq(sourceModels) && targetModels === undefined)
+          document.setIn([...routePath, 'models'], sourceModels.clone())
+        else if (isSeq(sourceModels) && isSeq(targetModels)) {
+          for (const model of sourceModels.items) {
+            if (isMap(model) && !targetModels.items.some((item) => isMap(item) && item.get('id') === model.get('id')))
+              targetModels.add(model.clone())
+          }
+        }
+      }
+    }
+  }
+  updateManagedProvider(document, projection, [...providersPath, projection.route])
+  return document.toString()
+}
+
+function renderHeadlessProfile(snapshot: FileSnapshot): string {
+  const { document, entries } = parseProfileDocument(snapshot)
+  for (const id of ['credentials', 'authorization', 'deepseek-account']) {
+    const entry = entries.items.findLast((item) => isMap(item) && item.get('id') === id && !item.has('insert'))
+    if (isMap(entry)) entry.set('disabled', false)
+    else document.add(document.createNode({ id, disabled: false }))
+  }
+  return document.toString()
+}
+
 function renderCredentials(snapshot: FileSnapshot, credentialRef: string, credentialValue: string): string {
   const document = parseMappingDocument(snapshot)
+  if (snapshot.content === undefined) {
+    document.set('version', 1)
+    document.set('refs', document.createNode({}))
+  }
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(credentialRef)) {
     throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(credentialRef)} is invalid`)
   }
@@ -330,9 +431,9 @@ async function restoreSnapshot(snapshot: FileSnapshot): Promise<void> {
   }
 }
 
-async function restoreSnapshots(settings: FileSnapshot, credentials: FileSnapshot): Promise<void> {
+async function restoreSnapshots(...snapshots: FileSnapshot[]): Promise<void> {
   const failures: unknown[] = []
-  for (const snapshot of [settings, credentials]) {
+  for (const snapshot of snapshots) {
     await restoreSnapshot(snapshot).catch((error) => failures.push(error))
   }
   if (failures.length > 0) throw new AggregateError(failures, 'Failed to restore DeepSeek Harness config files')
@@ -380,27 +481,60 @@ export function createDeepSeekHarnessDirectIdentity(
   }
 }
 
+export async function withDeepSeekHarnessConfigLock<T>(configDir: string, write: () => Promise<T>): Promise<T> {
+  const paths = [
+    CREDENTIALS_FILE,
+    SETTINGS_FILE,
+    PROFILE_FILE,
+    'profiles/headless/package.json',
+    'profiles/acp/package.json'
+  ].map((file) => path.join(configDir, file))
+  for (const file of paths) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
+  const locks = await acquireConfigLocks(...paths)
+  try {
+    return await write()
+  } finally {
+    await releaseLocks(locks)
+  }
+}
+
 export async function writeDeepSeekHarnessConfig(
   configDir: AbsoluteFilePath,
   projection: DeepSeekHarnessProjection
 ): Promise<DeepSeekHarnessConfigReceipt> {
-  await fs.mkdir(configDir, { recursive: true, mode: 0o700 })
   const credentialsPath = AbsoluteFilePathSchema.parse(path.join(configDir, CREDENTIALS_FILE))
   const settingsPath = AbsoluteFilePathSchema.parse(path.join(configDir, SETTINGS_FILE))
-  const locks = await acquireConfigLocks(credentialsPath, settingsPath)
-
-  try {
+  const profilePath = AbsoluteFilePathSchema.parse(path.join(configDir, PROFILE_FILE))
+  const headlessPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'headless', PROFILE_FILE))
+  const acpPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'acp', PROFILE_FILE))
+  return withDeepSeekHarnessConfigLock(configDir, async () => {
     const credentials = await readSnapshot(credentialsPath)
     const settings = await readSnapshot(settingsPath)
+    const profile = await readSnapshot(profilePath)
+    const headless = await readSnapshot(headlessPath)
+    const acp = await readSnapshot(acpPath)
     const writtenCredentials = renderCredentials(credentials, projection.credentialRef, projection.credentialValue)
     const writtenSettings = renderSettings(settings, projection)
+    const writtenProfile = renderProfile(profile, projection, 'agent-default-model', [
+      parseMappingDocument(settings).getIn(['llm-pi-ai', 'providers']),
+      ...parseProfileDocument(acp).entries.items.flatMap((item) =>
+        isMap(item) && item.get('id') === 'llm-pi-ai' && !item.has('insert')
+          ? [item.getIn(['config', 'providers'])]
+          : []
+      )
+    ])
+    const writtenHeadless = renderHeadlessProfile(headless)
+    const writtenAcp = renderProfile(acp, projection, 'acp')
 
     try {
       await atomicWriteFile(credentialsPath, writtenCredentials, { mode: FILE_MODE })
       await atomicWriteFile(settingsPath, writtenSettings, { mode: FILE_MODE })
+      await atomicWriteFile(profilePath, writtenProfile, { mode: FILE_MODE })
+      await atomicWriteFile(headlessPath, writtenHeadless, { mode: FILE_MODE })
+      await atomicWriteFile(acpPath, writtenAcp, { mode: FILE_MODE })
     } catch (error) {
       try {
-        await restoreSnapshots(settings, credentials)
+        await restoreSnapshots(acp, headless, profile, settings, credentials)
       } catch (rollbackError) {
         throw new AggregateError([error, rollbackError], 'Failed to roll back DeepSeek Harness config transaction')
       }
@@ -409,25 +543,28 @@ export async function writeDeepSeekHarnessConfig(
 
     return {
       credentials: { ...credentials, written: writtenCredentials },
-      settings: { ...settings, written: writtenSettings }
+      settings: { ...settings, written: writtenSettings },
+      profile: { ...profile, written: writtenProfile },
+      headless: { ...headless, written: writtenHeadless },
+      acp: { ...acp, written: writtenAcp }
     }
-  } finally {
-    await releaseLocks(locks)
-  }
+  })
 }
 
 export async function rollbackDeepSeekHarnessConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<boolean> {
-  const locks = await acquireConfigLocks(receipt.credentials.path, receipt.settings.path)
+  const snapshots = [receipt.credentials, receipt.settings, receipt.profile, receipt.headless, receipt.acp]
+  const locks = await acquireConfigLocks(
+    ...snapshots.map((snapshot) =>
+      snapshot === receipt.headless || snapshot === receipt.acp
+        ? path.join(path.dirname(snapshot.path), 'package.json')
+        : snapshot.path
+    )
+  )
   try {
-    const currentCredentials = await readSnapshot(receipt.credentials.path)
-    const currentSettings = await readSnapshot(receipt.settings.path)
-    if (
-      !sameSnapshotContent(currentCredentials, receipt.credentials.written) ||
-      !sameSnapshotContent(currentSettings, receipt.settings.written)
-    ) {
-      return false
+    for (const snapshot of snapshots) {
+      if (!sameSnapshotContent(await readSnapshot(snapshot.path), snapshot.written)) return false
     }
-    await restoreSnapshots(receipt.settings, receipt.credentials)
+    await restoreSnapshots(...snapshots.toReversed())
     return true
   } finally {
     await releaseLocks(locks)

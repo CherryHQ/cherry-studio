@@ -290,6 +290,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
  */
 const mcpPromptTool = defineTool({
   key: 'mcp_prompts',
+  condition: ({ session }) => session?.agentType !== 'local',
   label: (t) => t('chat.input.mcp_prompts.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
 

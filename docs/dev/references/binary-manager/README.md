@@ -4,6 +4,7 @@ sources:
   - src/main/services/binaryManager/BinaryManager.ts
   - src/main/services/binaryManager/claudeNpm.ts
   - src/main/services/binaryManager/pythonRuntime.ts
+  - src/main/services/binaryManager/systemToolLocations.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
   - scripts/download-binaries.js
@@ -17,9 +18,16 @@ sources:
 
 ## Scope
 
+Agent Services installation is a domain-owned exception: `LocalAgentInstallService`
+installs Code CLI presets into the user system using their supported recipes.
+Do not route those installs through `installByName()` or create a shadow mise copy.
+BinaryManager snapshots still discover their runnable `availability`; managed-only
+inventory is not proof of system installation. MCP CLI listing and post-install
+checks combine that inventory with live Code CLI availability.
+
 BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
-Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
+Managed mise examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
 On Windows ARM64, the fixed `claude` recipe downloads the official `@anthropic-ai/claude-code-win32-arm64` npm archive. npm metadata supplies the version and SHA-512 digest; mise's HTTP backend verifies and extracts the native executable without an npm launcher or Node runtime. Installation and version checks honor the npm registry setting. The official registry and npmmirror fall back to each other; a custom registry remains exclusive. The recipe identity stays `claude`, so existing managed installations retain their launch, update, and removal paths. Agent SDK binaries remain independently managed.
 
@@ -32,6 +40,10 @@ Only the main process writes `feature.binary.tools`, through `BinaryManager.addC
 mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. Custom Add writes the definition first: if that write fails, no backend work starts; if backend application fails afterward, the definition remains and the snapshot carries a retryable failed operation.
 
 Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+
+System probes exclude Cherry's application and managed-tool directories from PATH.
+Application dependencies such as a development SDK's `node_modules/.bin/pi` do not
+satisfy a system CLI installation or shadow an independently installed program.
 
 ### Portable definitions and machine-local state
 

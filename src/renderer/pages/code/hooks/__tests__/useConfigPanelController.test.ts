@@ -25,23 +25,23 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
-vi.mock('../../cliConfig/draft', () => ({
+vi.mock('@renderer/services/codeCliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
+vi.mock('@renderer/services/codeCliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
   isOwnLoginConfigurable: mocks.isOwnLoginConfigurable
 }))
-vi.mock('../../cliConfig/applyContext', () => ({
+vi.mock('@renderer/services/codeCliConfig/applyContext', () => ({
   parseConfiguredModelId: mocks.parseConfiguredModelId,
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
-vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
+vi.mock('@renderer/services/codeCliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
 // Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
 // still resolves; override only the sanitizer this test asserts on.
-vi.mock('../../cliConfig/adapters', async (importOriginal) => ({
+vi.mock('@renderer/services/codeCliConfig/adapters', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
-  ...(await importOriginal<typeof import('../../cliConfig/adapters')>()),
+  ...(await importOriginal<typeof import('@renderer/services/codeCliConfig/adapters')>()),
   sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
 }))
 
@@ -72,27 +72,20 @@ describe('useConfigPanelController', () => {
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
   })
 
-  it.each(['p1', CLI_OWN_LOGIN_PROVIDER_ID])(
-    'opens a fresh editor session for %s after cancellation while preserving its saved config',
-    (providerId) => {
-      const savedConfig = { modelId: null, config: { effortLevel: 'medium' } }
-      const options = { ...baseOptions(), providerConfigs: { [providerId]: savedConfig } }
-      const { result, rerender } = renderHook(() => useConfigPanelController(options))
-      const provider = { id: providerId } as Provider
-      act(() => result.current.openConfigurePanel(provider))
-      const originalKey = result.current.configPanelKey
-      const originalPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
-      rerender()
-      expect(result.current.configPanelKey).toBe(originalKey)
-
-      act(() => originalPanel.onClose())
-      act(() => result.current.openConfigurePanel(provider))
-
-      // The editor owns its draft at mount; a new session discards canceled edits even during exit retention.
-      expect(result.current.configPanelKey).not.toBe(originalKey)
-      const reopenedPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
-      expect(reopenedPanel.providerConfig).toEqual(savedConfig)
-      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+  it.each([CodeCli.CLAUDE_CODE, CodeCli.OPENCLAW])(
+    'keeps the previous %s selection when applying a new model fails',
+    async (selectedCliTool) => {
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'p2::new', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('write failed'))
+      const options = { ...baseOptions(), selectedCliTool }
+      const { result } = renderHook(() => useConfigPanelController(options))
+      let saved: boolean | undefined
+      await act(async () => {
+        saved = await result.current.selectModel({ id: 'p2' } as Provider, 'p2::new')
+      })
+      expect(saved).toBe(false)
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.deleteProviderConfig).toHaveBeenCalledWith('p2')
     }
   )
 
@@ -249,20 +242,6 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
 
-    it('selects own-login for a non-configurable tool: only clears, no tool params', async () => {
-      const options = { ...baseOptions(), selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: 'p1' }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
-      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
-    })
-
     it('deselects own-login when it is already current: clears the injected config', async () => {
       const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
       const { result } = renderHook(() => useConfigPanelController(options))
@@ -353,7 +332,7 @@ describe('useConfigPanelController', () => {
   })
 
   describe('DeepSeek Harness selection', () => {
-    it('defers gateway startup and shared config writes until the managed launch action', async () => {
+    it('applies the native model before enabling DeepSeek Harness', async () => {
       const ensureRunning = vi.fn().mockResolvedValue(undefined)
       const getApiKey = vi.fn().mockResolvedValue('gateway-key')
       const options = {
@@ -382,9 +361,11 @@ describe('useConfigPanelController', () => {
       })
 
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
-      expect(ensureRunning).not.toHaveBeenCalled()
-      expect(getApiKey).not.toHaveBeenCalled()
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(ensureRunning).toHaveBeenCalled()
+      expect(getApiKey).toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ cliTool: CodeCli.DEEPSEEK_HARNESS, modelId: 'deepseek::deepseek-chat' })
+      )
     })
   })
 

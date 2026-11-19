@@ -144,7 +144,7 @@ Main 必须对 root 和 child 使用相同的回复归属规则。已经放入�
 
 ### 9. 完成产品投影所有权收拢
 
-#22856 中已获批准的后续重构移除仍保留 chunk 假设的正文所有者，不改变 SQLite schema、checkpoint v2、原生存储或共享投影 IPC。普通 AI SDK 执行保留 chunk reader。所有智能体驱动都提供权威消息；同时删除可选的驱动来源标志和智能体 chunk fallback。
+#22856 中已获批准的后续重构移除仍保留 chunk 假设的正文所有者，不改变 SQLite schema、checkpoint v2、原生存储或共享投影 IPC。普通 AI SDK 执行保留 chunk reader。本次迁移中的 Pi、Pi Durable 和 Claude Code 驱动提供权威消息，不保留 chunk fallback。驱动默认使用消息来源；本地 CLI 驱动显式声明 `contentSource: 'chunks'`，保留既有的 Main SDK reader。宿主按此能力选择来源，而非按运行时类型分支；每次执行仅使用一种内容来源，共享投影 IPC 保持不变。
 
 `RootMessageProjection` 先逐个规范化原生 source，再展平 parts 并计算 checkpoint offset。它拥有宿主 data/approval 展示，包括先于原生内容到达的 ExitPlanMode 输入；原生工具结束后，移除它不能重新生成宿主卡片。`pipeMessageStream` 转发完整正文和执行元数据，不再独立保留 input、approval 或 data-part 副本。
 
@@ -160,7 +160,7 @@ Claude 恢复区分初始历史基线与包含未交付原生执行事实的 ove
 
 - 已实现公共 SDK 累积器、三个适配器的内容映射、root 消息来源、Main child 回复组合和第二版来源 checkpoint。旧 Pi item-to-chunk 适配器及 Renderer 重新分组已删除。原生持久化和共享 projection IPC 保持原有契约。
 - 针对内容迁移的包、Main/SQLite、Renderer 和投影交付测试通过；21 个可移植 fixture 和 83 个本机 transcript 重放案例通过，本机内容未提交。原生 Claude 桌面集成还验证了回复归属和计费。Node/web 及四个 Runtime 包的类型检查通过。
-- 首轮 Durable 真实模型检查发现驱动漏声明内容来源：模型已有输出，但宿主选用了旧 chunk 消费者，丢弃了消息投影。最初的修复在连接前声明来源。已获批准的后续重构会彻底移除可选标志和智能体 fallback。Renderer 现有的空成功消息兜底生成了误导性的“无响应”错误，这是独立的 `main` 问题。
+- 首轮 Durable 真实模型检查发现驱动漏声明内容来源：模型已有输出，但宿主选用了旧 chunk 消费者，丢弃了消息投影。最初的修复在连接前声明来源。已获批准的后续重构会移除这三个已迁移驱动的旧可选投影标志和 chunk fallback。Renderer 现有的空成功消息兜底生成了误导性的“无响应”错误，这是独立的 `main` 问题。
 - 真实模型检查还发现了起始输入边界遗漏：Pi 现从原生 custom-message 条目保留 behavior 子任务输入；Claude 的实时 SDK feed 不转发起始 prompt，因此首次接入时读取一次原生 child 存档，后续仍由观察事件驱动。
 - Pi 后台活动不再保持父回复流打开。Pi 和 Durable 的本地 `/goal` 回答使用宿主消息投影，在移除旧内容 chunk 消费者后仍保留命令回复。修复前复现了三项回归；修复后，相关桌面与 root 投影的 39 项测试通过。
 - 通过网关调用真实 DeepSeek 模型，Pi、Durable 和 Claude 均通过后台子任务场景：父任务先结束，child 输出保持独立，组合后的一条 assistant 回复在窗口刷新后保留相同 ID 和内容。Pi 与 Durable 还呈现了部分文本和 preliminary Bash 输出；当前安装的 Claude SDK 转发完整 child 内容块，本轮未观察到 child 逐 token 增量或 preliminary Bash 输出。
@@ -169,7 +169,7 @@ Claude 恢复区分初始历史基线与包含未交付原生执行事实的 ove
 
 ### 后续重构实现证据（2026-11-04）
 
-- 第 9 节已在 #22856 工作树中实现。Root source 规范化、提交归属、保留的执行视图及延迟工具结果版本在流关闭、成功持久化和连接重建之间保持一致。已移除智能体 chunk fallback、后台整正文累积及 `flow_parts` 缓存路径；没有新增数据库迁移。
+- 第 9 节已在 #22856 工作树中实现。Root source 规范化、提交归属、保留的执行视图及延迟工具结果版本在流关闭、成功持久化和连接重建之间保持一致。已移除这三个已迁移驱动的 chunk fallback、后台整正文累积及 `flow_parts` 缓存路径；没有新增数据库迁移。
 - 使用生产迁移的 SQLite 回归覆盖活跃／关闭未提交／已提交／重连边界、显式撤回、预留 steer 回复及 host-first 审批结算。Claude SDK/CLI 对本地脚本化 HTTP provider 的集成验证覆盖超过 100 批积压后的恢复、终态恰好交付一次、后续输入，以及仅统计 assistant 输出的截断 salvage。包、Main、Renderer 和 Shared 消费者测试均使用明确文件过滤并通过。
 - 独立复核发现了额外的执行／延迟结果缓存过期、重连丢失提交事实、远程 pin 提前删除及用户正文误用于 salvage 的问题。修复具有定向覆盖，包括真实 Renderer SWR facade 与生产远程 reducer。回放 pin 内容计入保留预算；回放淘汰后，journal 当前视图仍然可读。
 - 使用 agent 拥有的隔离 Electron 实例验证了双窗口 root 替换、64 KiB 工具结果的可见替换／撤回、父回复完成后 child 继续更新、提交后的 root 修订，以及窗口重载后稳定的 child 回复身份。本次使用脚本化 runtime driver 和原生 child handle，经过生产 Main、SQLite、IPC 及 Renderer 代码。验收后已停止实例；本轮没有调用真实 provider、真实 IM 平台或远程设备，也未执行原生进程重启。
@@ -204,7 +204,7 @@ Claude 恢复区分初始历史基线与包含未交付原生执行事实的 ove
 - AC17 — 远程流式内容跨越引用阈值后持续更新，直到终态 checkpoint 重放；reset 不遗留失效消息关联。(verification: unit — journal 和生产 reducer)
 - AC18 — Slack/Discord 撤回已展示文本，显示持续空状态，并在文本恢复时复用同一 draft。(verification: unit — 平台 controller；真实平台验收单独报告)
 - AC19 — Chat/Responses wire ID 将 root/child 消息绑定到原 provider invocation，费用不变且不重复计费。(verification: unit — 生产网关转换器和 SQLite attribution)
-- AC20 — 智能体没有 chunk fallback 或后台整正文 writer；普通 SDK 流、历史读取、独立 child 生命周期及 metadata-only 刷新保持原契约。(verification: unit — 生产者/消费者清单与 Main/Renderer 测试；Electron — 隔离验收)
+- AC20 — 本次迁移中的 Pi、Pi Durable 和 Claude Code 驱动没有 chunk fallback 或后台整正文 writer；普通 SDK 流、历史读取、独立 child 生命周期及 metadata-only 刷新保持原契约。(verification: unit — 生产者/消费者清单与 Main/Renderer 测试；Electron — 隔离验收)
 
 ## 风险
 

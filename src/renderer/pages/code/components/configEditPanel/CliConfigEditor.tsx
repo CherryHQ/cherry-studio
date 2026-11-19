@@ -6,17 +6,18 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 
 interface CliConfigEditorProps {
   files: CliConfigFileDraft[]
+  height?: string
   error?: string
   onChange: (files: CliConfigFileDraft[]) => void
 }
 
-export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChange }) => {
+export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChange, height = '260px' }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const [requestedTarget, setRequestedTarget] = useState<string>(files[0]?.target ?? '')
@@ -68,7 +69,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 
       {files.length > 1 ? (
         <Tabs value={activeFile?.target} onValueChange={setRequestedTarget} className="min-w-0">
-          <TabsList className="h-8 max-w-full overflow-x-auto rounded-md bg-muted/40 p-0.5">
+          <TabsList className="h-8 max-w-full justify-start overflow-x-auto rounded-md bg-muted/40 p-0.5">
             {files.map((file) => (
               <TabsTrigger key={file.target} value={file.target} className="h-7 shrink-0 px-2 text-xs">
                 {file.label}
@@ -77,12 +78,12 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
           </TabsList>
           {activeFile && (
             <TabsContent key={activeFile.target} value={activeFile.target} className="mt-2">
-              <EditorBody file={activeFile} fontSize={fontSize} onChange={updateFile} />
+              <EditorBody file={activeFile} fontSize={fontSize} height={height} onChange={updateFile} />
             </TabsContent>
           )}
         </Tabs>
       ) : (
-        activeFile && <EditorBody file={activeFile} fontSize={fontSize} onChange={updateFile} />
+        activeFile && <EditorBody file={activeFile} fontSize={fontSize} height={height} onChange={updateFile} />
       )}
 
       {error && (
@@ -97,16 +98,17 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 const EditorBody: FC<{
   file: CliConfigFileDraft
   fontSize: number
+  height: string
   onChange: (target: string, content: string) => void
-}> = ({ file, fontSize, onChange }) => (
+}> = ({ file, fontSize, height, onChange }) => (
   <div className={cn('overflow-hidden rounded-lg border border-border-subtle bg-background')}>
     <LazyCodeEditor
       fontSize={fontSize - 1}
       value={file.content}
       language={file.language === 'dotenv' ? 'dotenv' : file.language}
       onChange={(value) => onChange(file.target, value)}
-      height="260px"
-      maxHeight="260px"
+      height={height}
+      maxHeight={height}
       expanded={false}
       wrapped
       options={{

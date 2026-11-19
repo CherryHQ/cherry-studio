@@ -4,11 +4,13 @@ import { CodeCli } from '@shared/types/codeCli'
 export interface CodeCliToolPreset {
   id: CodeCli
   executable: string
-  skillFolderName: string
-  skillNamespace: `code-cli:${CodeCli}`
+  skillFolderName?: string
+  skillNamespace?: `code-cli:${CodeCli}`
   packageName: string
   install: 'registry' | 'npm' | 'pipx' | 'aqua' | 'github'
+  /** Retained for detecting and removing existing managed installations. */
   miseTool: string
+  pipxExtras?: readonly string[]
   misePrerelease?: boolean
   /**
    * Version prefix the latest-version query is scoped to, appended to the mise
@@ -29,10 +31,7 @@ export interface CodeCliToolPreset {
   requiredPeer?: { host: string; peer: string }
 }
 
-type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool' | 'skillNamespace'> & {
-  /** pipx extras required to install this tool's built-in capabilities. */
-  pipxExtras?: readonly string[]
-}
+type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool' | 'skillNamespace'>
 
 function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   const packageTool =
@@ -40,7 +39,8 @@ function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition)
   const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
-    skillNamespace: `code-cli:${definition.id}` as const,
+    ...(pipxExtras?.length ? { pipxExtras } : {}),
+    ...(definition.skillFolderName ? { skillNamespace: `code-cli:${definition.id}` as const } : {}),
     miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
 }
@@ -53,21 +53,18 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   defineCodeCliTool({
     id: CodeCli.CLAUDE_CODE,
     executable: 'claude',
-    skillFolderName: 'code-mate-claude-code',
     packageName: '@anthropic-ai/claude-code',
     install: 'registry'
   }),
   defineCodeCliTool({
     id: CodeCli.OPENAI_CODEX,
     executable: 'codex',
-    skillFolderName: 'code-mate-codex',
     packageName: '@openai/codex',
     install: 'registry'
   }),
   defineCodeCliTool({
     id: CodeCli.OPEN_CODE,
     executable: 'opencode',
-    skillFolderName: 'code-mate-opencode',
     packageName: 'opencode-ai',
     install: 'registry'
   }),
@@ -97,13 +94,6 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     // dsh-scope is nowhere a real dependency, only a transitive peer, so an install
     // reports success without it (#19313).
     requiredPeer: { host: '@deepseek-ai/dsh-agent-loop', peer: '@deepseek-ai/dsh-scope' }
-  }),
-  defineCodeCliTool({
-    id: CodeCli.GEMINI_CLI,
-    executable: 'gemini',
-    skillFolderName: 'code-mate-gemini',
-    packageName: '@google/gemini-cli',
-    install: 'npm'
   }),
   defineCodeCliTool({
     id: CodeCli.QWEN_CODE,
@@ -151,6 +141,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'hermes',
     skillFolderName: 'code-mate-hermes',
     packageName: 'hermes-agent',
+    // Legacy managed-install identity; new system installs use the official source installer.
     install: 'pipx',
     pipxExtras: ['web']
   }),

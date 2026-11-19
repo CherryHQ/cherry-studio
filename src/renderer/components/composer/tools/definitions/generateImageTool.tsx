@@ -61,7 +61,7 @@ const generateImageTool = defineTool({
   key: 'generate_image',
   label: GENERATE_IMAGE_TOOLBAR_MANIFEST.label,
   visibleInScopes: GENERATE_IMAGE_TOOLBAR_MANIFEST.visibleInScopes,
-  condition: ({ assistant }) => Boolean(assistant),
+  condition: ({ assistant, session }) => session?.agentType !== 'local' && Boolean(assistant),
   composer: {
     runtime: ({ context }) => (
       <GenerateImageComposerRuntime assistantId={context.assistant!.id} launcher={context.launcher} />

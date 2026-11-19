@@ -16,7 +16,7 @@ vi.mock('@renderer/hooks/useModel', () => ({ useModels: () => ({ models: [] }) }
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn() }) }
 }))
-vi.mock('../../cliConfig', () => ({
+vi.mock('@renderer/services/codeCliConfig', () => ({
   cliConfigConnectionMatchesProvider: (...args: unknown[]) => mocks.matchesProvider(...args),
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => mocks.extractConnection(...args),
   gatewayExpectedModel: vi.fn(),

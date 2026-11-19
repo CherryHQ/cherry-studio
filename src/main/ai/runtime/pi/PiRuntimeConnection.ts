@@ -52,7 +52,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
@@ -140,7 +140,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private retryUpdates: Promise<void> = Promise.resolve()
   private projection?: ThreadProjection
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {}
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
+  constructor(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
+  }
 
   async start(): Promise<this> {
     const discovery = await capturePiConnectionSnapshot(

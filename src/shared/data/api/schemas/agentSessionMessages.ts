@@ -4,6 +4,7 @@
 
 import * as z from 'zod'
 
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
@@ -102,6 +103,13 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/cost': {
+    GET: {
+      params: { sessionId: string }
+      response: AgentSessionCostSnapshot | null
+    }
+  }
+
   '/agent-sessions/:sessionId/branch': {
     PUT: {
       params: { sessionId: string }

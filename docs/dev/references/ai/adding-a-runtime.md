@@ -82,6 +82,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
    - `type` (the `AgentType` literal)
+   - Optional `contentSource: 'chunks'` selects the existing Main SDK chunk reader;
+     omission selects authoritative messages. The host selects the source by this
+     capability, not by runtime type. Local CLI drivers declare `chunks`.
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
@@ -100,8 +103,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `message-projection` for authoritative Agent content, `chunk` for
-     host controls and display metadata, `turn-complete` to settle the
+     mapping: `message-projection` for authoritative content by default, or `chunk`
+     for content when the driver declares `contentSource: 'chunks'`. Both paths use
+     `chunk` for host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn; set `status: 'paused'` instead of
      emitting `error` when native evidence shows the turn was aborted),
@@ -171,7 +175,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **System prompt adapter** — call the runtime-neutral
+3. **System prompt adapter** — for Cherry-managed prompt runtimes, call the runtime-neutral
    `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
    `{ base, append }` result into the SDK's native prompt representation. Pass resolved
    channel state and capability-gated citation guidance into the common materializer.
@@ -181,7 +185,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. Common runtime adapters
+4. **Content producer** — choose one source per execution through the driver's
+   `contentSource` capability. Chunk drivers emit SDK content chunks for Main's
+   `pipeStreamLoop` to accumulate with `readUIMessageStream`. Message-source adapters
    expose AI SDK `RuntimeMessage` values through observation. Native deltas use
    `RuntimeMessageStream` before observer fanout; authoritative native snapshots
    can produce messages directly. Main uses `ThreadMessageProjection` and product
@@ -199,6 +205,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
 
+Native CLI runtimes are an explicit exception to Cherry-owned prompt, model and skill
+injection: the CLI owns its settings, credentials, prompts, MCP and Skills. They may
+provide `getExecutionId(agent)` for a provider-free execution identity; returning
+`undefined` marks an unroutable Agent. Native connections declare
+`sessionCostScope: 'native-session'` when cumulative cost follows their resume token.
+See [Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
+
 ## Step 3 — renderer
 
 Usually **nothing**. Selector options, edit/create dialogs, slash commands,
@@ -213,7 +226,7 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
-- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+- **Cherry prompt policy is runtime-neutral.** Every Cherry-managed prompt driver must consume
   `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.

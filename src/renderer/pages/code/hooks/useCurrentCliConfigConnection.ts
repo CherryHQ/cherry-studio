@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
+import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import { useModels } from '@renderer/hooks/useModel'
-import { loggerService } from '@renderer/services/LoggerService'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-
 import {
   type CliConfigConnection,
   cliConfigConnectionMatchesProvider,
@@ -14,8 +10,11 @@ import {
   gatewayExpectedModel,
   readCliConfigFiles,
   resolveCliConfigApplyContext
-} from '../cliConfig'
-import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
+} from '@renderer/services/codeCliConfig'
+import { loggerService } from '@renderer/services/LoggerService'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 
 const logger = loggerService.withContext('useCurrentCliConfigConnection')
 

@@ -15,6 +15,13 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
+  '/agent-sessions/:sessionId/cost': {
+    GET: async ({ params }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      return agentSessionMessageService.getSessionCost(params.sessionId)
+    }
+  },
+
   '/agent-sessions/:sessionId/branch': {
     PUT: async ({ params, body }) => {
       agentSessionService.getConversationById(params.sessionId)

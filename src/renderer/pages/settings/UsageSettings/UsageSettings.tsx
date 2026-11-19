@@ -25,6 +25,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { LocalAgentUsage } from './LocalAgentUsage'
 import {
   type BoundedTimeRange,
   CHART_TYPE_KEYS,
@@ -648,6 +649,7 @@ function UsageSettings() {
             />
           </div>
         </UsageSection>
+        <LocalAgentUsage range={windowRange} />
       </UsageResponsiveShell>
     </div>
   )

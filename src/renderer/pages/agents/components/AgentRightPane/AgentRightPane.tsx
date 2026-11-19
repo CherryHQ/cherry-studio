@@ -77,6 +77,7 @@ import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopCo
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -1670,6 +1671,7 @@ function AgentDetailsContent() {
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const cost = useAgentSessionCost(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const desktopControls = use(DesktopControlsContext)
   return (
@@ -1680,9 +1682,11 @@ function AgentDetailsContent() {
         stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
           <AgentContextUsageSummary
+            cost={cost}
             usage={usage}
             percentage={percentage}
             isCompacting={compaction.status === 'compacting'}
+            className="rounded-md border border-border-subtle px-3 py-2"
           />
         }
         status={status}
