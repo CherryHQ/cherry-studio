@@ -26,6 +26,9 @@ export type PaintingGenerateErrorCode =
   | 'CUSTOM_SIZE_RANGE'
   | 'CUSTOM_SIZE_DIVISIBLE'
   | 'CUSTOM_SIZE_PIXELS'
+  | 'SEEDREAM_PROVIDER_UNSUPPORTED'
+  | 'SEEDREAM_INVALID_SIZE'
+  | 'SEEDREAM_TRANSPARENT_PNG'
   | 'REMOTE_ERROR'
 
 export interface PaintingGenerateErrorOptions {
