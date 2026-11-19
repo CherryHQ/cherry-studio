@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -221,6 +222,7 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     const { handler, emitted } = buildGate({ executionOwnedTools: new Set(['write', 'edit']) })
     const memoryFile = join(application.getPath('feature.memory.data'), 'MEMORY.md')
     expect(await handler(toolEvent('write', { path: memoryFile, content: 'memory' }), extCtx)).toBeUndefined()
+    expect(await handler(toolEvent('edit', { path: pathToFileURL(memoryFile).href }), extCtx)).toBeUndefined()
     expect(emitted).toHaveLength(0)
     const ordinary = handler(toolEvent('write', { path: join(workspace, 'normal.txt'), content: 'text' }), extCtx)
     await flush()

@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import type { ExtensionFactory, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import * as z from 'zod'
@@ -12,11 +10,10 @@ import { MEMORY_MAX_BYTES } from '@main/ai/memory/memoryFiles'
 import type { MemorySession } from '@main/ai/memory/MemoryService'
 import type { MemoryApproval, MemoryCommitResult } from '@main/ai/memory/MemoryStore'
 import { memoryTarget, type MemoryTarget } from '@main/ai/memory/memoryTarget'
-import { normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
 import type { AgentRuntimeEvent } from '../types'
-import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
+import { readPiApprovalFacts, resolvePiToolPath, type PiApprovalContext } from './piApprovalFacts'
 import type { loadPiSdk } from './piSdk'
 import { requestPiToolApproval } from './piToolApprovalRequest'
 
@@ -113,12 +110,7 @@ export function createPiMemoryTools(
   }
   function resolve(raw: unknown): string {
     if (typeof raw !== 'string') throw new Error('A file path is required')
-    let target = normalizePiNativePathInput(raw)
-    if (target.startsWith('file://')) return fileURLToPath(target)
-    if (target === '~') target = application.getPath('sys.home')
-    else if (target.startsWith('~/') || (process.platform === 'win32' && target.startsWith('~\\')))
-      target = path.join(application.getPath('sys.home'), target.slice(2))
-    return path.resolve(context.workspacePath, target)
+    return resolvePiToolPath(raw, context.workspacePath)
   }
   const originals: ToolDefinition[] = [
     pi.createReadToolDefinition(context.workspacePath) as ToolDefinition,
