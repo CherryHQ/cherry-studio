@@ -38,8 +38,17 @@ function makeFakeAgent() {
   return { agent, written }
 }
 
-function makeStep(usage: LanguageModelUsage) {
-  return { usage }
+function makeStep(usage: Partial<LanguageModelUsage>) {
+  return {
+    usage: {
+      inputTokens: undefined,
+      outputTokens: undefined,
+      totalTokens: undefined,
+      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      ...usage
+    } satisfies LanguageModelUsage
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -50,7 +59,7 @@ describe('attachUsageObserver', () => {
     attachUsageObserver(agent as any)
     agent.fire('onStart')
     agent.fire('onStepFinish', {
-      usage: { inputTokens: 203, outputTokens: 8, totalTokens: 211 },
+      ...makeStep({ inputTokens: 203, outputTokens: 8, totalTokens: 211 }),
       providerMetadata: { google: { initialPromptTokenCount: 100 } }
     })
     const chunk = written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>
@@ -70,16 +79,10 @@ describe('attachUsageObserver', () => {
     agent.fire('onStart')
 
     // Step A
-    agent.fire(
-      'onStepFinish',
-      makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15, outputTokenDetails: {} } as LanguageModelUsage)
-    )
+    agent.fire('onStepFinish', makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }))
 
     // Step B
-    agent.fire(
-      'onStepFinish',
-      makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28, outputTokenDetails: {} } as LanguageModelUsage)
-    )
+    agent.fire('onStepFinish', makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28 }))
 
     expect(written).toHaveLength(2)
 
@@ -109,9 +112,8 @@ describe('attachUsageObserver', () => {
       makeStep({
         inputTokens: undefined,
         outputTokens: 200,
-        totalTokens: 200,
-        outputTokenDetails: {}
-      } as unknown as LanguageModelUsage)
+        totalTokens: 200
+      })
     )
 
     expect(written).toHaveLength(1)
@@ -130,14 +132,8 @@ describe('attachUsageObserver', () => {
 
     // First turn
     agent.fire('onStart')
-    agent.fire(
-      'onStepFinish',
-      makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15, outputTokenDetails: {} } as LanguageModelUsage)
-    )
-    agent.fire(
-      'onStepFinish',
-      makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28, outputTokenDetails: {} } as LanguageModelUsage)
-    )
+    agent.fire('onStepFinish', makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }))
+    agent.fire('onStepFinish', makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28 }))
     // After two steps, contextTokens should be 28.
     const afterSecondStep = written[1]
     expect(
@@ -147,10 +143,7 @@ describe('attachUsageObserver', () => {
 
     // Second turn — onStart resets everything
     agent.fire('onStart')
-    agent.fire(
-      'onStepFinish',
-      makeStep({ inputTokens: 5, outputTokens: 4, totalTokens: 9, outputTokenDetails: {} } as LanguageModelUsage)
-    )
+    agent.fire('onStepFinish', makeStep({ inputTokens: 5, outputTokens: 4, totalTokens: 9 }))
 
     const lastChunk = written[written.length - 1]
     const meta = (lastChunk as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
