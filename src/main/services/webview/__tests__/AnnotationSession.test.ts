@@ -4,16 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AnnotationSession } from '../AnnotationSession'
 
-interface MockWebContents extends EventEmitter {
-  isDestroyed: ReturnType<typeof vi.fn>
-  send: ReturnType<typeof vi.fn>
-}
-
 const createContents = () => {
-  const contents = new EventEmitter() as MockWebContents
-  contents.isDestroyed = vi.fn(() => false)
-  contents.send = vi.fn()
-  return contents
+  const contents = Object.assign(new EventEmitter(), {
+    isDestroyed: vi.fn<Electron.WebContents['isDestroyed']>(() => false),
+    send: vi.fn<Electron.WebContents['send']>()
+  }) satisfies Pick<Electron.WebContents, 'isDestroyed' | 'send'>
+  // SAFETY: AnnotationSession uses real emitter lifecycle events plus these typed send/liveness stubs.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Native renderer WebContents cannot be constructed in Node unit tests.
+  return contents as unknown as Electron.WebContents & typeof contents
 }
 
 const createIds = (...ids: string[]) => {
@@ -25,7 +23,7 @@ describe('AnnotationSession', () => {
   it('announces the current session only after dom-ready and keeps same-document navigation', () => {
     const contents = createContents()
     const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
+      contents,
       vi.fn(),
       createIds('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002')
     )
@@ -44,7 +42,7 @@ describe('AnnotationSession', () => {
   it('pauses a provisional main-frame navigation and restores the same session when it fails', () => {
     const contents = createContents()
     const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
+      contents,
       vi.fn(),
       createIds('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002')
     )
@@ -68,7 +66,7 @@ describe('AnnotationSession', () => {
   it('rotates only after a main-frame navigation commits', () => {
     const contents = createContents()
     const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
+      contents,
       vi.fn(),
       createIds('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002')
     )
@@ -96,7 +94,7 @@ describe('AnnotationSession', () => {
   it('ignores a failed URL superseded by a redirect while restoring the current failure', () => {
     const contents = createContents()
     const sessionId = '00000000-0000-4000-8000-000000000001'
-    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    const session = new AnnotationSession(contents, vi.fn(), createIds(sessionId))
     contents.emit('dom-ready')
 
     contents.emit('did-start-navigation', {
@@ -122,7 +120,7 @@ describe('AnnotationSession', () => {
       throw new Error('gone')
     })
     const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
+      contents,
       vi.fn(),
       createIds('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002')
     )
@@ -140,7 +138,7 @@ describe('AnnotationSession', () => {
       throw new Error('gone')
     })
     const sessionId = '00000000-0000-4000-8000-000000000001'
-    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    const session = new AnnotationSession(contents, vi.fn(), createIds(sessionId))
 
     contents.emit('dom-ready')
     expect(session.isCurrent(sessionId)).toBe(false)
@@ -164,7 +162,7 @@ describe('AnnotationSession', () => {
   it('announces an already-loaded session at most once', () => {
     const contents = createContents()
     const sessionId = '00000000-0000-4000-8000-000000000001'
-    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    const session = new AnnotationSession(contents, vi.fn(), createIds(sessionId))
 
     session.announce()
     session.announce()
@@ -177,7 +175,7 @@ describe('AnnotationSession', () => {
     const contents = createContents()
     const sessionId = '00000000-0000-4000-8000-000000000001'
     const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
+      contents,
       vi.fn(),
       createIds(sessionId, '00000000-0000-4000-8000-000000000002')
     )
@@ -209,11 +207,7 @@ describe('AnnotationSession', () => {
   it('rejects stale work before queueing or task execution', async () => {
     const contents = createContents()
     const task = vi.fn()
-    const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
-      vi.fn(),
-      createIds('00000000-0000-4000-8000-000000000001')
-    )
+    const session = new AnnotationSession(contents, vi.fn(), createIds('00000000-0000-4000-8000-000000000001'))
 
     await expect(session.run('00000000-0000-4000-8000-000000000001', task)).rejects.toThrow(
       'Annotation document session is stale'
@@ -224,7 +218,7 @@ describe('AnnotationSession', () => {
   it('waits for running work and never starts queued work after disposal', async () => {
     const contents = createContents()
     const sessionId = '00000000-0000-4000-8000-000000000001'
-    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    const session = new AnnotationSession(contents, vi.fn(), createIds(sessionId))
     contents.emit('dom-ready')
     let releaseFirst: (() => void) | undefined
     const first = session.run(sessionId, async () => {
@@ -250,11 +244,7 @@ describe('AnnotationSession', () => {
   it('disposes symmetrically and reports destruction exactly once', () => {
     const contents = createContents()
     const onDestroyed = vi.fn()
-    const session = new AnnotationSession(
-      contents as unknown as Electron.WebContents,
-      onDestroyed,
-      createIds('00000000-0000-4000-8000-000000000001')
-    )
+    const session = new AnnotationSession(contents, onDestroyed, createIds('00000000-0000-4000-8000-000000000001'))
 
     expect(contents.eventNames()).toEqual(
       expect.arrayContaining([
