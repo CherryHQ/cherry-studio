@@ -453,3 +453,14 @@ describe('compactionBudgetsFitModel', () => {
     )
   })
 })
+
+it('caps a pinned reserve at half a small window', () => {
+  const resolved = resolveSessionCompaction({
+    inherited: undefined,
+    nativeBudgets: { reserveTokens: 16_384, keepRecentTokens: 5_000 },
+    model: { contextWindow: 20_000 },
+    reserveTokens: 16_384
+  })
+  expect(resolved.reserveTokens).toBe(10_000)
+  expect(resolved.reserveTokens + resolved.keepRecentTokens).toBeLessThan(20_000)
+})

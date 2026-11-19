@@ -72,8 +72,11 @@ export function resolveSessionCompaction<S extends { reserveTokens: number; keep
   reserveTokens?: number
 }): S | (S & AgentRuntimeCompaction) {
   const { inherited, nativeBudgets, model, reserveTokens } = options
-  const pinned = reserveTokens === undefined ? {} : { reserveTokens }
-  if (!inherited) return reserveTokens === undefined ? nativeBudgets : { ...nativeBudgets, reserveTokens }
+  // Half-window small-window cap: the native 16,384 floor alone plus the retained tail would
+  // exceed a <=32,768-token window and break the threshold, pinned or not.
+  const capped = reserveTokens === undefined ? undefined : Math.min(Math.floor(model.contextWindow / 2), reserveTokens)
+  const pinned = capped === undefined ? {} : { reserveTokens: capped }
+  if (!inherited) return capped === undefined ? nativeBudgets : { ...nativeBudgets, reserveTokens: capped }
   return {
     ...nativeBudgets,
     ...inherited,
