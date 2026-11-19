@@ -77,6 +77,13 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
+  /**
+   * Mid-stream resume of interrupted text output (default on). Callers whose
+   * consumer cannot splice a continuation — structured-output transports that
+   * parse the whole body as one document — disable it so a mid-stream failure
+   * surfaces instead of re-issuing behind partial output.
+   */
+  streamContinuation?: boolean
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
@@ -364,6 +371,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
                 return typeof value === 'function' ? value.bind(model) : value
               }
             })
+            if (options.streamContinuation === false) return scopedModel.doStream(callOptions)
             const operation = withStreamContinuation(scopedModel, {
               maxAttempts: retryCount,
               takeRetry: () => budget.remaining > 0 && (budget.remaining--, true),

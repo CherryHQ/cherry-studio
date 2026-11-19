@@ -194,7 +194,8 @@ function resolveTextRetryPolicy(
 
 function createCallerRetryWrap(
   maxRetries: number | undefined,
-  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
+  streamContinuation?: boolean
 ): ReturnType<typeof createRetryableWrap> {
   if (maxRetries === undefined || maxRetries <= 0) return undefined
   return createRetryableWrap({
@@ -205,7 +206,8 @@ function createCallerRetryWrap(
       fallbackModelIds: []
     },
     fallbacks: [],
-    onRetryEvent
+    onRetryEvent,
+    ...(streamContinuation === false ? { streamContinuation } : {})
   })
 }
 
@@ -296,6 +298,12 @@ export function mergeProviderModelsWithRegistry(remote: Partial<Model>[], regist
 export interface AiRequestOptions extends AiTransportOptions {
   /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
   signal?: AbortSignal
+  /**
+   * In-process only. `false` disables mid-stream resume for consumers that
+   * cannot splice a continuation (structured-output transports parsing the
+   * whole body as one document); pre-content retries still apply.
+   */
+  streamContinuation?: boolean
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
@@ -727,8 +735,10 @@ export class AiService extends BaseService {
       : undefined
     let wrapModel =
       request.contextOwner === 'caller'
-        ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
-            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        ? createCallerRetryWrap(
+            request.requestOptions?.maxRetries,
+            (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
+            request.requestOptions?.streamContinuation
           )
         : undefined
     if (!retryDisabledForRequest) {
@@ -918,7 +928,13 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
-      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(
+            request.requestOptions?.maxRetries,
+            undefined,
+            request.requestOptions?.streamContinuation
+          )
+        : undefined
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,

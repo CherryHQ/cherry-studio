@@ -68,7 +68,10 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
     let reader = first.stream.getReader()
     let text = ''
     let openTextId: string | undefined
-    let resumable = true
+    // Structured-output calls parse the whole body as one JSON document: a
+    // prefilled resume cannot produce valid JSON (the provider may restart the
+    // document), so partial output must surface instead of re-issuing.
+    let resumable = callOptions.responseFormat?.type !== 'json'
     let attempts = 0
     let resuming = false
     let cancelled = false

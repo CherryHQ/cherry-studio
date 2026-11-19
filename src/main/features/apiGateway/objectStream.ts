@@ -298,6 +298,9 @@ async function openObjectMessage<T>(
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       maxRetries: 3,
+      // Object consumers parse the whole body as one document: they cannot
+      // splice a mid-stream continuation, so partial output must surface.
+      streamContinuation: false,
       streamId,
       listener
     })
