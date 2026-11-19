@@ -71,6 +71,7 @@ class PopupService {
    * repeat call after the entry is closing (or already gone) is a no-op, which is
    * what makes the injected `resolve` safe to call from every dismissal path.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PopupHost and createPopup pass results through a heterogeneous internal store; the instance ID selects the paired typed resolver.
   settle(instanceId: string, result: unknown): void {
     const entry = this.entries.find((current) => current.instanceId === instanceId)
     if (!entry || !entry.open) return
@@ -113,6 +114,7 @@ class PopupService {
       open: true,
       Component: Component as ComponentPopupEntry['Component'],
       props: props as Record<string, unknown>,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The shared store erases unrelated popup result types; this slot retains the resolver paired with this component and instance.
       resolve: resolveFn as (result: unknown) => void
     })
 
@@ -138,6 +140,7 @@ class PopupService {
       open: true,
       confirmType,
       props,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Confirm host actions settle with booleans; the shared popup slot erases that result type alongside unrelated component popup results.
       resolve: resolveFn as (result: unknown) => void
     })
 
