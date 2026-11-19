@@ -26,6 +26,7 @@ export class BrowserCursor implements Disposable {
   private presented = false
   private disposed = false
   private position?: Extract<BrowserCursorState, { kind: 'move' | 'pressed' }>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pending moves receive arbitrary AbortSignal.reason values as well as document/binding errors; cancellation is rechecked after the wait.
   private pending?: { sequence: number; documentId: string; finish: (error?: unknown) => void }
 
   constructor(
@@ -62,6 +63,7 @@ export class BrowserCursor implements Disposable {
     if (duration <= 0) throw new BrowserSessionError('timeout')
     const sequence = ++this.sequence
     await new Promise<void>((resolve, reject) => {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason is untyped; retain the rejection and release the timer/listener before the action rechecks cancellation.
       const finish = (error?: unknown) => {
         clearTimeout(timer)
         options.signal?.removeEventListener('abort', onAbort)
@@ -115,7 +117,7 @@ export class BrowserCursor implements Disposable {
     this.send(this.position)
   }
 
-  hide(error?: unknown): void {
+  hide(error?: BrowserSessionError): void {
     this.pending?.finish(error)
     if (!this.position) return
     this.position = undefined
