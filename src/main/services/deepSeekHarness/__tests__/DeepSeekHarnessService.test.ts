@@ -180,7 +180,7 @@ describe('DeepSeekHarnessService', () => {
     mocks.gatewayGetConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ status: 200, body: { cancel: vi.fn(async () => undefined) } }))
+      vi.fn<typeof fetch>(async () => new Response(''))
     )
     processKill = vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
       const child = children.find((candidate) => -candidate.pid === pid)
@@ -232,11 +232,8 @@ describe('DeepSeekHarnessService', () => {
     vi.useFakeTimers()
     const token = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ'
     const readyUrl = `http://127.0.0.1:43123/?token=${token}`
-    vi.mocked(fetch).mockResolvedValueOnce({
-      status: 303,
-      headers: new Headers({ location: '/' }),
-      body: { cancel: vi.fn(async () => undefined) }
-    } as unknown as Response)
+    const response = new Response('', { status: 303, headers: { location: '/' } })
+    vi.mocked(fetch).mockResolvedValueOnce(response)
     spawnChild((child) => {
       child.stdout.write('dsh web: http://127.0.0.1:43123/?token=abcdefghijklmnop')
       child.stdout.write('qrstuvwxyzABCDEFGHIJKLMNOPQ\n')
@@ -247,6 +244,7 @@ describe('DeepSeekHarnessService', () => {
     await vi.advanceTimersByTimeAsync(30_000)
 
     await expect(start).resolves.toEqual({ success: true, url: readyUrl })
+    expect(response.bodyUsed).toBe(true)
     expect(fetch).toHaveBeenCalledWith(readyUrl, expect.objectContaining({ redirect: 'manual' }))
     await service.stop()
   })
@@ -258,11 +256,8 @@ describe('DeepSeekHarnessService', () => {
     vi.useFakeTimers()
     const token = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ'
     const readyUrl = `http://127.0.0.1:43123/?token=${token}`
-    vi.mocked(fetch).mockResolvedValueOnce({
-      status: 303,
-      headers: new Headers({ location }),
-      body: { cancel: vi.fn(async () => undefined) }
-    } as unknown as Response)
+    const response = new Response('', { status: 303, headers: { location } })
+    vi.mocked(fetch).mockResolvedValueOnce(response)
     spawnChild((child) => {
       child.stdout.write('dsh web: http://127.0.0.1:43123/?token=abcdefghijklmnop')
       child.stdout.write('qrstuvwxyzABCDEFGHIJKLMNOPQ\n')
@@ -273,15 +268,13 @@ describe('DeepSeekHarnessService', () => {
     await vi.advanceTimersByTimeAsync(30_000)
 
     await expect(start).resolves.toEqual({ success: true, url: readyUrl })
+    expect(response.bodyUsed).toBe(true)
     await service.stop()
   })
 
   it('does not accept a 303 whose Location resolves elsewhere', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      status: 303,
-      headers: new Headers({ location: '/admin' }),
-      body: { cancel: vi.fn(async () => undefined) }
-    } as unknown as Response)
+    const response = new Response('', { status: 303, headers: { location: '/admin' } })
+    vi.mocked(fetch).mockResolvedValueOnce(response)
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
 
     const result = await new DeepSeekHarnessService().start(startInput)
@@ -290,6 +283,7 @@ describe('DeepSeekHarnessService', () => {
       success: false,
       message: expect.stringContaining('Web UI returned HTTP 303')
     })
+    expect(response.bodyUsed).toBe(true)
   })
 
   it.each([
@@ -314,10 +308,8 @@ describe('DeepSeekHarnessService', () => {
   })
 
   it('does not accept an unauthenticated 401 response as readiness', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      status: 401,
-      body: { cancel: vi.fn(async () => undefined) }
-    } as unknown as Response)
+    const response = new Response('', { status: 401 })
+    vi.mocked(fetch).mockResolvedValueOnce(response)
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
 
     const result = await new DeepSeekHarnessService().start(startInput)
@@ -326,6 +318,7 @@ describe('DeepSeekHarnessService', () => {
       success: false,
       message: expect.stringContaining('Web UI returned HTTP 401')
     })
+    expect(response.bodyUsed).toBe(true)
   })
 
   it('redacts the launch token from startup diagnostics and process-error logs', async () => {
@@ -499,10 +492,8 @@ describe('DeepSeekHarnessService', () => {
         callback: (error: Error | null, stdout: string, stderr: string) => void
       ) => callback(new Error('spawn ENOENT'), '', '')
     )
-    vi.mocked(fetch).mockResolvedValueOnce({
-      status: 401,
-      body: { cancel: vi.fn(async () => undefined) }
-    } as unknown as Response)
+    const response = new Response('', { status: 401 })
+    vi.mocked(fetch).mockResolvedValueOnce(response)
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
 
     const result = await new DeepSeekHarnessService().start(startInput)
@@ -511,6 +502,7 @@ describe('DeepSeekHarnessService', () => {
       success: false,
       message: expect.stringContaining('Web UI returned HTTP 401')
     })
+    expect(response.bodyUsed).toBe(true)
     expect(mocks.loggerWarn).toHaveBeenCalledWith('DeepSeek Harness failed to start', {})
   })
 
