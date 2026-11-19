@@ -184,7 +184,7 @@ beforeEach(() => {
           ? databaseFile
           : key === 'sys.home'
             ? testRoot
-            : `/mock/${key}`
+            : join(testRoot, 'registered', key)
     return filename ? join(base, filename) : base
   })
   mocks.rtkRewrite.mockResolvedValue(null)
