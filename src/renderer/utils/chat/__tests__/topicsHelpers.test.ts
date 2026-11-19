@@ -6,6 +6,7 @@ import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
+  createTopicDisplayGroupResolver,
   getTopicTimeBucket,
   moveAssistantGroupAfterDrop,
   moveTopicAfterDrop,
@@ -33,6 +34,31 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
 }
 
 describe('Topics helpers', () => {
+  it('groups topics by subject independent of assistant and sorts groups by rank', () => {
+    const groupBy = createTopicDisplayGroupResolver<Topic>({
+      labels: {
+        pinned: 'Pinned',
+        time: { today: 'Today', yesterday: 'Yesterday', 'this-week': 'This week', earlier: 'Earlier' },
+        assistant: { unlinked: 'Unlinked' },
+        subject: { ungrouped: 'Ungrouped' }
+      },
+      mode: 'subject',
+      subjectById: new Map([['group-python', { id: 'group-python', name: 'Python' }]])
+    })
+    const grouped = createTopic({ id: 'topic-a', assistantId: 'assistant-1', groupId: 'group-python' })
+    const ungrouped = createTopic({ id: 'topic-b', assistantId: 'assistant-1' })
+    const otherAssistant = createTopic({ id: 'topic-c', assistantId: 'assistant-2', groupId: 'group-python' })
+
+    expect(groupBy(grouped)).toEqual({ id: 'topic:subject:group-python', label: 'Python' })
+    expect(groupBy(ungrouped)).toEqual({ id: 'topic:subject:ungrouped', label: 'Ungrouped' })
+
+    const sorted = sortTopicsForDisplayGroups([ungrouped, otherAssistant, grouped], {
+      mode: 'subject',
+      subjectRankById: new Map([['group-python', 0]])
+    })
+    expect(sorted.map((topic) => topic.id)).toEqual(['topic-c', 'topic-a', 'topic-b'])
+  })
+
   it('translates assistant visual drops into persisted order anchors', () => {
     const basePayload = createResourceListItemReorderPayload({
       sourceGroupId: 'topic:assistant:assistant-1',

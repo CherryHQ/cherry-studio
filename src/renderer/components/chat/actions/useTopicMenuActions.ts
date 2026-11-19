@@ -7,7 +7,8 @@ import {
   resolveTopicMenuActions,
   type TopicActionContext,
   type TopicExportMenuOptions,
-  type TopicMoveAssistantTarget
+  type TopicMoveAssistantTarget,
+  type TopicMoveGroupTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
@@ -38,6 +39,9 @@ export interface TopicMenuActionOptions {
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
+  topicGroupMoveTargets?: readonly TopicMoveGroupTarget[]
+  onMoveToGroup?: (topic: Topic, groupId: string | null) => void | Promise<void>
+  onRequestNewGroup?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
@@ -65,6 +69,9 @@ export function createTopicActionContext({
   onDeletePermanently,
   onExportImage,
   onMoveToAssistant,
+  topicGroupMoveTargets = [],
+  onMoveToGroup,
+  onRequestNewGroup,
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
@@ -133,6 +140,9 @@ export function createTopicActionContext({
     },
     assistantMoveTargets: assistantMoveTargets.filter((target) => target.id !== topic.assistantId),
     onMoveToAssistant,
+    topicGroupMoveTargets,
+    onMoveToGroup,
+    onRequestNewGroup,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -219,6 +229,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     isRenaming,
     notesPath,
     assistantMoveTargets,
+    topicGroupMoveTargets,
     onAutoRename,
     onClearMessages,
     onCopyImage,
@@ -226,6 +237,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onDeletePermanently,
     onExportImage,
     onMoveToAssistant,
+    onMoveToGroup,
+    onRequestNewGroup,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -248,6 +261,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         isRenaming,
         notesPath,
         assistantMoveTargets,
+        topicGroupMoveTargets,
         onAutoRename,
         onClearMessages,
         onCopyImage,
@@ -255,6 +269,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onDeletePermanently,
         onExportImage,
         onMoveToAssistant,
+        onMoveToGroup,
+        onRequestNewGroup,
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
@@ -275,6 +291,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       isRenaming,
       notesPath,
       assistantMoveTargets,
+      topicGroupMoveTargets,
       onAutoRename,
       onClearMessages,
       onCopyImage,
@@ -282,6 +299,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onDeletePermanently,
       onExportImage,
       onMoveToAssistant,
+      onMoveToGroup,
+      onRequestNewGroup,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,

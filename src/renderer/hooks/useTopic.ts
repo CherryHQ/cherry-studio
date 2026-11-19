@@ -102,6 +102,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
   return {
     id: t.id,
     assistantId: t.assistantId,
+    groupId: t.groupId,
     name: t.name ?? '',
     lastActivityAt: t.lastActivityAt,
     createdAt: t.createdAt,

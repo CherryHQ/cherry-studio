@@ -1,4 +1,4 @@
-import { Plus, Unlink } from 'lucide-react'
+import { MoreHorizontal, Plus, Unlink } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,6 +30,7 @@ import {
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
+import { CommandPopupMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
@@ -40,7 +41,7 @@ import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hook
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
-import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
+import { useGroupMutations, useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
@@ -75,8 +76,10 @@ import {
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   getAssistantIdFromTopicGroupId,
+  getSubjectIdFromTopicGroupId,
   getTopicAssistantDisplayGroupId,
   getTopicAssistantGroupId,
+  getTopicSubjectGroupId,
   moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
@@ -109,6 +112,7 @@ import {
   resolveAssistantGroupActions
 } from './assistantGroupActions'
 import { AssistantGroupMoreMenu } from './AssistantGroupMoreMenu'
+import { TopicGroupNameDialog } from './TopicGroupNameDialog'
 import { TopicListBody } from './TopicListBody'
 import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from './topicListItemSharing'
 
@@ -333,7 +337,63 @@ export function Topics({
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { groups: topicGroups } = useGroups('topic', { enabled: dataEnabled })
+  const {
+    createGroup: createTopicGroup,
+    updateGroup: updateTopicGroup,
+    deleteGroup: deleteTopicGroup
+  } = useGroupMutations('topic', { refreshOnDelete: ['/topics'] })
+  const [topicSubjectNameDialog, setTopicSubjectNameDialog] = useState<
+    { kind: 'create'; topic: Topic } | { kind: 'rename'; groupId: string; name: string } | null
+  >(null)
+  const topicSubjectById = useMemo(
+    () => new Map(topicGroups.map((group) => [group.id, { id: group.id, name: group.name }])),
+    [topicGroups]
+  )
+  const topicSubjectRankById = useMemo(
+    () => new Map(topicGroups.map((group, index) => [group.id, index])),
+    [topicGroups]
+  )
+  const topicGroupMoveTargets = useMemo(
+    () => topicGroups.map((group) => ({ id: group.id, name: group.name })),
+    [topicGroups]
+  )
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
+  const handleMoveTopicToSubject = useCallback(
+    async (topic: Topic, groupId: string | null) => {
+      try {
+        await patchTopic(topic.id, { groupId })
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('chat.topics.subject.error')))
+      }
+    },
+    [patchTopic, t]
+  )
+  const handleRequestNewTopicSubject = useCallback((topic: Topic) => {
+    setTopicSubjectNameDialog({ kind: 'create', topic })
+  }, [])
+  const handleSubmitTopicSubjectName = useCallback(
+    async (name: string) => {
+      if (!topicSubjectNameDialog) return
+      if (topicSubjectNameDialog.kind === 'rename') {
+        await updateTopicGroup(topicSubjectNameDialog.groupId, { name })
+        return
+      }
+      const group = await createTopicGroup(name)
+      await patchTopic(topicSubjectNameDialog.topic.id, { groupId: group.id })
+    },
+    [createTopicGroup, patchTopic, topicSubjectNameDialog, updateTopicGroup]
+  )
+  const handleDeleteTopicSubject = useCallback(
+    async (groupId: string) => {
+      try {
+        await deleteTopicGroup(groupId)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('chat.topics.subject.error')))
+      }
+    },
+    [deleteTopicGroup, t]
+  )
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -686,6 +746,7 @@ export function Topics({
     () =>
       createTopicDisplayGroupResolver<Topic>({
         assistantById,
+        subjectById: topicSubjectById,
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
@@ -697,11 +758,14 @@ export function Topics({
           },
           assistant: {
             unlinked: t('chat.topics.group.unknown_assistant')
+          },
+          subject: {
+            ungrouped: t('chat.topics.subject.ungrouped')
           }
         },
         now: groupNow
       }),
-    [assistantById, displayMode, groupNow, t]
+    [assistantById, displayMode, groupNow, t, topicSubjectById]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -722,6 +786,9 @@ export function Topics({
   }, [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping, t])
 
   const topicGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
+    if (displayMode === 'subject') {
+      return topicGroups.map((group) => ({ id: getTopicSubjectGroupId(group.id), label: group.name }))
+    }
     if (!isAssistantDisplayMode) return []
 
     return assistantsForDisplayOrder.map((assistant) => {
@@ -738,18 +805,27 @@ export function Topics({
         section
       }
     })
-  }, [assistantGroupById, assistantsForDisplayOrder, isAssistantDisplayMode, isGroupGrouping, t])
+  }, [
+    assistantGroupById,
+    assistantsForDisplayOrder,
+    displayMode,
+    isAssistantDisplayMode,
+    isGroupGrouping,
+    t,
+    topicGroups
+  ])
 
   const baseGroupedTopics = useMemo(
     () =>
       sortTopicsForDisplayGroups(topics, {
         assistantRankById,
+        subjectRankById: topicSubjectRankById,
         sort: topicSort,
         sortLocale,
         mode: displayMode,
         now: groupNow
       }),
-    [assistantRankById, displayMode, groupNow, sortLocale, topicSort, topics]
+    [assistantRankById, displayMode, groupNow, sortLocale, topicSort, topics, topicSubjectRankById]
   )
 
   const groupedTopics = useMemo(
@@ -1104,6 +1180,39 @@ export function Topics({
       if (group.id === TOPIC_PINNED_GROUP_ID) return null
       if (displayMode === 'time') return null
 
+      if (displayMode === 'subject') {
+        const subjectId = getSubjectIdFromTopicGroupId(group.id)
+        const subject = subjectId ? topicSubjectById.get(subjectId) : undefined
+        if (!subject) return null
+
+        const menuItems: CommandContextMenuExtraItem[] = [
+          {
+            type: 'item',
+            id: 'topic.subject.rename',
+            label: t('chat.topics.subject.rename'),
+            onSelect: () => setTopicSubjectNameDialog({ kind: 'rename', groupId: subject.id, name: subject.name })
+          },
+          {
+            type: 'item',
+            id: 'topic.subject.delete',
+            label: t('chat.topics.subject.delete'),
+            destructive: true,
+            onSelect: () => void handleDeleteTopicSubject(subject.id)
+          }
+        ]
+
+        return (
+          <CommandPopupMenu location="webcontents.context" extraItems={menuItems} align="end" side="bottom">
+            <ResourceList.GroupHeaderActionButton
+              type="button"
+              aria-label={t('common.more')}
+              onClick={(event) => event.stopPropagation()}>
+              <MoreHorizontal className="block" />
+            </ResourceList.GroupHeaderActionButton>
+          </CommandPopupMenu>
+        )
+      }
+
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       if (assistantId && assistantById.has(assistantId)) {
         assistantGroupId = assistantId
@@ -1173,6 +1282,8 @@ export function Topics({
       isGroupGrouping,
       onNewTopic,
       openAssistantEditor,
+      handleDeleteTopicSubject,
+      topicSubjectById,
       setAssistantIconType,
       setAssistantSortType,
       sidebarAssistantFavoriteIdSet,
@@ -1541,6 +1652,22 @@ export function Topics({
 
   return (
     <>
+      <TopicGroupNameDialog
+        open={topicSubjectNameDialog !== null}
+        title={
+          topicSubjectNameDialog?.kind === 'rename'
+            ? t('chat.topics.subject.rename_title')
+            : t('chat.topics.subject.create_title')
+        }
+        submitLabel={
+          topicSubjectNameDialog?.kind === 'rename' ? t('chat.topics.subject.rename') : t('chat.topics.subject.create')
+        }
+        initialName={topicSubjectNameDialog?.kind === 'rename' ? topicSubjectNameDialog.name : ''}
+        onSubmit={handleSubmitTopicSubjectName}
+        onOpenChange={(open) => {
+          if (!open) setTopicSubjectNameDialog(null)
+        }}
+      />
       <TopicResourceList<Topic>
         active={dataEnabled}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
@@ -1649,6 +1776,9 @@ export function Topics({
           <TopicListBody
             activeTopic={activeTopic}
             assistantMoveTargets={assistantMoveTargets}
+            topicGroupMoveTargets={topicGroupMoveTargets}
+            onMoveToGroup={handleMoveTopicToSubject}
+            onRequestNewGroup={handleRequestNewTopicSubject}
             displayMode={displayMode}
             exportMenuOptions={exportMenuOptions}
             listRef={listRef}

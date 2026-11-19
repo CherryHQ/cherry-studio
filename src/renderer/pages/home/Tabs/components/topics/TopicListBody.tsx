@@ -9,7 +9,8 @@ import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
   TopicExportMenuOptions,
-  TopicMoveAssistantTarget
+  TopicMoveAssistantTarget,
+  TopicMoveGroupTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
@@ -97,6 +98,9 @@ interface TopicListBodyProps {
   onDeletePermanently: (topic: Topic) => Promise<void>
   permanentDeleteShortcut: string
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
+  topicGroupMoveTargets?: readonly TopicMoveGroupTarget[]
+  onMoveToGroup?: (topic: Topic, groupId: string | null) => void | Promise<void>
+  onRequestNewGroup?: (topic: Topic) => void
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
@@ -127,6 +131,9 @@ export function TopicListBody(props: TopicListBodyProps) {
     onDeletePermanently,
     permanentDeleteShortcut,
     onMoveToAssistant,
+    topicGroupMoveTargets,
+    onMoveToGroup,
+    onRequestNewGroup,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -152,6 +159,9 @@ export function TopicListBody(props: TopicListBodyProps) {
       onDeletePermanently,
       permanentDeleteShortcut,
       onMoveToAssistant,
+      topicGroupMoveTargets,
+      onMoveToGroup,
+      onRequestNewGroup,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
@@ -174,6 +184,9 @@ export function TopicListBody(props: TopicListBodyProps) {
       onDeletePermanently,
       permanentDeleteShortcut,
       onMoveToAssistant,
+      topicGroupMoveTargets,
+      onMoveToGroup,
+      onRequestNewGroup,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
@@ -237,6 +250,9 @@ const TopicRow = memo(function TopicRow({
   onDeletePermanently,
   permanentDeleteShortcut,
   onMoveToAssistant,
+  topicGroupMoveTargets,
+  onMoveToGroup,
+  onRequestNewGroup,
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
@@ -305,6 +321,7 @@ const TopicRow = memo(function TopicRow({
     isRenaming,
     notesPath,
     assistantMoveTargets,
+    topicGroupMoveTargets,
     onAutoRename,
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
@@ -313,6 +330,8 @@ const TopicRow = memo(function TopicRow({
     permanentDeleteShortcut,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
+    onMoveToGroup,
+    onRequestNewGroup,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
