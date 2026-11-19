@@ -30,6 +30,7 @@ export async function openDurableHarness(
     settings?: HarnessOptions['settings']
     configureChild?: PiDurableBehaviorOptions['configureChild']
     modelId?: string
+    env?: HarnessOptions['env']
   } = {}
 ): Promise<{ harness: ContractHarness; errors: unknown[]; native(): Harness; behavior(): PiDurableBehavior }> {
   const directory = await mkdtemp(join(tmpdir(), 'durable-behavior-'))
@@ -110,6 +111,7 @@ export async function openDurableHarness(
       {
         models: meteredModels(models, behavior),
         registry,
+        env: options.env,
         settings: options.settings ?? {
           retry: { enabled: false },
           compaction: { enabled: false, keepRecentTokens: 1 }

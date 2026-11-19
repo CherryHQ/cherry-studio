@@ -7,6 +7,30 @@ another scheduler, submission queue, or agent loop. The
 [desktop driver](../../src/main/ai/runtime/piDurable/README.md) supplies Cherry's
 storage bindings, gateway models and host services.
 
+## Native Bash background contract
+
+The pinned SDK patch adds an opt-in `background` executor to `createBashTool`.
+The desktop adapter currently uses the foreground API. Ordinary Bash and
+PowerShell schemas and direct executable-array handling are unchanged.
+
+An enabled Bash tool accepts `run_in_background`. The executor receives the
+prepared command, environment options, execution timeout, native `callId` and
+`taskId`, and call context. It returns the existing completed result or a typed
+running receipt with an `executionId` and output cursor. Before returning running,
+the backend must commit session retention and revoke turn cancellation, including
+for in-flight promotion. This hook does not implement process ownership or
+cancellation fencing, and does not change Harness task cancellation.
+
+The native tool retains output limits and error diagnostics. Running structured
+output uses `status: "running"`, `executionId` and `outputCursor`, with no exit
+code. `outputSnapshotPath`, when supplied, names only output before handoff.
+Later executor output cannot update the original result. Completed execution
+keeps the existing output and nonzero-exit behavior.
+
+`tests/bashBackground.test.ts` exercises native Harness nested calls, programmatic
+running results and reopen without repeated execution. Host deduplication after
+acknowledgement loss, process cleanup and Agent Stop races need separate coverage.
+
 ## Configuration and ownership
 
 The factory takes a stable `backendId`, an `openStorage()` factory, native typed

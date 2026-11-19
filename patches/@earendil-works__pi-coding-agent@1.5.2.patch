@@ -1055,28 +1055,6 @@ index 086bb779429e259e85828b7c5cb3f606a6809e01..ad6bc3453ce9a15ee8643871973efe7d
          ...(annotations ? { annotations } : {}),
          ...createMcpToolRenderers(label),
          async execute(_toolCallId, params, signal, onUpdate) {
-diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 9501ec64605181b3940035ab354709a7e48d54d5..9e20739fa56b61901e724182c10c9d05785f8096 100644
---- a/dist/index.d.ts
-+++ b/dist/index.d.ts
-@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
- export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
- export { readStoredCredential } from "./core/auth-storage.ts";
- export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
--export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
-+export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateSystemCharacters, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
- export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
- export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingHints, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownMessageType, MarkdownTransformContext, MarkdownTransformer, MarkdownTransformerOptions, MarkdownTransformerRegistration, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
- export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
-@@ -20,7 +20,7 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
- export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
- export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
- export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
--export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
-+export { skillPromptResources, formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
- export { createSyntheticSourceInfo } from "./core/source-info.ts";
- export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
- export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
 diff --git a/dist/index.js b/dist/index.js
 index 64863bb82c791fd025cb037052c3ff95da4dac7c..05e7c326b4027c4243ad47c1bbe0c615d2fa423e 100644
 --- a/dist/index.js
@@ -1108,3 +1086,174 @@ index 77f48bd1a82ad5b3108f6fcbe18367af0e9d34bd..00000000000000000000000000000000
 diff --git a/examples/extensions/with-deps/package-lock.json b/examples/extensions/with-deps/package-lock.json
 deleted file mode 100644
 index 5efeb4e916389bd788141fbb8165ab10f71e11d0..0000000000000000000000000000000000000000
+diff --git a/dist/core/tools/bash.d.ts b/dist/core/tools/bash.d.ts
+index 27f12efdfda5..0bdd95d7a136 100644
+--- a/dist/core/tools/bash.d.ts
++++ b/dist/core/tools/bash.d.ts
+@@ -12,6 +12,20 @@ export declare const bashToolSystemPromptContribution: {
+     readonly guidelines: readonly ["You can inspect PI_* environment variables for current model and session details."];
+ };
+ export type BashToolInput = Static<typeof bashSchema>;
++declare const backgroundBashSchema: Type.TObject<{
++    command: Type.TString;
++    timeout: Type.TOptional<Type.TNumber>;
++    run_in_background: Type.TOptional<Type.TBoolean>;
++}>;
++export type BackgroundBashToolInput = Static<typeof backgroundBashSchema>;
++export interface RunningBashToolOutput {
++    status: "running";
++    execution_id: string;
++    output_cursor: number;
++    output_snapshot_path?: string;
++    output: string;
++    truncated: boolean;
++}
+ /**
+  * Result for programmatic callers such as codemode scripts. A non-zero exit code is an error result for the model, but scripts still resolve to this value.
+  * `output` is not limited like the model-facing output: callers decide how much of it reaches the model.
+@@ -67,6 +81,19 @@ export interface BashSpawnContext {
+     env: NodeJS.ProcessEnv;
+ }
+ export type BashSpawnHook = (context: BashSpawnContext) => BashSpawnContext;
++export type BackgroundBashExecutionResult =
++    | { status: "completed"; exitCode: number | null }
++    | { status: "running"; executionId: string; outputCursor: number };
++export interface BackgroundBashOperations {
++    /** Commit session retention and revoke turn cancellation before returning running, including in-flight promotion. */
++    exec(command: string, cwd: string, options: Parameters<BashOperations["exec"]>[2] & {
++        toolCallId: string;
++        runInBackground: boolean;
++    }): Promise<BackgroundBashExecutionResult>;
++}
++export interface BackgroundBashToolOptions extends Omit<BashToolOptions, "operations"> {
++    backgroundOperations: BackgroundBashOperations;
++}
+ export interface BashToolOptions {
+     /** Custom operations for command execution. Default: local shell */
+     operations?: BashOperations;
+@@ -94,7 +121,9 @@ export interface ShellToolConfig {
+     tempFilePrefix: string;
+ }
+ export declare function createShellToolDefinition(cwd: string, config: ShellToolConfig, options?: BashToolOptions): ToolDefinition<typeof bashSchema, BashToolDetails | undefined, BashRenderState>;
++export declare function createBashToolDefinition(cwd: string, options: BackgroundBashToolOptions): ToolDefinition<typeof backgroundBashSchema, BashToolDetails | undefined, BashRenderState>;
+ export declare function createBashToolDefinition(cwd: string, options?: BashToolOptions): ToolDefinition<typeof bashSchema, BashToolDetails | undefined, BashRenderState>;
++export declare function createBashTool(cwd: string, options: BackgroundBashToolOptions): TypeBoxAgentTool<typeof backgroundBashSchema>;
+ export declare function createBashTool(cwd: string, options?: BashToolOptions): TypeBoxAgentTool<typeof bashSchema>;
+ export {};
+ //# sourceMappingURL=bash.d.ts.map
+\ No newline at end of file
+diff --git a/dist/core/tools/bash.js b/dist/core/tools/bash.js
+index 60e7b06fee58..876ca197c658 100644
+--- a/dist/core/tools/bash.js
++++ b/dist/core/tools/bash.js
+@@ -37,6 +37,18 @@ export const bashToolSystemPromptContribution = {
+  * Result for programmatic callers such as codemode scripts. A non-zero exit code is an error result for the model, but scripts still resolve to this value.
+  * `output` is not limited like the model-facing output: callers decide how much of it reaches the model.
+  */
++const backgroundBashSchema = Type.Object({
++    ...bashSchema.properties,
++    run_in_background: Type.Optional(Type.Boolean({ description: "Retain this execution as a background task" })),
++});
++const runningBashOutputSchema = Type.Object({
++    status: Type.Literal("running"),
++    execution_id: Type.String(),
++    output_cursor: Type.Number(),
++    output_snapshot_path: Type.Optional(Type.String()),
++    output: Type.String(),
++    truncated: Type.Boolean(),
++});
+ const bashOutputSchema = Type.Object({
+     output: Type.String({ description: "Combined stdout and stderr, possibly truncated" }),
+     truncated: Type.Boolean(),
+@@ -181,19 +193,20 @@ function resolveSpawnContext(command, cwd, spawnHook, exposeSessionEnvironment,
+ }
+ export function createShellToolDefinition(cwd, config, options) {
+     const ops = options?.operations ?? createLocalBashOperations({ shellPath: options?.shellPath });
++    const background = config.name === "bash" ? options?.backgroundOperations : undefined;
+     const commandPrefix = options?.commandPrefix;
+     const exposeSessionEnvironment = options?.exposeSessionEnvironment ?? true;
+     const spawnHook = options?.spawnHook;
+     return {
+         name: config.name,
+         label: config.label,
+-        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
++        description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.${background ? " Set run_in_background to retain this execution and return a running receipt." : ""}`,
+         promptSnippet: config.promptSnippet,
+         promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined,
+-        parameters: bashSchema,
+-        outputSchema: bashOutputSchema,
++        parameters: background ? backgroundBashSchema : bashSchema,
++        outputSchema: background ? Type.Union([bashOutputSchema, runningBashOutputSchema]) : bashOutputSchema,
+         constrainedSampling: { type: "json_schema", strict: "prefer" },
+-        async execute(_toolCallId, { command, timeout }, signal, onUpdate, ctx) {
++        async execute(_toolCallId, { command, timeout, run_in_background }, signal, onUpdate, ctx) {
+             const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
+             const spawnContext = resolveSpawnContext(resolvedCommand, ctx?.cwd || cwd, spawnHook, exposeSessionEnvironment, ctx);
+             const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
+@@ -280,12 +293,24 @@ export function createShellToolDefinition(cwd, config, options) {
+             try {
+                 let exitCode;
+                 try {
+-                    const result = await ops.exec(spawnContext.command, spawnContext.cwd, {
+-                        onData: handleData,
+-                        signal,
+-                        timeout,
+-                        env: spawnContext.env,
+-                    });
++                    const executionOptions = { onData: handleData, signal, timeout, env: spawnContext.env };
++                    const result = background
++                        ? await background.exec(spawnContext.command, spawnContext.cwd, {
++                            ...executionOptions, toolCallId: _toolCallId, runInBackground: run_in_background === true,
++                        })
++                        : await ops.exec(spawnContext.command, spawnContext.cwd, executionOptions);
++                    if (background && result.status === "running") {
++                        const snapshot = await finishOutput();
++                        const structuredContent = {
++                            status: "running", execution_id: result.executionId, output_cursor: result.outputCursor,
++                            output: snapshot.content, truncated: snapshot.truncation.truncated,
++                            ...(snapshot.fullOutputPath ? { output_snapshot_path: snapshot.fullOutputPath } : {}),
++                        };
++                        return {
++                            content: [{ type: "text", text: appendStatus(snapshot.content, `Execution ${result.executionId} is running in the background${snapshot.fullOutputPath ? `\nOutput before backgrounding: ${snapshot.fullOutputPath}` : ""}`) }],
++                            structuredContent,
++                        };
++                    }
+                     exitCode = result.exitCode;
+                 }
+                 catch (err) {
+diff --git a/dist/core/tools/index.d.ts b/dist/core/tools/index.d.ts
+index 70b1ba199c33..8f257d47d82b 100644
+--- a/dist/core/tools/index.d.ts
++++ b/dist/core/tools/index.d.ts
+@@ -1,4 +1,4 @@
+-export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashTool, createBashToolDefinition, createLocalBashOperations, } from "./bash.ts";
++export { type BackgroundBashOperations, type BackgroundBashExecutionResult, type BackgroundBashToolOptions, type BackgroundBashToolInput, type RunningBashToolOutput, type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashTool, createBashToolDefinition, createLocalBashOperations, } from "./bash.ts";
+ export { createEditTool, createEditToolDefinition, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, } from "./edit.ts";
+ export { withFileMutationQueue } from "./file-mutation-queue.ts";
+ export { createFindTool, createFindToolDefinition, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, } from "./find.ts";
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index bb8acdb1b034..83de61ab69dd 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
+ export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
+ export { readStoredCredential } from "./core/auth-storage.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
+-export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
++export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateSystemCharacters, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
+ export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
+ export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingHints, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownMessageType, MarkdownTransformContext, MarkdownTransformer, MarkdownTransformerOptions, MarkdownTransformerRegistration, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
+@@ -20,10 +20,10 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
+ export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
+ export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
+ export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
+-export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
++export { skillPromptResources, formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
+ export { createSyntheticSourceInfo } from "./core/source-info.ts";
+ export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
+-export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
++export { type BackgroundBashOperations, type BackgroundBashExecutionResult, type BackgroundBashToolOptions, type BackgroundBashToolInput, type RunningBashToolOutput, type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
+ export { formatReadLineRange } from "./core/tools/render-utils.ts";
+ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTrustStore, type ProjectTrustStoreEntry, type ProjectTrustUpdate, } from "./core/trust-manager.ts";
+ export { type ModelRoute, type ModelRouteReason, type ModelRouteRequest, VIRTUAL_MODEL_STATE_ENTRY, type VirtualModelDefinition, type VirtualModelStateData, } from "./core/virtual-models.ts";
