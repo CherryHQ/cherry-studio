@@ -1,14 +1,18 @@
+import type { ProviderConfig } from '../../types'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport } from './imageGenerationModel'
 
 interface TransportRegistration {
   supports: (modelId: string) => boolean
-  load: (providerSettings: unknown) => Promise<ImageGenerationTransport>
+  load: (providerSettings: ProviderConfig['providerSettings']) => Promise<ImageGenerationTransport>
   poll?: boolean
   cancel?: boolean
 }
 
-function createLazyTransport(registration: TransportRegistration, providerSettings: unknown): ImageGenerationTransport {
+function createLazyTransport(
+  registration: TransportRegistration,
+  providerSettings: ProviderConfig['providerSettings']
+): ImageGenerationTransport {
   let transportPromise: Promise<ImageGenerationTransport> | undefined
   const load = () => (transportPromise ??= registration.load(providerSettings))
 
@@ -103,7 +107,7 @@ export function hasImageTransport(providerId: string, modelId: string): boolean 
 export function resolveImageTransport(
   aiSdkProviderId: string,
   modelId: string,
-  providerSettings: unknown
+  providerSettings: ProviderConfig['providerSettings']
 ): ImageGenerationTransport | null {
   const registration = TRANSPORTS[aiSdkProviderId]
   return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
