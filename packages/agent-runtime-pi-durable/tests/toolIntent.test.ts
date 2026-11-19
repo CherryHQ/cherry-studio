@@ -3,7 +3,7 @@ import { defineExtension, defineTool } from '@earendil-works/pi-durable'
 import { obj, str } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
-import { conversationId, lineageEntries } from '../src/behavior/history'
+import { conversationId, pages } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'
 
 async function callWithIntent(modelId?: string) {
@@ -45,9 +45,17 @@ async function callWithIntent(modelId?: string) {
   await h.harness.sendUser(thread, 'Look')
   await h.harness.settle()
 
-  const messages = (await h.native().commit((tx) => lineageEntries(tx, conversationId(thread)), context)).flatMap(
-    (entry) => entry.model ?? []
-  )
+  const messages = (
+    await h
+      .native()
+      .commit(
+        (tx) =>
+          pages((cursor) =>
+            tx.scanEntries({ conversationId: conversationId(thread), order: 'ascending' }, 256, cursor)
+          ),
+        context
+      )
+  ).flatMap((entry) => entry.model ?? [])
   const declared = messages.flatMap((message) => (message.role === 'system' ? (message.toolsAdded ?? []) : []))
   return {
     declared: declared.find((tool) => tool.name === 'strict')?.parameters,

@@ -113,7 +113,7 @@ function buildGate(
         offloadThreshold: 20000
       }
     })
-    const interactions = await createPiInteractionPorts({
+    const interactions = createPiInteractionPorts({
       input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
       approval: context,
       toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
