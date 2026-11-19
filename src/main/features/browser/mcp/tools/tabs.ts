@@ -7,6 +7,7 @@ import { errorResponse, successResponse } from './utils'
 
 // --- list_tabs ---
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool registry dispatch erases tool-specific inputs; ListTabsSchema establishes the private-mode selection before listing controller tabs.
 export async function handleListTabs(controller: BrowserController, args: unknown) {
   try {
     const { privateMode } = ListTabsSchema.parse(args)
@@ -20,6 +21,7 @@ export async function handleListTabs(controller: BrowserController, args: unknow
 
 // --- switch_tab ---
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The registry passes opaque per-tool arguments; SwitchTabSchema requires the tab identity and checks mode before changing selection.
 export async function handleSwitchTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = SwitchTabSchema.parse(args)
@@ -34,6 +36,7 @@ export async function handleSwitchTab(controller: BrowserController, args: unkno
 
 // --- close_tab ---
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The heterogeneous registry cannot prove a close target; CloseTabSchema validates tab identity and mode before controller disposal.
 export async function handleCloseTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = CloseTabSchema.parse(args)
