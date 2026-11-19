@@ -7,7 +7,6 @@
  * which backend is wired in.
  */
 
-import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -42,7 +41,7 @@ function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
     id: 'ignored',
     role: 'assistant',
     parts: [{ type: 'text', text: partsText }]
-  } as unknown as CherryUIMessage
+  }
 }
 
 function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
@@ -57,7 +56,7 @@ function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
         providerMetadata: { cherry: { startedAt } }
       }
     ]
-  } as unknown as CherryUIMessage
+  }
 }
 
 function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
@@ -137,7 +136,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
         },
         { type: 'text', text: 'answer' }
       ]
-    } as unknown as CherryUIMessage
+    } satisfies CherryUIMessage
 
     if (status === 'success') {
       await listener.onDone({ finalMessage, status })
@@ -167,7 +166,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
         { type: 'text', text: 'answer' },
         { type: 'text', text: '   \n  ' }
       ]
-    } as unknown as CherryUIMessage
+    } satisfies CherryUIMessage
 
     await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
 
@@ -193,7 +192,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
           outputTokenDetails: { reasoningTokens: 3 }
         }
       }
-    } as unknown as CherryUIMessage
+    } satisfies CherryUIMessage
 
     await listener.onDone({ finalMessage, status: 'success' })
 
@@ -276,9 +275,9 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'partial-id',
       role: 'assistant',
       parts: [{ type: 'text', text: 'so far so good' }]
-    } as unknown as UIMessage
+    } satisfies CherryUIMessage
 
-    await listener.onError({ status: 'error', error: err, finalMessage: finalMessage as CherryUIMessage })
+    await listener.onError({ status: 'error', error: err, finalMessage })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendAssistantMessageMock.mock.calls[0][1]
@@ -510,7 +509,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       metadata: {
         stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, contextTokens: 13 }
       }
-    } as unknown as CherryUIMessage
+    } satisfies CherryUIMessage
 
     const listener = new PersistenceListener({
       topicId: 'topic-1',
