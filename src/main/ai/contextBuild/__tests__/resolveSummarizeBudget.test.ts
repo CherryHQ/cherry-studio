@@ -36,4 +36,19 @@ describe('resolveSummarizeBudget', () => {
     expect(maxOutputTokens).toBe(2_500)
     expect(maxInputTokens + maxOutputTokens).toBeLessThanOrEqual(4_500)
   })
+
+  it('gives a short fold the output room the fixed input reservation would withhold', () => {
+    // 5,220 effective window, 831-token input: the 3,300-token completion fits.
+    const withHint = resolveSummarizeBudget(5_220, 831)
+    const withoutHint = resolveSummarizeBudget(5_220)
+    expect(withoutHint.maxOutputTokens).toBe(5_220 - COMPACTION_MIN_INPUT_BUDGET)
+    expect(withHint.maxOutputTokens).toBeGreaterThanOrEqual(3_300)
+    expect(withHint.maxInputTokens).toBeGreaterThanOrEqual(831)
+    expect(withHint.maxInputTokens + withHint.maxOutputTokens).toBeLessThanOrEqual(5_220)
+  })
+
+  it('never lowers the output budget for a large input', () => {
+    const withoutHint = resolveSummarizeBudget(5_220)
+    expect(resolveSummarizeBudget(5_220, 50_000)).toEqual(withoutHint)
+  })
 })

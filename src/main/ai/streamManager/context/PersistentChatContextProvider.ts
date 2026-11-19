@@ -43,6 +43,8 @@ import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
+import { estimateModelMessagesSync } from '../../tokens/footprint'
+import { tokenxTokenizer } from '../../tokens/textTokenizer'
 import type { AiStreamRequest } from '../../types'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -1040,7 +1042,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const compressionWindow = Math.floor(
         (compressionModel.contextWindow ?? minContextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
       )
-      const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(compressionWindow)
+      const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
+        compressionWindow,
+        estimateModelMessagesSync(modelMessages, { dialect, tokenizer: tokenxTokenizer })
+      )
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,

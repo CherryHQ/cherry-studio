@@ -321,7 +321,10 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(compressionWindow)
+        const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
+          compressionWindow,
+          estimateModelMessagesSync(candidate, { dialect, tokenizer: tokenxTokenizer })
+        )
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
