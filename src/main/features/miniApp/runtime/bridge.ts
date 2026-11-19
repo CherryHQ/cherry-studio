@@ -56,6 +56,7 @@ function installedVersionOf(appId: string): string {
 type Emit = (chunk: string) => void
 type Handler = (
   appId: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- RequestSchema validates the envelope only; each capability parses its own guest-controlled method parameters.
   params: unknown,
   emit: Emit,
   senderId: number,
@@ -128,6 +129,7 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
  * `RateLimitedError` is checked BEFORE its base `QuotaExceededError`, or every rate
  * limit reports as a capacity problem and the app retries the one thing that cannot help.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Capability and routing catches may throw any value; expose only recognized public errors and hide all unmapped host failure details.
 export function publicErrorOf(error: unknown): CherryPublicError {
   const out: CherryPublicError = { name: 'Internal', message: 'Internal error' }
   // `detail`, not `message`: the message is prefixed with the internal class name.
@@ -148,6 +150,7 @@ export function publicErrorOf(error: unknown): CherryPublicError {
  * the guest would branch on `catch (e) { if (e.name === 'QuotaExceeded') }` and always
  * see `'Error'`. The envelope is the only shape that survives the boundary.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest IPC sends an untrusted request; route authenticates its Electron sender and parses the envelope inside this non-throwing reply boundary.
 export async function handleBridgeRequest(senderId: number, payload: unknown, emit: Emit): Promise<BridgeResult> {
   try {
     return { ok: true, value: await route(senderId, payload, emit) }
@@ -158,6 +161,7 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The guest payload remains raw until sender identity is resolved and RequestSchema validates method/request labels.
 async function route(senderId: number, payload: unknown, emit: Emit): Promise<MiniAppReply> {
   const runtime = application.get('MiniAppRuntimeService')
   const appId = runtime.resolveAppIdBySender(senderId)
@@ -207,6 +211,7 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
  * A class name only, never a message: the log's own contract is names, outcomes, sizes and
  * addresses. Bounded because it is written to a file that is capped by size, not by line.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refused capability calls can throw arbitrary values; log only a bounded string Error.cause, never a host error message.
 function reasonOf(error: unknown): string | undefined {
   const cause = error instanceof Error ? error.cause : undefined
   return typeof cause === 'string' && cause.length > 0 ? cause.slice(0, 64) : undefined
