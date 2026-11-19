@@ -194,6 +194,23 @@ function resolveTextRetryPolicy(
   return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
 }
 
+function createCallerRetryWrap(
+  maxRetries: number | undefined,
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+): ReturnType<typeof createRetryableWrap> {
+  if (maxRetries === undefined || maxRetries <= 0) return undefined
+  return createRetryableWrap({
+    retryPolicy: {
+      ...readRetryPolicy(),
+      enabled: true,
+      maxAttempts: Math.max(1, Math.trunc(maxRetries)),
+      fallbackModelIds: []
+    },
+    fallbacks: [],
+    onRetryEvent
+  })
+}
+
 function createCaptureContext(input: {
   provider: Provider
   model: Model
@@ -748,7 +765,13 @@ export class AiService extends BaseService {
           activeRepairToolCall!(repairOptions)
       : undefined
     let disposeFallbackPrepareStep: (() => void) | undefined
-    let wrapModel: ReturnType<typeof createRetryableWrap>
+    let wrapModel =
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
+            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+          )
+        : undefined
+
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -970,7 +993,8 @@ export class AiService extends BaseService {
       : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
-    let wrapModel: ReturnType<typeof createRetryableWrap>
+    let wrapModel =
+      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,

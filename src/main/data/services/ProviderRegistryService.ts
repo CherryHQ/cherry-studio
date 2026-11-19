@@ -141,10 +141,12 @@ export interface ResolvedServiceTierControl {
   wire: ServiceTierRequestControl['wire']
 }
 
-type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'>
+type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'> & {
+  values?: ResolvedServiceTierControl['wire']['values']
+}
 
-function projectServiceTierControl(control: RuntimeServiceTierControl): RuntimeServiceTierControl {
-  return { default: control.default, options: control.options }
+function projectServiceTierControl(control: ResolvedServiceTierControl): RuntimeServiceTierControl {
+  return { default: control.default, options: control.options, values: control.wire.values }
 }
 
 export interface ReasoningProviderContext {
@@ -419,7 +421,7 @@ export function createCustomModel(
   providerId: string,
   modelId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
@@ -480,7 +482,7 @@ export function mergePresetModel(
   providerId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
   reasoningSupport?: ProtoReasoningSupport,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const {
     capabilities,

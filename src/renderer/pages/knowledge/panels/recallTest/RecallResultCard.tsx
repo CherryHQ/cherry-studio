@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
@@ -49,7 +50,11 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           {index + 1}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <FileText className="size-3.5 shrink-0 text-foreground-tertiary" />
+          {item.sourceType === 'file' ? (
+            <FileIcon path={item.sourceName} className="size-3.5 shrink-0" />
+          ) : (
+            <FileText className="size-3.5 shrink-0 text-foreground-tertiary" />
+          )}
           <span className="truncate text-xs leading-4 text-foreground-tertiary">{item.sourceName}</span>
           <span className="shrink-0 text-xs leading-3 text-foreground-tertiary">#{item.chunkIndex}</span>
         </div>

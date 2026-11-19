@@ -1047,8 +1047,8 @@ export class AiStreamManager extends BaseService {
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
     source?: SourceSnapshot | null
-    /** `0` disables same-model retry AND cross-model fallback. */
-    maxRetries?: 0
+    /** Per-request retry limit; `0` also disables model fallback. */
+    maxRetries?: number
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1437,7 +1437,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId), true)
+          .stopSession(extractAgentSessionId(topicId), reason)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
