@@ -64,6 +64,7 @@ function readExplicitCitationNumber(entry: Record<string, unknown>): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored web references contain provider-specific URL strings or result objects; verify each consumed citation field before projecting it.
 function normalizeWebResult(result: unknown): Citation | null {
   if (typeof result === 'string') {
     return {
@@ -109,6 +110,7 @@ function normalizeWebResult(result: unknown): Citation | null {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- WebCitationReference deliberately leaves persisted results untyped; distinguish Gemini grounding, result envelopes and arrays before reading individual citations.
 function normalizeWebResults(results: unknown): Citation[] {
   // Gemini grounding format: { groundingChunks, groundingSupports }
   if (results && typeof results === 'object' && Array.isArray((results as Record<string, unknown>).groundingChunks)) {
