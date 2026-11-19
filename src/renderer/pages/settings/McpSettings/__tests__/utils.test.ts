@@ -5,9 +5,28 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
 import { resolveMcpPackageIconUrl } from '../mcpPackage'
-import { formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
+import { formatMcpLogData, formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
+  it('keeps provider log payloads printable when they contain cycles or non-JSON values', () => {
+    const data: { detail: string; self?: object } = { detail: 'timeout' }
+    data.self = data
+    expect(formatMcpLogData(data)).toBe('{\n  "detail": "timeout",\n  "self": "[Circular]"\n}')
+    expect(formatMcpLogData(1n)).toBe('1')
+    expect(formatMcpLogData({ toJSON: () => undefined })).toBe('null')
+    expect(
+      formatMcpLogData({
+        toJSON() {
+          throw new Error('provider serializer failed')
+        }
+      })
+    ).toBe('[Unserializable]')
+  })
+
+  it.each([false, 0, null])('includes an explicitly supplied %s log payload when copying', (data) => {
+    expect(formatMcpLogs([{ timestamp: 0, level: 'info', message: 'value', data }])).toContain(`value\n${String(data)}`)
+  })
+
   it('matches provider candidates without using their transient id', () => {
     const existing: McpServer = {
       id: '550e8400-e29b-41d4-a716-446655440000',

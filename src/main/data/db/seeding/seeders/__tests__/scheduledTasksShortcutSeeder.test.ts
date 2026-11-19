@@ -42,4 +42,14 @@ describe('scheduled task shortcut upgrade', () => {
     seed()
     expect(read()).toEqual([shortcut('notes'), shortcut('scheduled_tasks')])
   })
+
+  it('preserves malformed historical entries while inserting after a real conversation shortcut', () => {
+    const malformed = [null, { target: null }, { target: { locator: { providerId: 'core.app', resourceId: {} } } }]
+    const original = [malformed[0], shortcut('agents'), ...malformed.slice(1), shortcut('notes')]
+    dbh.db.insert(preferenceTable).values({ scope: 'default', key: 'ui.sidebar_shortcut', value: original }).run()
+
+    seed()
+
+    expect(read()).toEqual([malformed[0], shortcut('agents'), shortcut('scheduled_tasks'), ...original.slice(2)])
+  })
 })

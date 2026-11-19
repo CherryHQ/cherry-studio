@@ -224,7 +224,7 @@ export async function executeCommand(
     let outputLimitError: Error | undefined
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-    const collectOutput = (chunk: unknown): string | null => {
+    const collectOutput = (chunk: Buffer | string): string | null => {
       if (outputLimitError) return null
       const text = String(chunk)
       const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)

@@ -49,6 +49,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       if (decision.details !== undefined) Object.assign(request, { details: decision.details })
       const answer = await ports.memory
         .remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal))
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval failures preserve the host's rejection; an aborted call alone withdraws the ask without recording an answer.
         .catch((error: unknown) => {
           // A stopped turn withdraws the ask; nothing is remembered, so a rerun asks again.
           if (call.signal.aborted) return undefined

@@ -79,6 +79,7 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
       const runId = ++runIdRef.current
       setIsSingleModelChecking(true)
       setSingleModelResult(null)
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Credential preparation and API probes can reject with any value; the toast presenter owns failure classification.
       const reportFailure = (error: unknown) =>
         toast.errorFromException(error, {
           key: `provider-check:${providerId}`,

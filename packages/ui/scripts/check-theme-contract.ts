@@ -31,6 +31,7 @@ export async function checkThemeContract(
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Theme composition and filesystem checks may reject with any value; report the error at this CLI boundary.
   void checkThemeContract().catch((error: unknown) => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
     process.stderr.write(`${message}\n`)

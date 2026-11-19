@@ -96,6 +96,7 @@ type FrontmatterContext = {
 
 const isString = (value: unknown): value is string => typeof value === 'string'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- YAML and recovered frontmatter fields can be scalars or mixed arrays; preserve only strings, including the supported comma-separated form.
 function toStringArray(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     return value.filter(isString)
@@ -109,6 +110,7 @@ function toStringArray(value: unknown): string[] | undefined {
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw frontmatter metadata is not a typed plugin field; accept strings without coercing mappings, numbers or booleans into user-facing metadata.
 function toString(value: unknown): string | undefined {
   return isString(value) ? value : undefined
 }

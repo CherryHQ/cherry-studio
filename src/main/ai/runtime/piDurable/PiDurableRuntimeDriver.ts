@@ -27,6 +27,7 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     return slot
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored checkpoints need both Durable schema validation and the claimed backend/conversation binding check.
   isForkCheckpoint(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean {
     const parsed = DurableForkCheckpointSchema.safeParse(value)
     return (

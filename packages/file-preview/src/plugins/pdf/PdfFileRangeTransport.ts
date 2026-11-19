@@ -36,10 +36,21 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
   override requestDataRange(begin: number, end: number): void {
     if (this.isInactive()) return
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host range readers may reject with arbitrary values; preserve Error identity and always notify the PDF failure owner.
     void this.readRange(begin, end).catch((error: unknown) => {
       if (this.isInactive()) return
       this.failed = true
-      this.onError(error instanceof Error ? error : new Error(String(error)))
+      if (error instanceof Error) {
+        this.onError(error)
+        return
+      }
+      let message = 'PDF range could not be read'
+      try {
+        message = String(error)
+      } catch {
+        // Unreadable diagnostics must still reach the document's failure callback.
+      }
+      this.onError(new Error(message))
     })
   }
 

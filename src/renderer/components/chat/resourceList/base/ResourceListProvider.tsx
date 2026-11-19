@@ -95,8 +95,9 @@ function getResourceListGroupFromSeed(group: ResourceListGroupSeed): ResourceLis
   return { id: group.id, label: group.label, count: group.count, synthetic: group.synthetic }
 }
 
-function normalizeCollapsedIds(collapsedIds: readonly string[] | unknown): readonly string[] {
-  return Array.isArray(collapsedIds) ? collapsedIds : []
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted collapsed-group state can contain stale malformed values; retain only verified string IDs.
+function normalizeCollapsedIds(collapsedIds: unknown): readonly string[] {
+  return Array.isArray(collapsedIds) ? collapsedIds.filter((id): id is string => typeof id === 'string') : []
 }
 
 function deriveResourceListItems<T extends ResourceListItemBase>({
@@ -602,7 +603,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const isControlled = collapsedState !== undefined
-  const effectiveCollapsedIds = normalizeCollapsedIds(collapsedState ?? state.collapsedGroups)
+  const effectiveCollapsedIds = useMemo(
+    () => normalizeCollapsedIds(collapsedState ?? state.collapsedGroups),
+    [collapsedState, state.collapsedGroups]
+  )
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)

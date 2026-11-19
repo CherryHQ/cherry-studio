@@ -79,6 +79,7 @@ function isSummaryConfigItem(item: BaseConfigItem): item is SummaryConfigItem {
 
 function formatSummaryValue(
   item: SummaryConfigItem,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Summary controls read dynamic persisted draft fields; per-control readers validate values against the registry or numeric contract.
   value: unknown,
   params: PaintingData['params'],
   translate: (key: string) => string

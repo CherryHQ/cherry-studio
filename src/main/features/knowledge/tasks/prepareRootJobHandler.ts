@@ -4,6 +4,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { getErrorMessage } from '@main/utils/error'
 import { removeDir } from '@main/utils/file'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
@@ -244,9 +245,10 @@ function markUnscheduledLeafItemsFailed(
   baseId: string,
   leafItems: KnowledgeItem[],
   completedSchedulingLeafIds: Set<string>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Scheduling can reject arbitrary values; safe formatting must still allow every unscheduled leaf to be marked failed.
   originalError: unknown
 ): void {
-  const message = originalError instanceof Error ? originalError.message : String(originalError)
+  const message = getErrorMessage(originalError, 'Knowledge child scheduling failed')
   markUnscheduledKnowledgeItemsFailed({
     baseId,
     items: leafItems,

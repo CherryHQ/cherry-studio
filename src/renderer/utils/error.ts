@@ -18,10 +18,10 @@ import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shar
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
-import { formatErrorDetails } from './errorDetails'
+import { formatErrorDetails, safeToString } from './errorDetails'
 import { parseJSON } from './json'
 
-export { getErrorDetails } from './errorDetails'
+export { getErrorDetails, readErrorMessage, safeToString, toError } from './errorDetails'
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- UI catch handlers pass arbitrary rejections; Zod, Axios and AgentServer guards select known formats before the generic diagnostic formatter.
 export function formatErrorMessage(error: unknown): string {
@@ -238,59 +238,6 @@ export const formatZodError = (error: z.ZodError, title?: string) => {
   const readableErrors = error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
   const errorMessage = readableErrors.join('\n')
   return title ? `${title}: \n${errorMessage}` : errorMessage
-}
-
-/**
- * 将任意值安全地转换为字符串
- * @param value - 需要转换的值，unknown 类型
- * @returns 转换后的字符串
- *
- * @description
- * 该函数可以安全地处理以下情况:
- * - null 和 undefined 会被转换为 'null'
- * - 字符串直接返回
- * - 原始类型(数字、布尔值、bigint等)使用 String() 转换
- * - 对象和数组会尝试使用 JSON.stringify 序列化，并处理循环引用
- * - 如果序列化失败，返回固定的不可序列化标记
- *
- * @example
- * ```ts
- * safeToString(null)  // 'null'
- * safeToString('test')  // 'test'
- * safeToString(123)  // '123'
- * safeToString({a: 1})  // '{"a":1}'
- * ```
- */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error diagnostics may contain arbitrary values and throwing serialization hooks; formatting must always return text.
-export function safeToString(value: unknown): string {
-  if (value == null) {
-    return 'null'
-  }
-
-  if (typeof value === 'string') {
-    return value
-  }
-
-  try {
-    return typeof value === 'object' ? (JSON.stringify(value, getCircularReplacer()) ?? 'null') : String(value)
-  } catch {
-    return '[Unserializable]'
-  }
-}
-
-// 防止循环引用导致的 JSON.stringify 崩溃
-function getCircularReplacer() {
-  const seen = new WeakSet()
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON.stringify passes arbitrary nested values to this cycle-detection replacer.
-  return (_key: string, value: unknown) => {
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
-        return '[Circular]'
-      }
-      seen.add(value)
-    }
-    return value
-  }
 }
 
 export function formatError(error: SerializedError): string {

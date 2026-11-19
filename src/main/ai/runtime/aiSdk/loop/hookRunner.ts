@@ -49,6 +49,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
     }
     wrapped[name] = {
       ...tool,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ToolSet erases each tool's input type; its SDK inputSchema validates the value and this wrapper preserves its identity.
       execute: async (input: unknown, options) => {
         const startEvent: ToolExecutionStartEvent = {
           callId: options.toolCallId,

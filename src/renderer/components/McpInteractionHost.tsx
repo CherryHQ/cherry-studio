@@ -1,3 +1,4 @@
+import type { ElicitResult } from '@modelcontextprotocol/client'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -89,7 +90,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
     if (requestId === current.requestId) active.current = false
   })
 
-  const setValue = (name: string, value: unknown) =>
+  const setValue = (name: string, value: NonNullable<ElicitResult['content']>[string] | undefined) =>
     setValues((previous) => {
       const next = { ...previous }
       if (value === undefined) delete next[name]

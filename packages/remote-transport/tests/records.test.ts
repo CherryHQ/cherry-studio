@@ -73,3 +73,37 @@ it('preserves reserved and nested keys in JSON records', () => {
   expect(JSON.stringify(decoded)).toBe(wire)
   expect(Object.hasOwn(decoded, '__proto__')).toBe(true)
 })
+
+it.each([
+  { label: 'undefined root', value: undefined },
+  { label: 'function root', value: () => undefined },
+  { label: 'symbol root', value: Symbol('control') },
+  { label: 'non-finite root', value: Infinity },
+  { label: 'nested non-finite value', value: { number: NaN } },
+  { label: 'function property', value: { action: () => undefined } },
+  { label: 'undefined array entry', value: [undefined] },
+  { label: 'implicit serialization hook', value: { toJSON: () => ({ silently: 'changed' }) } }
+])('rejects a lossy outbound $label before framing', ({ value }) => {
+  expect(() => encodeRecord(value)).toThrow('Invalid JSON control record')
+})
+
+it('preserves reserved keys and optional RPC field omission in outbound control records', () => {
+  const value = JSON.parse('{"__proto__":{"kept":true},"constructor":"value","nested":{"__proto__":5}}')
+  value.params = undefined
+  const encoded = encodeRecord(value)
+  expect(new TextDecoder().decode(encoded)).toBe(
+    '{"__proto__":{"kept":true},"constructor":"value","nested":{"__proto__":5}}'
+  )
+  expect(JSON.stringify(decodeRecord(encoded))).toBe(JSON.stringify(value))
+})
+
+it('rejects cycles while allowing shared values in separate JSON branches', () => {
+  const cyclic: Record<string, unknown> = {}
+  cyclic.self = cyclic
+  expect(() => encodeRecord(cyclic)).toThrow('Invalid JSON control record')
+  const shared = { text: 'kept' }
+  expect(decodeRecord(encodeRecord({ first: shared, second: shared }))).toEqual({
+    first: { text: 'kept' },
+    second: { text: 'kept' }
+  })
+})

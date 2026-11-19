@@ -53,16 +53,28 @@ describe('goal tools', () => {
   })
 
   // Catches a verifier failure that completes the goal anyway or surfaces as a thrown tool error (Stage B plan choice 12).
-  it('update_goal writes nothing when the verifier fails', async () => {
+  it.each([
+    { label: 'ordinary error', error: new Error('verifier offline'), reason: 'verifier offline' },
+    { label: 'unprintable error', error: Object.create(null), reason: 'Host operation failed' },
+    {
+      label: 'unreadable Error message',
+      error: Object.defineProperty(new Error(), 'message', {
+        get() {
+          throw new Error('unreadable')
+        }
+      }),
+      reason: 'Host operation failed'
+    }
+  ])('update_goal remains unverified after an $label', async ({ error, reason }) => {
     const w = world({
-      patchHost: (host) => ({ ...host, verifier: { verify: () => Promise.reject(new Error('verifier offline')) } })
+      patchHost: (host) => ({ ...host, verifier: { verify: () => Promise.reject(error) } })
     })
     const t = await w.fake.createThread()
     w.fake.script(t, [callTool('update_goal', COMPLETE), reply('keep going'), reply('round 2')])
     await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
     await w.fake.settle()
     const [result] = toolResults(await w.read(t))
-    expect(result).toMatchObject({ text: unverifiedText('verifier offline'), isError: true })
+    expect(result).toMatchObject({ text: unverifiedText(reason), isError: true })
     expect(currentGoal((await w.read(t)).history)?.lastStop?.code).not.toBe('complete')
   })
 })

@@ -27,6 +27,7 @@ const logger = loggerService.withContext('ai:outputReservation')
  */
 export function resolveRequestedMaxOutputTokens(
   requestMaxOutputTokens: number | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Custom model parameter bags are untyped; only numeric entries participate in reservation precedence.
   customMaxOutputTokens: unknown,
   assistant: Assistant | undefined,
   model: Model,

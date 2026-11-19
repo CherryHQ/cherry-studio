@@ -18,10 +18,14 @@ export type PathStatus =
   | { ok: false; reason: 'missing' }
   | { ok: false; reason: 'inaccessible'; code?: string }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem probes can reject arbitrary values; only a readable string code is exposed in inaccessible-path status.
 function errorCode(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null && 'code' in error
-    ? String((error as NodeJS.ErrnoException).code)
-    : undefined
+  try {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+    return typeof code === 'string' ? code : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function getPathStatus(path: string): Promise<PathStatus> {

@@ -153,6 +153,38 @@ describe('bedrockAnthropicCacheFeature.applies', () => {
   })
 })
 
+describe('Bedrock cache metadata', () => {
+  it.each([null, false, true, 1, 'invalid', []].map((marker) => ({ marker })))(
+    'does not turn malformed marker %j into a cache checkpoint',
+    async ({ marker }) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [{ ...longSystem, providerOptions: { anthropic: { cacheControl: marker } } }]
+      }
+
+      expect(cachePoints(await captureConverseBody(transformBedrockCacheParams(params)))).toEqual([])
+    }
+  )
+
+  it.each([null, true, 1, 'invalid', []].map((marker) => ({ marker })))(
+    'keeps the message-level one-hour fallback after malformed part marker %j',
+    async ({ marker }) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [
+          {
+            role: 'user',
+            providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } },
+            content: [{ type: 'text', text: 'Question', providerOptions: { anthropic: { cacheControl: marker } } }]
+          }
+        ]
+      }
+
+      expect(cachePoints(await captureConverseBody(transformBedrockCacheParams(params)))).toEqual([
+        { position: 'messages.0.content.1', cachePoint: { type: 'default', ttl: '1h' } }
+      ])
+    }
+  )
+})
+
 describe('Bedrock Converse request body', () => {
   const conversation = {
     prompt: [

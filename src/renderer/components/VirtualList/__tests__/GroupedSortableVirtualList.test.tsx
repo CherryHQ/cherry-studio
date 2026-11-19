@@ -99,7 +99,8 @@ vi.mock('@dnd-kit/sortable', () => {
       disabled?: boolean | { draggable?: boolean; droppable?: boolean }
       id: string
     }) => {
-      dndMocks.sortableData.set(id, data)
+      // useSortable adds its own metadata through a shallow copy of custom data.
+      dndMocks.sortableData.set(id, data && typeof data === 'object' ? { sortable: {}, ...data } : data)
       dndMocks.sortableDisabled.set(id, disabled)
       return {
         attributes: {},
@@ -251,6 +252,37 @@ function getPointerSensorActivator() {
 }
 
 describe('GroupedSortableVirtualList', () => {
+  it('rejects another list instance payload even when both lists use the same item IDs', () => {
+    renderList()
+    const foreignData = dataFor('sortable', 'item:a').current
+    const onDragStart = vi.fn()
+    renderList(vi.fn(), { onDragStart })
+    const event = dragStartEvent('item:a')
+    event.active.data.current = foreignData
+    act(() => dndMocks.onDragStart?.(event))
+    expect(onDragStart).not.toHaveBeenCalled()
+  })
+
+  it('rejects unregistered metadata even when it copies this list row fields', () => {
+    const onDragStart = vi.fn()
+    const onDragEnd = vi.fn()
+    renderList(onDragEnd, { onDragStart })
+    const start = dragStartEvent('item:a')
+    const data = start.active.data.current
+    if (!data || typeof data !== 'object') throw new Error('Expected local row metadata')
+    start.active.data.current = Object.fromEntries(Object.entries(data))
+    act(() => dndMocks.onDragStart?.(start))
+    expect(onDragStart).not.toHaveBeenCalled()
+
+    startDragging('item:a')
+    const end = dragEvent('item:a', 'item:b')
+    const target = end.over.data.current
+    if (!target || typeof target !== 'object') throw new Error('Expected local target metadata')
+    end.over.data.current = Object.fromEntries(Object.entries(target))
+    act(() => dndMocks.onDragEnd?.(end))
+    expect(onDragEnd).not.toHaveBeenCalled()
+  })
+
   it('does not activate pointer dragging for secondary-button context menu gestures', () => {
     const activate = vi.fn()
     const handler = getPointerSensorActivator()

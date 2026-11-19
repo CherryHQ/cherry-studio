@@ -29,6 +29,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
   readonly fork = forkPiSession
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted checkpoint JSON is accepted only after PiForkCheckpointSchema validates its native identifiers.
   isForkCheckpoint(value: unknown): boolean {
     return PiForkCheckpointSchema.safeParse(value).success
   }

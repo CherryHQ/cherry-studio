@@ -30,6 +30,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Ripgrep JSON may encode paths and lines as text or base64 bytes; reject fields that match neither representation.
 function decodeRipgrepText(value: unknown): string {
   if (!isRecord(value)) {
     throw new Error('Unexpected ripgrep text format')

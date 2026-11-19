@@ -10,6 +10,7 @@ interface UseSortedSupportedProvidersOptions {
   selectedCliTool: CodeCli
   filterProviders: (providers: Provider[]) => Provider[]
   reorderProviders: (providerIds: string[]) => Promise<void>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The injected reorder mutation can reject arbitrary values; forward its original failure to the owner callback.
   onReorderError: (error: unknown) => void
   /**
    * Synthetic, page-local entries (own login, Cherry gateway) prepended ahead of

@@ -87,6 +87,7 @@ export interface EnsureBuiltinAgentResult {
   restored: boolean
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search projections read stored configuration before sanitation; only recognized builtin-role markers may select a localized description.
 function getAgentDescription(id: string, description: string, configuration: unknown): string {
   if (description) return description
   if (typeof configuration === 'object' && configuration !== null) {
@@ -142,6 +143,7 @@ function matchesBuiltinRole(
   return (configuration as { builtin_role?: unknown }).builtin_role === expectedRole
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted configuration may drift; retain unrelated fields while stripping a reserved role from agents that do not own it.
 function removeUntrustedSupportRole(id: string, configuration: unknown): Record<string, unknown> {
   const next =
     configuration && typeof configuration === 'object' && !Array.isArray(configuration)
@@ -162,6 +164,7 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
  * are validated separately before this helper runs.
  */
 function applyAgentConfigurationPatch(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored JSON may contain historical extension fields; copy a checked record and apply only the typed public patch.
   persisted: unknown,
   patch: AgentConfiguration | undefined
 ): Record<string, unknown> {
@@ -182,6 +185,7 @@ function applyAgentConfigurationPatch(
   return next
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Database configuration is raw versioned JSON; sanitize known fields before projecting an agent entity.
 function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -193,6 +197,7 @@ function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration |
   return data
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search reads historical configuration without a full entity projection; only a verified string avatar may be shown.
 function getAgentAvatar(configuration: unknown): string | undefined {
   if (!configuration || typeof configuration !== 'object') return undefined
   const avatar = (configuration as { avatar?: unknown }).avatar

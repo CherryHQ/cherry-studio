@@ -230,6 +230,7 @@ export function PromptSettings() {
   }, [deletePrompt, deleteTarget, t])
 
   const handleReorderError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Prompt reorder operations may reject arbitrary values; the shared formatter owns localized failure text.
     (err: unknown) => {
       toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.reorderFailed')))
     },

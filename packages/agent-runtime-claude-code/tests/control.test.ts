@@ -264,6 +264,38 @@ describe('Claude native lifecycle', () => {
     })
   })
 
+  it('does not infer a task relationship by coercing a malformed text block into receipt JSON', () => {
+    const f = fixture()
+    f.state.beginTurn()
+    f.accept({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: { content: [{ type: 'tool_use', id: 'spawn', name: 'Agent', input: {} }] }
+    })
+    f.accept({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [{ task_id: 'child', task_type: 'subagent', description: 'work' }]
+    })
+    f.accept({
+      type: 'user',
+      parent_tool_use_id: null,
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'spawn',
+            content: [{ type: 'text', text: [JSON.stringify({ status: 'async_launched', agentId: 'child' })] }]
+          }
+        ]
+      }
+    })
+    expect(f.events.filter((event) => event.type === 'background-tasks').at(-1)).toEqual({
+      type: 'background-tasks',
+      tasks: [{ task_id: 'child', task_type: 'subagent', description: 'work' }]
+    })
+  })
+
   it('does not treat child content as a root wake and keeps task status independent of a parent turn', () => {
     const f = fixture()
     f.accept({ type: 'assistant', parent_tool_use_id: 'spawn', message: { content: [] } })

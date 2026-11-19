@@ -39,7 +39,14 @@ const xmlParser = new XMLParser({
   trimValues: false
 })
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- XML parsing and host sheet access may throw arbitrary values; warning conversion must not discard otherwise readable charts.
+const errorMessage = (error: unknown): string => {
+  try {
+    return String(error instanceof Error ? error.message : error)
+  } catch {
+    return 'Chart data could not be read'
+  }
+}
 
 /** Any node value produced by fast-xml-parser: element object/array or primitive value. */
 const xmlValueSchema = z.json()

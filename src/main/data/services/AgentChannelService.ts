@@ -32,6 +32,7 @@ import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('ChannelService')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored channel configuration can contain legacy type metadata; select a record before per-channel schema validation.
 function normalizeChannelConfig(config: unknown): Record<string, unknown> {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return {}
   const rest = { ...(config as Record<string, unknown>) }
@@ -41,6 +42,7 @@ function normalizeChannelConfig(config: unknown): Record<string, unknown> {
 
 function validateChannelConfig(
   type: AgentChannelType,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Creation and persisted-config repair share this boundary; channel-specific schemas own validation and active-channel requirements.
   config: unknown,
   isActive: boolean
 ): AgentChannelEntity['config'] {

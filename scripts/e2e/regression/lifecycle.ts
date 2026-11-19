@@ -73,7 +73,7 @@ function readJson<T>(filePath: string): T {
   return JSON.parse(readFileSync(filePath, 'utf8')) as T
 }
 
-function writeJson(filePath: string, value: unknown): void {
+function writeJson(filePath: string, value: LaunchRecord): void {
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
 }
 

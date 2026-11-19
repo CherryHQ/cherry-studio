@@ -31,6 +31,7 @@ export default function PopupHost() {
             key={instanceId}
             {...props}
             open={open}
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The host forwards an opaque result to the resolver paired with this heterogeneous popup entry by createPopup.
             resolve={(result: unknown) => popupService.settle(instanceId, result)}
           />
         )

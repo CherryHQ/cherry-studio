@@ -14,6 +14,7 @@ function validateStrings(value: z.infer<ReturnType<typeof z.json>>): void {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Canonical wire input is untrusted; validate JSON and Unicode before producing bytes used by protocol digests.
 export function encodeCanonical(value: unknown): Uint8Array {
   const json = z.json().parse(value)
   validateStrings(json)

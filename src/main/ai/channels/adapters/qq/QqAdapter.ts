@@ -1,7 +1,7 @@
 import { net } from 'electron'
 import { fileTypeFromBuffer } from 'file-type'
 import WebSocket from 'ws'
-import type * as z from 'zod'
+import * as z from 'zod'
 
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
@@ -60,14 +60,13 @@ type QqTokenCache = {
   expiresAt: number
 }
 
-type QqAttachment = {
-  content_type?: string
-  filename?: string
-  height?: number
-  width?: number
-  size?: number
-  url: string
-}
+const qqAttachmentSchema = z.object({
+  content_type: z.string().optional(),
+  filename: z.string().optional(),
+  size: z.number().optional(),
+  url: z.string()
+})
+type QqAttachment = z.infer<typeof qqAttachmentSchema>
 
 /** Passive-reply state for one inbound message, keyed by `chatId:msgId`. */
 type PassiveReply = {
@@ -77,22 +76,30 @@ type PassiveReply = {
   seq: number
 }
 
-type QqMessage = {
-  id: string
-  author: {
-    id: string
-    user_openid?: string
-    member_openid?: string
-    username?: string
-  }
-  content: string
-  timestamp: string
-  channel_id?: string
-  guild_id?: string
-  group_id?: string
-  group_openid?: string
-  attachments?: QqAttachment[]
-}
+const qqMessageSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  attachments: z.array(qqAttachmentSchema).optional()
+})
+const qqUserSchema = z.object({ username: z.string().optional() })
+const qqC2cMessageSchema = qqMessageSchema.extend({
+  author: qqUserSchema.extend({ user_openid: z.string() })
+})
+const qqGroupMessageSchema = qqMessageSchema.extend({
+  group_openid: z.string(),
+  author: z.union([qqUserSchema.extend({ member_openid: z.string() }), qqUserSchema.extend({ id: z.string() })])
+})
+const qqGuildMessageSchema = qqMessageSchema.extend({
+  channel_id: z.string(),
+  author: qqUserSchema.extend({ id: z.string() })
+})
+const qqDirectMessageSchema = qqMessageSchema.extend({
+  guild_id: z.string(),
+  author: qqUserSchema.extend({ id: z.string() })
+})
+const qqReadySchema = z.object({ session_id: z.string(), user: z.object({ username: z.string() }) })
+
+type QqMessage = z.infer<typeof qqMessageSchema>
 
 class QqAdapter extends ChannelAdapter {
   private ws: WebSocket | null = null
@@ -369,10 +376,11 @@ class QqAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Gateway JSON needs event-specific validation before connection, reply-window or deduplication state changes.
   private async handleDispatch(eventType: string, data: unknown): Promise<void> {
     switch (eventType) {
       case 'READY': {
-        const readyData = data as { session_id: string; user: { id: string; username: string } }
+        const readyData = qqReadySchema.parse(data)
         this.sessionId = readyData.session_id
         this.reconnectAttempts = 0
         this.rapidDisconnects = 0
@@ -391,31 +399,31 @@ class QqAdapter extends ChannelAdapter {
         this.log.info('QQ session resumed')
         break
       case 'C2C_MESSAGE_CREATE':
-        await this.handleC2CMessage(data as QqMessage)
+        await this.handleC2CMessage(qqC2cMessageSchema.parse(data))
         break
       case 'GROUP_AT_MESSAGE_CREATE':
         // Dedup lives inside handleGroupMessage (same layer as handleGroupFullMessage).
-        await this.handleGroupMessage(data as QqMessage)
+        await this.handleGroupMessage(qqGroupMessageSchema.parse(data))
         break
       case 'GROUP_MESSAGE_CREATE':
-        await this.handleGroupFullMessage(data as QqMessage)
+        await this.handleGroupFullMessage(qqGroupMessageSchema.parse(data))
         break
       case 'AT_MESSAGE_CREATE':
-        await this.handleGuildMessage(data as QqMessage)
+        await this.handleGuildMessage(qqGuildMessageSchema.parse(data))
         break
       case 'DIRECT_MESSAGE_CREATE':
-        await this.handleDirectMessage(data as QqMessage)
+        await this.handleDirectMessage(qqDirectMessageSchema.parse(data))
         break
     }
   }
 
-  private async handleC2CMessage(msg: QqMessage): Promise<void> {
+  private async handleC2CMessage(msg: z.infer<typeof qqC2cMessageSchema>): Promise<void> {
     const chatId = `c2c:${msg.author.user_openid}`
     if (!this.isAllowed(chatId, msg.author.user_openid)) return
-    await this.processMessage(msg, chatId, msg.author.user_openid ?? msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, msg.author.user_openid, msg.author.username ?? '')
   }
 
-  private async handleGroupMessage(msg: QqMessage): Promise<void> {
+  private async handleGroupMessage(msg: z.infer<typeof qqGroupMessageSchema>): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
@@ -427,7 +435,7 @@ class QqAdapter extends ChannelAdapter {
   }
 
   /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
-  private async handleGroupFullMessage(msg: QqMessage): Promise<void> {
+  private async handleGroupFullMessage(msg: z.infer<typeof qqGroupMessageSchema>): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
 
@@ -452,9 +460,10 @@ class QqAdapter extends ChannelAdapter {
    * twin event (or a platform re-push) can retry the message. The error is rethrown —
    * the rollback must not swallow it.
    */
-  private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
+  private async processGroupMessage(msg: z.infer<typeof qqGroupMessageSchema>, chatId: string): Promise<void> {
     try {
-      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+      const userId = 'member_openid' in msg.author ? msg.author.member_openid : msg.author.id
+      await this.processMessage(msg, chatId, userId, msg.author.username ?? '')
     } catch (err) {
       this.seenMsgIds.delete(msg.id)
       throw err
@@ -486,13 +495,13 @@ class QqAdapter extends ChannelAdapter {
     return true
   }
 
-  private async handleGuildMessage(msg: QqMessage): Promise<void> {
+  private async handleGuildMessage(msg: z.infer<typeof qqGuildMessageSchema>): Promise<void> {
     const chatId = `channel:${msg.channel_id}`
     if (!this.isAllowed(chatId, msg.channel_id)) return
     await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
   }
 
-  private async handleDirectMessage(msg: QqMessage): Promise<void> {
+  private async handleDirectMessage(msg: z.infer<typeof qqDirectMessageSchema>): Promise<void> {
     const chatId = `dm:${msg.guild_id}`
     if (!this.isAllowed(chatId, msg.guild_id)) return
     await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')

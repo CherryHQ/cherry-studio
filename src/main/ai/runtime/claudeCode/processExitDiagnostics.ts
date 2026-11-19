@@ -81,14 +81,22 @@ export function createClaudeCodeProcessExitError(
 }
 
 /** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Process and stream failures are untyped; only verified string diagnostics can establish a truncated JSON frame.
 export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
   if (aborted) return true
-  const value = error as { name?: string; message?: string } | null
-  return (
-    bufferedChars >= 512 &&
-    value?.name?.toLowerCase() === 'syntaxerror' &&
-    /unexpected end of (?:json input|input|string)|unexpected eof|end of file|unterminated string/i.test(
-      value.message ?? ''
-    )
-  )
+  if (bufferedChars >= 512 && typeof error === 'object' && error !== null) {
+    try {
+      const name = 'name' in error ? error.name : undefined
+      const message = 'message' in error ? error.message : undefined
+      return (
+        typeof name === 'string' &&
+        name.toLowerCase() === 'syntaxerror' &&
+        typeof message === 'string' &&
+        /unexpected end of (?:json input|input|string)|unexpected eof|end of file|unterminated string/i.test(message)
+      )
+    } catch {
+      return false
+    }
+  }
+  return false
 }

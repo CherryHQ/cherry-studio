@@ -21,8 +21,9 @@ export interface OrphanBaseArtifactsInspection {
   complete: boolean
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Artifact inspection catches filesystem failures; only the verified native error code distinguishes missing paths from incomplete inspection.
 function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
+  return error instanceof Error && 'code' in error && error.code === code
 }
 
 /** Find UUID-named knowledge directories that no longer have an owning database row. */

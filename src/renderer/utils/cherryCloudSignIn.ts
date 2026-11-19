@@ -4,6 +4,7 @@ import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 /** The user-facing reason a `cherry_cloud.login.start` request failed. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Login IPC can fail with arbitrary values; only recognized IpcError codes select specific localized guidance.
 export function getCherryCloudSignInErrorMessage(error: unknown, t: TFunction): string {
   if (error instanceof IpcError) {
     if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED)

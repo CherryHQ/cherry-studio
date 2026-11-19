@@ -38,5 +38,6 @@ export const ipcApi = {
 
   /** Imperative event subscription (any context); returns an unsubscribe function. */
   on: <E extends IpcEventName>(event: E, callback: (payload: EventPayload<E>) => void): (() => void) =>
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preload multiplexes opaque events; this facade preserves the event/payload pairing owned by main's typed event senders.
     window.api.ipcApi.on(event, callback as (payload: unknown) => void)
 }

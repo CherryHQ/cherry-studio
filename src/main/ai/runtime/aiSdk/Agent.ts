@@ -321,6 +321,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
     }
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime failures can be arbitrary rejections; serialize non-Error values before invoking the typed application hook.
     const invokeOnError = async (err: unknown): Promise<'retry' | 'abort' | void> => {
       if (!hooks.onError) return undefined
       try {

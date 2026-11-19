@@ -98,6 +98,33 @@ describe('BuiltinAgentProvisioner', () => {
     })
   })
 
+  it('skips invalid localized values while preserving valid language fallbacks', () => {
+    writeFile(
+      path.join(templateDir, 'agent.json'),
+      JSON.stringify({
+        name: { 'zh-CN': { private: 'invalid' }, 'en-US': 'Fallback name' },
+        instructions: { 'zh-CN': 42, 'en-US': 'Fallback instructions' },
+        configuration: { permission_mode: 'default' }
+      })
+    )
+
+    expect(loadBuiltinAgentDefinition('assistant', 'zh-CN')).toMatchObject({
+      name: 'Fallback name',
+      instructions: 'Fallback instructions'
+    })
+    expect(loadBuiltinAgentDefaults('assistant', 'zh-CN').name).toBe('Fallback name')
+  })
+
+  it('uses the default name when localized fields are arrays', () => {
+    writeFile(
+      path.join(templateDir, 'agent.json'),
+      JSON.stringify({ name: ['invalid name'], instructions: ['invalid instructions'], configuration: {} })
+    )
+
+    expect(loadBuiltinAgentDefinition('assistant', 'en-US')).toMatchObject({ name: undefined, instructions: undefined })
+    expect(loadBuiltinAgentDefaults('assistant', 'en-US').name).toBe('Built-in Agent')
+  })
+
   it('loads bundled skills from the app-owned plugin directory', () => {
     expect(getBuiltinAgentPluginDirectory('assistant')).toBe(path.join(templateDir, '.claude'))
 

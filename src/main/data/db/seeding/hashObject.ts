@@ -10,6 +10,7 @@ import { createHash } from 'crypto'
  * Input must be plain JSON-serializable (no Map, Set, Date, undefined, Symbol, or functions).
  * Property order must be stable (guaranteed for static object literals in ES2015+).
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Seed catalogs include readonly interfaces and optional extension fields; version hashing preserves their existing JSON encoding without imposing a different seed shape.
 export function hashObject(obj: unknown): string {
   return createHash('sha256').update(JSON.stringify(obj)).digest('hex')
 }

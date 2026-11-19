@@ -7,6 +7,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 interface UseMessageImageCaptureMessagesOptions<TMessage> {
   loadMessages: () => Promise<TMessage[]>
   mapMessage?: (message: TMessage) => CherryUIMessage
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Injected message loading or projection can throw arbitrary values; pass the current failure to the owning capture host.
   onError: (error: unknown) => void
 }
 

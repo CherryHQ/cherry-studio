@@ -6,6 +6,7 @@ import { logger } from '../types'
 import { browserResult } from './result'
 import { errorResponse, successResponse } from './utils'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; ExecuteSchema validates code and target options before execution.
 export async function handleExecute(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)
   let targetTabId: string | undefined

@@ -387,6 +387,7 @@ async function resolveGithubCommit(
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
   const gitCommand = await resolveGitCommand()
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Git failures remain unchanged unless the owned output-limit error requires actionable repository context.
   const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
     if (!(error instanceof CommandOutputLimitError)) throw error
     throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {

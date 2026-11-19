@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
-import { FILE_TYPE } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE } from '@shared/types/file'
 
 import {
   KnowledgeFileNotAFileError,
@@ -27,6 +27,22 @@ const presentFileMetadata = {
 }
 
 describe('knowledgeFileEntry', () => {
+  it('retains per-file rejection identity without discarding readable siblings when diagnostics cannot be printed', async () => {
+    const failure = Object.create(null)
+    const resolved = { source: '/tmp/ok.pdf', path: AbsoluteFilePathSchema.parse('/tmp/ok.pdf') }
+    const batch = await resolveKnowledgeFileBatch(
+      ['ok', 'failed'],
+      async (item) => {
+        if (item === 'failed') throw failure
+        return resolved
+      },
+      (item) => item
+    )
+    expect(batch.resolved).toEqual([resolved])
+    expect(batch.failed).toEqual([{ index: 1, source: 'failed', reason: '[Unserializable]', error: failure }])
+    expect(selectKnowledgeFileBatchOutcome(batch)).toMatchObject({ resolved: [], fatal: failure })
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.request.mockResolvedValue(presentFileMetadata)

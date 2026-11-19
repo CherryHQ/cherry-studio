@@ -2,6 +2,7 @@ import type { toMarkdownBytes } from '@firecrawl/anydoc'
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
 
 import { loggerService } from '@logger'
+import { getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('KnowledgeAnydocReader')
 type AnydocModule = { toMarkdownBytes: typeof toMarkdownBytes }
@@ -13,8 +14,9 @@ function loadAnydocModule(): Promise<AnydocModule> {
   return (anydocModulePromise ??= import('@firecrawl/anydoc'))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native document loading may reject arbitrary values; normalize only at the reader's Error contract and preserve existing Error identity.
 function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
+  return error instanceof Error ? error : new Error(getErrorMessage(error, 'Document conversion failed'))
 }
 
 /**

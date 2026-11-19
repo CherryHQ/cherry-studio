@@ -50,6 +50,7 @@ function getToolDisplayName(toolResponse: ToolResponseLike): string {
   return toolResponse.tool.name
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permission UI reads versioned runtime tool inputs; only nonempty string fields may become a display title.
 function getStringField(value: unknown, fields: string[]): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 

@@ -88,6 +88,7 @@ export interface PersistableText {
  * full in the DB and the in-flight middleware keeps truncating it per
  * request.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored tool results are heterogeneous; trim only text envelopes whose complete content and siblings survive reconstruction.
 export function extractPersistableText(output: unknown): PersistableText | null {
   if (typeof output === 'string') return { text: output, shape: 'text' }
   if (typeof output !== 'object' || output === null || Array.isArray(output)) return null

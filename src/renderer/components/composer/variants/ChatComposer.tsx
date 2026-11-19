@@ -1335,6 +1335,7 @@ const ChatComposerInner = ({
 
   useEffect(() => {
     if (!layerActive) return
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The renderer event bus erases payload types; verify topic ownership, URL and supported image input before materializing a reference.
     return EventEmitter.on(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, async (payload: unknown) => {
       if (!payload || typeof payload !== 'object') return
       const reference = payload as { topicId?: unknown; url?: unknown; name?: unknown }

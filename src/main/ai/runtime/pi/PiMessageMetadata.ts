@@ -1,4 +1,4 @@
-import type { AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { DynamicToolUIPart } from 'ai'
 import * as z from 'zod'
 
@@ -25,6 +25,9 @@ const nestedCallsSchema = z.object({
     )
   })
 })
+
+const toolContentSchema = z.looseObject({ content: z.array(z.unknown()) })
+const textContentSchema = z.array(z.object({ type: z.literal('text'), text: z.string() }))
 
 export function resolvePiMcpToolMetadata(
   definition: ToolDefinition | undefined,
@@ -124,18 +127,24 @@ export class PiMessageMetadata {
 
     const toolName = part.toolName
     const result = part.output
-    const toolResult = asToolResult(result)
+    const toolResult = hasToolContent(result) ? result : undefined
     let output = result ?? null
     if (toolResult) {
       if (toolName === PI_TOOL_EXEC_TOOL_NAME) output = unwrapMcpContent(toolResult)
       else if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
         output = toolResult.details ?? toolResult
       } else if (toolName.startsWith('mcp__')) {
-        const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+        const mcpResult = toolResult.structuredContent
         // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
-        output = toolName.startsWith('mcp__automation__')
-          ? (mcpResult ?? toolResult)
-          : (mcpResult?.structuredContent ?? unwrapMcpContent(toolResult))
+        if (toolName.startsWith('mcp__automation__')) {
+          output = mcpResult ?? toolResult
+        } else {
+          const structuredContent =
+            typeof mcpResult === 'object' && mcpResult !== null && 'structuredContent' in mcpResult
+              ? mcpResult.structuredContent
+              : undefined
+          output = structuredContent ?? unwrapMcpContent(toolResult)
+        }
       } else {
         output = toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
       }
@@ -144,22 +153,16 @@ export class PiMessageMetadata {
   }
 }
 
-type PiToolContent = AgentToolResult<unknown>['content'][number]
-
-function isTextContent(block: PiToolContent): block is Extract<PiToolContent, { type: 'text' }> {
-  return block.type === 'text'
-}
-
-/** pi types `tool_execution_end`'s `result` as `any`, and its builtins may return a bare string. */
-function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
-  const candidate = result as AgentToolResult<unknown> | undefined
-  return candidate && Array.isArray(candidate.content) ? candidate : undefined
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native Pi events and saved tool outputs have no validated result type; only claim the consumed content envelope.
+function hasToolContent(result: unknown): result is z.infer<typeof toolContentSchema> {
+  return toolContentSchema.safeParse(result).success
 }
 
 /** Unwrap all-text MCP results so tool cards and citation resolution see the same shape across runtimes. */
-function unwrapMcpContent({ content }: AgentToolResult<unknown>): Serializable | PiToolContent[] {
-  if (!content.every(isTextContent)) return content
-  const text = content.map((block) => block.text).join('\n')
+function unwrapMcpContent({ content }: z.infer<typeof toolContentSchema>): Serializable | unknown[] {
+  const parsed = textContentSchema.safeParse(content)
+  if (!parsed.success) return content
+  const text = parsed.data.map((block) => block.text).join('\n')
   try {
     // SAFETY: Native JSON parsing validates the grammar and constructs only serializable values.
     return JSON.parse(text) as Serializable

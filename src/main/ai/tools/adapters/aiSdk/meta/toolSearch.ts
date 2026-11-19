@@ -93,6 +93,7 @@ export function createToolSearchTool(
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK model-output adapters can receive saved opaque results; ToolSearchOutputSchema must validate them before formatting.
 function formatSearchForModel(output: unknown): string {
   const parsed = ToolSearchOutputSchema.safeParse(output)
   if (!parsed.success) return INVALID_SEARCH_OUTPUT_MESSAGE

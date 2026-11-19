@@ -300,13 +300,16 @@ export function FilePreview({
         }
 
         const module = plugin
-          ? await plugin.modulePromise.catch((error: unknown) => {
-              logger.error(
-                `Failed to load file preview plugin: ${plugin.descriptor.id}`,
-                error instanceof Error ? error : new Error(String(error))
-              )
-              return null
-            })
+          ? await plugin.modulePromise.catch(
+              // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic plugin imports can reject with any value; log the original failure and select the preview load-error state.
+              (error: unknown) => {
+                logger.error(
+                  `Failed to load file preview plugin: ${plugin.descriptor.id}`,
+                  error instanceof Error ? error : { error }
+                )
+                return null
+              }
+            )
           : null
         if (cancelled) return
         if (plugin && !module) {

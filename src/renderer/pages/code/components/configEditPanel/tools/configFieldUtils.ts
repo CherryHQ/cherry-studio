@@ -1,5 +1,6 @@
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- User-edited CLI configuration has arbitrary nested values; only nonarray records can hold named section fields.
 export function getRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
 type SectionFieldValue = string | number | boolean | string[] | Record<string, unknown> | undefined

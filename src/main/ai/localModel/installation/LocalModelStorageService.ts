@@ -346,6 +346,7 @@ export class LocalModelStorageService {
       waiters: 0
     }
     let resolveInstall!: () => void
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This native Promise reject preserves acquisition, installation, and cancellation failures for all waiting callers.
     let rejectInstall!: (error: unknown) => void
     const operation = new Promise<void>((resolve, reject) => {
       resolveInstall = resolve

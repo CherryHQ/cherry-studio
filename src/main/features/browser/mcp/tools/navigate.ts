@@ -7,6 +7,7 @@ import { browserResult } from './result'
 
 export async function handleHistory(
   controller: BrowserController,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; historySchema validates this handler's input.
   args: unknown,
   direction: -1 | 1,
   signal?: AbortSignal
@@ -28,6 +29,7 @@ export async function handleHistory(
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; waitForSchema validates this handler's input.
 export async function handleWaitFor(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = waitForSchema.parse(args)
   return browserResult(controller, input, signal, async (session, options) => {

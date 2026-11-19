@@ -10,9 +10,8 @@ import type { PaintingData } from '../types/paintingData'
 const logger = loggerService.withContext('paintings/recordToPaintingData')
 
 /** Maps DB `painting.model_id` into the renderer's API model slug (never the user_model row id alone). */
-function normalizeStoredPaintingModel(value: unknown): string | undefined {
+function normalizeStoredPaintingModel(value: PaintingRecord['modelId']): string | undefined {
   if (value == null) return undefined
-  if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   if (!trimmed) return undefined
   if (isUniqueModelId(trimmed)) {

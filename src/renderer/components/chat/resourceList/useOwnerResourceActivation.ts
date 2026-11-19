@@ -4,6 +4,7 @@ type UseOwnerResourceActivationOptions<TOwner, TResource> = {
   loadResourceForOwner: (owner: TOwner) => Promise<TResource | null>
   createResourceForOwner: (owner: TOwner) => Promise<TResource | null>
   onActivateResource: (resource: TResource) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Owner lookup and resource creation can reject with any value; preserve the failure for the injected presenter.
   onError: (error: unknown) => void
 }
 

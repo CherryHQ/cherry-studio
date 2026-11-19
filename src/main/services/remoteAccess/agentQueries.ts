@@ -40,6 +40,7 @@ export const INLINE_TEXT_LIMIT = 4096
 export const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
 export const revisionOf = (iso: string): string => String(Date.parse(iso))
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime tool inputs are tool-defined; the existing JSON representation defines their approval digest without inventing a shared tool schema.
 export const inputDigest = (input: unknown): string => sha256(utf8(JSON.stringify(input ?? null)))
 
 export type PartContent = { text: string } | { ref: ContentRef }

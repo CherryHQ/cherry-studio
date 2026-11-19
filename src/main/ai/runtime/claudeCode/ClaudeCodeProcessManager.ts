@@ -63,15 +63,17 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Child-process spawn and fallback catches may throw arbitrary values; only real Errors enter the process diagnostic recorder.
 function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, error: unknown): void {
   if (!(error instanceof Error)) return
   recordClaudeCodeSpawnError(diagnostics, error)
   logClaudeCodeProcessFailure(diagnostics)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The Darwin spawn fallback applies only to a caught Error with EBADF; unrelated failures retain their normal handling.
 function macOsForkFallbackUid(error: unknown): number | undefined {
   if (process.platform !== 'darwin' || typeof process.getuid !== 'function') return undefined
-  if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'EBADF') return undefined
+  if (!(error instanceof Error) || !('code' in error) || error.code !== 'EBADF') return undefined
 
   // Apple posix_spawn rejects pipe fds above 10239 (libuv#5204); same uid selects libuv's fork/exec path.
   return process.getuid()

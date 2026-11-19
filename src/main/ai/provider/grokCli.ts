@@ -91,14 +91,15 @@ export function normalizeGrokModelId(modelId: string): string {
   return (modelId || '').toLowerCase().split('/').pop() || ''
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Responses request JSON may contain strings or heterogeneous blocks; only readable text is forwarded as instructions.
 function textFromResponsesContent(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
     .map((part) => {
       if (typeof part === 'string') return part
-      if (part && typeof part === 'object' && typeof (part as Record<string, unknown>).text === 'string') {
-        return (part as Record<string, string>).text
+      if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') {
+        return part.text
       }
       return ''
     })

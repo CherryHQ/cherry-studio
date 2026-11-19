@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next'
 
+import { safeToString } from '@renderer/utils/error'
+
 import { AgentToolsType, type ToolSearchToolInput, ToolSearchToolOutputSchema } from '../shared/agentToolTypes'
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool search results can originate from several runtimes; validate known output and safely display an unrecognized result.
 function parseOutput(output: unknown): { matches: string[]; message?: string } {
   if (!output) return { matches: [] }
   const result = ToolSearchToolOutputSchema.safeParse(output)
-  if (!result.success) return { matches: [], message: JSON.stringify(output, null, 2) }
+  if (!result.success) return { matches: [], message: safeToString(output, 2) }
   if (typeof result.data === 'string') return { matches: [], message: result.data }
   return { matches: result.data.map((item) => item.tool_name) }
 }

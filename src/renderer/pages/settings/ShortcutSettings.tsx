@@ -268,8 +268,9 @@ const ShortcutSettings: FC = () => {
     )
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Shortcut preference updates may reject any value; report the failure with the affected shortcut identity.
   const handleUpdateFailure = (record: (typeof shortcuts)[number], error: unknown) => {
-    logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
+    logger.error(`Failed to update shortcut preference: ${record.key}`, error instanceof Error ? error : { error })
     toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
   }
 

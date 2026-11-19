@@ -36,6 +36,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -155,6 +156,7 @@ const MinimalToolbar: FC<Props> = ({
 
       const loadGeneration = ++addressLoadGenerationRef.current
       const loadOwner = { appId: app.appId, webview, webviewRevision }
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Webview navigation can reject arbitrary values; retain owner/generation checks before classifying or reporting failure.
       const handleLoadFailure = (error: unknown) => {
         const currentOwner = addressLoadOwnerRef.current
         if (
@@ -167,8 +169,8 @@ const MinimalToolbar: FC<Props> = ({
           return
         }
         restoreCurrentPageUrl()
-        if (error instanceof Error && /ERR_ABORTED/.test(error.message)) return
-        logger.error('Failed to navigate WebView from address bar', error as Error)
+        if (error instanceof Error && /ERR_ABORTED/.test(readErrorMessage(error))) return
+        logger.error('Failed to navigate WebView from address bar', error instanceof Error ? error : { error })
         toast.error(t('miniApp.error.load_failed'))
       }
 

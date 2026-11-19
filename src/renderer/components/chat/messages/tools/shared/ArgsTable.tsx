@@ -1,18 +1,17 @@
 import type { ComponentPropsWithoutRef } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { safeToString } from '@renderer/utils/error'
 
 import { SkeletonSpan } from './GenericTools'
 
 /**
  * Format argument value for display in table
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool extensions own argument values; formatting must handle non-JSON values without interrupting message rendering.
 export const formatArgValue = (value: unknown): string => {
-  if (value === null) return 'null'
   if (value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return JSON.stringify(value)
+  return safeToString(value)
 }
 
 /**

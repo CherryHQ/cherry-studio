@@ -22,6 +22,7 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
     private readonly handlers: IpcHandlersFor<S>
   ) {}
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer transport input remains untrusted until the selected route's input schema validates it.
   async dispatch(route: string, input: unknown, ctx: IpcContext): Promise<z.infer<S[keyof S]['output']>> {
     // Own-property guard: a bare `schemas[route]` resolves inherited members
     // (__proto__, constructor, toString, …) to truthy Object.prototype values, which

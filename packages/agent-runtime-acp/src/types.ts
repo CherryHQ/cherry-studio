@@ -62,6 +62,7 @@ export interface AcpRuntimeOptions {
   connect(): Promise<AcpTransportLease>
   loadConfiguration?(thread: Thread): Promise<NewSessionRequest>
   readonly callbacks?: AcpHostCallbacks
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ACP transport and host callbacks may reject with arbitrary values; the host owns the diagnostic policy.
   report(error: unknown): void
 }
 

@@ -332,6 +332,7 @@ export async function relocateSystemWorkspaces(): Promise<Set<string>> {
   const recoveryRoot = path.join(root, '.relocation')
   const protectedSessions = new Set<string>()
   const workspaces = agentWorkspaceService.list({ includeSystem: true })
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Relocation catches filesystem and history failures; retain the original failure while protecting every affected Session.
   function failed(workspaceId: string, error: unknown) {
     logger.error('Failed to relocate system workspace; original history retained', { workspaceId, error })
     const workspace = agentWorkspaceService.getById(workspaceId, { includeSystem: true })

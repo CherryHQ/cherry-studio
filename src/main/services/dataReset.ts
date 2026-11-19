@@ -96,8 +96,15 @@ type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
 
 /** The marker rename landed, but directory durability is unknown. */
 class MarkerCommitError extends Error {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Directory sync may reject any value after marker rename; diagnostic conversion must preserve the uncertain-commit classification.
   constructor(error: unknown) {
-    super(`Data reset marker may have committed: ${String(error)}`)
+    let message: string
+    try {
+      message = String(error)
+    } catch {
+      message = 'Unknown marker commit failure'
+    }
+    super(`Data reset marker may have committed: ${message}`, { cause: error })
   }
 }
 

@@ -8,6 +8,7 @@ import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -64,9 +65,10 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   }
 
   const getInstallErrorMessage = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preview/install failures and missing results are untyped; only usable Error text augments the localized install message.
     (e: unknown, fallbackName?: string) => {
       const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
-      return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
+      return e instanceof Error && readErrorMessage(e) ? formatErrorMessageWithPrefix(e, prefix) : prefix
     },
     [t]
   )

@@ -1286,6 +1286,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Saved native checkpoints have no trusted shape until ClaudeForkCheckpointSchema validates them.
   isForkCheckpoint(value: unknown): boolean {
     return ClaudeForkCheckpointSchema.safeParse(value).success
   }

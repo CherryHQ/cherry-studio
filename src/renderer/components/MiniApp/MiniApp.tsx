@@ -126,13 +126,14 @@ const MiniApp: FC<Props> = ({
         } as const)
       : {}
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mini-app mutations may reject arbitrary values; DataApi guards select structured failures before generic reporting.
   const reportFailure = (fallbackKey: string) => (err: unknown) => {
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
       toast.error(e.message || t(fallbackKey))
     } else {
-      logger.error('mutation failed', err as Error)
+      logger.error('mutation failed', err instanceof Error ? err : { error: err })
       toast.error(t(fallbackKey))
     }
   }

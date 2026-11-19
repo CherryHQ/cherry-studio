@@ -12,6 +12,7 @@ import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { MediaKind } from '@main/services/mediaProtocol'
+import { getErrorMessage } from '@main/utils/error'
 import { cropPng } from '@main/utils/image'
 import {
   getScreenCapturePermissionStatus,
@@ -923,12 +924,13 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /** Report a capture that failed for any reason other than a missing permission. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native capture failures are untyped; the localized dialog must still open when diagnostic text cannot be formatted.
   private async showCaptureFailedDialog(error: unknown): Promise<void> {
     await dialog.showMessageBox({
       type: 'error',
       title: t('dialog.screenshot_failed.title'),
       message: t('dialog.screenshot_failed.message'),
-      detail: error instanceof Error ? error.message : String(error),
+      detail: getErrorMessage(error, t('dialog.screenshot_failed.message')),
       buttons: [t('dialog.screenshot_failed.ok')],
       defaultId: 0
     })

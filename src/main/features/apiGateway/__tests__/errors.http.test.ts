@@ -235,6 +235,16 @@ add(
 )
 add('structured-empty-wins', { message: phrases[0], error: { message: '' } })
 add('status-structured-empty', { status: 503, message: phrases[0], error: { message: '' } }, 503)
+add(
+  'unreadable-request-id-preserves-status',
+  Object.defineProperty({ status: 429, message: 'Provider rate limit' }, 'request_id', {
+    get() {
+      throw new Error('Correlation metadata unavailable')
+    }
+  }),
+  429,
+  'Provider rate limit'
+)
 cases.push({
   id: 'provider-type-request-id',
   origin: 'constructed boundary',

@@ -26,6 +26,7 @@ type UiDataSlotProps<Result> = SlotProps<Result> & {
   ref?: RefTarget
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- React asChild refs may hold DOM nodes or custom imperative handles; forward the opaque instance and preserve cleanup semantics.
 function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
   if (typeof ref === 'function') return ref(node)
   if (ref !== null && ref !== undefined) ref.current = node
@@ -92,6 +93,7 @@ export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotPr
   const latest = useRef<{ forwarded: RefTarget; child: RefTarget }>({ forwarded: undefined, child: undefined })
   latest.current.forwarded = ref
   const stableRef = useMemo(() => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The cloned child's React ref owns the instance type; this stable callback transparently forwards it to both captured targets.
     return (node: unknown) => {
       const refs = [latest.current.forwarded, latest.current.child]
       let hasCleanup = false

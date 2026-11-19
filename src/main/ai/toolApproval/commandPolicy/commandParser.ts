@@ -70,6 +70,7 @@ export function initializeCommandParser(): Promise<void> {
       Language.load(path.join(assets, 'tree-sitter-powershell.wasm'))
     ])
     languages = { bash, powershell }
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tree-sitter loading can reject arbitrary values; clear the cached attempt and rethrow the same failure so initialization can retry.
   })().catch((error: unknown) => {
     initialization = undefined
     throw error

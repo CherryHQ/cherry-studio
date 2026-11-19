@@ -223,13 +223,18 @@ export class AgentSubscriptions {
       jsonrpc: '2.0',
       method: 'agent.subscriptions.resetRequired',
       params: { subscriptionId: subscription.id, reason }
-    }).catch((error: unknown) => logger.warn('Failed to deliver subscription reset', error as Error))
+    }).catch(
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Socket delivery may reject with any value; preserve the original failure for centralized logging.
+      (error: unknown) =>
+        logger.warn('Failed to deliver subscription reset', error instanceof Error ? error : { error })
+    )
   }
 
   private schedule(subscription: Subscription): void {
     subscription.pump = subscription.pump
       .then(() => this.pump(subscription))
-      .catch((error: unknown) => logger.warn('Subscription pump failed', error as Error))
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Subscription projection and delivery may reject arbitrary values; logging must not assume a native Error.
+      .catch((error: unknown) => logger.warn('Subscription pump failed', error instanceof Error ? error : { error }))
   }
 
   private async pump(subscription: Subscription): Promise<void> {

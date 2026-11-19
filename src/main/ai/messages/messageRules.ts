@@ -15,6 +15,7 @@ import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupport
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical/provider message content may be a string or mixed blocks; this normalizer preserves blocks without claiming their schema.
 function contentToParts(content: unknown): unknown[] {
   if (typeof content === 'string') return content.length > 0 ? [{ type: 'text', text: content }] : []
   return Array.isArray(content) ? content : []

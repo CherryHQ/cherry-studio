@@ -39,20 +39,30 @@ export function currentRuntimeProfile(): LocalInferenceRuntimeProfile {
   return runtimeProfile
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference errors and cause chains are untyped; unreadable diagnostics must not prevent cleanup or the hardware-to-CPU retry.
 export function describeError(error: unknown): string {
   const details: string[] = []
-  const seen = new Set<unknown>()
-  let current: any = error
-  while (current && details.length < 4) {
-    if (typeof current === 'object') {
-      if (seen.has(current)) break
-      seen.add(current)
+  const seen = new Set<object>()
+  let current: unknown = error
+  for (let depth = 0; depth < 4; depth++) {
+    const value =
+      (typeof current === 'object' && current !== null) || typeof current === 'function' ? current : undefined
+    if (value) {
+      if (seen.has(value)) break
+      seen.add(value)
     }
-    const name = current?.name ?? 'Error'
-    const message = current?.message ?? String(current)
-    const code = current?.code ? ` code=${current.code}` : ''
-    details.push(`${name}${code}: ${message}`)
-    current = typeof current === 'object' ? current.cause : null
+    try {
+      const name = value && 'name' in value ? (value.name ?? 'Error') : 'Error'
+      const message = value && 'message' in value ? (value.message ?? String(current)) : String(current)
+      const code = value && 'code' in value && value.code ? ` code=${value.code}` : ''
+      const next = value && 'cause' in value ? value.cause : undefined
+      details.push(`${name}${code}: ${message}`)
+      if (next === undefined || next === null) break
+      current = next
+    } catch {
+      details.push('Error: Unreadable inference failure')
+      break
+    }
   }
   return details.join(' <- caused by ')
 }

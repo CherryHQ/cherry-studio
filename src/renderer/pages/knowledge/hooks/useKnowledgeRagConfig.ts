@@ -6,11 +6,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
+import { toError } from '@renderer/utils/errorDetails'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
-import { normalizeKnowledgeError } from '../utils/error'
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
@@ -87,7 +87,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
         body: patch
       })
     } catch (saveError) {
-      const normalizedError = normalizeKnowledgeError(saveError)
+      const normalizedError = toError(saveError)
       logger.error('Failed to update knowledge RAG config', normalizedError, {
         baseId: base.id,
         updates: patch

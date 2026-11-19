@@ -238,6 +238,7 @@ export type McpConfig = z.infer<typeof McpConfigSchema>
  * @returns 包含成功/失败状态和数据的 `SafeParseResult`。
  */
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported and user-edited MCP configuration is untrusted until McpConfigSchema validates it.
 export function safeValidateMcpConfig(config: unknown) {
   return McpConfigSchema.safeParse(config)
 }

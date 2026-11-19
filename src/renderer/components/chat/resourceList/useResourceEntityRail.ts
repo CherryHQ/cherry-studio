@@ -19,9 +19,11 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   /** Load the entity's most-recently-active resource before navigating. */
   loadResourceForEntity: (entityId: string) => Promise<TResource | null>
   onCreateResource: (entityId: string) => Promise<TResource | null>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Injected activation/reorder operations can reject arbitrary values; forward failures to the owning UI callback.
   onActivationError: (error: unknown) => void
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<TRefetch>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Injected activation/reorder operations can reject arbitrary values; forward failures to the owning UI callback.
   onReorderError: (error: unknown) => void
 }
 

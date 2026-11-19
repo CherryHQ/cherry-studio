@@ -9,9 +9,10 @@ export class RuntimeMessageStream {
   private controller!: ReadableStreamDefaultController<UIMessageChunk>
   private readonly reading: Promise<void>
   private pending = Promise.resolve<RuntimeMessage | undefined>(undefined)
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The SDK reader may reject with any value; each append receipt must receive that exact reason.
   private receipt?: { revision: number; resolve(message: RuntimeMessage): void; reject(error: unknown): void }
   private revision = 0
-  private failure?: unknown
+  private failure?: { error: unknown }
   private closed = false
 
   constructor(id: string) {
@@ -33,7 +34,7 @@ export class RuntimeMessageStream {
           this.receipt = undefined
         }
       } catch (error) {
-        this.failure = error
+        this.failure = { error }
         this.receipt?.reject(error)
         this.receipt = undefined
       }
@@ -43,7 +44,7 @@ export class RuntimeMessageStream {
   append(chunks: readonly UIMessageChunk[], completeness: Completeness): Promise<RuntimeMessage> {
     const next = this.pending.then(() => {
       if (this.closed) throw new Error('Message stream is closed')
-      if (this.failure) throw this.failure
+      if (this.failure) throw this.failure.error
       return new Promise<RuntimeMessage>((resolve, reject) => {
         const revision = ++this.revision
         this.receipt = { revision, resolve, reject }

@@ -8,7 +8,12 @@
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic#cache-control
  */
 
-import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import type {
+  LanguageModelV3CallOptions,
+  LanguageModelV3FunctionTool,
+  LanguageModelV3Message,
+  LanguageModelV3ProviderTool
+} from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
@@ -156,14 +161,13 @@ type HolderPath = (string | number)[]
 
 function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<string>): LanguageModelV3CallOptions {
   const holders: { path: HolderPath; key: string; rank: number }[] = []
-  const inspect = (value: unknown, path: HolderPath): boolean => {
-    const anthropic = (
-      (value as Holder).providerOptions as
-        | { anthropic?: { cacheControl?: { ttl?: string }; cache_control?: { ttl?: string } } }
-        | undefined
-    )?.anthropic
+  const inspect = (
+    value: Pick<LanguageModelV3Message, 'providerOptions'> | LanguageModelV3ProviderTool,
+    path: HolderPath
+  ): boolean => {
+    const anthropic = 'providerOptions' in value ? value.providerOptions?.anthropic : undefined
     const marker = anthropic?.cacheControl ?? anthropic?.cache_control
-    if (!marker) return false
+    if (typeof marker !== 'object' || marker === null || Array.isArray(marker)) return false
     holders.push({ path, key: path.join('.'), rank: marker.ttl === '1h' ? 1 : 0 })
     return true
   }
@@ -228,6 +232,7 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       rank = holder.rank
       continue
     }
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Inspected paths cross different SDK object and array types; copying only that path preserves untouched request references.
     const remove = (node: unknown, depth: number): Record<string, unknown> | unknown[] => {
       if (depth === path.length) {
         const holder = node as { providerOptions: { anthropic: Record<string, unknown> } }

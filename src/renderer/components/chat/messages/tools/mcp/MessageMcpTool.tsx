@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
+import { safeToString } from '@renderer/utils/error'
 
 import {
   useMessageRenderConfig,
@@ -141,7 +142,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         <Tooltip content={t('common.copy')} delay={500}>
           <ActionButton
             className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
-            onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
+            onClick={() => copyContent(safeToString(result, 2), id)}
             aria-label={t('common.copy')}>
             {copiedMap[id] ? t('common.copied') : t('common.copy')}
           </ActionButton>
@@ -189,6 +190,7 @@ type ExtractedContent = {
 /**
  * Extract preview content from MCP tool response using SDK schema
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical tool results may lack an MCP envelope; validate recognized content and safely format opaque fallback data.
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [], links: [] }
 
@@ -239,7 +241,7 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
   }
 
   // Fallback: return JSON string for unknown format
-  const text = JSON.stringify(response, null, 2)
+  const text = typeof response === 'string' ? JSON.stringify(response) : safeToString(response, 2)
   const links = getToolResultLinks({ type: 'text', text: typeof response === 'string' ? response : text })
   return { text: links ? '' : text, images: [], links: links ?? [] }
 }
@@ -249,6 +251,7 @@ const truncateArgText = (text: string): string => {
   return result.isTruncated ? `${result.data}\n... truncated (${result.originalLength} chars)` : result.data
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool argument fields are extension-defined; this bounded preview narrows each value before formatting it.
 const formatArgPreviewValue = (value: unknown, depth = 0): string => {
   if (value === null) return 'null'
   if (value === undefined) return ''
@@ -276,7 +279,7 @@ const formatArgPreviewValue = (value: unknown, depth = 0): string => {
     return `{${visibleEntries.join(', ')}${suffix}}`
   }
 
-  return truncateArgText(String(value))
+  return truncateArgText(safeToString(value))
 }
 
 const ToolResponseContent: FC<{

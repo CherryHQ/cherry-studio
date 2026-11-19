@@ -43,11 +43,14 @@ export interface BuiltinAgentDefaults {
 }
 
 /** Resolve a localized field: string passes through; locale-keyed object resolves by language. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bundled agent.json is read as raw JSON; accept plain strings or locale maps with string values before provisioning typed defaults.
 function resolveLocalizedField(value: unknown, language: string): string | undefined {
   if (typeof value === 'string') return value
-  if (typeof value !== 'object' || value === null) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
 
-  const map = value as Record<string, string>
+  const map = Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  )
   const prefix = language.split('-')[0]
   const prefixKey = Object.keys(map).find((key) => key.startsWith(prefix))
 
@@ -91,6 +94,7 @@ export function loadBuiltinAgentDefinition(
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
     for (const field of ['skills', 'disabled_tools'] as const) {
       const value = agentConfig[field]
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw skills and disabled_tools arrays must contain only string IDs before the bundle is returned to provisioning.
       if (value !== undefined && (!Array.isArray(value) || value.some((item: unknown) => typeof item !== 'string'))) {
         throw new Error(`Builtin agent ${field} must be a string array`)
       }

@@ -110,6 +110,21 @@ describe('publishFileNoClobber', () => {
     await expect(readFile(staged, 'utf8')).resolves.toBe('new content')
   })
 
+  it.each([null, undefined, false, 0, '', { code: 13 }, { code: 'EIO' }])(
+    'preserves an unrecognized hard-link failure %j without publishing or consuming the source',
+    async (error) => {
+      const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+      const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
+      await writeFile(staged, 'keep source')
+      vi.mocked(link).mockRejectedValueOnce(error)
+
+      await expect(publishFileNoClobber(staged, target)).rejects.toBe(error)
+
+      expect(await exists(target)).toBe(false)
+      await expect(readFile(staged, 'utf8')).resolves.toBe('keep source')
+    }
+  )
+
   it('falls back to an exclusive copy when hard links cross filesystems', async () => {
     const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
     const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath

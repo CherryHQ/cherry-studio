@@ -28,6 +28,7 @@ export async function createSelectionAgentSession({ agentId, workspace }: Select
   return session.id
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Workspace/session reads can reject arbitrary values; IPC/DataApi guards recognize only supported unavailable states.
 export function isSelectionWorkspaceUnavailableError(error: unknown): boolean {
   return isAgentWorkspaceNotFoundError(error) || isDataApiResourceNotFoundError(error, 'Workspace')
 }

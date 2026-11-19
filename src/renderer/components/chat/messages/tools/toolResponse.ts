@@ -111,6 +111,7 @@ function isLegacyAgentToolName(toolName: string): boolean {
   return AGENT_TOOL_NAMES.has(toolName) || toolName.startsWith(AGENT_MCP_TOOLS_PREFIX)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored provider metadata spans runtime versions; verify Cherry's envelope and each consumed tool field before projecting it.
 function extractCherryToolMetadataFrom(metadata: unknown): ToolMetadata | undefined {
   if (!isRecord(metadata)) return undefined
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined

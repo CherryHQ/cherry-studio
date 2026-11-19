@@ -12,6 +12,7 @@ import { browserResult } from './result'
 export async function handleInteraction(
   name: keyof typeof interactionSchemas,
   controller: BrowserController,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The selected interaction schema validates the registry's untyped arguments before its action-specific fields are used.
   args: unknown,
   signal?: AbortSignal
 ) {

@@ -33,6 +33,7 @@ interface DiagnosticBundlePanelProps {
   readonly onClose: () => void
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Diagnostics/export operations may reject arbitrary values; only recognized IPC destination codes prove a conflict.
 function isDestinationConflictError(error: unknown): boolean {
   return (
     error instanceof IpcError &&

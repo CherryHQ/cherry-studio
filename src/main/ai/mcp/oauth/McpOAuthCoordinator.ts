@@ -2,6 +2,7 @@ export class McpAuthorizationCompleted extends Error {}
 
 export interface McpAuthorizationLease {
   signal: AbortSignal
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Coalesced authorization waiters must receive the original SDK failure or cancellation reason.
   finish(error?: unknown): void
 }
 

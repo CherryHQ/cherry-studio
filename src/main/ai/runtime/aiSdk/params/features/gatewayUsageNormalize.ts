@@ -24,6 +24,7 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
   if (!isPlainObject(usage) || !isPlainObject(usage.raw)) return usage
 
   const { raw } = usage
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider-specific raw usage fields are unvalidated; only numeric values enter cache-bucket reconciliation.
   const toCount = (value: unknown) => (typeof value === 'number' ? value : undefined)
   const details = isPlainObject(raw.prompt_tokens_details)
     ? (raw.prompt_tokens_details as Record<string, unknown>)

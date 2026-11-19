@@ -236,9 +236,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }),
     [displayIndex, items, resolvedContextMenuTransform, setOpen]
   )
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preview actions can reject with any value; logging must preserve native errors and opaque rejection metadata.
   const onActionError = React.useCallback((error: unknown, action: ImagePreviewAction, item: ImagePreviewItem) => {
     logger.error(`Image preview action failed: ${action.id}`, {
-      error: error instanceof Error ? error.message : String(error),
+      error,
       itemId: item.id
     })
   }, [])

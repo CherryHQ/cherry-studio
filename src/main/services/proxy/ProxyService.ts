@@ -25,20 +25,25 @@ export type ProxyConnectionTestResult = {
   error?: 'invalid_config' | 'authentication_required' | 'timeout' | 'unreachable' | 'http_error' | 'connection_failed'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Proxy probes can reject arbitrary values; only readable native error text establishes a more specific connection-failure category.
 function classifyProxyTestError(error: unknown): NonNullable<ProxyConnectionTestResult['error']> {
-  const message = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : ''
-  if (message.includes('proxy_auth') || message.includes('proxy authentication') || message.includes('407')) {
-    return 'authentication_required'
-  }
-  if (message.includes('abort') || message.includes('timeout')) return 'timeout'
-  if (
-    message.includes('econnrefused') ||
-    message.includes('enotfound') ||
-    message.includes('err_name_not_resolved') ||
-    message.includes('err_proxy_connection_failed') ||
-    message.includes('err_tunnel_connection_failed')
-  ) {
-    return 'unreachable'
+  try {
+    const message = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : ''
+    if (message.includes('proxy_auth') || message.includes('proxy authentication') || message.includes('407')) {
+      return 'authentication_required'
+    }
+    if (message.includes('abort') || message.includes('timeout')) return 'timeout'
+    if (
+      message.includes('econnrefused') ||
+      message.includes('enotfound') ||
+      message.includes('err_name_not_resolved') ||
+      message.includes('err_proxy_connection_failed') ||
+      message.includes('err_tunnel_connection_failed')
+    ) {
+      return 'unreachable'
+    }
+  } catch {
+    // Unreadable native diagnostics cannot establish authentication or timeout evidence.
   }
   return 'connection_failed'
 }

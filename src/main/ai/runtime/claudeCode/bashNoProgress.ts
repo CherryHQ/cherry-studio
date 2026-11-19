@@ -45,6 +45,7 @@ export function normalizeBashCommand(command: string): string {
 }
 
 /** Success and failure fingerprints never collide, so a flaky-then-fixed run reads as progress. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bash hook JSON includes different success/failure shapes; serialization, rather than a guessed DTO, defines repetition identity.
 export function fingerprintBashOutput(output: unknown, failed: boolean): string {
   const text = typeof output === 'string' ? output : (JSON.stringify(output) ?? '')
   const hash = createHash('sha256').update(text).digest('hex').slice(0, 16)

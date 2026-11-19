@@ -98,6 +98,7 @@ async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
 }
 
 /** Whether an anydoc rejection means "no text layer, hand this to OCR". */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native document conversion can throw any value; only a verified Error carrying needsOcr selects the OCR path.
 export function isScannedPdfError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'needsOcr'
 }

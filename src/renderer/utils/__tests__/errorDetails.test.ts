@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { formatErrorDetails } from '../errorDetails'
+import { formatErrorDetails, readErrorMessage, toError } from '../errorDetails'
 
 const loaded = vi.hoisted(() => vi.fn())
 
@@ -20,6 +20,17 @@ vi.mock('axios', () => {
 })
 
 describe('formatErrorDetails', () => {
+  it('keeps readable failure text when unrelated details cannot be encoded as JSON', () => {
+    expect(formatErrorDetails({ message: 'Request failed', count: 1n })).toBe('Request failed')
+    expect(formatErrorDetails(1n)).toBe('Error Details:\n  1')
+  })
+
+  it('returns detail text instead of a malformed object-valued message', () => {
+    const output = formatErrorDetails({ message: { detail: 'failure' }, headers: { Authorization: 'secret' } })
+    expect(JSON.parse(output.slice('Error Details:'.length))).toEqual({ message: { detail: 'failure' } })
+    expect(output).not.toContain('secret')
+  })
+
   it('returns the message directly when the error has one', () => {
     expect(formatErrorDetails(new Error('Test error'))).toBe('Test error')
   })
@@ -75,6 +86,35 @@ describe('formatErrorDetails', () => {
     expect(result).not.toContain('headers')
     expect(result).not.toContain('stack')
     expect(result).not.toContain('request_id')
+  })
+})
+
+describe('rejection normalization', () => {
+  it('preserves native Error identity and readable values including falsy rejections', () => {
+    const original = new Error('original')
+    expect(toError(original)).toBe(original)
+    for (const [input, text] of [
+      [undefined, 'undefined'],
+      [null, 'null'],
+      [false, 'false'],
+      [0, '0'],
+      ['', '']
+    ]) {
+      expect(readErrorMessage(input)).toBe(text)
+      expect(toError(input).message).toBe(text)
+    }
+  })
+
+  it('keeps failure handling usable when a rejection or native message is unreadable', () => {
+    const native = new Error('original')
+    Object.defineProperty(native, 'message', {
+      get() {
+        throw new Error('message unavailable')
+      }
+    })
+    expect(readErrorMessage(native)).toBe('[Unserializable]')
+    expect(toError(native)).toBe(native)
+    expect(toError(Object.create(null)).message).toBe('[Unserializable]')
   })
 })
 

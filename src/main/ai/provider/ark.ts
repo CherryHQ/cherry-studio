@@ -58,7 +58,10 @@ export function stripArkUnsupportedIncludes(body: BodyInit | null | undefined): 
   try {
     const json = JSON.parse(body)
     if (!Array.isArray(json.include)) return body
-    const include = json.include.filter((entry: unknown) => !ARK_UNSUPPORTED_INCLUDES.has(entry as string))
+    const include = json.include.filter(
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The parsed request array is unvalidated; remove only recognized string includes and preserve other entries.
+      (entry: unknown) => typeof entry !== 'string' || !ARK_UNSUPPORTED_INCLUDES.has(entry)
+    )
     if (include.length === json.include.length) return body
     return JSON.stringify({ ...json, include: include.length > 0 ? include : undefined })
   } catch {

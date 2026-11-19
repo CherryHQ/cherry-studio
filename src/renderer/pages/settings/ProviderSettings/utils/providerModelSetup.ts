@@ -68,6 +68,7 @@ export async function persistProviderModels({
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Credential/model setup failures are untyped; serialize and classify them before removing known secrets from diagnostics.
 export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<string>) {
   const serializedError = serializeHealthCheckError(error)
   const classification = classifyError(serializedError)

@@ -66,8 +66,9 @@ export function useAppUpdateHandler() {
         })
         .then((openReleases) => {
           if (openReleases) {
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Opening the release page can reject arbitrary values; centralized logging owns that terminal action failure.
             void ipcApi.request('system.shell.open_website', GITHUB_RELEASES_URL).catch((error: unknown) => {
-              logger.error('Failed to open releases page', error as Error)
+              logger.error('Failed to open releases page', error instanceof Error ? error : { error })
             })
           }
         })

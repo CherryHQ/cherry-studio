@@ -77,7 +77,7 @@ export function toKnowledgeItemIds(itemIds: string[]): KnowledgeItemId[] {
 }
 
 export function reportKnowledgeProgress(
-  ctx: { reportProgress(progress: number, detail?: unknown): void },
+  ctx: { reportProgress(progress: number, detail?: KnowledgeProgressDetail): void },
   progress: number,
   detail: KnowledgeProgressDetail
 ): void {

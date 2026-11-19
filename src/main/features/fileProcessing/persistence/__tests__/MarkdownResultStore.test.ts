@@ -53,6 +53,40 @@ describe('MarkdownResultStore', () => {
     expect(atomicWriteFileMock).toHaveBeenCalledWith(OUTPUT_PATH, new TextEncoder().encode('# hello'))
   })
 
+  it('preserves an unprintable write failure when logging persistence diagnostics', async () => {
+    const failure = {
+      toString() {
+        throw new Error('unprintable failure')
+      }
+    }
+    atomicWriteFileMock.mockRejectedValueOnce(failure)
+
+    await expect(
+      markdownResultStore.persistResultToPath({
+        jobId: 'unprintable-write',
+        path: OUTPUT_PATH,
+        result: { kind: 'markdown', markdownContent: '# content' }
+      })
+    ).rejects.toBe(failure)
+  })
+
+  it('preserves a write failure with an unreadable message getter', async () => {
+    const failure = Object.defineProperty(new Error('write failed'), 'message', {
+      get() {
+        throw new Error('unreadable message')
+      }
+    })
+    atomicWriteFileMock.mockRejectedValueOnce(failure)
+
+    await expect(
+      markdownResultStore.persistResultToPath({
+        jobId: 'unreadable-write',
+        path: OUTPUT_PATH,
+        result: { kind: 'markdown', markdownContent: '# content' }
+      })
+    ).rejects.toBe(failure)
+  })
+
   it('rejects remote zip downloads whose content-type is not application/zip', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('{"error":"not a zip"}', {

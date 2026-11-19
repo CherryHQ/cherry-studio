@@ -16,12 +16,14 @@ export interface PaintingTemplatePreset extends PaintingTemplateTranslation {
   imageUrl: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bundled catalog JSON is untyped at file read; validate every template identifier before constructing resource paths.
 function normalizeManifest(value: unknown): string[] {
   if (!Array.isArray(value)) return []
 
   return value.filter((item): item is string => typeof item === 'string' && PAINTING_TEMPLATE_ID_PATTERN.test(item))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Locale JSON is a raw file payload; admit only entries whose label and prompt are actual strings.
 function normalizeTranslations(value: unknown): Record<string, PaintingTemplateTranslation> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
 

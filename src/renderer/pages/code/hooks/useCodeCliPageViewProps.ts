@@ -122,8 +122,9 @@ export function useCodeCliPageViewProps(
   }, [configs, providers, apiGatewayBundle, filterProvidersForTool, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider reorder operations may reject any value; this page logs the failure and shows localized retry guidance.
     (error: unknown) => {
-      logger.error('Failed to reorder CLI providers:', error as Error)
+      logger.error('Failed to reorder CLI providers:', error instanceof Error ? error : { error })
       toast.error(t('code.apply_failed'))
     },
     [t]

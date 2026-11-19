@@ -108,16 +108,17 @@ function getMarkdownPersistenceLogContext(options: {
   return context
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Download and persistence failures are untyped; logging must redact remote download details without replacing the original rejection.
 function getSafeMarkdownPersistenceErrorForLog(error: unknown): Error {
-  if (!(error instanceof Error)) {
-    return new Error(String(error))
+  try {
+    if (!(error instanceof Error)) return new Error(String(error))
+    if (typeof error.message === 'string' && error.message.startsWith('Markdown result download failed:')) {
+      const safeError = new Error('Markdown result download failed')
+      safeError.name = typeof error.name === 'string' ? error.name : 'Error'
+      return safeError
+    }
+    return error
+  } catch {
+    return new Error('Markdown result persistence failed')
   }
-
-  if (error.message.startsWith('Markdown result download failed:')) {
-    const safeError = new Error('Markdown result download failed')
-    safeError.name = error.name
-    return safeError
-  }
-
-  return error
 }

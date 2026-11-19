@@ -22,6 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Diagnostic tool output can be structured or text-encoded; validate its result schema and description budget before use.
 export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagnosticReportResult | undefined {
   if (isRecord(value) && value.isError === true) return undefined
 

@@ -29,6 +29,7 @@ export interface UseConversationTurnControllerOptions<TInput, TConversation> {
   openStream?: (request: AiStreamOpenRequest, input: TInput) => Promise<AiStreamOpenResponse>
   refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<void> | void
   onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Conversation creation, stream setup and lifecycle callbacks may reject any value; the caller owns error presentation.
   onError?: (error: unknown, input: TInput) => void
 }
 

@@ -130,6 +130,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const error = allPromptsError ?? boundPromptsError
   const isLoading = isAllPromptsLoading || isBoundPromptsLoading
   const handleReorderError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Prompt binding reorder mutations may reject with any value; the shared formatter adds the localized failure prefix.
     (reorderError: unknown) => {
       toast.error(formatErrorMessageWithPrefix(reorderError, t('settings.prompts.errors.reorderFailed')))
     },

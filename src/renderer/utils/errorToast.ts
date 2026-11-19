@@ -34,15 +34,20 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   unknown: { type: 'error' }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught provider/retry failures have heterogeneous metadata; normalize display fields while retaining classification facts.
 export function serializeToastError(error: unknown): SerializedError {
-  const detail = aiErrorDetail(error)
-  if (detail) return detail
-  const serialized = serializeHealthCheckError(error)
-  if (typeof error !== 'object' || error === null) return serialized
-  // Keep structured provider categories/status and retry wrappers lost by generic Error serialization.
-  return {
-    ...error,
-    ...serialized,
-    message: 'message' in error && typeof error.message === 'string' ? error.message : serialized.message
+  try {
+    const detail = aiErrorDetail(error)
+    if (detail) return detail
+    const serialized = serializeHealthCheckError(error)
+    if (typeof error !== 'object' || error === null) return serialized
+    // Keep structured provider categories/status and retry wrappers lost by generic Error serialization.
+    return {
+      ...error,
+      ...serialized,
+      message: 'message' in error && typeof error.message === 'string' ? error.message : serialized.message
+    }
+  } catch {
+    return serializeHealthCheckError(error)
   }
 }

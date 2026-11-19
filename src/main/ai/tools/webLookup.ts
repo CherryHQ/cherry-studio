@@ -19,7 +19,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
-import { isAbortError } from '@main/utils/error'
+import { getErrorMessage, isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 
@@ -106,8 +106,9 @@ function isProxyFakeIpError(message: string): boolean {
   )
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Web providers can reject arbitrary values; configuration guards and safe error text determine retry guidance.
 function classifyWebLookupError(error: unknown): WebLookupError {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = getErrorMessage(error, 'Web lookup failed')
 
   if (isPermanentWebSearchConfigError(error)) {
     const presentation = WEB_CONFIG_ERROR_PRESENTATION[error.code]
@@ -184,7 +185,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.error('webSearchService.searchKeywords failed', error as Error, { query })
+    logger.error('webSearchService.searchKeywords failed', { error, query })
     return classifyWebLookupError(error)
   }
 }
@@ -197,7 +198,7 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
+    logger.error('webSearchService.fetchUrls failed', { error, urls })
     return classifyWebLookupError(error)
   }
 }

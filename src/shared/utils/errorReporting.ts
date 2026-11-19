@@ -16,15 +16,17 @@ export function parseFailureFacts(value: unknown): FailureFacts | undefined {
   return parsed.success ? parsed.data : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and SDK cancellation failures are untyped; only readable recognized name/code markers establish cancellation.
 export function isCancellation(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
-  const value = error as Record<string, unknown>
-  return (
-    value.name === 'AbortError' ||
-    value.name === 'CanceledError' ||
-    value.code === 'ABORT_ERR' ||
-    value.code === 'ERR_CANCELED'
-  )
+  try {
+    const name = 'name' in error ? error.name : undefined
+    if (name === 'AbortError' || name === 'CanceledError') return true
+    const code = 'code' in error ? error.code : undefined
+    return code === 'ABORT_ERR' || code === 'ERR_CANCELED'
+  } catch {
+    return false
+  }
 }
 
 export function shouldReportFailure(facts: FailureFacts): boolean {
@@ -32,12 +34,22 @@ export function shouldReportFailure(facts: FailureFacts): boolean {
   return facts.outcome !== 'retrying' || facts.kind === 'defect'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reporting ownership is optional metadata on arbitrary caught values; unreadable fields cannot prove a prior report.
 export function hasReportingOwner(error: unknown): boolean {
-  return !!error && typeof error === 'object' && 'reportingHandled' in error && error.reportingHandled === true
+  try {
+    return !!error && typeof error === 'object' && 'reportingHandled' in error && error.reportingHandled === true
+  } catch {
+    return false
+  }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Rejection values may be primitive, frozen, or expose read-only metadata; best-effort ownership must not replace the original operation failure.
 export function markReportingHandled(error: unknown): void {
-  if (error && typeof error === 'object' && Object.isExtensible(error) && !hasReportingOwner(error)) {
-    Object.defineProperty(error, 'reportingHandled', { value: true, configurable: true, writable: true })
+  try {
+    if (error && typeof error === 'object' && Object.isExtensible(error) && !hasReportingOwner(error)) {
+      Object.defineProperty(error, 'reportingHandled', { value: true, configurable: true, writable: true })
+    }
+  } catch {
+    // Reporting ownership is optional when the original failure cannot be annotated.
   }
 }

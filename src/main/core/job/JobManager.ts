@@ -1922,7 +1922,7 @@ export class JobManager extends BaseService {
   private async finalizeJob(
     jobId: string,
     status: 'completed' | 'failed' | 'cancelled',
-    output: unknown | undefined,
+    output: Awaited<ReturnType<JobHandler['execute']>>,
     error: JobError | null
   ): Promise<void> {
     const dbService = application.get('DbService')

@@ -310,6 +310,7 @@ function sanitizeDiagnostic(value: string): string {
   return redactSecretText(value).slice(0, DIAGNOSTIC_LIMIT)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dashboard startup catches process and network failures; only the owned start-error class supplies a structured reason.
 function getStartFailureReason(error: unknown, message: string): HermesDashboardStartFailureReason {
   if (error instanceof HermesDashboardStartError) return error.reason
   if (/dashboard startup was cancelled/i.test(message)) return 'cancelled'

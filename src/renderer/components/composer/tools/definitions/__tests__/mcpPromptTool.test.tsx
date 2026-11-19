@@ -54,7 +54,7 @@ describe('flattenMcpPromptMessages', () => {
     const result = flattenMcpPromptMessages({
       messages: [
         { role: 'user', content: { type: 'text', text: 'Review this' } },
-        { role: 'user', content: { type: 'image', data: 'AAAA' } },
+        { role: 'user', content: { type: 'image', data: 'AAAA', mimeType: 'image/png' } },
         { role: 'assistant', content: { type: 'text', text: 'in detail' } }
       ]
     })
@@ -62,10 +62,13 @@ describe('flattenMcpPromptMessages', () => {
     expect(result).toBe('Review this\n\nin detail')
   })
 
-  it('returns an empty string for a malformed or empty result', () => {
-    expect(flattenMcpPromptMessages(undefined)).toBe('')
+  it('returns an empty string when a valid prompt has no text content', () => {
     expect(flattenMcpPromptMessages({ messages: [] })).toBe('')
-    expect(flattenMcpPromptMessages({ messages: [{ content: { type: 'image' } }] })).toBe('')
+    expect(
+      flattenMcpPromptMessages({
+        messages: [{ role: 'user', content: { type: 'image', data: 'AAAA', mimeType: 'image/png' } }]
+      })
+    ).toBe('')
   })
 })
 

@@ -8,6 +8,7 @@ const logger = loggerService.withContext('useInPlaceEdit')
 export interface UseInPlaceEditOptions {
   onSave: ((value: string) => void) | ((value: string) => Promise<void>)
   onCancel?: () => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Injected save callbacks can throw or reject any value; preserve the original failure for the optional owner handler.
   onError?: (error: unknown) => void
   autoSelectOnStart?: boolean
   trimOnSave?: boolean

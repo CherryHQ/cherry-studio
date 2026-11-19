@@ -143,6 +143,7 @@ function prepareV1Job(
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted processor state is untrusted; validate OpenMineruRemoteStateSchema and the current endpoint before resuming a remote task.
 function validateRemoteState(value: unknown, apiHost: string) {
   const result = OpenMineruRemoteStateSchema.safeParse(value)
   if (!result.success) throw new Error(t('file_processing.errors.open_mineru_invalid_response'))

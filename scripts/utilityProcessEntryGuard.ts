@@ -1,3 +1,5 @@
+import type { Plugin } from 'vite'
+
 /**
  * Build-time backstop for the child-safe zone: eslint only sees direct imports, so a
  * main-only singleton could still reach a utility-process entry through a chain of
@@ -32,7 +34,7 @@ export function hermeticEntryGuardPlugin() {
       }
       return null
     },
-    generateBundle(_options: unknown, bundle: Record<string, EmittedChunk>) {
+    generateBundle(_options, bundle: Record<string, EmittedChunk>) {
       const entries = new Set(
         Object.values(bundle)
           .filter((chunk) => chunk.type === 'chunk' && chunk.isEntry)
@@ -55,5 +57,5 @@ export function hermeticEntryGuardPlugin() {
         }
       }
     }
-  }
+  } satisfies Plugin
 }

@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
+import { toError } from '@renderer/utils/errorDetails'
 
 import type { RecallResultItem } from './types'
 import { formatRecallPercent } from './utils'
@@ -32,7 +32,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
       await navigator.clipboard.writeText(item.plainText)
       setCopiedTemporarily(true)
     } catch (error) {
-      const normalizedError = normalizeKnowledgeError(error)
+      const normalizedError = toError(error)
       logger.error('Failed to copy recall result content', normalizedError, {
         resultId: item.id,
         sourceName: item.sourceName,

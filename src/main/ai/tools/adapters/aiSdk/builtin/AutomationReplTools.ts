@@ -17,6 +17,7 @@ const logger = loggerService.withContext('AutomationReplTools')
 const UNREADABLE_OUTPUT_NOTE =
   'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Conversation history may contain unreadable REPL results; validate the content blocks before projecting model-visible output.
 function automationReplModelOutput(output: unknown): ToolResultOutput {
   const unreadable = { type: 'text', value: UNREADABLE_OUTPUT_NOTE } as const
   if (

@@ -15,6 +15,7 @@ export function getAutomationReplKind(tool: BaseTool | McpTool): 'execute' | 're
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted automation output may contain an MCP envelope, content array or legacy text; CallToolResultSchema owns envelope validation.
 export function parseAutomationReplOutput(response: unknown): { text: string; isError: boolean } {
   const parsed = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
   if (!parsed.success) return { text: typeof response === 'string' ? response : '', isError: false }
@@ -75,6 +76,7 @@ function parseJson(text: string): Serializable | undefined {
 
 const cellContextSchema = z.object({ cell: z.uuid() })
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Automation cell references arrive in structured MCP data or a text footer; validate both envelopes and the cell UUID before use.
 export function getAutomationCell(response: unknown): string | undefined {
   if (typeof response === 'string') {
     const footer = response.trimEnd().split('\n').at(-1)

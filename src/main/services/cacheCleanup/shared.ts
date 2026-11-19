@@ -35,8 +35,9 @@ export function issue(item: string, code: CacheCleanupIssueCode): CacheCleanupIs
   return { item, code }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cleanup catches filesystem failures; only a verified native error code permits missing-path handling.
 export function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
+  return error instanceof Error && 'code' in error && error.code === code
 }
 
 async function pathContainsActiveUserData(targetPath: string): Promise<boolean> {

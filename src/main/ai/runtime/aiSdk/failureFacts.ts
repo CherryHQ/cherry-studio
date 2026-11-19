@@ -16,6 +16,7 @@ import { isCancellation } from '@shared/utils/errorReporting'
 
 import { ToolLoopTerminalError } from './loop/toolLoopTermination'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI SDK execution may reject arbitrary values; SDK error guards and cancellation evidence determine the failure category.
 export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   const facts: FailureFacts = {
     runtime: 'ai-sdk',

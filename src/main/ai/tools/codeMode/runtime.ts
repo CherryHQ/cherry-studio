@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
+import { getErrorMessage } from '@main/utils/error'
 
 import { execWorkerSource } from './worker'
 
@@ -73,6 +74,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
       if (logs.length < MAX_LOGS) logs.push(entry)
     }
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal reasons are arbitrary; forward the original value to every child without changing cancellation identity.
     const abortChildren = (reason: unknown) => {
       for (const ac of activeChildAborts) {
         try {
@@ -101,6 +103,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
       resolve(output)
     }
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker teardown forwards the parent's original abort reason separately from the displayed error text.
     const terminateWithError = async (error: string, childAbortReason: unknown = new Error(error)) => {
       if (finished || terminating) return
       terminating = true
@@ -125,7 +128,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
 
     const onParentAbort = () => {
       const reason = parentSignal?.reason
-      const message = reason instanceof Error ? reason.message : reason === undefined ? 'aborted' : String(reason)
+      const message = reason === undefined ? 'aborted' : getErrorMessage(reason, 'aborted')
       void terminateWithError(`tool_exec aborted: ${message}`, reason)
     }
 

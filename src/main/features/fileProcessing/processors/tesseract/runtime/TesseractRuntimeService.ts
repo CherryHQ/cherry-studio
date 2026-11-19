@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { loadOcrImage } from '@main/features/fileProcessing/utils/ocr'
 import { regionService } from '@main/services/RegionService'
+import { getErrorMessage } from '@main/utils/error'
 import { MB } from '@shared/utils/constants'
 
 import type { ImageToTextHandlerOutput } from '../../types'
@@ -267,18 +268,19 @@ export class TesseractRuntimeService extends BaseService {
     throw this.createAbortError(signal.reason)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal reasons are arbitrary values; preserve an existing AbortError and normalize other reasons at the OCR cancellation boundary.
   private createAbortError(reason: unknown): Error {
-    if (reason instanceof Error && reason.name === 'AbortError') {
-      return reason
+    let message = 'The operation was aborted'
+    try {
+      if (reason instanceof Error) {
+        if (reason.name === 'AbortError') return reason
+        message = getErrorMessage(reason, message)
+      } else if (typeof reason === 'string') message = reason
+    } catch {
+      // Unreadable diagnostics do not change an already-aborted operation into a different failure.
     }
 
-    if (reason instanceof Error) {
-      const error = new Error(reason.message)
-      error.name = 'AbortError'
-      return error
-    }
-
-    const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
+    const error = new Error(message)
     error.name = 'AbortError'
     return error
   }

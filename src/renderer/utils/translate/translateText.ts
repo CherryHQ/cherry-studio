@@ -2,6 +2,7 @@ import { t } from 'i18next'
 import { v4 as uuid } from 'uuid'
 
 import { ipcApi } from '@renderer/ipc'
+import { toError } from '@renderer/utils/errorDetails'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -101,9 +102,10 @@ export const translateText = async (
       })
     )
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Opening IPC can reject with any value; cleanup and safe Error normalization must always settle this outer translation promise.
     ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
       cleanup()
-      reject(openError instanceof Error ? openError : new Error(String(openError)))
+      reject(toError(openError))
     })
   })
 }

@@ -23,6 +23,7 @@ export interface TaskConversationResult {
   total: number
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Task-session reads may reject arbitrary values; the DataApi not-found guard and session ID establish this classification.
 export function isTaskRunSessionUnavailable(error: unknown, sessionId: string): boolean {
   return isDataApiResourceNotFoundError(error, 'Session') && error.status === 404 && error.details?.id === sessionId
 }

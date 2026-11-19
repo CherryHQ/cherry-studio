@@ -44,6 +44,7 @@ const isCommandLine = process.argv[1] && path.resolve(process.argv[1]) === scrip
 if (isCommandLine) {
   void checkCatalogCompatibility()
     .then(() => console.log(`Catalog is compatible with frozen registry schema v${REGISTRY_SCHEMA_VERSION}`))
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- A dynamically loaded frozen validator may reject with any value; the CLI reports the failure and exits nonzero.
     .catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : error)
       process.exitCode = 1

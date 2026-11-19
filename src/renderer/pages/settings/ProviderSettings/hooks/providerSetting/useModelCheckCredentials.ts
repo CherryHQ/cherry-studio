@@ -11,16 +11,14 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
-import type { ApiKeysData } from './types'
 import { useAuthenticationApiKey } from './useAuthenticationApiKey'
 import { useProviderMeta } from './useProviderMeta'
 
-function getRefetchedApiKeyEntries(value: unknown, fallback: readonly ApiKeyEntry[]): readonly ApiKeyEntry[] {
-  if (typeof value !== 'object' || value === null || !('keys' in value) || !Array.isArray(value.keys)) {
-    return fallback
-  }
-
-  return (value as ApiKeysData).keys
+function getRefetchedApiKeyEntries(
+  value: Awaited<ReturnType<ReturnType<typeof useProviderApiKeys>['refetch']>>,
+  fallback: readonly ApiKeyEntry[]
+): readonly ApiKeyEntry[] {
+  return value?.keys ?? fallback
 }
 
 function createCredentialFingerprint(entries: readonly ApiKeyEntry[]) {

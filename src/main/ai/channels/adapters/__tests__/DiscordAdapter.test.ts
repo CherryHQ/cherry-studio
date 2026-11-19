@@ -136,6 +136,43 @@ describe('DiscordAdapter gateway handshake', () => {
     expect(unexpectedFetches).toEqual([])
   })
 
+  it('validates READY and message identities before changing connection state or emitting messages', async () => {
+    const adapter = createAdapter()
+    const messages: unknown[] = []
+    adapter.on('message', (message) => messages.push(message))
+    try {
+      await adapter.connect()
+      const socket = sockets[0]
+      socket.open()
+      socket.receive({
+        op: 0,
+        t: 'READY',
+        d: {
+          session_id: 'invalid-session',
+          resume_gateway_url: 'wss://gateway.example',
+          application: { id: 'application' },
+          user: null
+        }
+      })
+      expect(adapter.connected).toBe(false)
+
+      ready(socket)
+      expect(adapter.connected).toBe(true)
+      for (const id of [42, 'user']) {
+        socket.receive({
+          op: 0,
+          t: 'MESSAGE_CREATE',
+          d: { id: 'message', channel_id: 'chat', author: { id, username: 'name' }, content: 'hello' }
+        })
+      }
+      await vi.waitFor(() => expect(messages).toHaveLength(1))
+      expect(messages).toMatchObject([{ chatId: 'dm:chat', userId: 'user', text: 'hello' }])
+    } finally {
+      await adapter.disconnect()
+      vi.useRealTimers()
+    }
+  })
+
   it('explicitly requests online presence on a cold IDENTIFY with the existing intents and properties', async () => {
     const adapter = createAdapter()
     try {

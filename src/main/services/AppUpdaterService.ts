@@ -38,6 +38,7 @@ import {
 
 const logger = loggerService.withContext('AppUpdaterService')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Updater operations can reject arbitrary values; native cancellation, HTTP status, and verified transport codes determine reporting eligibility.
 export function classifyUpdateFailure(error: unknown): FailureFacts {
   if (error instanceof CancellationError || isCancellation(error)) {
     return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }

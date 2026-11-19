@@ -22,6 +22,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   let closed = false
   const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<void>> | undefined
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preserve native/observer rejection values for the host; diagnostic callback failures remain isolated from execution.
   const report = (error: unknown) => {
     try {
       options.onError?.(error)

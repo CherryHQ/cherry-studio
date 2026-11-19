@@ -4,6 +4,7 @@ import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse } from './utils'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; ScreenshotSchema validates capture options and the target tab.
 export async function handleScreenshot(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   try {
     const { privateMode, tabId, ...options } = ScreenshotSchema.parse(args)

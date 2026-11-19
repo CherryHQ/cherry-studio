@@ -39,6 +39,7 @@ declare module 'fast-formula-parser' {
   }
 
   export class FormulaErrorClass extends Error {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The untyped parser stores arbitrary thrown callback values as details; this shim must not promise an Error-only diagnostic.
     constructor(error: string, message?: string, details?: unknown)
     /** Error code, such as '#DIV/0!' or '#NAME?'. */
     readonly error: string

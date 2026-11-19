@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -46,6 +47,29 @@ afterAll(async () => {
 })
 
 describe('MessageMetaTool', () => {
+  it('shows and copies diagnostic text when a native tool result cannot be serialized', async () => {
+    const user = userEvent.setup()
+    const copyText = vi.fn()
+    mockActions.mockReturnValue({ copyText })
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
+          arguments: { name: 'extension_tool', params: { path: 'file.txt' } },
+          response: {
+            toJSON() {
+              throw new Error('native serializer failed')
+            }
+          }
+        })}
+      />
+    )
+    await expandCard(/tool_invoke/)
+    expect(screen.getByText('[Unserializable]')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '复制' }))
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith('[Unserializable]', { successMessage: '已复制' }))
+  })
+
   it('keeps a lightweight copy action for completed tool payloads', async () => {
     const copyText = vi.fn()
     mockActions.mockReturnValue({ copyText })

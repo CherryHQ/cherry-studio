@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { classifyNetworkError } from '../probes'
 
 describe('classifyNetworkError', () => {
+  it('returns an unknown failure when rejection text cannot be read', () => {
+    const unprintable = { toString: null, valueOf: null }
+    expect(classifyNetworkError(unprintable)).toEqual({ kind: 'unknown', code: undefined })
+    expect(classifyNetworkError(Object.defineProperty(new Error('failed'), 'message', { value: unprintable }))).toEqual(
+      {
+        kind: 'unknown',
+        code: undefined
+      }
+    )
+  })
+
   it('reads Chromium codes out of net.fetch messages', () => {
     expect(classifyNetworkError(new Error('net::ERR_NAME_NOT_RESOLVED'))).toEqual({
       kind: 'dns',

@@ -263,7 +263,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   }
 }
 
-function usesExternalPath(route: string, input: unknown): boolean {
+function usesExternalPath(route: string, input: Parameters<(typeof handlers)[keyof typeof handlers]>[0]): boolean {
   if (['file.tree.create', 'file.tree.rename'].includes(route)) return true
   if (!input || typeof input !== 'object') return false
   const handle = 'handle' in input ? input.handle : input

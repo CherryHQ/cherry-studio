@@ -48,6 +48,7 @@ export class DurableProjection {
 
   constructor(
     readonly ref: Thread,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ThreadFeed isolates subscriber failures and forwards their original rejection value to the runtime reporter.
     report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed(

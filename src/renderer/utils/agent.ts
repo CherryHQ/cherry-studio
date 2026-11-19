@@ -10,8 +10,8 @@ import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
-export function getAgentAvatar(avatar?: unknown) {
-  return typeof avatar === 'string' ? avatar.trim() || DEFAULT_AGENT_AVATAR : DEFAULT_AGENT_AVATAR
+export function getAgentAvatar(avatar?: AgentConfiguration['avatar']) {
+  return avatar?.trim() || DEFAULT_AGENT_AVATAR
 }
 
 export function getAgentAvatarFromConfiguration(

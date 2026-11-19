@@ -65,6 +65,7 @@ function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspac
   return a.type === AGENT_WORKSPACE_TYPE.USER ? a.workspaceId === (b as typeof a).workspaceId : true
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted job templates may predate workspace fields; validate them here before applying scheduling defaults.
 function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
   const template = value as Partial<AgentTaskJobInputTemplate>

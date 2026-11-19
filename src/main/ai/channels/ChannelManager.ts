@@ -267,10 +267,11 @@ export class ChannelManager extends BaseService {
     application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapter reconciliation can reject arbitrary values; central logging owns safe error serialization and redaction.
   private logRuntimeError(channelId: string, error: unknown): void {
     logger.error('Channel runtime reconciliation failed', {
       channelId,
-      error: error instanceof Error ? error.message : String(error)
+      error
     })
   }
 }

@@ -18,6 +18,7 @@ export function isGenerateImageToolName(toolName: string): boolean {
   )
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored image-tool results may be native records or MCP content; each supported representation has its own runtime schema.
 export function parseGeneratedImageOutput(response: unknown) {
   const outputParse = generateImageOutputSchema.safeParse(response)
   const mcpOutputParse = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)

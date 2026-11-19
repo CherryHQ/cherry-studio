@@ -26,6 +26,20 @@ describe('voice smoke connection boundary', () => {
       selectMainTarget([{ ...target, webSocketDebuggerUrl: 'ws://example.com/one' }], endpoint, expectedUrl)
     ).toThrow()
   })
+
+  it('rejects malformed target records and coercible debugger values before selecting a page', () => {
+    const endpoint = 'http://127.0.0.1:9222'
+    const target = { type: 'page', url: expectedUrl, webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/one' }
+    for (const targets of [null, [null], [{ ...target, webSocketDebuggerUrl: [target.webSocketDebuggerUrl] }]]) {
+      expect(() => selectMainTarget(targets, endpoint, expectedUrl)).toThrow('INVALID_TARGET_LIST')
+    }
+    expect(() => selectMainTarget([{ type: 'page', url: expectedUrl }], endpoint, expectedUrl)).toThrow(
+      'INVALID_DEBUGGER_TARGET'
+    )
+    expect(() =>
+      selectMainTarget([{ ...target, webSocketDebuggerUrl: 'not a debugger URL' }], endpoint, expectedUrl)
+    ).toThrow('INVALID_DEBUGGER_TARGET')
+  })
 })
 
 function browserEnvironment(

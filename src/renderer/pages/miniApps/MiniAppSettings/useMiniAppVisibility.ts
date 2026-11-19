@@ -18,13 +18,14 @@ const logger = loggerService.withContext('useMiniAppVisibility')
  * what happened.
  */
 function reportFailure(t: (key: string) => string, fallbackKey: string) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mini-app status/reorder mutations may reject any value; DataApi guards own structured-error recognition.
   return (err: unknown) => {
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
       toast.error(e.message || t(fallbackKey))
     } else {
-      logger.error('mutation failed', err as Error)
+      logger.error('mutation failed', err instanceof Error ? err : { error: err })
       toast.error(t(fallbackKey))
     }
   }

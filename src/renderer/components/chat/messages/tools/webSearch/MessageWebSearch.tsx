@@ -23,6 +23,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Display target emitted by provider-executed Responses web search tools. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider-executed web search uses provider-specific output; check the action discriminator and actual string fields before displaying a target.
 function getProviderWebSearchTarget(response: unknown): string {
   if (!isRecord(response) || !isRecord(response.action)) return ''
 

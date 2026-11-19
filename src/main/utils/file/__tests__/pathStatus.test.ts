@@ -2,11 +2,37 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import * as fileSystem from '../fs'
 import { getPathStatus } from '../pathStatus'
 
 describe('getPathStatus', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each(['unprintable', 'unreadable'])('contains an %s filesystem code as inaccessible', async (kind) => {
+    const failure =
+      kind === 'unprintable'
+        ? {
+            code: {
+              toString() {
+                throw new Error('unprintable code')
+              }
+            }
+          }
+        : Object.defineProperty(new Error('stat failed'), 'code', {
+            get() {
+              throw new Error('unreadable code')
+            }
+          })
+    vi.spyOn(fileSystem, 'stat').mockRejectedValueOnce(failure)
+
+    await expect(getPathStatus(path.join(tmpdir(), 'unreadable-stat'))).resolves.toEqual({
+      ok: false,
+      reason: 'inaccessible'
+    })
+  })
+
   it('reports an existing directory', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'cherry-path-status-'))
 

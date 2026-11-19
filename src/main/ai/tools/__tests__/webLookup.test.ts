@@ -33,4 +33,14 @@ describe('searchWeb', () => {
     searchKeywordsMock.mockRejectedValueOnce(new Error('provider down'))
     expect(await searchWeb('query')).toEqual({ error: 'provider down', retryable: true })
   })
+
+  it('returns retry guidance when the provider rejection cannot be converted to text', async () => {
+    searchKeywordsMock.mockRejectedValueOnce({
+      toString() {
+        throw new Error('cannot format provider failure')
+      }
+    })
+
+    expect(await searchWeb('query')).toEqual({ error: 'Web lookup failed', retryable: true })
+  })
 })

@@ -73,3 +73,33 @@ it('rejects an invalid delta instead of hanging or silently dropping content', a
   await expect(stream.append([{ type: 'text-delta', id: 'missing-start', delta: 'Lost' }], 'partial')).rejects.toThrow()
   await stream.close()
 })
+
+it.each([
+  { label: 'undefined', reason: undefined },
+  { label: 'null', reason: null },
+  { label: 'false', reason: false },
+  { label: 'zero', reason: 0 },
+  { label: 'empty text', reason: '' }
+])('retains a $label reader failure and closes without replacing it', async ({ reason }) => {
+  const stream = new RuntimeMessageStream('failed-reader')
+  try {
+    await expect(
+      stream.append(
+        [
+          { type: 'text-start', id: 'text' },
+          {
+            type: 'text-delta',
+            id: 'text',
+            get delta(): string {
+              throw reason
+            }
+          }
+        ],
+        'partial'
+      )
+    ).rejects.toBe(reason)
+    await expect(stream.append([], 'complete')).rejects.toBe(reason)
+  } finally {
+    await expect(stream.close()).resolves.toBeUndefined()
+  }
+})

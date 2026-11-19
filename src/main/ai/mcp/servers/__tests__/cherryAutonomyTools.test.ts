@@ -1205,6 +1205,23 @@ describe('cherry-tools autonomy tools', () => {
       expect(result.isError).toBeFalsy()
     })
 
+    it('continues notification fanout after an unprintable adapter rejection', async () => {
+      mockSendMessage
+        .mockRejectedValueOnce({
+          toString() {
+            throw new Error('cannot format channel failure')
+          }
+        })
+        .mockResolvedValueOnce(undefined)
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+
+      const result = await callTool(createServer('agent_1'), { message: 'Test' }, 'notify')
+
+      expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
+      expect(result.content[0].text).toContain('ch1/100 (message): Unknown channel failure')
+      expect(result.isError).toBeFalsy()
+    })
+
     it('should mark isError when the message reaches no one', async () => {
       mockSendMessage.mockRejectedValue(new Error('rate limited'))
       mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])

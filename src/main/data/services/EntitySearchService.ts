@@ -24,6 +24,7 @@ function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefin
   return Number.isFinite(value) ? value : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Entity search adapters can reject arbitrary values; DataApi normalization preserves owned error details while adding the failing entity type.
 function withTypeContext(type: EntitySearchType, error: unknown) {
   const context = `entity search type ${type}`
   const apiError = toDataApiError(error, context)

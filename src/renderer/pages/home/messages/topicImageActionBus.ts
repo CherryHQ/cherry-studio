@@ -51,6 +51,7 @@ export function consumePendingTopicImageActions(
   return topicImageActionBus.consumePendingImageActions(topicId, type)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Topic capture loading may reject arbitrary values; preserve the same failure when settling pending image actions.
 export function rejectPendingTopicImageActions(topicId: string | undefined, reason: unknown): void {
   topicImageActionBus.rejectPendingImageActions(topicId, reason)
 }

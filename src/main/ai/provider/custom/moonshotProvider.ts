@@ -39,6 +39,7 @@ export async function runFormulaFiber(
   settings: { baseURL: string; apiKey: string; fetch?: FetchFunction },
   formulaUri: string,
   name: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Each vendor formula owns its argument schema; this transport only JSON-encodes the selected formula's input.
   args: unknown
 ): Promise<string> {
   const doFetch = settings.fetch ?? globalThis.fetch
@@ -87,10 +88,12 @@ export function createKimiWebSearchToolFor(credentials: KimiFormulaCredentials) 
   )
 }
 
-export function createKimiWebSearchTool(runFiber: (args: unknown) => Promise<string>) {
+type KimiWebSearchInput = { query: string }
+
+export function createKimiWebSearchTool(runFiber: (args: KimiWebSearchInput) => Promise<string>) {
   return tool({
     description: 'Search the web for information',
-    inputSchema: jsonSchema<{ query: string }>({
+    inputSchema: jsonSchema<KimiWebSearchInput>({
       type: 'object',
       properties: { query: { type: 'string', description: 'What to search for' } },
       required: ['query']

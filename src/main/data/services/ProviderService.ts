@@ -369,6 +369,7 @@ function rotationCacheKey(providerId: string): string {
 }
 
 class ProviderService {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider ordering can throw arbitrary values; only the owned missing-provider error is translated before all other failures are rethrown unchanged.
   private rethrowOrderError(error: unknown): never {
     if (
       error instanceof DataApiError &&

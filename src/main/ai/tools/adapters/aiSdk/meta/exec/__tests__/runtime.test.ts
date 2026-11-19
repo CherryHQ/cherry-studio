@@ -156,7 +156,23 @@ describe('runExec / handleToolCall', () => {
   })
 
   // ── Abort propagation: aborting the parent option signal must reach the child ──
-  it('propagates the parent abortSignal to the child signal passed to execute', async () => {
+  it.each([
+    { label: 'Error', reason: new Error('parent stop'), message: 'parent stop' },
+    { label: 'null', reason: null, message: 'null' },
+    { label: 'false', reason: false, message: 'false' },
+    { label: 'zero', reason: 0, message: '0' },
+    { label: 'empty text', reason: '', message: '' },
+    { label: 'unprintable value', reason: Object.create(null), message: 'aborted' },
+    {
+      label: 'unreadable Error message',
+      reason: Object.defineProperty(new Error(), 'message', {
+        get() {
+          throw new Error('unreadable')
+        }
+      }),
+      message: 'aborted'
+    }
+  ])('settles cancellation and preserves the original $label reason in child signals', async ({ reason, message }) => {
     const parentController = new AbortController()
     let childSignal: AbortSignal | undefined
     let abortedReason: unknown
@@ -170,7 +186,7 @@ describe('runExec / handleToolCall', () => {
           resolve('aborted')
         })
         // Fire the parent abort once execute is in-flight.
-        parentController.abort(new Error('parent stop'))
+        parentController.abort(reason)
       })
     })
 
@@ -183,9 +199,9 @@ describe('runExec / handleToolCall', () => {
 
     expect(childSignal).toBeInstanceOf(AbortSignal)
     expect(childSignal?.aborted).toBe(true)
-    expect((abortedReason as Error)?.message).toBe('parent stop')
+    expect(abortedReason).toBe(reason)
     expect(out.isError).toBe(true)
-    expect(out.error).toBe('tool_exec aborted: parent stop')
+    expect(out.error).toBe(`tool_exec aborted: ${message}`)
   })
 
   it('aborts immediately when the parent signal is already aborted before invoke', async () => {

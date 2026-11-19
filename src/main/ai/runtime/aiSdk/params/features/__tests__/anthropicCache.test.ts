@@ -310,6 +310,26 @@ describe('overflow cleanup', () => {
   const provider = makeProvider({ enabled: true, tokenThreshold: 1, cacheLastNMessages: 2 })
   const part = (message: LanguageModelV3Message) => (message.content as { providerOptions?: unknown }[])[0]
 
+  it.each([true, 1, 'invalid', []].map((marker) => ({ marker })))(
+    'does not let malformed hint %j displace four valid one-hour breakpoints',
+    async ({ marker }) => {
+      const out = await transform({
+        prompt: [],
+        tools: [
+          { ...makeTool('a'), providerOptions: { anthropic: { cacheControl: marker } } },
+          ...Array.from({ length: 4 }, (_, i) => ({ ...makeTool(`b${i}`), providerOptions: mark }))
+        ]
+      })
+
+      expect(out.tools?.slice(1).map(getCacheControl)).toEqual([
+        { type: 'ephemeral', ttl: '1h' },
+        { type: 'ephemeral', ttl: '1h' },
+        { type: 'ephemeral', ttl: '1h' },
+        { type: 'ephemeral', ttl: '1h' }
+      ])
+    }
+  )
+
   it.each([1, 3, 4])('preserves four selected targets with %i incoming hints', async (count) => {
     const tools = [
       makeTool('zeta', 100),

@@ -953,6 +953,21 @@ describe('createAtomicWriteStream', () => {
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 
+  it('preserves encoded strings and the exact byte range of ArrayBuffer views', async () => {
+    const target = path.join(tmp, 'encoded.bin') as AbsoluteFilePath
+    const stream = createAtomicWriteStream(target)
+    const bytes = Uint8Array.from([0xff, 0x42, 0x00, 0xff])
+    stream.write('é', 'latin1')
+    stream.write(new DataView(bytes.buffer, 1, 2))
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+
+    expect(await readFile(target)).toEqual(Buffer.from([0xe9, 0x42, 0x00]))
+  })
+
   it('aborts cleanly on .abort() — no target write, no tmp residue', async () => {
     const target = path.join(tmp, 'b.txt') as AbsoluteFilePath
     const stream = createAtomicWriteStream(target)

@@ -1,6 +1,7 @@
 export type ImageActionType = 'copy' | 'export'
 
 type ImageActionSettlement = {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image action producers may reject with any value; forward the original reason unchanged to pending promises.
   reject: (reason?: unknown) => void
   resolve: () => void
 }
@@ -79,6 +80,7 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     return matches
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image action producers may reject with any value; forward the original reason unchanged to pending promises.
   function rejectPendingImageActions(targetId: string | undefined, reason: unknown): void {
     const remaining: ImageActionRequest<TTarget, TTargetKey>[] = []
 

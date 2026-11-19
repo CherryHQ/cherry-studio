@@ -319,6 +319,7 @@ function hidesSelectedSubcommand(command: CommandSemantics, rules: readonly Comm
 /** Folds the whole invocation before callers may execute any constituent command. */
 export async function evaluateCommandPolicy(
   input: CommandPolicyInput,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Policy documents must pass commandPolicySchema before evaluation; malformed configuration fails closed.
   document: unknown = bundledPolicy
 ): Promise<CommandPolicyDecision> {
   const snapshot = document === bundledPolicy ? defaultSnapshot : commandPolicySchema.safeParse(document)

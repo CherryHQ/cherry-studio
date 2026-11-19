@@ -146,6 +146,7 @@ async function main(): Promise<void> {
   process.stdout.write(`utility-process smoke passed; evidence in ${path.relative(REPO_ROOT, EVIDENCE_DIR)}\n`)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Build, packaging and Electron smoke tasks can reject with any value; the CLI owns terminal diagnostics and failure status.
 main().catch((error: unknown) => {
   process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`)
   process.exitCode = 1

@@ -52,6 +52,7 @@ async function updateGoal(context: Context, call: ToolCall): Promise<ToolOutcome
         call.signal
       )
     )
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Verifier rejections are arbitrary; normalize their reason into an unverified result instead of completing the goal.
     .catch((error: unknown) => reasonOf(error))
   if (typeof verdict === 'string') return { text: unverifiedText(verdict), isError: true }
   // The verifier may take long: the clock and approvals the completion decides on are read after it answered.

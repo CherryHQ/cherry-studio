@@ -326,6 +326,16 @@ describe('AddKnowledgeItemDialog', () => {
   }
 
   describe('file source (native picker, no panel)', () => {
+    it('reports an undefined file-probe rejection without submitting a partial batch', async () => {
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf')])
+      vi.mocked(ipcApi.request).mockRejectedValueOnce(undefined)
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('添加数据源失败')))
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+    })
+
     it('opens the OS file picker on mount instead of rendering a panel', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf')])
       const onOpenChange = vi.fn()

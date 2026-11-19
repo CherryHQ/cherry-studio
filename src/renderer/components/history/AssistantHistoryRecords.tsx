@@ -43,6 +43,7 @@ import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { classifyTurn } from '@shared/ai/transport'
@@ -96,10 +97,12 @@ function survivingHistoryNeighbor<T extends { id: string }>(
   return fallback ? remaining.find((item) => item.id === fallback.id) : remaining[0]
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent history deletion may fail with arbitrary values; recognized trash errors select localized stale/busy guidance.
 function historyPermanentDeleteFailureMessage(err: unknown, translate: (key: string) => string): string {
   if (isTrashTargetNotFoundError(err)) return translate('recycle_bin.delete.stale')
   if (isTrashTopicBusyError(err)) return translate('recycle_bin.delete.busy')
-  if (err instanceof Error && err.message) return err.message
+  const detail = err instanceof Error ? readErrorMessage(err) : ''
+  if (detail) return detail
   return translate('chat.topics.manage.delete.error')
 }
 

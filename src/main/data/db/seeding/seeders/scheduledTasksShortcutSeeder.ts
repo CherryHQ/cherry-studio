@@ -1,8 +1,13 @@
 import { and, eq } from 'drizzle-orm'
+import * as z from 'zod'
 
 import { preferenceTable } from '@data/db/schemas/preference'
 import type { DbType, ISeeder } from '@data/db/types'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+
+const appShortcutSchema = z.object({
+  target: z.object({ locator: z.object({ providerId: z.literal('core.app'), resourceId: z.string() }) })
+})
 
 export class ScheduledTasksShortcutSeeder implements ISeeder {
   readonly name = 'scheduled-tasks-shortcut'
@@ -13,9 +18,10 @@ export class ScheduledTasksShortcutSeeder implements ISeeder {
     const scope = and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar_shortcut'))
     const row = db.select().from(preferenceTable).where(scope).get()
     if (!row || !Array.isArray(row.value)) return
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted shortcuts may be malformed; validate only the core-app locator fields needed to preserve their existing ordering.
     const appId = (item: unknown): string | undefined => {
-      const shortcut = item as { target?: { locator?: { providerId?: string; resourceId?: string } } } | null
-      return shortcut?.target?.locator?.providerId === 'core.app' ? shortcut.target.locator.resourceId : undefined
+      const parsed = appShortcutSchema.safeParse(item)
+      return parsed.success ? parsed.data.target.locator.resourceId : undefined
     }
     if (row.value.some((item) => appId(item) === 'scheduled_tasks')) return
     const items = [...row.value]

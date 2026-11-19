@@ -344,6 +344,7 @@ export async function readOrGrepConcept(
  * a failure. Anything else (invalid regex, infra) surfaces its own message.
  */
 function conceptLookupError(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- KnowledgeService rejections are untyped; DataApi error validation distinguishes missing bases, concepts, and content.
   error: unknown,
   baseId: string,
   conceptId: string,
@@ -613,6 +614,7 @@ function buildAddInput(input: ManageAddSource): AddInputResult {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool fields form an unvalidated candidate; KnowledgeAddItemInputSchema owns the complete ingestion contract.
 function validateAddInput(candidate: unknown, source: string): AddInputResult {
   const parsed = KnowledgeAddItemInputSchema.safeParse(candidate)
   if (!parsed.success) {

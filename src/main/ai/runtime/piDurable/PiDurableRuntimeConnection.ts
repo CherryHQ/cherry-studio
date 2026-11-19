@@ -559,6 +559,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Durable failures cross an in-process rejection channel; preserve the original value while independently closing owned resources.
   private fail(error: unknown) {
     this.failure = error
     this.events.push({ type: 'error', error })

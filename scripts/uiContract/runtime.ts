@@ -1,3 +1,4 @@
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSX spreads can forward any data-ui value; only string tokens participate in semantic composition.
 function tokens(value: unknown): string[] {
   return typeof value === 'string' ? value.split(/\s+/).filter(Boolean) : []
 }

@@ -28,6 +28,7 @@ function modelTarget(ctx: DoctorContext) {
 }
 
 function requestFailure<Id extends 'provider-model-list' | 'provider-model-conversation'>(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model probes can reject arbitrary provider values; serialize first, then expose only validated category/status evidence.
   error: unknown
 ): DoctorProbeOutcome<Id> {
   const serialized = serializeError(error)

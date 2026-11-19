@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toError } from '@renderer/utils/errorDetails'
 import { decodeFileText, encodeFileText, type DecodedFileText } from '@renderer/utils/fileTextSnapshot'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -65,10 +66,6 @@ export interface SessionLease {
 
 export interface PreparedFileMutation {
   finish(): Promise<void>
-}
-
-function asError(value: unknown): Error {
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 class AcquisitionInterruptedError extends Error {}
@@ -232,7 +229,7 @@ export class FileEditSessionManager {
     } catch (error) {
       await ipcApi
         .request('file.edit.close', { editId: resource.editId })
-        .catch((closeError) => logger.error('Edit lease cleanup failed', asError(closeError)))
+        .catch((closeError) => logger.error('Edit lease cleanup failed', toError(closeError)))
       throw error
     }
   }
@@ -377,7 +374,7 @@ export class FileEditSessionManager {
         this.publish(session, { saveError: undefined })
         if (session.snapshot.isDirty && session.pending === 1) this.schedule(session)
       } catch (error) {
-        this.publish(session, { saveError: asError(error) })
+        this.publish(session, { saveError: toError(error) })
         throw error
       }
     })
@@ -428,7 +425,7 @@ export class FileEditSessionManager {
             documentEpoch: session.snapshot.documentEpoch + 1
           })
       } catch (error) {
-        this.publish(session, { saveError: asError(error) })
+        this.publish(session, { saveError: toError(error) })
         throw error
       } finally {
         session.transition = false
@@ -476,10 +473,10 @@ export class FileEditSessionManager {
           (error instanceof IpcError &&
             (error.code === fileErrorCodes.EDIT_MISSING || error.code === fileErrorCodes.EDIT_TARGET_CHANGED))
         )
-          this.publish(session, { readError: asError(error) })
+          this.publish(session, { readError: toError(error) })
         logger.warn('File edit observation read failed', {
           sessionId: session.snapshot.sessionId,
-          error: asError(error)
+          error: toError(error)
         })
       }
     }
@@ -501,6 +498,6 @@ export class FileEditSessionManager {
     session.readGeneration++
     void ipcApi
       .request('file.edit.close', { editId: session.resource.editId })
-      .catch((error) => logger.error('Edit lease cleanup failed', asError(error)))
+      .catch((error) => logger.error('Edit lease cleanup failed', toError(error)))
   }
 }

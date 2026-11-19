@@ -44,6 +44,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     }
 
     const schema = asSchema(tools[toolCall.toolName].inputSchema)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The selected tool's native or JSON Schema validator determines the repaired input type.
     let validate: (value: unknown) => Promise<ValidationResult<unknown>>
     if (schema.validate) {
       validate = (value) => safeValidateTypes({ value, schema })
@@ -61,6 +62,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     }
 
     /** Successful validation of canonical input, or undefined when no candidate fits the tool schema. */
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model output and reparsed JSON remain untrusted until the selected tool's validator accepts a candidate.
     const canonicalize = async (value: unknown) => {
       const candidates = [value]
       if (typeof value === 'string') {

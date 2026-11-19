@@ -54,11 +54,9 @@ const ITEM_HEIGHT = 104
 const UNKNOWN_LANGUAGE = { value: 'Unknown', langCode: 'unknown' as TranslateLangCode, emoji: '🏳️' }
 type DisplayLanguage = TranslateLanguage | typeof UNKNOWN_LANGUAGE
 
-const formatCreatedAt = (value: unknown, locale: string): string => {
-  if (value == null) return ''
-  const d =
-    value instanceof Date ? value : typeof value === 'string' || typeof value === 'number' ? new Date(value) : null
-  if (!d || Number.isNaN(d.getTime())) return ''
+const formatCreatedAt = (value: TranslateHistory['createdAt'], locale: string): string => {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
   const now = new Date()
   const isSameDay =
     d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()

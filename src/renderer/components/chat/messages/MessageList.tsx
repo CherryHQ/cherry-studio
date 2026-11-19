@@ -69,6 +69,7 @@ type TopicImageRuntimeAction = 'copy' | 'export'
 interface PendingTopicImageRuntimeAction {
   action: TopicImageRuntimeAction
   captureWidth?: number
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image capture/export settles with original rejection values; preserve opaque and falsy reasons unchanged.
   reject: (reason?: unknown) => void
   resolve: () => void
 }
@@ -89,6 +90,7 @@ function takePendingTopicImageActions(topicId: string): PendingTopicImageRuntime
   return pendingActions
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image capture/export settles with original rejection values; preserve opaque and falsy reasons unchanged.
 function rejectPendingTopicImageActions(topicId: string, reason: unknown): void {
   for (const pendingAction of takePendingTopicImageActions(topicId)) {
     pendingAction.reject(reason)

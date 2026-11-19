@@ -29,6 +29,7 @@ export interface ProviderListGroupProps {
   onAddAnother?: (template: Provider) => void
   onDragStateChange: (dragging: boolean) => void
   onReorder: (reorderedProviders: Provider[]) => void | Promise<void>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The nested reorder list forwards synchronous or asynchronous mutation failures unchanged to its owner.
   onReorderError?: (error: unknown) => void
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
 }

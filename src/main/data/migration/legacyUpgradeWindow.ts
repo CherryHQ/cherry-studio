@@ -127,6 +127,7 @@ export function showLegacyUpgradeWindow(
       await installer?.cancel()
     })
     let downloading = false
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The preboot IPC target is renderer-controlled; sender validation and the bridge/prerequisite literal check precede download selection.
     ipcMain.handle(LegacyUpgradeChannels.Download, async (event, target: unknown) => {
       guard(event)
       if (target !== 'bridge' && target !== 'prerequisite') throw new Error('Invalid upgrade download')

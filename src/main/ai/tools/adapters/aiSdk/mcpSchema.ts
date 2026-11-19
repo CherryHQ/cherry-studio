@@ -6,6 +6,7 @@ const jsonSchemaValidator = new CfWorkerJsonSchemaValidator({ shortcircuit: fals
 export function createMcpJsonSchemaValidator<T = unknown>(schema: JSONSchema7) {
   const validate = jsonSchemaValidator.getValidator(schema as never)
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP tool inputs stay untyped until the selected server-provided JSON schema validator accepts them.
   return (value: unknown) => {
     const result = validate(value)
     return result.valid

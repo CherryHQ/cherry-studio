@@ -3,7 +3,6 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import {
   type CacheMode,
-  type CallToolRequest,
   type CallToolResult,
   Client,
   CLIENT_CAPABILITIES_META_KEY,
@@ -32,6 +31,7 @@ import {
 import { withInputRequired } from '@modelcontextprotocol/client'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
 import {
+  CallToolRequestParamsSchema,
   GetPromptResultSchema,
   ReadResourceResultSchema,
   RequestMetaSchema,
@@ -326,12 +326,13 @@ export class ClientMcpConnection implements McpConnection {
     return tools
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Callers pass heterogeneous tool inputs; the MCP schema validates the argument envelope before transport.
   public async callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult> {
     return this.withRequestContext(options, async (signal) => {
-      const params: CallToolRequest['params'] = {
+      const params = CallToolRequestParamsSchema.parse({
         name,
-        arguments: (args ?? {}) as Record<string, unknown>
-      }
+        arguments: args ?? {}
+      })
       return this.client.callTool(this.paramsWithLogLevel(params), {
         signal,
         timeout: options.timeoutMs,

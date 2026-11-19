@@ -52,6 +52,7 @@ export const clipboardCapability = {
     }
   },
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest-controlled method parameters remain untrusted until WriteParams validates text; sender focus and grants are checked independently.
   async write(appId: string, params: unknown, senderId: number) {
     const { text } = WriteParams.parse(params)
     assertInFront(appId, senderId, 'clipboard.write')

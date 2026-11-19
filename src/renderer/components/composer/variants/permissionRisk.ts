@@ -2,8 +2,8 @@ import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/
 
 export type PermissionRiskEffect = 'destructive' | 'network' | 'irreversible'
 
-// Analyze only the executable command text; the human-readable description
-// may mention keywords or URLs the command itself never performs.
+// Descriptions may mention operations that the executable command never performs.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool inputs are runtime-defined; only a verified command string participates in command-risk heuristics.
 function getCommandText(args: unknown): string {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
   const command = (args as Record<string, unknown>).command
@@ -14,8 +14,8 @@ function getCommandText(args: unknown): string {
 // per-subcommand checks below anchor on `git <sub>`.
 const GIT_GLOBAL_OPTIONS = /\bgit\s+(?:(?:-[Cc]\s+\S+|-\S+)\s*)+/g
 
-// Mirrors ToolHeader's getCommandActivity patterns; this assigns risk severity,
-// that assigns display labels. Check both when covering a new tool.
+// Keep command recognition aligned with ToolHeader's activity labels.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permission requests carry heterogeneous tool input; getCommandText verifies the executable field before risk analysis.
 export function getPermissionRiskEffects(toolName: string, args: unknown): PermissionRiskEffect[] {
   const effects = new Set<PermissionRiskEffect>()
   const text = getCommandText(args)
