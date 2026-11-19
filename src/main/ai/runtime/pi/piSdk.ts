@@ -28,12 +28,16 @@ type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
 export async function loadPiApiStreamSimple(api: PiApi): Promise<PiStreamSimple> {
   switch (api) {
     case 'anthropic-messages':
-      return (await import('@earendil-works/pi-ai/api/anthropic-messages')).streamSimple as unknown as PiStreamSimple
+      // SAFETY: Pi invokes the registered callback only for its matching API; ProviderConfig erases that correlation.
+      return (await import('@earendil-works/pi-ai/api/anthropic-messages')).streamSimple as PiStreamSimple
     case 'openai-completions':
-      return (await import('@earendil-works/pi-ai/api/openai-completions')).streamSimple as unknown as PiStreamSimple
+      // SAFETY: Pi invokes the registered callback only for its matching API; ProviderConfig erases that correlation.
+      return (await import('@earendil-works/pi-ai/api/openai-completions')).streamSimple as PiStreamSimple
     case 'openai-responses':
-      return (await import('@earendil-works/pi-ai/api/openai-responses')).streamSimple as unknown as PiStreamSimple
+      // SAFETY: Pi invokes the registered callback only for its matching API; ProviderConfig erases that correlation.
+      return (await import('@earendil-works/pi-ai/api/openai-responses')).streamSimple as PiStreamSimple
     case 'google-generative-ai':
-      return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as unknown as PiStreamSimple
+      // SAFETY: Pi invokes the registered callback only for its matching API; ProviderConfig erases that correlation.
+      return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as PiStreamSimple
   }
 }
