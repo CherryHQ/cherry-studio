@@ -186,6 +186,7 @@ export const fileCapability = {
   // `async`, because the checks below now run HERE: a synchronous throw out of a method the
   // bridge awaits escapes its `.catch` entirely, which is the same trap `miniAppBridge.ts`
   // documents on the guest side.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest bridge params are unparsed; SaveParams checks the logical name and base64 length before decoding or queueing bytes.
   async save(appId: string, params: unknown) {
     // Parsed, decoded and rate-limited BEFORE the queue, not inside it. Handing the raw
     // params to `serializePerApp` parks the guest's whole base64 string in main-process
@@ -253,6 +254,7 @@ export const fileCapability = {
     return { ok: true }
   },
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- NameParams validates the guest logical name before resolving an app-owned file reference or reserving decode memory.
   async load(appId: string, params: unknown) {
     const { name } = NameParams.parse(params)
     const ref = findRef(appId, name)
@@ -293,6 +295,7 @@ export const fileCapability = {
     }
   },
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- NameParams validates the guest logical name before rate limiting and the lease-protected deletion queue.
   async delete(appId: string, params: unknown) {
     const { name } = NameParams.parse(params)
     // Counted BEFORE the early return: `delete` of a missing name is still a call, and
@@ -333,6 +336,7 @@ export const fileCapability = {
    * the window showing the app and titled with the app's name — the dialog IS the consent,
    * so it has to say who is asking. The chosen path never crosses back to the guest.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ExportParams validates guest logical/suggested names before the visibility gate and native save dialog; the guest supplies no disk path.
   async export(appId: string, params: unknown, senderId: number) {
     const { name, suggestedName } = ExportParams.parse(params)
     const runtime = application.get('MiniAppRuntimeService')

@@ -18,6 +18,7 @@ import path from 'node:path'
 import { shell } from 'electron'
 
 import { loggerService } from '@logger'
+import type { MiniAppReply } from '@shared/ipc/schemas/miniAppBridge'
 import {
   type MiniAppActivityEntry,
   MiniAppActivityEntrySchema,
@@ -73,8 +74,10 @@ const TIER = {
 type Facet = Record<string, string | number | boolean>
 type Params = Record<string, unknown> | undefined
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refused bridge calls retain unvalidated parameter fields; log only string lengths/hosts and treat other values as absent.
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 /** Decoded size of a base64 string without decoding it — the bridge carries no binary. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw file.save parameters can be malformed on refused calls; estimate bytes only from a string without decoding guest data.
 function base64Bytes(value: unknown): number {
   const s = str(value)
   const padding = s.endsWith('==') ? 2 : s.endsWith('=') ? 1 : 0
@@ -82,8 +85,8 @@ function base64Bytes(value: unknown): number {
 }
 
 /** Metadata only: sizes and addresses at most. Never a key, a name, a message or a text. */
-function facetOf(method: MiniAppMethod, params: Params, result: unknown): Facet | undefined {
-  const out = result as Record<string, unknown> | undefined
+function facetOf(method: MiniAppMethod, params: Params, result: MiniAppReply | undefined): Facet | undefined {
+  const out = result
   switch (method) {
     case 'network.fetch': {
       const facet: Facet = {}
@@ -92,16 +95,16 @@ function facetOf(method: MiniAppMethod, params: Params, result: unknown): Facet 
       } catch {
         // An unparsable url is the refusal's own reason; nothing to attribute it to.
       }
-      if (typeof out?.status === 'number') facet.status = out.status
-      if (out?.body !== undefined) facet.bytes = base64Bytes(out.body)
+      if (out && 'status' in out && typeof out.status === 'number') facet.status = out.status
+      if (out && 'body' in out && out.body !== undefined) facet.bytes = base64Bytes(out.body)
       return facet
     }
     case 'clipboard.write':
       return { chars: str(params?.text).length }
     case 'clipboard.read':
-      return out ? { chars: str(out.text).length } : undefined
+      return out ? { chars: str('text' in out ? out.text : undefined).length } : undefined
     case 'file.export':
-      return out ? { saved: out.saved === true } : undefined
+      return out ? { saved: 'saved' in out && out.saved === true } : undefined
     case 'ai.chat': {
       const messages = Array.isArray(params?.messages) ? params.messages : []
       const bytes = messages.reduce(
@@ -116,17 +119,17 @@ function facetOf(method: MiniAppMethod, params: Params, result: unknown): Facet 
 }
 
 /** What the counted tier adds up besides calls: the bytes a call moved in or out. */
-function bytesOf(method: MiniAppMethod, params: Params, result: unknown): number {
-  const out = result as Record<string, unknown> | undefined
+function bytesOf(method: MiniAppMethod, params: Params, result: MiniAppReply | undefined): number {
+  const out = result
   switch (method) {
     case 'storage.set':
       return Buffer.byteLength(str(params?.value))
     case 'storage.get':
-      return Buffer.byteLength(str(out?.value))
+      return Buffer.byteLength(str(out && 'value' in out ? out.value : undefined))
     case 'file.save':
       return base64Bytes(params?.data)
     case 'file.load':
-      return base64Bytes(out?.data)
+      return base64Bytes(out && 'data' in out ? out.data : undefined)
     default:
       return 0
   }
@@ -184,8 +187,9 @@ export class MiniAppActivityLog {
     method: MiniAppMethod,
     outcome: string,
     durationMs: number,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The bridge logs grant/schema refusals before capability parsing succeeds; inspect only metadata fields from these raw parameters.
     params: unknown,
-    result: unknown,
+    result: MiniAppReply | undefined,
     /** What failed underneath the public outcome — a class name, never a message. */
     reason?: string
   ): void {
