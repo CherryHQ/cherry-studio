@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "ズームアウト",
   "backup.restore.failed": "復元に失敗しました",
   "backup.restore.retry": "バックアップを復元できませんでした。元のデータは保持されています。復元を再試行してください。",
+  "chat.cherryai.sign_in_required": "このモデルを使うには CherryAI にサインインしてください",
   "chat.conversation.new": "新しいチャット",
   "command_approval.builtin-destructive-command": "この組み込みエージェントは破壊的な操作を実行できません。確認済みのファイル削除にはゴミ箱ツールを使用してください。 (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "コマンドポリシーを読み込めないため、実行をブロックしました。",

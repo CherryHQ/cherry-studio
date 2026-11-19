@@ -289,6 +289,7 @@ releaseInfo:
     - [Agent] Fixed agent sessions with background subagents slowing down a little more every round.
     - [Agents] Preserve subagent rate-limit error details and show consistent retry status for Pi and Pi Durable tasks.
     - [Agents] Reduce out-of-memory crashes when subagents process many images in parallel.
+    - [Cherry AI] Load the model catalog from the server and show sign-in, subscription or AMD authorization requirements; detect delisted models. Built-in Qwen now requires Cherry AI sign-in (action required for users who previously used it signed out).
 
     💄 Improvements
     - [Conversations] Grouping choices are clearer, and list controls are separated from history and management navigation in conversation and Agent session menus.
@@ -379,6 +380,7 @@ releaseInfo:
     - [智能体] 修复使用后台子智能体的 Agent 会话每一轮都比上一轮更慢的问题。
     - [智能体] 保留子任务限流错误详情，并为 Pi 和 Pi Durable 任务显示一致的重试状态。
     - [智能体] 减少子智能体并行处理大量图片时因内存不足导致的闪退。
+    - [Cherry AI] 从服务端加载模型目录，展示登录、订阅或 AMD 授权要求，并提示已下架模型。内置 Qwen 现需登录 Cherry AI（action required：此前未登录使用的用户需先登录）。
 
     💄 改进
     - [会话] 会话和智能体会话菜单中的分组选项更清晰，列表控制与历史和管理的导航相互分离。

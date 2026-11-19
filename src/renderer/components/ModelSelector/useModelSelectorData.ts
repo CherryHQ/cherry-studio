@@ -375,8 +375,10 @@ export function useModelSelectorData({
       })
       items.push(
         ...(searchText.length === 0
-          ? sortBy(rows, (item) =>
-              item.type === 'model' ? (getModelPresentation(item.model, item.provider).priority ?? 0) : 0
+          ? sortBy(
+              rows,
+              (item) =>
+                (item.type === 'model' ? getModelPresentation(item.model, item.provider).priority : item.priority) ?? 0
             )
           : rows)
       )
