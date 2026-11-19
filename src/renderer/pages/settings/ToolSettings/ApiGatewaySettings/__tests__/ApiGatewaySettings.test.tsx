@@ -104,6 +104,13 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue(gatewayState())
   })
 
+  it('retains the settings header and gateway panel', () => {
+    render(<ApiGatewaySettings />)
+    expect(screen.getByText('apiGateway.title')).toBeInTheDocument()
+    expect(screen.getByText('apiGateway.status.stopped')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.start' })).toBeInTheDocument()
+  })
+
   // A port is an identifier: an out-of-range one has to be refused and explained,
   // not quietly rounded into range the way a magnitude would be.
   it.each([

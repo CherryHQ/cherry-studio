@@ -51,7 +51,8 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   knowledge: knowledgeIcon,
   files: filesIcon,
   code_tools: codeToolsIcon,
-  notes: notesIcon
+  notes: notesIcon,
+  api_gateway: undefined
 }
 
 export default function LaunchpadPage() {
