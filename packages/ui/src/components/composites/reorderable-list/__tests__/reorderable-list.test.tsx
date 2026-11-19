@@ -69,7 +69,7 @@ describe('ReorderableList', () => {
     expect(onReorder).toHaveBeenCalledWith([items[4], items[0], items[1], items[2], items[3]])
   })
 
-  it('reports async reorder failures without throwing away the callback contract', async () => {
+  it.each(['throw', 'reject'] as const)('reports reorder failures when the callback uses %s', async (mode) => {
     const onReorderError = vi.fn()
     const error = new Error('persist failed')
 
@@ -78,7 +78,10 @@ describe('ReorderableList', () => {
         items={items}
         visibleItems={visibleItems}
         getId={(item) => item.id}
-        onReorder={vi.fn().mockRejectedValue(error)}
+        onReorder={() => {
+          if (mode === 'throw') throw error
+          return Promise.reject(error)
+        }}
         onReorderError={onReorderError}
         renderItem={(item) => <div>{item.id}</div>}
       />
