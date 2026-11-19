@@ -68,6 +68,20 @@ export function bindNativeInput(sessionId: string, contextId: string, input: Inp
 }
 
 /**
+ * The Error for a failed native input. An output-truncated outcome is app-owned: its i18nKey keeps
+ * the renderer from sending the (count-bearing) message to AI diagnosis.
+ */
+export function nativeOutcomeError(input: Pick<InputState, 'outcome' | 'error'>): Error {
+  return Object.assign(new Error(input.error?.message ?? input.outcome), {
+    reason: input.error?.code,
+    ...(input.error?.code === 'output-truncated' && {
+      finishReason: 'length',
+      i18nKey: 'output_token_limit_reached'
+    })
+  })
+}
+
+/**
  * The product terminal for a Durable input outcome; the live turn and every host settle path share it.
  * @returns `undefined` while the input has no outcome.
  */
@@ -81,16 +95,7 @@ export function nativeOutcomeTerminal(
       return { status: 'paused' }
     case 'failed':
     case 'unanswered':
-      return {
-        status: 'error',
-        error: Object.assign(new Error(input.error?.message ?? input.outcome), {
-          reason: input.error?.code,
-          ...(input.error?.code === 'output-truncated' && {
-            finishReason: 'length',
-            i18nKey: 'output_token_limit_reached'
-          })
-        })
-      }
+      return { status: 'error', error: nativeOutcomeError(input) }
     default:
       return undefined
   }
