@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "缩小",
   "backup.restore.failed": "恢复失败",
   "backup.restore.retry": "备份未能恢复。已保留原有数据。请重新尝试恢复。",
+  "chat.cherryai.sign_in_required": "登录 CherryAI 后才能使用此模型",
   "chat.conversation.new": "新对话",
   "command_approval.builtin-destructive-command": "此内置智能体不能执行破坏性操作。确认删除文件时请使用移到废纸篓工具。 (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "无法加载命令策略，已阻止执行。",
