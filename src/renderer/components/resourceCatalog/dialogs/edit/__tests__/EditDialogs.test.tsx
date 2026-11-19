@@ -2883,6 +2883,20 @@ describe('Agent configuration memory', () => {
     expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Updated persona unsaved')
   })
 
+  it('shows refresh and open folder as buttons on the memory file list', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await screen.findByRole('button', { name: 'Persona' })
+    const reads = ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.read').length
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() =>
+      expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.read').length).toBe(reads + 1)
+    )
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.open_folder', { agentId: AGENT.id })
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+  })
+
   it('keeps copy and folder actions available through the memory menu', async () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')

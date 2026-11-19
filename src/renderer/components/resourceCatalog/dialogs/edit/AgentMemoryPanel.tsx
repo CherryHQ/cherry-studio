@@ -19,6 +19,10 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
 
+// Matches the Edit/Preview toggle of the prompt editor.
+const LIST_ACTION_CLASS =
+  'flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40'
+
 const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
 
 export const MEMORY_FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
@@ -247,13 +251,31 @@ export function AgentMemoryPanel({
     </DropdownMenu>
   )
 
+  const listActions = (
+    <div className="flex items-center gap-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={loading}
+        onClick={() => void reload()}
+        className={LIST_ACTION_CLASS}>
+        <RefreshCw className={cn('size-3', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
+        {t('agent.memory.refresh')}
+      </Button>
+      <Button type="button" variant="ghost" onClick={() => void openFolder()} className={LIST_ACTION_CLASS}>
+        <FolderOpen className="size-3" aria-hidden="true" />
+        {t('agent.memory.open_folder')}
+      </Button>
+    </div>
+  )
+
   const fileLabel = <span className="truncate text-muted-foreground text-xs">{selected?.name}</span>
 
   const list = (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between px-1">
         <span className="text-muted-foreground text-xs">{t('agent.memory.title')}</span>
-        {moreMenu}
+        {listActions}
       </div>
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
         {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
