@@ -456,6 +456,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           this.fileProcessingWaits.delete(itemId)
           this.scheduleFileProcessingCheck(baseId, itemId, task.id, { parentJobId, processedRelativePath })
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- File-processing completion or result-check scheduling can reject arbitrarily; log that failure without rejecting the already-admitted ingestion call.
         .catch((error: unknown) => {
           logger.error('Failed to schedule the file-processing result check', error as Error, {
             baseId,
@@ -646,6 +647,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     )
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Item planning/copy/admission catches pass the original failure; rollback diagnostics must not replace the error rethrown by addItems.
   private rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): void {
     for (const item of items) {
       try {
@@ -753,6 +755,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     baseId: string,
     items: KnowledgeItem[],
     completedSchedulingItemIds: Set<string>,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Job scheduling can throw any value after item admission; derive the failed-item message while the caller rethrows the original failure.
     originalError: unknown
   ): void {
     const message = originalError instanceof Error ? originalError.message : String(originalError)

@@ -3053,6 +3053,7 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime error events and async connection-loop catches share this entry; preserve arbitrary thrown values through terminal settlement or abort classification.
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
@@ -3205,6 +3206,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal outcomes retain runtime and delivery failures; pass their original value to the readable controller error channel.
   private errorTurn(turn: AgentSessionTurn, error: unknown): void {
     try {
       turn.controller?.error(error)
@@ -3697,6 +3699,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- An inactive connection loop may throw any value; recognize only object-shaped AbortError names before deciding whether the failure is expected.
 function isAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError'
 }
