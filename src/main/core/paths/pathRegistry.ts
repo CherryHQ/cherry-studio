@@ -111,6 +111,12 @@ export function buildPathRegistry() {
       process.platform === 'win32' ? 'terminal-scope.exe' : 'terminal-scope'
     ),
     'feature.terminal.ghostty': path.join(appRootResources, 'terminal', 'ghostty'),
+    'feature.terminal.integration': path.join(
+      app.getAppPath().replace(/\.asar$/, '.asar.unpacked'),
+      'resources',
+      'terminal',
+      'shellIntegration'
+    ),
     'feature.external_app.native_file': path.join(
       appRootResources,
       'binaries',
@@ -463,6 +469,7 @@ const NO_ENSURE = [
   'feature.voice.helper_file',
   'feature.terminal.scope_helper_file',
   'feature.terminal.ghostty',
+  'feature.terminal.integration',
   'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',

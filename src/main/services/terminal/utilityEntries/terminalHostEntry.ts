@@ -13,6 +13,9 @@ serveUtilityProcess<TerminalHostContract, TerminalHostInit>({
     mutate: (input) => host.mutate(input),
     operation: ({ host: identity, id }) => host.operation(identity, id),
     read: ({ host: identity, id, cursor, limit }) => host.read(identity, id, cursor, limit),
+    view: (input) => host.view(input),
+    link: (input) => host.link(input),
+    detachView: ({ host: identity, id, viewId }) => host.detachView(identity, id, viewId),
     release: ({ host: identity, id }) => host.release(identity, id),
     seal: ({ host: identity, admissionRevision }) => host.seal(identity, admissionRevision)
   },

@@ -1,3 +1,16 @@
+import {
+  GHOSTTY_CELL_WIDE,
+  type GhosttyColor,
+  type GhosttyTheme,
+  type GhosttyCell,
+  type GhosttyRow,
+  type GhosttySnapshot,
+  type GhosttySelectionRange,
+  type GhosttyScrollbar,
+  type GhosttyPointInput,
+  type GhosttyMouseInput,
+  type GhosttyKeyInput
+} from '@shared/types/terminal'
 // Adapted from T3 Code, copyright (c) 2026 T3 Tools Inc. (MIT).
 // Provenance and license: resources/terminal/ghostty/README.md.
 
@@ -58,113 +71,19 @@ const RAW_CELL_DATA = {
   wide: 3
 } as const
 
-export const GHOSTTY_CELL_WIDE = {
-  narrow: 0,
-  wide: 1,
-  spacerTail: 2,
-  spacerHead: 3
-} as const
-
-export interface GhosttyColor {
-  readonly r: number
-  readonly g: number
-  readonly b: number
-}
-
-export interface GhosttyTheme {
-  readonly foreground: GhosttyColor
-  readonly background: GhosttyColor
-  readonly cursor: GhosttyColor
-  readonly palette?: readonly GhosttyColor[]
-  readonly selectionBackground?: string
-}
-
-export interface GhosttyCell {
-  readonly text: string
-  readonly wide: number
-  readonly foreground: GhosttyColor
-  readonly background: GhosttyColor
-  readonly bold: boolean
-  readonly italic: boolean
-  readonly invisible: boolean
-  readonly strikethrough: boolean
-  readonly overline: boolean
-  readonly underline: boolean
-  readonly selected: boolean
-}
-
-export interface GhosttyRow {
-  readonly cells: readonly GhosttyCell[]
-  readonly text: string
-  readonly isWrapContinuation: boolean
-  readonly wrapsToNext: boolean
-}
-
-export interface GhosttySnapshot {
-  readonly cols: number
-  readonly rows: number
-  readonly foreground: GhosttyColor
-  readonly background: GhosttyColor
-  readonly cursor: GhosttyColor
-  readonly cursorX: number
-  readonly cursorY: number
-  readonly cursorVisible: boolean
-  readonly cursorBlinking: boolean
-  readonly cursorStyle: number
-  readonly dirtyRows: ReadonlySet<number>
-  readonly rowData: readonly GhosttyRow[]
-}
-
-export interface GhosttySelectionRange {
-  readonly viewport: {
-    readonly start: { readonly x: number; readonly y: number }
-    readonly end: { readonly x: number; readonly y: number }
-  }
-  readonly screen: {
-    readonly start: { readonly x: number; readonly y: number }
-    readonly end: { readonly x: number; readonly y: number }
-  }
-}
-
-export interface GhosttyScrollbar {
-  readonly total: number
-  readonly offset: number
-  readonly len: number
-}
-
-export interface GhosttyPointInput {
-  readonly x: number
-  readonly y: number
-  readonly tag?: 1 | 2
-}
-
-export interface GhosttyMouseInput {
-  readonly action: 'press' | 'release' | 'motion'
-  readonly button: number | null
-  readonly mods: number
-  readonly x: number
-  readonly y: number
-  readonly screenWidth: number
-  readonly screenHeight: number
-  readonly cellWidth: number
-  readonly cellHeight: number
-  readonly paddingLeft: number
-  readonly paddingRight: number
-  readonly paddingTop: number
-  readonly paddingBottom: number
-  readonly anyButtonPressed: boolean
-}
-
-export interface GhosttyKeyInput {
-  readonly key: number
-  readonly mods: number
-  readonly consumedMods: number
-  readonly composing: boolean
-  readonly unshiftedCodepoint: number
-  readonly text: string
-  readonly repeat: boolean
-}
-
+export { GHOSTTY_CELL_WIDE } from '@shared/types/terminal'
+export type {
+  GhosttyColor,
+  GhosttyTheme,
+  GhosttyCell,
+  GhosttyRow,
+  GhosttySnapshot,
+  GhosttySelectionRange,
+  GhosttyScrollbar,
+  GhosttyPointInput,
+  GhosttyMouseInput,
+  GhosttyKeyInput
+} from '@shared/types/terminal'
 export interface GhosttyTerminalOptions {
   runtime: GhosttyRuntime
   cols: number
@@ -607,8 +526,23 @@ export class GhosttyTerminalCore {
     const positionLayout = this.runtime.layout('GhosttyMousePosition')
     const position = this.runtime.alloc(positionLayout.size)
     const positionView = this.runtime.view(position, positionLayout.size)
-    positionView.setFloat32(positionLayout.fields.x.offset, input.x, true)
-    positionView.setFloat32(positionLayout.fields.y.offset, input.y, true)
+    this.runtime.bytes(this.scratch, 1)[0] = 0
+    const pixels =
+      this.runtime.call('ghostty_terminal_mode_get', this.terminal, 1016, this.scratch) === GHOSTTY_SUCCESS &&
+      this.runtime.bytes(this.scratch, 1)[0] !== 0
+    // The ABI uses integer cell sizes; preserve CSS cell coordinates across fractional font metrics.
+    const coordinate = (value: number, cell: number, padding: number) =>
+      pixels ? value : Math.round(padding) + ((value - padding) / cell) * Math.max(1, Math.round(cell))
+    positionView.setFloat32(
+      positionLayout.fields.x.offset,
+      coordinate(input.x, input.cellWidth, input.paddingLeft),
+      true
+    )
+    positionView.setFloat32(
+      positionLayout.fields.y.offset,
+      coordinate(input.y, input.cellHeight, input.paddingTop),
+      true
+    )
     this.runtime.call('ghostty_mouse_event_set_position', this.mouseEvent, position)
     this.runtime.free(position, positionLayout.size)
 

@@ -5,7 +5,7 @@ type ShellTool = ReturnType<typeof createBashToolDefinition>
 export const PI_SHELL_TIMEOUT_SECONDS = 120
 
 /** Keep unbounded commands from holding a turn after their useful work has finished. */
-export function withPiShellTimeout(tool: ShellTool): ShellTool {
+export function withPiShellTimeout<T extends ShellTool>(tool: T): T {
   return {
     ...tool,
     description: `${tool.description} Commands default to a 120-second timeout; set timeout explicitly for longer work.`,

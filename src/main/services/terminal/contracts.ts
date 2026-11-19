@@ -1,3 +1,40 @@
+import type {
+  TerminalResourceId,
+  TerminalGeneration,
+  TerminalConversationId,
+  TerminalHostIdentity,
+  TerminalContext,
+  TerminalControl,
+  TerminalRetention,
+  TerminalStopReason,
+  TerminalResourceState,
+  TerminalCaptureRead,
+  TerminalReceipt,
+  TerminalViewFrame,
+  GhosttyKeyInput,
+  GhosttyMouseInput,
+  GhosttyTheme
+} from '@shared/types/terminal'
+export type {
+  TerminalResourceId,
+  TerminalGeneration,
+  TerminalConversationId,
+  TerminalHostIdentity,
+  TerminalContext,
+  TerminalControl,
+  TerminalProcessState,
+  TerminalCleanup,
+  TerminalRetention,
+  TerminalStopReason,
+  TerminalResourceState,
+  TerminalCaptureRead,
+  TerminalRejection,
+  TerminalReceipt,
+  TerminalViewFrame,
+  GhosttyKeyInput,
+  GhosttyMouseInput,
+  GhosttyTheme
+} from '@shared/types/terminal'
 import path from 'node:path'
 
 import * as z from 'zod'
@@ -8,25 +45,15 @@ import type {
   UtilityProcessStreamMethod
 } from '@main/core/utilityProcess/types'
 
-export const terminalResourceId = z.uuid().brand<'TerminalResourceId'>()
-export const terminalGeneration = z.uuid().brand<'TerminalGeneration'>()
+export const terminalResourceId = z.uuid().transform((id) => id as TerminalResourceId)
+export const terminalGeneration = z.uuid().transform((id) => id as TerminalGeneration)
 export const terminalOperationId = z.string().min(1).max(96).brand<'TerminalOperationId'>()
-export const terminalConversationId = z.string().min(1).max(512).brand<'TerminalConversationId'>()
-export type TerminalResourceId = z.infer<typeof terminalResourceId>
-export type TerminalGeneration = z.infer<typeof terminalGeneration>
+export const terminalConversationId = z
+  .string()
+  .min(1)
+  .max(512)
+  .transform((id) => id as TerminalConversationId)
 export type TerminalOperationId = z.infer<typeof terminalOperationId>
-export type TerminalConversationId = z.infer<typeof terminalConversationId>
-
-export interface TerminalHostIdentity {
-  conversationId: TerminalConversationId
-  generation: TerminalGeneration
-}
-
-export interface TerminalContext {
-  contextId: string
-  bindingId: string
-  revision: number
-}
 
 const text = z
   .string()
@@ -72,48 +99,6 @@ export const terminalLaunch = z
   )
 export type TerminalLaunch = z.infer<typeof terminalLaunch>
 
-export type TerminalControl = { kind: 'unassigned' } | { kind: 'agent'; context: TerminalContext } | { kind: 'user' }
-export type TerminalProcessState =
-  | { kind: 'not_started' | 'starting' | 'running' | 'closing' }
-  | { kind: 'exited'; exitCode: number | null; signal: number | null }
-  | { kind: 'lost'; message: string }
-export type TerminalCleanup = 'none' | 'pending' | 'confirmed' | 'unconfirmed'
-export type TerminalRetention = { kind: 'turn'; turnId: string } | { kind: 'session' }
-export type TerminalStopReason =
-  | 'agent_stop'
-  | 'task_stop'
-  | 'terminal_close'
-  | 'runtime_released'
-  | 'deadline'
-  | 'user'
-  | 'conversation_closed'
-  | 'host_stopped'
-  | 'root_exited'
-export interface TerminalResourceState {
-  id: TerminalResourceId
-  host: TerminalHostIdentity
-  kind: 'pipe' | 'pty'
-  shell: 'bash' | 'powershell'
-  context: TerminalContext
-  process: TerminalProcessState
-  cleanup: TerminalCleanup
-  retention: TerminalRetention
-  cancelRevision: number
-  control: TerminalControl
-  controlRevision: number
-  revision: number
-  outputCursor: number
-  stopReason?: TerminalStopReason
-}
-
-export interface TerminalCaptureRead {
-  start: number
-  next: number
-  end: number
-  truncated: boolean
-  data: Uint8Array
-}
-
 export type TerminalActor = { kind: 'agent'; context: TerminalContext } | { kind: 'user' }
 export type TerminalCommand =
   | { kind: 'bind'; context: TerminalContext }
@@ -135,7 +120,65 @@ export type TerminalCommand =
       reason: TerminalStopReason
     }
   | { kind: 'control'; id: TerminalResourceId; actor: TerminalActor; controlRevision: number; target: TerminalControl }
-  | { kind: 'input'; id: TerminalResourceId; actor: TerminalActor; controlRevision: number; data: string }
+  | {
+      kind: 'input'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      data: string
+      commandId?: string
+      programRevision?: number
+    }
+  | {
+      kind: 'interrupt'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      commandId: string
+      programRevision: number
+    }
+  | {
+      kind: 'shell-command'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      promptRevision: number
+      commandId: string
+      data: string
+    }
+  | {
+      kind: 'key'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      event: GhosttyKeyInput
+      geometryEpoch: number
+    }
+  | {
+      kind: 'paste'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      data: string
+      geometryEpoch: number
+    }
+  | {
+      kind: 'wheel'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      geometryEpoch: number
+      event: GhosttyMouseInput
+      rows: number
+    }
+  | {
+      kind: 'mouse'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      geometryEpoch: number
+      event: GhosttyMouseInput
+    }
   | {
       kind: 'resize'
       id: TerminalResourceId
@@ -143,22 +186,11 @@ export type TerminalCommand =
       controlRevision: number
       cols: number
       rows: number
+      geometryEpoch?: number
+      cellWidth?: number
+      cellHeight?: number
     }
 
-export type TerminalRejection =
-  | 'stale_context'
-  | 'stale_generation'
-  | 'stale_control'
-  | 'closing'
-  | 'capacity_exceeded'
-  | 'identity_conflict'
-  | 'outcome_unknown'
-  | 'unsupported'
-  | 'busy'
-export type TerminalReceipt =
-  | { kind: 'resource'; resource: TerminalResourceState }
-  | { kind: 'context'; context: TerminalContext }
-  | { kind: 'rejected'; reason: TerminalRejection }
 export interface TerminalMutation {
   host: TerminalHostIdentity
   admissionRevision: number
@@ -170,8 +202,10 @@ export type TerminalOperation =
   | { kind: 'settled'; receipt: TerminalReceipt }
   | { kind: 'outcome_unknown' }
 export interface TerminalHostInit {
+  admissionRevision?: number
   host: TerminalHostIdentity
   helperFile: string
+  integrationDirectory?: string
   ghosttyDirectory: string
 }
 export type TerminalHostContract = {
@@ -182,6 +216,31 @@ export type TerminalHostContract = {
     read: UtilityProcessMethod<
       { host: TerminalHostIdentity; id: TerminalResourceId; cursor: number; limit: number },
       TerminalCaptureRead
+    >
+    view: UtilityProcessMethod<
+      {
+        host: TerminalHostIdentity
+        id: TerminalResourceId
+        viewId: string
+        rowStart: number
+        offset: number
+        revision: number | null
+        theme?: GhosttyTheme
+      },
+      TerminalViewFrame
+    >
+    detachView: UtilityProcessMethod<{ host: TerminalHostIdentity; id: TerminalResourceId; viewId: string }, void>
+    link: UtilityProcessMethod<
+      {
+        host: TerminalHostIdentity
+        id: TerminalResourceId
+        viewId: string
+        revision: number
+        geometryEpoch: number
+        x: number
+        y: number
+      },
+      string | null
     >
     release: UtilityProcessMethod<{ host: TerminalHostIdentity; id: TerminalResourceId }, boolean>
     seal: UtilityProcessMethod<{ host: TerminalHostIdentity; admissionRevision: number }, TerminalResourceState[]>

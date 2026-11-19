@@ -4,7 +4,7 @@ import { PI_SHELL_TIMEOUT_SECONDS } from '../pi/piShellTimeout'
 
 type ShellTool = ReturnType<typeof createBashTool>
 
-export function withDurableShellTimeout(tool: ShellTool): ShellTool {
+export function withDurableShellTimeout<T extends ShellTool>(tool: T): T {
   const properties = tool.parameters.properties as Record<string, object>
   return {
     ...tool,

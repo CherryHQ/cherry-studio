@@ -24,6 +24,7 @@ import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { TerminalTools } from '../terminal/TerminalTools'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 import { withDurableShellTimeout } from './durableShellTimeout'
@@ -110,6 +111,7 @@ export async function prepareDurableDesktop(
       input.knowledgeBaseIds
     )
   )
+  const terminalTools = new TerminalTools(input.sessionId, cwd, mergePiShellExecutionEnv(env))
   try {
     const isDisabled = (name: string) => {
       const tool = mcp.metadata.get(name)
@@ -131,6 +133,7 @@ export async function prepareDurableDesktop(
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
+      background: terminalTools.durableBackground(),
       commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
     registry.install(
@@ -138,8 +141,11 @@ export async function prepareDurableDesktop(
         ...coding,
         tools: [
           ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
-          withDurableShellTimeout(bash),
-          ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
+          terminalTools.bindDurable(withDurableShellTimeout(bash)),
+          ...(process.platform === 'win32'
+            ? [terminalTools.bindDurable(withDurableShellTimeout(tools.createPowerShellTool()))]
+            : []),
+          ...(await terminalTools.durableTools())
         ]
       })
     )
@@ -262,11 +268,13 @@ export async function prepareDurableDesktop(
         return { signature: current.signature, permissionChanged }
       },
       async close() {
+        await terminalTools.close()
         await mcp.close()
         await environment.cleanup((await import('@earendil-works/chord/context')).BACKGROUND_CONTEXT)
       }
     }
   } catch (error) {
+    await terminalTools.close()
     await mcp.close()
     throw error
   }

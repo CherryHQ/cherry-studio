@@ -34,6 +34,7 @@ Lifecycle IPC / Trash purge / BackupManager
             ├─ AgentSessionDeliveryService: queue drain and wakeups
             ├─ AiStreamManager: dispatch admission and abort/drain
             ├─ AgentSessionRuntimeService: runtime close barriers
+            ├─ TerminalService: conversation process shutdown
             ├─ AgentWorkspaceStorageService: storage conversion and recovery
             └─ ChannelManager: reconcile current connection intent
 ```
@@ -172,6 +173,7 @@ are retained unchanged. Compression uses an `.archiving` directory and a tempora
 archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
+Terminal admission closes with the conversation. Workspace archive, purge and recovery additionally wait for confirmed terminal scope cleanup; uncertainty retains the original files for retry. Restoring a Session allows new terminal launches without resuming old processes.
 Archive shutdown drains pending Claude idle-prewarm preparation and subprocess disposal
 before filesystem work starts, including idle or replaced entries already detached
 from the warm-query map. Failed disposal remains tracked and blocks conversion until retried.

@@ -6,6 +6,7 @@ import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { createTestTerminalService } from '@test-helpers/terminal'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -106,7 +107,8 @@ describe('desktop Pi root connection', () => {
   let script: ReturnType<typeof scriptedModel>
   const connections: PiRuntimeConnection[] = []
 
-  beforeEach(() => {
+  let terminalService: Awaited<ReturnType<typeof createTestTerminalService>>
+  beforeEach(async () => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     directory = tempDir('desktop-pi')
@@ -169,9 +171,11 @@ describe('desktop Pi root connection', () => {
     mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
+    terminalService = await createTestTerminalService()
   })
   afterEach(async () => {
     for (const connection of connections.splice(0)) await connection.close()
+    await terminalService._doStop()
     vi.restoreAllMocks()
   })
   function setScript(parts: AssistantMessage[], delay?: number) {

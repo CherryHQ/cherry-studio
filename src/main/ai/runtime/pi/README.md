@@ -119,6 +119,12 @@ saved child output readable. A restored parent's stop policy still applies to ch
 an independent archive is never a writable root. Shutdown quiesces native execution, reconciles
 committed child history while its access remains readable, and releases access after archive flush.
 
+## Shell tools
+
+The [terminal adapter](../terminal/README.md) preserves native fresh-command execution, output and exit results while routing processes through `TerminalService`. Native Bash supports explicit background start and promotion of the same execution. PowerShell remains foreground-only; the SDK prepares its encoding and exit handling before delegating process execution.
+
+Persistent `terminal_*` tools and retained `shell_task_*` tools have separate policy declarations. Command approval uses the terminal's verified prompt cwd. Raw stdin is independently approved and is never rewritten as a Bash command. Closing a runtime releases its leases; session-retained terminal work stays owned by the conversation.
+
 ## Verification boundaries
 
 Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi

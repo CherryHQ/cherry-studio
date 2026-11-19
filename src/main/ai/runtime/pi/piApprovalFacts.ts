@@ -9,6 +9,7 @@ import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/d
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { terminalConversationId } from '@main/services/terminal/contracts'
 import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
@@ -55,16 +56,27 @@ export async function readPiApprovalFacts(
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
   const disabled = ctx.isDisabled(name) || browser === 'deny'
+  const terminal =
+    name === 'terminal_send' && typeof input.terminal_id === 'string'
+      ? application
+          .get('TerminalService')
+          .list(terminalConversationId.parse(ctx.sessionId))
+          .find((item) => item.id === input.terminal_id && item.kind === 'pty')
+      : undefined
+  const terminalCommand =
+    name === 'terminal_send' && input.kind === 'command' && typeof input.data === 'string' ? input.data : ''
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
         runtime: 'pi',
-        toolName: name,
-        args: input,
-        cwd: ctx.workspacePath,
+        toolName: terminalCommand ? 'bash' : name,
+        args: terminalCommand ? { ...input, command: terminalCommand } : input,
+        cwd: terminal?.shellFacts?.kind === 'prompt' ? terminal.shellFacts.cwd : ctx.workspacePath,
         workspacePath: ctx.workspacePath
       })
-  const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
+  const command =
+    terminalCommand ||
+    ((name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : '')
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
   const miseMutation = command ? (detectMiseMutation(command) ?? undefined) : undefined
   const rewritten =
@@ -73,7 +85,10 @@ export async function readPiApprovalFacts(
       : undefined
   return {
     category,
-    disabled,
+    disabled:
+      disabled ||
+      (name === 'terminal_send' &&
+        (!terminal || terminal.control.kind === 'user' || terminal.controlRevision !== input.control_revision)),
     autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
     approvalRequired: ctx.approvalRequiredTools.has(name),
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),

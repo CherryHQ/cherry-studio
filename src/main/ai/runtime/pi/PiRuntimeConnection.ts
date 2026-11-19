@@ -55,6 +55,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
+import { TerminalTools } from '../terminal/TerminalTools'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -92,6 +93,7 @@ type PiChildResource = {
 }
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
+  private terminalTools?: TerminalTools
   get contextId(): string | undefined {
     return this.context?.id
   }
@@ -281,7 +283,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     )
+    const terminalTools = new TerminalTools(
+      this.input.sessionId,
+      workspacePath,
+      mergePiShellExecutionEnv(await getShellEnv())
+    )
+    this.terminalTools = terminalTools
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+      backgroundOperations: terminalTools.piBashOperations(),
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
@@ -291,11 +300,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
+              operations: terminalTools.piPowerShellOperations(),
               spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
             })
           ]
         : [])
-    ].map(withPiShellTimeout) as ToolDefinition[]
+    ].map((tool) => terminalTools.bindPi(withPiShellTimeout(tool))) as ToolDefinition[]
+    managedShellTools.push(...terminalTools.piTools())
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
@@ -928,6 +939,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     await this.projection?.close()
     this.flushInputs()
     await this.handle?.release()
+    await this.terminalTools?.close()
     this.eventQueue.close()
   }
 }
