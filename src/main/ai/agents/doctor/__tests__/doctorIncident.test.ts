@@ -170,6 +170,39 @@ describe('incidentMessages', () => {
 })
 
 describe('incidentRequest', () => {
+  it('handles malformed stored tool definitions without exposing nested tool content', () => {
+    mocks.sessionMessages = [
+      message('msg-3', 'assistant', '', {
+        status: 'error',
+        data: {
+          parts: [
+            {
+              type: 'data-error',
+              data: {
+                requestBodyValues: {
+                  tools: [
+                    null,
+                    'invalid definition',
+                    { name: { content: 'private tool content' }, type: 'function' },
+                    { function: null },
+                    { function: { name: 'web_search' } },
+                    { name: 'lookup' }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      })
+    ]
+
+    const result = incidentRequest(incident)
+    expect(result).toMatchObject({
+      requests: [{ requestShape: { tools: [null, null, 'function', null, 'web_search', 'lookup'] } }]
+    })
+    expect(JSON.stringify(result)).not.toContain('private tool content')
+  })
+
   it('describes the request without any conversation text and flags a base URL changed since the error', () => {
     const result = incidentRequest(incident) as {
       requests: { configChangedSinceError: boolean; requestShape: Record<string, unknown> }[]
