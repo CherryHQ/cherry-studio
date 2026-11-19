@@ -144,10 +144,8 @@ export class DurableBackend {
           }
         },
         onInputPlaced: (id, thread) => owner.forThread(thread).sink?.placed(id),
-        onError: (error) => {
-          logger.error('Durable backend failed', { backendId: context.backendId, error })
-          for (const host of owner.roots.values()) host.sink?.event({ type: 'error', error })
-        }
+        // A diagnostic only: Durable keeps its work and records a real failure as the input's outcome.
+        onError: (error) => logger.error('Durable backend failed', { backendId: context.backendId, error })
       })
       if (created.status !== 'confirmed') throw new Error(created.error.message)
       owner.runtime = created.value
@@ -326,8 +324,7 @@ export class DurableBackend {
     return {
       approvals: {
         facts: (call, tool) => host(call.thread).approvals.facts(call, tool),
-        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal),
-        outcomes: (thread, calls) => host(thread).approvals.outcomes(thread, calls)
+        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal)
       },
       questions: { ask: (request, signal) => host(request.call.thread).questions.ask(request, signal) },
       models: {

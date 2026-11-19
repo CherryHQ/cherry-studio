@@ -166,6 +166,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
   { pattern: '^gemini-4-carbon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
   { pattern: '^gemini-4-hydrogen(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
+  { pattern: '^gemini-4-neon(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
@@ -217,6 +218,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
+  { pattern: '^mistral-large-4(?:[-.]|$)', effort: ['low', 'medium', 'high'] },
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
   { pattern: 'magistral' },
   { pattern: 'mistral-small-2603' },
