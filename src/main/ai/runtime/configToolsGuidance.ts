@@ -30,8 +30,9 @@ const RESOURCE_KINDS =
   'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
 
 // Kimi K2.6 answered "创建一个定时任务" with agent_create: the word "create" alone pulled it to the create tools.
+const RECURRING_TASK_EXAMPLE = '每周五下午 5 点整理周报'
 const CREATE_ONLY_WHEN_ASKED = (ref: ToolCallForm['ref']) =>
-  `Create one only when the user explicitly asks for a new Agent or Assistant. Any other request, including a scheduled or recurring task such as "每周五下午 5 点整理周报", is your own work: do it yourself, and schedule it with ${ref('cherry-tools', CRON_TOOL_NAME)}.`
+  `Create one only when the user explicitly asks for a new Agent or Assistant. Any other request, including a scheduled or recurring task such as "${RECURRING_TASK_EXAMPLE}", is your own work: do it yourself, and schedule it with ${ref('cherry-tools', CRON_TOOL_NAME)}.`
 
 // Kimi K2.6 rewrote its own settings via config_update when asked for a new Agent.
 const CONFIG_UPDATE_IS_SELF =
