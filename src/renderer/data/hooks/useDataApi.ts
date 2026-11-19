@@ -884,8 +884,9 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     () => createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit, enabled),
     [resolvedPath, options?.query, limit, enabled]
   )
-  const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
+  const infiniteFetcher = (key: InfiniteQueryKey) => {
+    // SAFETY: Keys use this resolved TPath and its typed query plus cursor/limit; SWR preserves the tuple.
+    return getFetcher(key as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
       ResponseForPath<TPath, 'GET'>
     >
   }
@@ -1160,21 +1161,18 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     limit
   }
 
-  // Pass params through to useQuery so the template resolves to the same
-  // concrete path (and therefore the same cache key) as a direct useQuery call.
-  // Cast via `unknown` because the discriminated union between
-  // "template path (params required)" and "concrete path (params forbidden)"
-  // cannot be expressed once TPath itself is generic.
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
+  // SAFETY: OffsetPaginatedPath limits this query to endpoints that accept page/limit.
+  const queryOptions = {
     params: options?.params,
     query: queryWithPagination as QueryParamsForPath<TPath, 'GET'>,
     enabled: options?.enabled,
     swrOptions: options?.swrOptions
-  } as unknown as ParamsOption<TPath, 'GET'> & {
-    query?: QueryParamsForPath<TPath, 'GET'>
-    enabled?: boolean
-    swrOptions?: SWRConfiguration
-  })
+  }
+  // SAFETY: Path and forwarded params share TPath; TypeScript cannot retain that conditional correlation here.
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery<TPath>(
+    path,
+    queryOptions as typeof queryOptions & ParamsOption<TPath, 'GET'>
+  )
 
   // The `OffsetPaginatedPath` guard ensures `ResponseForPath<TPath, 'GET'>` is
   // an `OffsetPaginationResponse<…>` shape; we still cast through the assigned
