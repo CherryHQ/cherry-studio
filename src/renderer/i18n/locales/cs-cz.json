@@ -5740,6 +5740,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Přihlášeno přes OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Autorizovat přes CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Odhlásit se",
+  "settings.provider.oauth.cherryIn.missing_keys": "Autorizace proběhla úspěšně. Není k dispozici žádný klíč API. Vytvořte klíč ve skupině default a poté autorizaci zopakujte.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Nepřihlášeno",
   "settings.provider.oauth.cherryIn.register_account": "Vytvořit účet",
   "settings.provider.oauth.cherryIn.service_attribution": "Tuto službu poskytuje <link>open.cherryin.ai</link>",

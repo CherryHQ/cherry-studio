@@ -5813,6 +5813,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Zalogowano przez OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Autoryzuj w CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Wyloguj",
+  "settings.provider.oauth.cherryIn.missing_keys": "Autoryzacja zakończona. Brak dostępnego klucza API. Utwórz klucz w grupie default, a następnie ponów autoryzację.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Nie zalogowano",
   "settings.provider.oauth.cherryIn.register_account": "Utwórz konto",
   "settings.provider.oauth.cherryIn.service_attribution": "Ta usługa jest świadczona przez <link>open.cherryin.ai</link>",

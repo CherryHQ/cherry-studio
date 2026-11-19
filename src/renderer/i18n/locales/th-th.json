@@ -5739,6 +5739,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "เข้าสู่ระบบผ่าน OAuth แล้ว",
   "settings.provider.oauth.cherryIn.login_button": "อนุญาตด้วย CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "ออกจากระบบ",
+  "settings.provider.oauth.cherryIn.missing_keys": "อนุญาตแล้ว แต่ไม่มีคีย์ API ที่ใช้งานได้ โปรดสร้างคีย์ในกลุ่ม default แล้วอนุญาตอีกครั้ง",
   "settings.provider.oauth.cherryIn.not_logged_in": "ยังไม่ได้เข้าสู่ระบบ",
   "settings.provider.oauth.cherryIn.register_account": "สร้างบัญชี",
   "settings.provider.oauth.cherryIn.service_attribution": "บริการนี้ให้บริการโดย <link>open.cherryin.ai</link>",

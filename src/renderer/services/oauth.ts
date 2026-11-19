@@ -286,6 +286,8 @@ export interface NewApiOAuthConfig {
   requestId?: string
 }
 
+export const CHERRYIN_API_KEY_URL = 'https://open.cherryin.ai/console/token'
+
 /** CherryIN authorization and HTTP callback are handled in the main process. */
 export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
@@ -296,8 +298,7 @@ export const oauthWithCherryIn = async (
     oauthServer: config.oauthServer,
     apiHost: config.apiHost
   })
-  if (!result.apiKeys) throw new Error('No API keys received')
-  await setKey(result.apiKeys)
+  if (result.apiKeys) await setKey(result.apiKeys)
   return result.apiKeys
 }
 

@@ -5739,6 +5739,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Đã đăng nhập qua OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Ủy quyền với CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Đăng xuất",
+  "settings.provider.oauth.cherryIn.missing_keys": "Đã cấp quyền. Chưa có khóa API khả dụng. Hãy tạo một khóa trong nhóm default, sau đó cấp quyền lại.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Chưa đăng nhập",
   "settings.provider.oauth.cherryIn.register_account": "Tạo tài khoản",
   "settings.provider.oauth.cherryIn.service_attribution": "Dịch vụ này do <link>open.cherryin.ai</link> cung cấp",

@@ -5739,6 +5739,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Conectado a través de OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Autorizar con CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Cerrar sesión",
+  "settings.provider.oauth.cherryIn.missing_keys": "Autorización completada. No hay ninguna clave de API disponible. Crea una clave en el grupo default y vuelve a autorizar.",
   "settings.provider.oauth.cherryIn.not_logged_in": "No has iniciado sesión",
   "settings.provider.oauth.cherryIn.register_account": "Crear una cuenta",
   "settings.provider.oauth.cherryIn.service_attribution": "Este servicio lo proporciona <link>open.cherryin.ai</link>",

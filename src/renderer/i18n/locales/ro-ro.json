@@ -5740,6 +5740,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Conectat prin OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Autorizează cu CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Deconectare",
+  "settings.provider.oauth.cherryIn.missing_keys": "Autorizare reușită. Nu există nicio cheie API disponibilă. Creează o cheie în grupul default, apoi autorizează din nou accesul.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Neautentificat",
   "settings.provider.oauth.cherryIn.register_account": "Creează un cont",
   "settings.provider.oauth.cherryIn.service_attribution": "Acest serviciu este furnizat de <link>open.cherryin.ai</link>",

@@ -5739,6 +5739,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "OAuth経由でログインしました",
   "settings.provider.oauth.cherryIn.login_button": "CherryINで認証",
   "settings.provider.oauth.cherryIn.logout_button": "ログアウト",
+  "settings.provider.oauth.cherryIn.missing_keys": "認証済みですが、利用できる API キーがありません。default グループでキーを作成し、再度認証してください。",
   "settings.provider.oauth.cherryIn.not_logged_in": "未ログイン",
   "settings.provider.oauth.cherryIn.register_account": "アカウントを作成",
   "settings.provider.oauth.cherryIn.service_attribution": "このサービスは <link>open.cherryin.ai</link> によって提供されています",
