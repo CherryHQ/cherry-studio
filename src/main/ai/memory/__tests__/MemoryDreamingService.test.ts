@@ -536,7 +536,10 @@ describe('memory organization lifecycle and commit fences', () => {
           const result = await commit(mutations.slice(0, 1), ...rest)
           return {
             ...result,
-            files: [...result.files, { path: '.memories/address.md', hash: null, outcome: 'pending' }],
+            files: [
+              ...result.files,
+              { path: 'MEMORY.md', hash: (await session.read('MEMORY.md')).hash, outcome: 'unchanged' }
+            ],
             error: 'Injected partial commit'
           }
         }
@@ -605,6 +608,15 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
     expect(await dreaming.execute(job())).toMatchObject({ saved: 0 })
     expect(readExtractionState(batch.key)?.pending).toEqual([])
+  })
+
+  it('keeps queued turns across backup inspection and a rejected clear', async () => {
+    const batch = batchConversation(8)
+    memory.pause('backup').dispose()
+    const preview = await session.previewClear()
+    await save('Concurrent edit')
+    await expect(session.clear(preview.token, approve)).rejects.toThrow()
+    expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
   })
 
   it('continues a due batch when its final response becomes ineligible', async () => {
@@ -862,7 +874,7 @@ describe('memory organization lifecycle and commit fences', () => {
     expect((await session.read('MEMORY.md')).content ?? '').toBe('')
   })
 
-  it('rereads an edited source and records an oversized turn as a budget skip', async () => {
+  it('excludes edits made after admission and records oversized turns as budget skips', async () => {
     const batch = batchConversation(1)
     dbh.db
       .update(messageTable)
@@ -873,15 +885,40 @@ describe('memory organization lifecycle and commit fences', () => {
       text: automaticReply([{ kind: 'preference', quote: 'I prefer detailed answers.' }]),
       finishReason: 'stop'
     }))
-    expect(await flushExtraction()).toMatchObject({ saved: 1 })
-    expect((await session.read('MEMORY.md')).content).toContain('I prefer detailed answers.')
-    generate.mockClear()
+    expect(await flushExtraction()).toMatchObject({ saved: 0, skippedSource: 1 })
+    expect(generate).not.toHaveBeenCalled()
     const oversized = batchConversation(1, 'x'.repeat(8001))
     expect(await flushExtraction()).toMatchObject({ saved: 0, skippedBudget: 1 })
     expect(readExtractionState(oversized.key)).toMatchObject({ reason: 'budget', outcome: 'skipped', skippedBudget: 1 })
     expect(readExtractionState(oversized.key)?.pending).toHaveLength(0)
     expect(readExtractionState(oversized.key)?.completed).toBeUndefined()
     expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('omits an edited middle turn from the other admitted turns sent to the model', async () => {
+    const batch = batchConversation(8)
+    dbh.db
+      .update(messageTable)
+      .set({ data: { parts: [{ type: 'text', text: 'Later private text' }] } })
+      .where(eq(messageTable.id, batch.users[3]))
+      .run()
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect(generate.mock.calls[0][0].prompt).not.toContain('Later private text')
+    expect(readExtractionState(batch.key)?.skippedSource).toBe(1)
+  })
+
+  it('charges a timed-out model request against the extraction retry budget', async () => {
+    const batch = batchConversation(8)
+    const controller = new AbortController()
+    generate.mockImplementationOnce(async () => {
+      controller.abort(Object.assign(new Error('Job timed out'), { name: 'JobHandlerTimeoutError' }))
+      throw controller.signal.reason
+    })
+    await expect(dreaming.execute({ ...job(), signal: controller.signal })).rejects.toMatchObject({
+      reason: 'unavailable'
+    })
+    expect(readExtractionState(batch.key)?.attempts).toBe(1)
   })
 
   it('keeps conversation counts separate and excludes a deselected branch from daily extraction', async () => {
@@ -1490,7 +1527,8 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(generate.mock.calls[0][0]).toMatchObject({
       disableTools: true,
       contextOwner: 'caller',
-      requestOptions: { maxRetries: 0 }
+      requestOptions: { maxRetries: 0 },
+      callOverrides: { maxOutputTokens: 4096 }
     })
     expect(JSON.parse(generate.mock.calls[0][0].prompt!)).toMatchObject({
       messages: [
@@ -1721,6 +1759,7 @@ describe('memory organization lifecycle and commit fences', () => {
     'preview',
     'preview-unrelated-response',
     'renamed-queued',
+    'reassigned-queued',
     'configured-queued',
     'renamed-running',
     'restored-queued',
@@ -1831,6 +1870,15 @@ describe('memory organization lifecycle and commit fences', () => {
     const changeSession = () => {
       vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
       if (kind.startsWith('renamed')) agentSessionService.update(sessionId, { name: 'Generated title' })
+      if (kind === 'reassigned-queued') {
+        const other = randomUUID()
+        dbh.db
+          .insert(agentTable)
+          .values({ id: other, type: 'pi', name: 'Other', instructions: '', orderKey: 'a1' })
+          .run()
+        agentSessionService.update(sessionId, { agentId: other })
+        agentSessionService.update(sessionId, { agentId })
+      }
       if (kind === 'configured-queued')
         agentService.updateAgent(agentId, { name: 'Renamed agent', instructions: 'Be helpful.' })
       if (kind.startsWith('restored')) {

@@ -138,7 +138,7 @@ export class MemoryService extends BaseService {
         })()
       )
     const notify = (source: MemoryMutationSource, result: MemoryCommitResult) => {
-      if (result.batchId) this.changed.fire({ scope, source, result })
+      if (result.batchId || source === 'clear') this.changed.fire({ scope, source, result })
       return result
     }
     const validations: Array<() => Promise<void>> = []

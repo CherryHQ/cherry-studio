@@ -56,6 +56,14 @@ describe('durable extraction scheduling', () => {
     expect(readExtractionState(key)).toMatchObject({ attempts: 1, retryAt: now + 600_000 })
   })
 
+  it('freezes the overdue daily batch before turns received after the cutoff', () => {
+    const ids = Array.from({ length: 8 }, (_, i) => String(i))
+    for (const id of ids.slice(0, 3)) enqueueExtraction(ticket(id), 0, new Set(ids))
+    now = new Date(2030, 0, 1, 22).getTime()
+    for (const id of ids.slice(3)) enqueueExtraction(ticket(id), 0, new Set(ids))
+    expect(readyExtraction()?.state.batchEnd).toBe('2')
+  })
+
   it('compacts completed IDs while rejecting old duplicates and accepting same-time new turns', () => {
     const old = ticket('old')
     enqueueExtraction(old, 0, new Set(['old']))

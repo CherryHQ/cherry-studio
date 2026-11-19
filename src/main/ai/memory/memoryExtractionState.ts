@@ -39,6 +39,7 @@ const stateSchema = z.object({
   skippedSource: z.number().int().nonnegative().default(0),
   skippedConflict: z.number().int().nonnegative().default(0),
   excludedThrough: positionSchema.optional(),
+  editedTurns: z.array(z.string()).default([]),
   outcome: z.enum(['pending', 'completed', 'failed', 'cancelled', 'skipped']),
   reason: z.string().optional(),
   prepared: z
@@ -122,6 +123,7 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
       boundary,
       pending: [],
       settled: [],
+      editedTurns: [],
       settledAt: 0,
       retryAt: 0,
       attempts: 0,
@@ -155,6 +157,7 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
     }
     state.pending[existing] = { ...ticket, receivedAt: state.pending[existing].receivedAt }
   } else state.pending.push({ ...ticket, receivedAt: Date.now() })
+  state.entityKey = ticket.entityKey
   state.outcome = 'pending'
   writeExtractionState(ticket.key, state)
   return true
@@ -168,10 +171,9 @@ export function readyExtraction(): { key: string; state: ExtractionState } | und
       const cutoff = nextExtractionDaily(state.pending[0].receivedAt)
       const daily = Date.now() >= cutoff
       if (state.pending.length < EXTRACTION_TURNS && !daily) continue
-      const count =
-        state.pending.length >= EXTRACTION_TURNS
-          ? EXTRACTION_TURNS
-          : state.pending.filter((ticket) => ticket.receivedAt <= cutoff).length
+      const count = daily
+        ? Math.min(EXTRACTION_TURNS, state.pending.filter((ticket) => ticket.receivedAt <= cutoff).length)
+        : EXTRACTION_TURNS
       state.batchEnd = state.pending[count - 1].messageId
     }
     if (state.attempts >= 3) state.attempts = 0
@@ -291,6 +293,7 @@ export function invalidateExtractions(sourceKey?: string): number {
     if (sourceKey && key !== sourceKey && state.entityKey !== sourceKey) continue
     settle(state, state.pending)
     state.pending = []
+    state.editedTurns = []
     state.prepared = undefined
     state.batchEnd = undefined
     state.boundary = boundary

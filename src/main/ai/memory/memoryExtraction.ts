@@ -136,7 +136,9 @@ export function readExtractionRange(
   range: MemoryExtractionRange,
   boundary: number,
   recent = false,
-  excludedThrough?: { createdAt: number; messageIds: readonly string[] }
+  excludedThrough?: { createdAt: number; messageIds: readonly string[] },
+  editedTurns?: ReadonlySet<string>,
+  admittedTurns?: ReadonlySet<string>
 ) {
   const source = readExtractionSource(range.source)
   const db = application.get('DbService').getDb()
@@ -247,7 +249,14 @@ export function readExtractionRange(
       const response = messages[index + 1]
       const paired = user.role === 'user' && response?.role === 'assistant' && response.parentId === user.id
       const count = paired ? 2 : 1
-      if (paired && user.status === 'success' && response.status === 'success') turns.push([user, response])
+      if (
+        paired &&
+        (!admittedTurns || admittedTurns.has(user.id)) &&
+        !editedTurns?.has(user.id) &&
+        user.status === 'success' &&
+        response.status === 'success'
+      )
+        turns.push([user, response])
       else
         contextGaps.push({
           afterMessageId: messages[index - 1]?.id ?? null,
@@ -350,6 +359,7 @@ export async function extractContextCandidates(
       prompt,
       disableTools: true,
       contextOwner: 'caller',
+      callOverrides: { maxOutputTokens: outputTokens },
       requestOptions: { signal, maxRetries: 0 }
     })
     signal.throwIfAborted()

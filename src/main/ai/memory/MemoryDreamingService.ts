@@ -101,7 +101,6 @@ export class MemoryDreamingService extends BaseService {
     )
     this.registerDisposable(
       application.get('MemoryService').onInvalidated((scope) => {
-        if (!scope || scope.kind === 'shared') this.resetExtraction()
         if (scope) this.invalidate(scope, false)
         else {
           this.epoch++
@@ -109,6 +108,7 @@ export class MemoryDreamingService extends BaseService {
         }
       })
     )
+    this.registerDisposable(application.get('MemoryService').onHistoryReplaced(() => this.resetExtraction()))
     this.registerDisposable(
       agentService.onMemoryAccessRevoked((agentId) => {
         this.resetExtraction(`agent/${agentId}`)
@@ -127,7 +127,10 @@ export class MemoryDreamingService extends BaseService {
     this.registerDisposable(
       agentSessionService.onSessionUpdated(({ sessionId }) => {
         try {
-          agentSessionService.getConversationById(sessionId)
+          const session = agentSessionService.getConversationById(sessionId)
+          const key = `memory:extraction:agent/${sessionId}`
+          const state = readExtractionState(key)
+          if (state?.pending.length && state.entityKey !== `agent/${session.agentId}`) this.resetExtraction(key)
         } catch {
           this.resetExtraction(`memory:extraction:agent/${sessionId}`)
         }
@@ -432,6 +435,13 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private recordChanges(scope: MemoryScope, source: MemoryMutationSource, result: MemoryCommitResult): void {
+    if (
+      scope.kind === 'shared' &&
+      (source === 'clear' || source === 'recovery') &&
+      ((source === 'clear' && !result.error) ||
+        result.files.some((file) => file.outcome === 'applied' || file.outcome === 'pending'))
+    )
+      this.resetExtraction()
     if (source === 'dreaming') return
     const state = readDreamingState(scope)
     for (const file of result.files) {
@@ -484,6 +494,11 @@ export class MemoryDreamingService extends BaseService {
         )
       )
         return
+      try {
+        source.contextHash = this.readRecentContext(source).hash
+      } catch (error) {
+        if (!(error instanceof DreamingError && error.reason === 'budget')) throw error
+      }
       const firstPending = readExtractionState(source.key)?.pending[0]?.messageId ?? source.messageId
       if (!enqueueExtraction(source, this.extractionBoundary, extractionBranch(input, firstPending))) return
       this.wake()
@@ -492,7 +507,8 @@ export class MemoryDreamingService extends BaseService {
     }
   }
 
-  private readRecentContext(ticket: ExtractionTicket) {
+  private readRecentContext(ticket: ExtractionTicket, admittedTurns?: ReadonlySet<string>) {
+    const state = readExtractionState(ticket.key)
     return readExtractionRange(
       { source: ticket.input, fromMessageId: '' },
       Math.max(
@@ -501,10 +517,12 @@ export class MemoryDreamingService extends BaseService {
         this.sourceBoundaries.get(ticket.key) ?? 0,
         extractionBoundary(ticket.key),
         extractionBoundary(ticket.entityKey),
-        readExtractionState(ticket.key)?.boundary ?? 0
+        state?.boundary ?? 0
       ),
       true,
-      readExtractionState(ticket.key)?.excludedThrough
+      state?.excludedThrough,
+      new Set(state?.editedTurns),
+      admittedTurns
     )
   }
 
@@ -512,7 +530,11 @@ export class MemoryDreamingService extends BaseService {
     const end = state.pending.findIndex((item) => item.messageId === state.batchEnd)
     if (end < 0) throw new DreamingError('conflict')
     const ticket = state.pending[end]
-    const source = this.readRecentContext(ticket)
+    const context = this.readRecentContext(ticket)
+    const source =
+      context.hash === ticket.contextHash
+        ? context
+        : this.readRecentContext(ticket, new Set(state.pending.slice(0, end + 1).map((item) => item.messageId)))
     const included = new Set(source.messages.filter((message) => message.role === 'user').map((message) => message.id))
     const skippedBudget = state.pending.slice(0, end + 1).filter((item) => !included.has(item.messageId)).length
     return { source, ticket, skippedBudget }
@@ -533,13 +555,17 @@ export class MemoryDreamingService extends BaseService {
           continue
         }
         try {
-          readExtractionSource(ticket.input, true)
+          if (readExtractionSource(ticket.input, true).hash !== ticket.hash) {
+            invalid.push(ticket.messageId)
+            if (!pending.state.editedTurns.includes(ticket.messageId)) pending.state.editedTurns.push(ticket.messageId)
+          }
         } catch (error) {
           if (!(error instanceof InvalidExtractionSource)) throw error
           invalid.push(ticket.messageId)
         }
       }
       if (invalid.length) {
+        writeExtractionState(pending.key, pending.state)
         const skippedSource = skipExtractionTurns(pending.key, invalid, 'source')
         pending.state = readExtractionState(pending.key)!
         if (!pending.state.batchEnd) return { saved: 0, skippedSource }
@@ -583,7 +609,7 @@ export class MemoryDreamingService extends BaseService {
         !current?.pending.some((item) => item.messageId === ticket.messageId) ||
         current.batchEnd !== pending.state.batchEnd ||
         current.pending[0].messageId !== pending.state.pending[0].messageId ||
-        this.readRecentContext(ticket).hash !== source.hash ||
+        this.readBatch(current).source.hash !== source.hash ||
         !extractionBranch(ticket.input, source.messages[0].id).has(source.messages[0].id)
       )
         throw new DreamingError('conflict')
@@ -731,6 +757,11 @@ export class MemoryDreamingService extends BaseService {
       await session.validateModelReads()
       assertCurrent()
       const progress = readExtractionState(ticket.key)!
+      const fileVersions = planned.map(({ file, mutation }) => ({
+        path: file.path,
+        before: file.hash,
+        after: memoryHash(Buffer.from(mutation.content))
+      }))
       progress.prepared = {
         end: ticket.messageId,
         sourceHash: source.hash,
@@ -738,11 +769,7 @@ export class MemoryDreamingService extends BaseService {
         after: memoryHash(
           Buffer.from(planned.find(({ file }) => file.path === MEMORY_ENTRY)?.mutation.content ?? original)
         ),
-        files: planned.map(({ file, mutation }) => ({
-          path: file.path,
-          before: file.hash,
-          after: memoryHash(Buffer.from(mutation.content))
-        })),
+        files: fileVersions,
         through: prepared?.through
       }
       writeExtractionState(ticket.key, progress)
@@ -774,6 +801,13 @@ export class MemoryDreamingService extends BaseService {
         clearPrepared()
         throw new DreamingError('conflict')
       }
+      if (
+        fileVersions.some(
+          (expected) =>
+            (result.files.find((file) => file.path === expected.path)?.hash ?? expected.before) !== expected.after
+        )
+      )
+        throw new DreamingError('conflict')
       completeExtraction(
         ticket.key,
         ticket.messageId,
@@ -800,10 +834,12 @@ export class MemoryDreamingService extends BaseService {
         batches: proposal.batches
       }
     } catch (error) {
+      const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
       const cancelled =
-        controller.signal.aborted ||
-        ctx.signal.aborted ||
-        (error instanceof DOMException && error.name === 'AbortError')
+        !timedOut &&
+        (controller.signal.aborted ||
+          ctx.signal.aborted ||
+          (error instanceof DOMException && error.name === 'AbortError'))
       deferExtraction(ticket.key, cancelled, error instanceof DreamingError ? error.reason : 'unavailable')
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
