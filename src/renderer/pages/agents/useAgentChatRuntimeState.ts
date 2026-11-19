@@ -41,7 +41,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { autoReadService } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, safeToString } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
@@ -95,6 +95,7 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): inp
   )
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval recovery reads input and output from stored or streaming tool parts; the AskUserQuestion schema validates answer strings before recovery.
 function getAskUserQuestionAnswers(value: unknown): Record<string, string> | undefined {
   const answers = parseAskUserQuestionToolInput(value)?.answers
   return answers && Object.keys(answers).length > 0 ? answers : undefined
@@ -104,6 +105,7 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
  * What a submitted answer becomes when the runtime that asked for it is gone: each answered
  * question followed by the choice and any note the user typed next to it.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recovery may run after the originating runtime is gone; parse tool questions, answers and annotations before constructing fallback user text.
 export function formatAskUserQuestionAnswerMessage(value: unknown): string | undefined {
   const parsed = parseAskUserQuestionToolInput(value)
   if (!parsed?.answers) return undefined
@@ -215,6 +217,7 @@ export function useAgentChatRuntimeState({
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
   const reportEditError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Edit and fork catch paths pass arbitrary IPC failures; check known codes/reason literals before choosing guidance and safely formatting diagnostics.
     (error: unknown, messageId: string) => {
       const forkReason = agentSessionForkFailureReason(error)
       const reason =
@@ -234,7 +237,7 @@ export function useAgentChatRuntimeState({
       const details = [
         description,
         error instanceof IpcError ? `code: ${error.code}` : undefined,
-        reason !== undefined ? `reason: ${String(reason)}` : undefined,
+        reason !== undefined ? `reason: ${safeToString(reason)}` : undefined,
         originalError,
         `sessionId: ${sessionId}`,
         `messageId: ${messageId}`
