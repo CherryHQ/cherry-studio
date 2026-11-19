@@ -1034,10 +1034,12 @@ reopening native compaction history. Electron acceptance is checked separately.
 ### Pi behavior host
 
 `piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
-Approvals and questions use existing cards; approval outcomes stay in message
-parts. Environment facts (disabled tools, protected paths, delegation attendance
-and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
-whether to run, ask or block. No new approval table is required.
+Approvals and questions use existing cards; a person's answer stays in their
+message parts, and the shared rules read a denial only from the call's blocked
+result in the conversation history, never from those parts. Environment facts
+(disabled tools, protected paths, delegation attendance and shell
+classification) come from `piApprovalFacts.ts`; shared behavior decides whether
+to run, ask or block. No new approval table is required.
 
 Pi and Pi Durable child threads use the root's live permission mode, interaction
 state and tool restrictions. Delegation does not grant Full Access. A child call
@@ -1280,8 +1282,12 @@ files remain untouched. Restoring an older backup repeats the same conversion.
 Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
 in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
-provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
-owns retries; the object transport and gateway do not retry the same request independently.
+provider execution path. Pi remains the sole tool executor and loop owner. Desktop Pi and Pi Durable
+disable native provider retries for roots and children. Internal object requests reuse `ai-retry`
+with three retries for retryable failures before the first content chunk; partial streams are not replayed.
+AI SDK built-in retries remain disabled.
+The final upstream error is preserved. Public HTTP gateway requests retain their no-retry policy.
+A later user input can start a new run after a failure.
 
 ## Internal Agent continuation normalization
 

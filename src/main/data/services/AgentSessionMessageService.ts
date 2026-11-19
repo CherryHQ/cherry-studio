@@ -1907,9 +1907,10 @@ export class AgentSessionMessageService {
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
     let parentId = params.parentId
-    const saved = messages.map((message) => {
+    const saved = messages.map((message, index) => {
       const result = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message, parentId }, timestampMs)
-      parentId = this.branchTip(sessionId, result.entity.id, tx)
+      // Only a following message needs the tip; resolving it after the last one walks the branch for nothing.
+      if (index < messages.length - 1) parentId = this.branchTip(sessionId, result.entity.id, tx)
       return result
     })
     const activityTimestamp = saved.reduce<number | null>(

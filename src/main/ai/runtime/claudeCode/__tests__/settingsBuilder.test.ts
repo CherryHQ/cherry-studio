@@ -678,17 +678,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
   })
 
-  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+  it('applies the task compaction percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
-    await buildClaudeCodeSessionSettings(
+    const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      {}
+      { compactionPercent: 55 }
     )
+    expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('55')
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
