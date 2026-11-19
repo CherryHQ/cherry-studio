@@ -29,6 +29,7 @@ const INTENT_PROPERTY = { type: 'string', description: 'Purpose of this call.' }
  */
 export interface IntentTool<Prepared = never> {
   readonly parameters: unknown
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pi and Durable repair model-supplied arguments before tool schema validation; each tool's repair function owns their interpretation.
   readonly prepareArguments?: (args: unknown) => Prepared
 }
 
@@ -42,6 +43,7 @@ const isRecord = (value: unknown): value is Schema =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** The schema's properties when it could take `intent`, or `undefined` when it cannot or must not. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tools supply heterogeneous schema objects; inspect object type and properties before adding the shared intent argument.
 function intentFreeProperties(parameters: unknown): Schema | undefined {
   if (!isRecord(parameters) || parameters.type !== 'object') return undefined
   const properties = parameters.properties ?? {}
