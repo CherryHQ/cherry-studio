@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Προσθήκη θέματος",
   "agent.channels.telegram.topicAgents.agent": "Πράκτορας για το θέμα",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Επιλογή πράκτορα",
-  "agent.channels.telegram.topicAgents.hint": "Μορφή: chatId:topicId. Το ID συνομιλίας βρίσκεται με /whoami· το ID θέματος είναι ο μεσαίος αριθμός ενός συνδέσμου μηνύματος θέματος (t.me/c/<συνομιλία>/<θέμα>/<μήνυμα>). Τα θέματα της λίστας χρησιμοποιούν τον δικό τους πράκτορα και συνομιλία.",
+  "agent.channels.telegram.topicAgents.hint": "Μορφή: chatId:topicId. Το ID συνομιλίας βρίσκεται με /whoami· το ID θέματος είναι ο μεσαίος αριθμός ενός συνδέσμου μηνύματος θέματος (t.me/c/<chat>/<topic>/<message>). Τα θέματα της λίστας χρησιμοποιούν τον δικό τους πράκτορα και συνομιλία.",
   "agent.channels.telegram.topicAgents.label": "Πράκτορες ανά θέμα",
   "agent.channels.telegram.topicAgents.remove": "Αφαίρεση σύνδεσης θέματος",
   "agent.channels.telegram.topicAgents.topic": "Θέμα φόρουμ",

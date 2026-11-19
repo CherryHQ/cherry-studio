@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Konu ekle",
   "agent.channels.telegram.topicAgents.agent": "Konu için ajan",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Bir ajan seçin",
-  "agent.channels.telegram.topicAgents.hint": "Biçim: chatId:topicId. Sohbet kimliğini /whoami ile alın; konu kimliği, bir konu mesajı bağlantısındaki (t.me/c/<sohbet>/<konu>/<mesaj>) ortadaki sayıdır. Listelenen konular kendi ajanını ve konuşmasını kullanır.",
+  "agent.channels.telegram.topicAgents.hint": "Biçim: chatId:topicId. Sohbet kimliğini /whoami ile alın; konu kimliği, bir konu mesajı bağlantısındaki (t.me/c/<chat>/<topic>/<message>) ortadaki sayıdır. Listelenen konular kendi ajanını ve konuşmasını kullanır.",
   "agent.channels.telegram.topicAgents.label": "Konu ajanları",
   "agent.channels.telegram.topicAgents.remove": "Konu bağlantısını kaldır",
   "agent.channels.telegram.topicAgents.topic": "Forum konusu",

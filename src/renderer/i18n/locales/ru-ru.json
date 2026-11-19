@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Добавить тему",
   "agent.channels.telegram.topicAgents.agent": "Агент для темы",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Выберите агента",
-  "agent.channels.telegram.topicAgents.hint": "Формат: chatId:topicId. ID чата — команда /whoami; ID темы — средняя цифра в ссылке на сообщение темы (t.me/c/<чат>/<тема>/<сообщение>). Указанные темы используют своего агента и отдельный диалог.",
+  "agent.channels.telegram.topicAgents.hint": "Формат: chatId:topicId. ID чата — команда /whoami; ID темы — средняя цифра в ссылке на сообщение темы (t.me/c/<chat>/<topic>/<message>). Указанные темы используют своего агента и отдельный диалог.",
   "agent.channels.telegram.topicAgents.label": "Агенты для тем",
   "agent.channels.telegram.topicAgents.remove": "Убрать привязку темы",
   "agent.channels.telegram.topicAgents.topic": "Тема форума",

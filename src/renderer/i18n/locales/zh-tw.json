@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "新增話題",
   "agent.channels.telegram.topicAgents.agent": "話題使用的代理",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "選擇代理",
-  "agent.channels.telegram.topicAgents.hint": "格式為 chatId:topicId。聊天 ID 可用 /whoami 取得；話題 ID 位於話題訊息連結 (t.me/c/<聊天>/<話題>/<訊息>) 的中間數字。已列出的話題使用其代理和獨立對話。",
+  "agent.channels.telegram.topicAgents.hint": "格式為 chatId:topicId。聊天 ID 可用 /whoami 取得；話題 ID 位於話題訊息連結 (t.me/c/<chat>/<topic>/<message>) 的中間數字。已列出的話題使用其代理和獨立對話。",
   "agent.channels.telegram.topicAgents.label": "話題代理",
   "agent.channels.telegram.topicAgents.remove": "移除話題綁定",
   "agent.channels.telegram.topicAgents.topic": "論壇話題",

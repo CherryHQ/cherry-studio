@@ -618,6 +618,22 @@ export class ChannelMessageHandler {
           await adapter.sendMessage(command.chatId, helpText, replyOpts)
           break
         }
+        case 'topics': {
+          onAdmitted()
+          const channel = channelService.getChannel(adapter.channelId)
+          const topicAgents = channel?.type === 'telegram' ? (channel.config.topic_agents ?? {}) : {}
+          // Keys are `<chatId>:<threadId>`: list only the requesting chat's topics, shown by thread.
+          const lines = Object.entries(topicAgents)
+            .filter(([key]) => key.startsWith(`${command.chatId}:`))
+            .map(([key, topicAgentId]) => {
+              const threadId = key.slice(command.chatId.length + 1)
+              return `#${threadId} → ${agentService.getAgent(topicAgentId)?.name ?? topicAgentId}`
+            })
+          const text =
+            lines.length > 0 ? [t('common.channel_topics_title'), ...lines].join('\n') : t('common.channel_topics_none')
+          await adapter.sendMessage(command.chatId, text, replyOpts)
+          break
+        }
         case 'whoami': {
           onAdmitted()
           await adapter.sendMessage(

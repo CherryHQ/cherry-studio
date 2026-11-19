@@ -107,6 +107,8 @@
   "common.channel_session_compacted": "Sesja została skompresowana.",
   "common.channel_session_resolution_error": "⚠️ Nie udało się ustalić sesji dla tego agenta. Spróbuj ponownie później.",
   "common.channel_stopped": "Zatrzymano",
+  "common.channel_topics_none": "Nie skonfigurowano agentów tematów. Każdy temat używa agenta tego kanału.",
+  "common.channel_topics_title": "Agenci tematów:",
   "common.channel_voice_transcription_missing": "Nie odebrano transkrypcji mowy. Wyślij wiadomość ponownie w formie tekstu.",
   "common.copy": "Kopiuj",
   "common.cut": "Wytnij",

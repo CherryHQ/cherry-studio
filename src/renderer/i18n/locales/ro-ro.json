@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Adaugă subiect",
   "agent.channels.telegram.topicAgents.agent": "Agent pentru subiect",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Alege un agent",
-  "agent.channels.telegram.topicAgents.hint": "Format: chatId:topicId. ID-ul chatului se obține cu /whoami; ID-ul subiectului este numărul din mijloc al unui link către un mesaj din subiect (t.me/c/<chat>/<subiect>/<mesaj>). Subiectele listate folosesc propriul agent și propria conversație.",
+  "agent.channels.telegram.topicAgents.hint": "Format: chatId:topicId. ID-ul chatului se obține cu /whoami; ID-ul subiectului este numărul din mijloc al unui link către un mesaj din subiect (t.me/c/<chat>/<topic>/<message>). Subiectele listate folosesc propriul agent și propria conversație.",
   "agent.channels.telegram.topicAgents.label": "Agenți pe subiect",
   "agent.channels.telegram.topicAgents.remove": "Elimină legătura subiectului",
   "agent.channels.telegram.topicAgents.topic": "Subiect de forum",

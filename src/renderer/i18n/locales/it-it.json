@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Aggiungi argomento",
   "agent.channels.telegram.topicAgents.agent": "Agente per l'argomento",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Scegli un agente",
-  "agent.channels.telegram.topicAgents.hint": "Formato: chatId:topicId. L'ID chat si ottiene con /whoami; l'ID argomento è il numero centrale di un link a un messaggio dell'argomento (t.me/c/<chat>/<argomento>/<messaggio>). Gli argomenti elencati usano il proprio agente e una conversazione dedicata.",
+  "agent.channels.telegram.topicAgents.hint": "Formato: chatId:topicId. L'ID chat si ottiene con /whoami; l'ID argomento è il numero centrale di un link a un messaggio dell'argomento (t.me/c/<chat>/<topic>/<message>). Gli argomenti elencati usano il proprio agente e una conversazione dedicata.",
   "agent.channels.telegram.topicAgents.label": "Agenti per argomento",
   "agent.channels.telegram.topicAgents.remove": "Rimuovi associazione argomento",
   "agent.channels.telegram.topicAgents.topic": "Argomento del forum",

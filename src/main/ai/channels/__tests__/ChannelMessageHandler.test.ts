@@ -1177,6 +1177,67 @@ describe('ChannelMessageHandler', () => {
     })
   })
 
+  describe('/topics command', () => {
+    const telegramChannel = (topicAgents: Record<string, string>) =>
+      ({
+        id: 'channel-1',
+        sessionId: null,
+        permissionMode: null,
+        workspace: { type: 'system' },
+        type: 'telegram',
+        config: { bot_token: 'token', topic_agents: topicAgents }
+      }) as any
+
+    it("lists only the requesting chat's topic agents, shown by thread suffix", async () => {
+      vi.mocked(channelService.getChannel).mockReturnValueOnce(
+        telegramChannel({ 'group-1:7': 'agent-research', 'group-1:9': 'agent-cooking', 'other-chat:3': 'agent-x' })
+      )
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'group-1',
+        conversationId: 'group-1:7',
+        threadId: '7',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith(
+        'group-1',
+        'common.channel_topics_title\n#7 → agent-research\n#9 → agent-cooking',
+        expect.objectContaining({ threadId: '7' })
+      )
+    })
+
+    it('reports no topic agents when the requesting chat has none mapped', async () => {
+      vi.mocked(channelService.getChannel).mockReturnValueOnce(telegramChannel({ 'other-chat:3': 'agent-x' }))
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'group-1',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'common.channel_topics_none', expect.anything())
+    })
+
+    it('reports no topic agents for a non-telegram channel', async () => {
+      const adapter = createMockAdapter()
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'common.channel_topics_none', expect.anything())
+    })
+  })
+
   // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'
   // handleIncoming promises instead of leaving them hanging forever, so .catch fires.
   it('clearSessionTracker rejects pending-batch handleIncoming promises', async () => {

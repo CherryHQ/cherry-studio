@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "添加话题",
   "agent.channels.telegram.topicAgents.agent": "话题使用的智能体",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "选择智能体",
-  "agent.channels.telegram.topicAgents.hint": "格式为 chatId:topicId。聊天 ID 可通过 /whoami 获取；话题 ID 位于话题消息链接 (t.me/c/<聊天>/<话题>/<消息>) 的中间数字。已列出的话题使用其智能体和独立会话。",
+  "agent.channels.telegram.topicAgents.hint": "格式为 chatId:topicId。聊天 ID 可通过 /whoami 获取；话题 ID 位于话题消息链接 (t.me/c/<chat>/<topic>/<message>) 的中间数字。已列出的话题使用其智能体和独立会话。",
   "agent.channels.telegram.topicAgents.label": "话题智能体",
   "agent.channels.telegram.topicAgents.remove": "移除话题绑定",
   "agent.channels.telegram.topicAgents.topic": "论坛话题",

@@ -561,6 +561,33 @@ describe('TelegramAdapter', () => {
       )
     })
 
+    it('/topics emits a topics command carrying its thread routing', async () => {
+      const adapter = createAdapter({ topic_agents: { '123:7': 'agent-research' } })
+      await adapter.connect()
+      const commandSpy = vi.fn()
+      adapter.on('command', commandSpy)
+
+      const topicsHandler = mockBot.command.mock.calls.find(([name]) => name === 'topics')?.[1] as (ctx: any) => void
+      topicsHandler({
+        chat: { id: 123 },
+        from: { id: 456, first_name: 'TestUser' },
+        message: { is_topic_message: true, message_thread_id: 7 }
+      })
+
+      expect(commandSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: '123', command: 'topics', threadId: '7', conversationId: '123:7' })
+      )
+    })
+
+    it('registers /topics in the Telegram command menu', async () => {
+      const adapter = createAdapter()
+      await adapter.connect()
+
+      expect(mockBot.api.setMyCommands).toHaveBeenCalledWith(
+        expect.arrayContaining([{ command: 'topics', description: 'Show topic agent assignments' }])
+      )
+    })
+
     it('posts the reply into its thread even when MarkdownV2 falls back to plain text', async () => {
       const adapter = createAdapter()
       await adapter.connect()

@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Thêm chủ đề",
   "agent.channels.telegram.topicAgents.agent": "Agent cho chủ đề",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Chọn agent",
-  "agent.channels.telegram.topicAgents.hint": "Định dạng: chatId:topicId. Lấy ID chat bằng /whoami; ID chủ đề là số ở giữa của liên kết tin nhắn trong chủ đề (t.me/c/<chat>/<chủ đề>/<tin nhắn>). Các chủ đề đã liệt kê dùng agent và hội thoại riêng.",
+  "agent.channels.telegram.topicAgents.hint": "Định dạng: chatId:topicId. Lấy ID chat bằng /whoami; ID chủ đề là số ở giữa của liên kết tin nhắn trong chủ đề (t.me/c/<chat>/<topic>/<message>). Các chủ đề đã liệt kê dùng agent và hội thoại riêng.",
   "agent.channels.telegram.topicAgents.label": "Agent theo chủ đề",
   "agent.channels.telegram.topicAgents.remove": "Xóa liên kết chủ đề",
   "agent.channels.telegram.topicAgents.topic": "Chủ đề diễn đàn",

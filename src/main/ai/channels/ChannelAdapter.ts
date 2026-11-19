@@ -41,7 +41,7 @@ export type ChannelCommandEvent = {
   dispatchAgentId?: string
   userId: string
   userName: string
-  command: 'new' | 'compact' | 'help' | 'whoami'
+  command: 'new' | 'compact' | 'help' | 'whoami' | 'topics'
   args?: string
   /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
   messageId?: string

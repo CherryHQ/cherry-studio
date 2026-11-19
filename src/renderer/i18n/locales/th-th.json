@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "เพิ่มหัวข้อ",
   "agent.channels.telegram.topicAgents.agent": "เอเจนต์สำหรับหัวข้อ",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "เลือกเอเจนต์",
-  "agent.channels.telegram.topicAgents.hint": "รูปแบบ chatId:topicId ดู ID แชตด้วย /whoami ส่วน ID หัวข้อคือตัวเลขตรงกลางของลิงก์ข้อความในหัวข้อ (t.me/c/<แชต>/<หัวข้อ>/<ข้อความ>) หัวข้อที่ระบุจะใช้เอเจนต์และการสนทนาของตัวเอง",
+  "agent.channels.telegram.topicAgents.hint": "รูปแบบ chatId:topicId ดู ID แชตด้วย /whoami ส่วน ID หัวข้อคือตัวเลขตรงกลางของลิงก์ข้อความในหัวข้อ (t.me/c/<chat>/<topic>/<message>) หัวข้อที่ระบุจะใช้เอเจนต์และการสนทนาของตัวเอง",
   "agent.channels.telegram.topicAgents.label": "เอเจนต์ตามหัวข้อ",
   "agent.channels.telegram.topicAgents.remove": "ลบการผูกหัวข้อ",
   "agent.channels.telegram.topicAgents.topic": "หัวข้อฟอรัม",

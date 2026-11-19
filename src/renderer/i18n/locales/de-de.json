@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "Thema hinzufügen",
   "agent.channels.telegram.topicAgents.agent": "Agent für Thema",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "Agent auswählen",
-  "agent.channels.telegram.topicAgents.hint": "Format: chatId:topicId. Die Chat-ID erhältst du mit /whoami; die Topic-ID ist die mittlere Zahl eines Topic-Nachrichtenlinks (t.me/c/<Chat>/<Topic>/<Nachricht>). Gelistete Themen nutzen ihren eigenen Agent und eine eigene Unterhaltung.",
+  "agent.channels.telegram.topicAgents.hint": "Format: chatId:topicId. Die Chat-ID erhältst du mit /whoami; die Topic-ID ist die mittlere Zahl eines Topic-Nachrichtenlinks (t.me/c/<chat>/<topic>/<message>). Gelistete Themen nutzen ihren eigenen Agent und eine eigene Unterhaltung.",
   "agent.channels.telegram.topicAgents.label": "Agents pro Thema",
   "agent.channels.telegram.topicAgents.remove": "Themenzuordnung entfernen",
   "agent.channels.telegram.topicAgents.topic": "Forum-Thema",

@@ -114,7 +114,7 @@
   "agent.channels.telegram.topicAgents.add": "トピックを追加",
   "agent.channels.telegram.topicAgents.agent": "トピックのエージェント",
   "agent.channels.telegram.topicAgents.agentPlaceholder": "エージェントを選択",
-  "agent.channels.telegram.topicAgents.hint": "形式は chatId:topicId です。チャット ID は /whoami で確認し、トピック ID はトピックのメッセージリンク (t.me/c/<チャット>/<トピック>/<メッセージ>) の中央の数字です。一覧のトピックは専用のエージェントと会話を使います。",
+  "agent.channels.telegram.topicAgents.hint": "形式は chatId:topicId です。チャット ID は /whoami で確認し、トピック ID はトピックのメッセージリンク (t.me/c/<chat>/<topic>/<message>) の中央の数字です。一覧のトピックは専用のエージェントと会話を使います。",
   "agent.channels.telegram.topicAgents.label": "トピックのエージェント",
   "agent.channels.telegram.topicAgents.remove": "トピックの紐付けを削除",
   "agent.channels.telegram.topicAgents.topic": "フォーラムトピック",

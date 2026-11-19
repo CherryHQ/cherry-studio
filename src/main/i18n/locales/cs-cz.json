@@ -107,6 +107,8 @@
   "common.channel_session_compacted": "Relace byla zkompaktována.",
   "common.channel_session_resolution_error": "⚠️ Pro tohoto agenta se nepodařilo určit relaci. Zkuste to prosím později.",
   "common.channel_stopped": "Zastaveno",
+  "common.channel_topics_none": "Nejsou nastaveni žádní agenti témat. Každé téma používá agenta tohoto kanálu.",
+  "common.channel_topics_title": "Agenti témat:",
   "common.channel_voice_transcription_missing": "Nebyl přijat žádný přepis řeči. Pošlete prosím zprávu znovu jako text.",
   "common.copy": "Kopírovat",
   "common.cut": "Vyjmout",
