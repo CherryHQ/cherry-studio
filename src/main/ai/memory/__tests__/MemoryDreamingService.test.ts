@@ -619,6 +619,11 @@ describe('memory organization lifecycle and commit fences', () => {
     await save('Concurrent edit')
     await expect(session.clear(preview.token, approve)).rejects.toThrow()
     expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+    const stateBeforeStaging = dbh.db.select().from(appStateTable).all()
+    const hold = memory.pause('backup restore')
+    memory.invalidateAll()
+    expect(dbh.db.select().from(appStateTable).all()).toEqual(stateBeforeStaging)
+    hold.dispose()
   })
 
   it('continues a due batch when its final response becomes ineligible', async () => {

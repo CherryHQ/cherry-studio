@@ -422,7 +422,10 @@ export async function extractContextCandidates(
           const decodedMatch =
             proposal.action === 'correct' &&
             file.content.split('\n').find((line) => memoryFactText(line) === reference.quote)
-          if (decodedMatch) return { ...reference, quote: decodedMatch, version: file.hash }
+          if (decodedMatch) {
+            const quote = memoryFactText(reference.quote) === reference.quote ? reference.quote : decodedMatch
+            return { ...reference, quote, version: file.hash }
+          }
           if (!file.content.includes(reference.quote)) throw new Error('Unsupported memory reference')
           return { ...reference, version: file.hash }
         })
