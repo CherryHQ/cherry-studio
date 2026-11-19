@@ -7,6 +7,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { TransformStream } from 'node:stream/web'
 
 import { loggerService } from '@logger'
 import { MINI_APP_RESERVED_DIR, MINI_APP_SCHEME } from '@shared/types/miniAppManifest'
@@ -227,14 +228,13 @@ export function createMiniAppProtocolHandler(
       release()
     }
 
-    const body = handle.readableWebStream() as unknown as ReadableStream<Uint8Array>
+    const body = handle.readableWebStream()
     return new Response(
       body.pipeThrough(
-        // `cancel` is missing from the bundled lib.dom `Transformer` (TS 5.8); Node 24 honours it.
-        new TransformStream({
+        new TransformStream<Uint8Array, Uint8Array>({
           flush: finalize,
           cancel: finalize
-        } as Transformer<Uint8Array, Uint8Array>)
+        })
       ),
       {
         headers: {
