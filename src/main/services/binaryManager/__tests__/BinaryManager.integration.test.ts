@@ -25,6 +25,7 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => {
   const getSandboxEnv = async () => ({ ...shellEnvRef.current })
   return {
     ...actual,
+    getInteractiveShellEnv: vi.fn(getSandboxEnv),
     getRawShellEnv: vi.fn(getSandboxEnv),
     getShellEnv: vi.fn(getSandboxEnv),
     refreshShellEnv: vi.fn(getSandboxEnv)

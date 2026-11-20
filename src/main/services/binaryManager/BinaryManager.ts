@@ -25,7 +25,7 @@ import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { isOutsidePath } from '@main/utils/file'
 import { CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX, CHINA_NPM_REGISTRY } from '@main/utils/packageRegistry'
-import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { getInteractiveShellEnv, getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEY,
@@ -462,9 +462,13 @@ export class BinaryManager extends BaseService {
    * Probe which tools resolve on the user's login-shell PATH outside Cherry's
    * managed and bundled directories.
    */
-  private async probeSystem(names: string[]): Promise<Record<string, string>> {
+  private async probeSystem(
+    names: string[],
+    runnableFallbacks = new Set<string>(),
+    interactiveEnv?: Record<string, string>
+  ): Promise<Record<string, string>> {
     if (names.length === 0) return {}
-    const rawShellEnv = await getRawShellEnv()
+    const rawShellEnv = interactiveEnv ?? (await getRawShellEnv())
     const cherryDirs = [
       application.getPath('app.root'),
       application.getPath('cherry.bin'),
@@ -489,7 +493,18 @@ export class BinaryManager extends BaseService {
         return [name, resolved]
       })
     )
-    return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
+    const found = Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
+    const missing = names.filter((name) => !found[name])
+    if (!isWin && !interactiveEnv && missing.length > 0) {
+      try {
+        return { ...found, ...(await this.probeSystem(missing, runnableFallbacks, await getInteractiveShellEnv())) }
+      } catch (error) {
+        // Without an unknown availability state, unresolved tools must remain a query error.
+        if (missing.some((name) => !runnableFallbacks.has(name))) throw error
+        logger.warn('Interactive discovery failed; keeping verified runnable tools', { error })
+      }
+    }
+    return found
   }
 
   private async listMiseInstalls(signal?: AbortSignal): Promise<Record<string, MiseInstallEntry[]>> {
@@ -651,7 +666,8 @@ export class BinaryManager extends BaseService {
     const system = await this.probeSystem(
       [...names].filter(
         (name) => CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name] || (!derived.get(name)?.mise && !(name in bundled))
-      )
+      ),
+      new Set([...names].filter((name) => derived.get(name)?.mise || name in bundled))
     )
     const snapshots: Record<string, BinaryToolSnapshot> = {}
     for (const name of names) {

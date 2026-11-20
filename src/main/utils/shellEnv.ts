@@ -132,9 +132,9 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
 /**
  * Spawns a login shell in the user's home directory to capture its environment variables.
  *
- * We explicitly run a login, non-interactive shell. This loads login profiles such as macOS
- * `~/.zprofile` (where Homebrew commonly installs its PATH) without executing interactive prompt,
- * theme, or terminal plugin setup from `~/.zshrc`.
+ * The default non-interactive capture loads login profiles without prompt plugins. A missing-tool
+ * lookup can explicitly request interactive startup files such as `~/.zshrc`, using the same timeout.
+ * Interactive output is delimited to exclude startup banners from the captured environment.
  *
  * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
  * `read` or prompts). We proactively kill the shell and surface an error in that case so that
@@ -142,7 +142,7 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
  * @returns {Promise<Object>} A promise that resolves with an object containing
  * the environment variables, or rejects with an error.
  */
-function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
+function getLoginShellEnvironment(signal?: AbortSignal, interactive = false): Promise<Record<string, string>> {
   signal?.throwIfAborted()
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
@@ -176,7 +176,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       }
     }
 
-    const commandArgs = ['-lc', 'env']
+    const commandArgs = interactive ? ['-lic', "printf '\\0'; env; printf '\\0'"] : ['-lc', 'env']
 
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
@@ -262,7 +262,11 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
 
       // Convert each VAR=VALUE line into our env map.
       const env: Record<string, string> = {}
-      const lines = output.split(/\r?\n/)
+      const capturedOutput = interactive ? output.split('\0')[1] : output
+      if (capturedOutput === undefined) {
+        return rejectOnce(new Error('Interactive shell did not return an environment'))
+      }
+      const lines = capturedOutput.split(/\r?\n/)
 
       lines.forEach((line) => {
         const trimmedLine = line.trim()
@@ -293,6 +297,26 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
 
 let cachedEnv: Record<string, string> | null = null
 let inflight: Promise<Record<string, string>> | null = null
+let interactiveEnv: Promise<Record<string, string>> | null = null
+
+/** Supplement only PATH after a tool lookup misses; share successes and failures until refresh. */
+export async function getInteractiveShellEnv(): Promise<Record<string, string>> {
+  const env = await getRawShellEnv()
+  if (isWin) return env
+  if (!interactiveEnv) {
+    const pending = getLoginShellEnvironment(undefined, true).then((captured) => {
+      const merged = {
+        ...env,
+        PATH: dedupePathSegments([...(env.PATH || '').split(':'), ...(captured.PATH || '').split(':')]).join(':')
+      }
+      // A refresh may have invalidated this capture while the shell was starting.
+      if (interactiveEnv === pending) cachedEnv = merged
+      return merged
+    })
+    interactiveEnv = pending
+  }
+  return { ...(await interactiveEnv) }
+}
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
@@ -378,6 +402,7 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     applyBinaryExecutionEnv(env)
     return env
   }
+  interactiveEnv = null
   cachedEnv = null
   return getShellEnv()
 }

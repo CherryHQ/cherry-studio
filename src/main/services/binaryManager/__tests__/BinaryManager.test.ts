@@ -98,6 +98,7 @@ vi.mock('@main/services/RegionService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
+  getInteractiveShellEnv: vi.fn(async () => ({ PATH: ['/usr/local/bin', '/usr/bin'].join(path.delimiter) })),
   getRawShellEnv: vi.fn(async () => ({ PATH: ['/usr/local/bin', '/usr/bin'].join(path.delimiter) })),
   refreshShellEnv: vi.fn(async () => ({ PATH: ['/usr/local/bin', '/usr/bin'].join(path.delimiter) }))
 }))
@@ -117,7 +118,7 @@ const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryM
 const { application } = await import('@application')
 const { findCommandInShellEnv, findExecutable, findMiseExecutable } = await import('@main/utils/commandResolver')
 const { regionService } = await import('@main/services/RegionService')
-const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
+const { getInteractiveShellEnv, getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -180,6 +181,7 @@ describe('BinaryManager', () => {
     vi.mocked(getRawShellEnv)
       .mockReset()
       .mockResolvedValue({ PATH: ['/usr/local/bin', '/usr/bin'].join(path.delimiter) })
+    vi.mocked(getInteractiveShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv)
       .mockReset()
       .mockResolvedValue({ PATH: ['/usr/local/bin', '/usr/bin'].join(path.delimiter) })
@@ -197,6 +199,43 @@ describe('BinaryManager', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
     await (service as any).normalizationPromise
   }
+
+  it('discovers an interactive-only CLI without changing an existing system selection', async () => {
+    vi.mocked(getInteractiveShellEnv).mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin:/fnm/bin' })
+    vi.mocked(findCommandInShellEnv).mockImplementation(async (name, env) => {
+      if (name === 'claude') return env?.PATH?.includes('/fnm/bin') ? '/fnm/bin/claude' : '/usr/local/bin/claude'
+      return env?.PATH?.includes('/fnm/bin') ? '/fnm/bin/codex' : null
+    })
+    const service = new BinaryManager()
+    expect(await (service as any).probeSystem(['claude', 'codex'])).toEqual({
+      claude: '/usr/local/bin/claude',
+      codex: '/fnm/bin/codex'
+    })
+  })
+
+  it('does not turn a failed fallback into absence and keeps already-discoverable tools usable', async () => {
+    vi.mocked(getInteractiveShellEnv).mockRejectedValue(new Error('interactive startup timed out'))
+    vi.mocked(findCommandInShellEnv).mockImplementation(async (name) =>
+      name === 'claude' ? '/usr/local/bin/claude' : null
+    )
+    const service = new BinaryManager()
+    await expect((service as any).probeSystem(['claude', 'codex'])).rejects.toThrow('interactive startup timed out')
+    expect(await (service as any).probeSystem(['claude'])).toEqual({ claude: '/usr/local/bin/claude' })
+  })
+
+  it('preserves verified system and managed tools when interactive discovery fails', async () => {
+    vi.mocked(getInteractiveShellEnv).mockRejectedValue(new Error('interactive startup timed out'))
+    vi.mocked(findCommandInShellEnv).mockImplementation(async (name) =>
+      name === 'claude' ? '/usr/local/bin/claude' : null
+    )
+    const service = new BinaryManager()
+    expect(await (service as any).probeSystem(['claude', 'codex'], new Set(['codex']))).toEqual({
+      claude: '/usr/local/bin/claude'
+    })
+    await expect((service as any).probeSystem(['claude', 'codex', 'qwen'], new Set(['codex']))).rejects.toThrow(
+      'interactive startup timed out'
+    )
+  })
 
   it('uses the bounded asynchronous Windows resolver to find a system mise executable', async () => {
     platformMock.isWin = true
@@ -845,6 +884,29 @@ describe('BinaryManager', () => {
       // calling this `applied` would grant Update/Uninstall over another backend's fd.
       expect(snapshots.fd.application).toEqual({ status: 'broken', version: '10.0.0' })
       expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+    })
+
+    it('keeps a runnable managed CLI snapshot when interactive discovery fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.existsSync.mockReturnValue(true)
+      vi.mocked(getInteractiveShellEnv).mockRejectedValue(new Error('interactive startup timed out'))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ codex: [{ version: '1.0.0', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/codex/1.0.0/bin/codex\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const snapshots = await service.getToolSnapshots(['codex'])
+      expect(snapshots.codex.availability).toEqual({
+        source: 'mise',
+        path: path.join('/mock/feature.binary.data', 'shims', 'codex'),
+        version: '1.0.0'
+      })
+      expect(snapshots.codex.application).toEqual({ status: 'applied', version: '1.0.0' })
     })
 
     it('matches a fixed pipx recipe when mise omits its installation options', async () => {

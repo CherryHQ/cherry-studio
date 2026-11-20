@@ -115,8 +115,8 @@ export async function resolveLocalAgentLaunch(
   if (config.presetId && (!preset || preset.protocol !== config.protocol)) throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
-  const shellEnv = await getRawShellEnv(signal)
-  const lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
+  let shellEnv = await getRawShellEnv(signal)
+  let lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
   let executable: string | undefined
   let source = 'system'
   if (config.executableOverride && !(terminal && (definition?.terminalExecutable || config.presetId === 'pi-acp'))) {
@@ -141,12 +141,15 @@ export async function resolveLocalAgentLaunch(
   }
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
-  let env =
-    source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   const dependencies = !terminal && definition?.terminalExecutable ? [definition.terminalExecutable] : []
   const dependencySnapshots = dependencies.length
     ? await application.get('BinaryManager').getToolSnapshots(dependencies)
     : {}
+  // Discovery can promote the shared snapshot to the interactive shell environment.
+  shellEnv = await getRawShellEnv(signal)
+  lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
+  let env =
+    source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   for (const name of dependencies) {
     const dependency = await selectAvailableInstallation({ executable: name }, dependencySnapshots)
     if (dependency.source !== 'none') {

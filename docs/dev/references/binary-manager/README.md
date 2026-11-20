@@ -41,6 +41,8 @@ mise is an availability backend, not a definition store. An executable visible t
 
 Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
 
+On POSIX, system discovery first uses a non-interactive login shell. A missing tool triggers one shared interactive login-shell capture, bounded by a 15-second timeout, to load runtime managers configured in files such as `.zshrc`. Only new PATH directories are appended without replacing existing lookup precedence; other interactive variables are not imported into the shared environment. Discovery and execution share the supplemented PATH, and only missing tools are rechecked. Explicit shell-environment refresh invalidates both captures. Interactive startup failures preserve verified results and runnable managed/bundled alternatives. If any missing tool has no verified alternative, the snapshot query rejects rather than reporting it as absent; the original environment remains usable for queries that need no fallback.
+
 System probes exclude Cherry's application and managed-tool directories from PATH.
 Application dependencies such as a development SDK's `node_modules/.bin/pi` do not
 satisfy a system CLI installation or shadow an independently installed program.

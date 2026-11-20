@@ -14,6 +14,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } from '../launch'
 
 const inventory = vi.hoisted(() => ({
+  getRawShellEnv: vi.fn(),
   openTerminal: vi.fn(),
   readConfigFiles: vi.fn(),
   isWin: process.platform === 'win32',
@@ -42,7 +43,7 @@ vi.mock('@application', async () => {
 })
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnv>()),
-  getRawShellEnv: async () => ({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
+  getRawShellEnv: inventory.getRawShellEnv
 }))
 
 const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', enabled: true, args: [], env: {} }
@@ -54,6 +55,9 @@ describe('local agent installation resolution', () => {
     vi.mocked(application.getPath).mockImplementation((key, filename) =>
       path.join(directory, key, ...(filename ? [filename] : []))
     )
+    inventory.getRawShellEnv
+      .mockReset()
+      .mockResolvedValue({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
     inventory.openTerminal.mockReset()
     inventory.readConfigFiles.mockReset().mockResolvedValue([{ content: null }])
     inventory.isWin = process.platform === 'win32'
@@ -63,6 +67,16 @@ describe('local agent installation resolution', () => {
   })
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('uses the environment promoted during discovery when launching a system CLI', async () => {
+    inventory.getRawShellEnv
+      .mockResolvedValueOnce({ PATH: '/usr/bin' })
+      .mockResolvedValue({ PATH: '/fnm/bin:/usr/bin', FNM_MULTISHELL_PATH: '/fnm' })
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/fnm/bin/codex' } }
+    const launch = await resolveLocalAgentLaunch(config)
+    expect(launch.executable).toBe('/fnm/bin/codex')
+    expect(launch.env).toMatchObject({ PATH: '/fnm/bin:/usr/bin', FNM_MULTISHELL_PATH: '/fnm' })
   })
 
   it('starts OpenClaw ACP with the formal native state directory and config file', async () => {
