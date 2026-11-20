@@ -421,6 +421,14 @@ const GUARD_TYPES: TaskGuard['type'][] = ['always', 'file_changed', 'command']
 const guardToFormValue = (guard: TaskGuard) =>
   guard.type === 'file_changed' ? guard.path : guard.type === 'command' ? guard.command : ''
 
+/**
+ * A path or command typed for one guard type must never be reinterpreted as another type (a file path
+ * becoming an auto-approved command). Switching type clears the value; returning to the saved
+ * guard's own type restores that saved value.
+ */
+export const guardValueForTypeChange = (initialGuard: TaskGuard | undefined, nextType: TaskGuard['type']) =>
+  initialGuard && initialGuard.type === nextType ? guardToFormValue(initialGuard) : ''
+
 const formToGuard = (type: TaskGuard['type'], value: string): TaskGuard => {
   const trimmed = value.trim()
   if (type === 'file_changed') return { type, path: trimmed }
@@ -756,7 +764,12 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               value={guardValue}
               invalid={submitted && guardInvalid}
               disabled={saving}
-              onTypeChange={setGuardType}
+              onTypeChange={(nextType) => {
+                // A path or command carried across a type change was never typed as that kind of
+                // guard: drop it, and only restore the original value when returning to its own type.
+                setGuardType(nextType)
+                setGuardValue(guardValueForTypeChange(initialDraftRef.current?.guard, nextType))
+              }}
               onValueChange={setGuardValue}
             />
 

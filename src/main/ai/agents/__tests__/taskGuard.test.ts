@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { evaluateTaskGuard } from '../taskGuard'
+import { evaluateTaskGuard, resolveAgentGuardPath } from '../taskGuard'
 
 describe('evaluateTaskGuard', () => {
   let dir: string
@@ -21,6 +21,15 @@ describe('evaluateTaskGuard', () => {
   })
 
   describe('file_changed', () => {
+    it('skips a network path without stat-ing it', async () => {
+      for (const path of ['\\\\host\\share\\f', '//host/share/f']) {
+        expect(await evaluateTaskGuard({ type: 'file_changed', path }, { lastRunStartedAt: null })).toEqual({
+          proceed: false,
+          reason: 'file guard path is not allowed'
+        })
+      }
+    })
+
     it('skips when the file is missing', async () => {
       const path = join(dir, 'missing.txt')
       const outcome = await evaluateTaskGuard({ type: 'file_changed', path }, { lastRunStartedAt: null })
@@ -236,4 +245,18 @@ describe('evaluateTaskGuard', () => {
       await expect(promise).rejects.toBe(reason)
     })
   })
+})
+
+describe('resolveAgentGuardPath', () => {
+  it('resolves relative and absolute paths inside the workspace', () => {
+    expect(resolveAgentGuardPath('/ws', 'a/b.txt')).toBe('/ws/a/b.txt')
+    expect(resolveAgentGuardPath('/ws', '/ws/a.txt')).toBe('/ws/a.txt')
+  })
+
+  it.each(['/etc/passwd', '../x', 'a/../../x', '/ws', '', '\\\\host\\share', '//host/share/x', '\\\\?\\C:\\x'])(
+    'rejects %j without touching the filesystem',
+    (requested) => {
+      expect(() => resolveAgentGuardPath('/ws', requested)).toThrow('inside the session workspace')
+    }
+  )
 })

@@ -5,6 +5,7 @@
 
 import { execFile, spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
+import path from 'node:path'
 
 import type { TaskGuard } from '@shared/data/api/schemas/agents'
 
@@ -12,6 +13,26 @@ import type { TaskGuard } from '@shared/data/api/schemas/agents'
 const GUARD_COMMAND_TIMEOUT_MS = 30_000
 /** Grace between SIGTERM and SIGKILL so a signal-ignoring command still terminates in bounded time. */
 const GUARD_KILL_GRACE_MS = 5_000
+
+/**
+ * File authority for a guard path an agent (not the user) proposes: the target must lie inside the
+ * session workspace. Decided lexically, before any filesystem access, so a rejected path never
+ * triggers a host lookup (including a Windows network path that could start SMB authentication).
+ */
+export function resolveAgentGuardPath(workspaceRoot: string, requested: string): string {
+  const trimmed = requested.trim()
+  // UNC (\\host\share, //host/share) and Windows device namespaces (\\?\, \\.\) leave the local workspace.
+  if (/^[\\/]{2}/.test(trimmed)) {
+    throw new Error(`file_changed guard path must be inside the session workspace: ${requested}`)
+  }
+  const root = path.resolve(workspaceRoot)
+  const target = path.resolve(root, trimmed)
+  const relative = path.relative(root, target)
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`file_changed guard path must be inside the session workspace: ${requested}`)
+  }
+  return target
+}
 
 export type TaskGuardOutcome = { proceed: true } | { proceed: false; reason: string }
 
@@ -26,6 +47,10 @@ export async function evaluateTaskGuard(
     case 'always':
       return { proceed: true }
     case 'file_changed': {
+      // Tasks saved before save-time file authority existed may still hold a network path: never stat it.
+      if (/^[\\/]{2}/.test(guard.path.trim())) {
+        return { proceed: false, reason: 'file guard path is not allowed' }
+      }
       let mtimeMs: number
       try {
         mtimeMs = (await stat(guard.path)).mtimeMs

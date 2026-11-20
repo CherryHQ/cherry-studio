@@ -18,6 +18,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { resolveAgentGuardPath } from '@main/ai/agents/taskGuard'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -142,7 +143,7 @@ const CronInputSchema = z.object({
       'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
     ),
   guard: TaskGuardSchema.optional().describe(
-    'Precondition checked at each fire; when it fails the run is skipped with no agent turn. {"type":"always"} (default), {"type":"file_changed","path":"..."} runs only if the file exists and changed since the last run, {"type":"command","command":"..."} runs only if the command exits 0. Omit on update to keep the current guard.'
+    'Precondition checked at each fire; when it fails the run is skipped with no agent turn. {"type":"always"} (default), {"type":"file_changed","path":"..."} (path inside the session workspace) runs only if the file exists and changed since the last run, {"type":"command","command":"..."} runs only if the command exits 0. Omit on update to keep the current guard.'
   ),
   id: z.string().min(1).optional().describe('Job ID (required for update and remove)')
 })
@@ -660,6 +661,11 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     }
   }
 
+  // An agent-proposed file guard is later stat'ed with app privileges, so it needs file authority
+  // (inside the session workspace) before it can be saved, mirroring `notify`'s file_path rule.
+  const safeGuard =
+    guard?.type === 'file_changed' ? { ...guard, path: resolveAgentGuardPath(ctx.workspacePath, guard.path) } : guard
+
   const service = application.get('AgentJobsService')
   const patch = {
     name,
@@ -667,7 +673,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger,
     timeoutMinutes,
     channelIds,
-    guard,
+    guard: safeGuard,
     ...(reuseSession !== undefined ? { reuseSession } : {})
   }
   const task =

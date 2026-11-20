@@ -875,6 +875,40 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
+    it.each(['/etc/passwd', '../outside.txt', '\\\\host\\share\\f.txt', '//host/share/f.txt'])(
+      'rejects a file_changed guard outside the session workspace before saving (%s)',
+      async (guardPath) => {
+        const server = createServer('agent_1')
+        const result = await callTool(server, {
+          action: 'add',
+          name: 'Watch',
+          message: 'Check',
+          cron: '0 2 * * *',
+          guard: { type: 'file_changed', path: guardPath }
+        })
+
+        expect(result.isError).toBe(true)
+        expect(mockCreateTask).not.toHaveBeenCalled()
+      }
+    )
+
+    it('saves a workspace file_changed guard as an absolute workspace path', async () => {
+      mockCreateTask.mockReturnValue({ id: 'task_file', name: 'Watch', guard: { type: 'always' }, guardApproval: null })
+      const server = createServer('agent_1')
+      await callTool(server, {
+        action: 'add',
+        name: 'Watch',
+        message: 'Check',
+        cron: '0 2 * * *',
+        guard: { type: 'file_changed', path: 'data/report.csv' }
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_1',
+        expect.objectContaining({ guard: { type: 'file_changed', path: `${WORKSPACE_PATH}/data/report.csv` } })
+      )
+    })
+
     it('should append a pending-approval notice when a command guard is unapproved', async () => {
       mockCreateTask.mockReturnValue({
         id: 'task_guarded',
