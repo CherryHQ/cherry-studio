@@ -9,7 +9,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
+import { redactEmbeddedUrls, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { resolveLaunchModelId } from '../cliConfig'
 import { useManagedToolStatus } from './useManagedToolStatus'
@@ -97,7 +97,7 @@ export function useOpenClawGatewayController({
       if (!syncResult.success) {
         setStartupError({
           operation,
-          message: redactSecretTokens(redactSecretText(syncResult.message))
+          message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(syncResult.message)))
         })
         return
       }
@@ -107,7 +107,7 @@ export function useOpenClawGatewayController({
       if (!startResult.success) {
         setStartupError({
           operation,
-          message: redactSecretTokens(redactSecretText(startResult.message))
+          message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(startResult.message)))
         })
         return
       }
@@ -119,7 +119,7 @@ export function useOpenClawGatewayController({
       const message = err instanceof Error ? err.message : String(err)
       setStartupError({
         operation,
-        message: redactSecretTokens(redactSecretText(message))
+        message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(message)))
       })
     } finally {
       setLaunching(false)
@@ -145,7 +145,7 @@ export function useOpenClawGatewayController({
     ].join('\n')
 
     try {
-      await navigator.clipboard.writeText(redactSecretTokens(redactSecretText(details)))
+      await navigator.clipboard.writeText(redactSecretTokens(redactSecretText(redactEmbeddedUrls(details))))
       toast.success(t('common.copied'))
     } catch {
       toast.error(t('common.copy_failed'))

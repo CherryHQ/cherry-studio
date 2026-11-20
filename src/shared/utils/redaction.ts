@@ -137,6 +137,20 @@ export function redactUrlParams(rawUrl: string, extraKeys: readonly string[] = [
   }
 }
 
+const EMBEDDED_HTTP_URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi
+
+/**
+ * Redact userinfo and sensitive query values of every http(s) URL embedded in free text, so an
+ * opaque `?key=…` credential in a process error does not survive the key=value text pass.
+ */
+export function redactEmbeddedUrls(text: string, extraKeys: readonly string[] = []): string {
+  return text.replace(EMBEDDED_HTTP_URL_PATTERN, (match) => {
+    const trailing = /[.,;:!?)\]}]+$/.exec(match)?.[0] ?? ''
+    const url = trailing ? match.slice(0, -trailing.length) : match
+    return redactUrlParams(url, extraKeys) + trailing
+  })
+}
+
 // Curated alternation (not the bare stems — those over-match English words); ordering
 // and value-alternative rationale lives with the edge-case tests in redaction.test.ts.
 const SECRET_KEY_VALUE_PATTERN =
