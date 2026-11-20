@@ -16,13 +16,18 @@ export default function MessageMediaAnalysisStatus({
   const progress = useSharedCacheValue(`message.media_analysis.${messageId}`)
   if (!progress) return fallback
 
-  const counts = { done: progress.done ?? 0, total: progress.total ?? 0 }
+  // Frames are described in batches, so "0/n" would sit unchanged for the whole first batch.
+  const counts = progress.done ? { done: progress.done, total: progress.total ?? progress.done } : undefined
   const label =
     progress.stage === 'transcribing'
       ? t('chat.media_analysis.transcribing')
       : progress.stage === 'reading_frames'
-        ? t('chat.media_analysis.reading_frames', counts)
-        : t('chat.media_analysis.describing_frames', counts)
+        ? counts
+          ? t('chat.media_analysis.reading_frames', counts)
+          : t('chat.media_analysis.reading_frames_started')
+        : counts
+          ? t('chat.media_analysis.describing_frames', counts)
+          : t('chat.media_analysis.describing_frames_started')
   return (
     <div className="flex items-center gap-2 py-0.5 text-muted-foreground text-xs" role="status" aria-live="polite">
       <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
