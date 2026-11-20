@@ -11,11 +11,11 @@ export interface FlatV3Usage {
 
 export function isFlatV3Usage(usage: unknown): usage is FlatV3Usage {
   if (!usage || typeof usage !== 'object') return false
-  const u = usage as Record<string, unknown>
+  const inputTokens = 'inputTokens' in usage ? usage.inputTokens : undefined
   // V3-nested usage has `inputTokens` as an object; flat has it as a number.
   // Also handle the case where the field is absent (still treat as flat-shaped
   // upstream — V3 nested would carry the empty object).
-  return typeof u.inputTokens !== 'object' || u.inputTokens === null
+  return typeof inputTokens !== 'object' || inputTokens === null
 }
 
 export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
