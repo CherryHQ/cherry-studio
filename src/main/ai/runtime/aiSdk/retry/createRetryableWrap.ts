@@ -255,10 +255,13 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     let retryActive = false
     let lastRetryEvent: RetryPartData | undefined
     let lastActivityEmit = 0
+    let trailingActivity: ReturnType<typeof setTimeout> | undefined
     const activityIntervalMs = bufferedActivityIntervalMs(options.idleTimeoutMs)
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
+      if (trailingActivity) clearTimeout(trailingActivity)
+      trailingActivity = undefined
       // A settled badge must not be replayed by a late buffered-activity heartbeat.
       lastRetryEvent = undefined
       options.onRetryEvent?.({ state: 'settled' })
@@ -417,10 +420,23 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               // Re-emit the live retry status (idempotent, same part id) so the stream manager's
               // idle-chunk timer sees activity while the resumed attempt is buffered.
               onBufferedActivity: () => {
+                if (!retryActive || !lastRetryEvent) return
                 const now = Date.now()
-                if (!retryActive || !lastRetryEvent || now - lastActivityEmit < activityIntervalMs) return
-                lastActivityEmit = now
-                options.onRetryEvent?.(lastRetryEvent)
+                const wait = lastActivityEmit + activityIntervalMs - now
+                if (wait <= 0) {
+                  lastActivityEmit = now
+                  options.onRetryEvent?.(lastRetryEvent)
+                  return
+                }
+                // A throttled delta still counts as activity: emit once at the end of the window, or the
+                // idle timer would only see the earlier signal and abort a stream that is still delivering.
+                if (trailingActivity) return
+                trailingActivity = setTimeout(() => {
+                  trailingActivity = undefined
+                  if (!retryActive || !lastRetryEvent) return
+                  lastActivityEmit = Date.now()
+                  options.onRetryEvent?.(lastRetryEvent)
+                }, wait)
               }
             })
             return operation.doStream(callOptions)

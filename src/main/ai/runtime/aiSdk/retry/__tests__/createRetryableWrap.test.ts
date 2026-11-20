@@ -647,3 +647,63 @@ it('keeps emitting retry activity under a 1.6s idle timeout while a resumed atte
     vi.useRealTimers()
   }
 })
+
+it('counts a throttled buffered delta as activity before the idle window closes', async () => {
+  vi.useFakeTimers()
+  try {
+    const stamps: number[] = []
+    let startedAt = 0
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const delta = { type: 'text-delta', id: 'partial', delta: 'x' } as const
+    // Pull-driven so the 0, 350 and 1800 ms offsets start at the first read, after the retry backoff.
+    let step = 0
+    const replacement = new ReadableStream({
+      async pull(controller) {
+        if (step === 0) startedAt = Date.now()
+        if (step === 1) await wait(350)
+        if (step === 2) await wait(1_450)
+        if (step < 3) {
+          controller.enqueue(delta)
+        } else {
+          controller.enqueue({
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          })
+          controller.close()
+        }
+        step++
+      }
+    })
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce({ stream: replacement })
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      idleTimeoutMs: 1_600,
+      onRetryEvent: (event) => {
+        if (event.state !== 'settled') stamps.push(Date.now() - startedAt)
+      }
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    // The 350 ms delta falls inside the throttle window. Without a trailing emit the idle timer's last
+    // signal is the first delta, 1800 ms before the third one, and a 1600 ms timeout closes the stream.
+    const gaps = stamps.slice(1).map((at, index) => at - stamps[index])
+    expect(Math.max(...gaps)).toBeLessThan(1_600)
+  } finally {
+    vi.useRealTimers()
+  }
+})
