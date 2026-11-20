@@ -624,7 +624,8 @@ export function ResourceCreateWizard({
           closeOnOverlayClick={!submitting}
           size="xl"
           className={cn(
-            'flex flex-col gap-0 p-0',
+            // Narrows with the window instead of filling a small one edge to edge.
+            'flex flex-col gap-0 p-0 sm:max-w-[min(720px,85vw)]',
             view === 'steps' && 'h-[min(600px,76vh)]',
             resourceDialogCloseButtonClassName
           )}
