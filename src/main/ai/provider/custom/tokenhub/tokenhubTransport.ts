@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
@@ -108,8 +109,8 @@ function imagesOf(input: ImageGenerationSubmitInput): string[] | undefined {
   return input.files.map((file) => fileToDataUrl(file))
 }
 
-function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): Record<string, unknown> {
-  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '' }
+function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
+  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '' }
   const images = imagesOf(input)
   if (images) body.images = images
   if (input.size) body.size = input.size
@@ -118,8 +119,8 @@ function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProvid
   return body
 }
 
-function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): Record<string, unknown> {
-  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '', response_format: 'url' }
+function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
+  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '', response_format: 'url' }
   const images = imagesOf(input)
   if (images) body.images = images
   const size = input.size ?? bag.imageResolution
@@ -135,8 +136,8 @@ function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProvi
   return body
 }
 
-function buildViduBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): Record<string, unknown> {
-  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '' }
+function buildViduBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
+  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '' }
   const images = imagesOf(input)
   if (images) body.images = images
   if (input.aspectRatio) body.aspect_ratio = input.aspectRatio
@@ -277,7 +278,7 @@ class TokenhubTransport implements ImageGenerationTransport {
   private async request<T>(
     path: string,
     method: 'POST' | 'GET',
-    body: Record<string, unknown> | undefined,
+    body: JSONObject | undefined,
     options: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
     const timeout = options.timeout ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
