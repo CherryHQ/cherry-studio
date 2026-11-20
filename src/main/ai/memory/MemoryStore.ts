@@ -67,7 +67,9 @@ interface ReadBaseline {
   revisionContent?: string
 }
 
-export type MemoryMutation = { kind: 'write'; receipt: string; content: string } | { kind: 'delete'; receipt: string }
+export type MemoryMutation =
+  | { kind: 'write'; receipt: string; content: string; transferTarget?: boolean }
+  | { kind: 'delete'; receipt: string }
 
 export interface MemoryChangePreview {
   path: string
@@ -318,7 +320,12 @@ export class MemoryStore {
           content = serializeMemoryEntries([content, ...retained])
         }
         assertMemoryContent(baseline.path, content)
-        changes.push({ path: baseline.path, before, after: Buffer.from(content) })
+        changes.push({
+          path: baseline.path,
+          before,
+          after: Buffer.from(content),
+          transferTarget: source === 'dreaming' && mutation.transferTarget
+        })
       } else {
         if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
         changes.push({ path: baseline.path, before, after: null })
@@ -517,7 +524,10 @@ export class MemoryStore {
       legacy,
       clearScopeHash,
       recoveryOf,
-      this.root
+      this.root,
+      proposed
+        .filter((change) => change.transferTarget && memoryHash(change.before) === memoryHash(change.after))
+        .map((change) => ({ path: change.path, hash: memoryHash(change.after) }))
     )
     const steps = new Map(batch.steps.map((step) => [step.path, step]))
     const result: MemoryCommitResult = {
