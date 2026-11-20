@@ -1,4 +1,4 @@
-import { APICallError, type ImageModelV3, type ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type JSONObject } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
 
 import { mergeHeaders } from '@main/utils/http'
@@ -54,8 +54,8 @@ export class MinimaxImageModel implements ImageModelV3 {
 
   async doGenerate(options: ImageModelV3CallOptions): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> {
     const { prompt, n, size, seed, aspectRatio, files, providerOptions, headers, abortSignal } = options
-    const bag = (providerOptions?.minimax ?? {}) as Record<string, unknown>
-    const body: Record<string, unknown> = {
+    const bag = providerOptions?.minimax ?? {}
+    const body: JSONObject = {
       model: this.modelId,
       prompt: prompt ?? '',
       n,

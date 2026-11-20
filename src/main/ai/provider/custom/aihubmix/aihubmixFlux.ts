@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { t } from '@main/i18n'
@@ -46,7 +47,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId: string }> {
     const bag = input.providerParams ?? {}
-    const inputBody: Record<string, unknown> = {}
+    const inputBody: JSONObject = {}
     if (input.prompt) inputBody.prompt = input.prompt
 
     // aspectRatio gets normalized into `${number}:${number}` upstream and lives

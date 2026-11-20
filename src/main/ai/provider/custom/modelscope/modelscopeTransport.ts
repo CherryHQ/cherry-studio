@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
@@ -88,7 +89,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
 
-    const body: Record<string, unknown> = {
+    const body: JSONObject = {
       model: input.modelId,
       prompt: input.prompt ?? ''
     }
@@ -209,7 +210,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
   private async request<T>(
     path: string,
     method: 'POST' | 'GET',
-    body: Record<string, unknown> | undefined,
+    body: JSONObject | undefined,
     options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
   ): Promise<T> {
     const timeout = options.timeout ?? DEFAULT_TIMEOUT
