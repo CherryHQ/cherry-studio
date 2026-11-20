@@ -36,7 +36,7 @@ and `install` wires them into a harness ([Installing the package](#installing-th
 both use these shared rules. Four pure projections and three constants are exported for
 adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
-`subagentViews(facts, approvals)` lists the background children as the host shows them,
+`subagentViews(facts)` lists the background children as the host shows them,
 `subagentResults(history, active, notification?)` derives pending results and current notification origins
 from run records and native triggering calls, including continuations. Only confirmed empty pending results
 prove drainage; missing provenance stays unknown. A host-initiated continuation retains native work without
@@ -48,6 +48,15 @@ the texts of the results an adapter gives a child's open tool calls ([Applying a
 `@cherrystudio/agent-behavior/core/facts` is a lint error (`barrel/closed`). An adapter depends on the package as
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
 `pnpm --filter @cherrystudio/agent-behavior build`.
+
+## Command approval facts
+
+The desktop host checks shell input and supplies a `mandatoryBlock` for denials and a
+`commandPolicy` fact carrying the approval-card details and a `context` fingerprint. A block
+precedes mode shortcuts. After a grant, the gate reads current host facts and rejects the call
+when the block now applies or the context changed. Facts that name the `permissionMode` they were derived under
+are gathered again, before the decision and after a grant, if the mode changed meanwhile; a mode that keeps changing
+makes the call require approval. It does not save executable, command-prefix or shell-wide consent.
 
 ## Ports
 
@@ -101,7 +110,7 @@ the worktree PR.
 
 | #   | Port          | Methods                                                                                         | Intent                                                                                    |
 | --- | ------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| P1  | `Approvals`   | `facts`, `ask`, `outcomes`                                                                      | Ask a person whether a call may run; tell the rules how people answered before.          |
+| P1  | `Approvals`   | `facts`, `ask`                                                                                  | Ask a person whether a call may run.                                                      |
 | P2  | `Questions`   | `ask`                                                                                           | Ask a person questions (AskUserQuestion).                                                 |
 | P3  | `Models`      | `find`, `current`                                                                               | Find models by the name a person said; tell what a conversation's model is now (tool support, its key, the key a child gets by default). |
 | P4  | `Verifier`    | `verify`                                                                                        | Judge whether a goal is met.                                                              |
@@ -241,11 +250,13 @@ carries the text of the person's message. The `text` of `user` and `assistant` e
 is what `vcc_recall` numbers and searches, so an image appears in it as `[image]` and an assistant's thinking is left
 out. Every tool call (a `ToolCallFact` in an assistant entry's `toolCalls`) and every `tool-result` carries `callKey`:
 the adapter computes it with `callKeyOf` from the same id as the gate's `GateCall.key` (Durable: the tool task id;
-coding-agent: `<sessionId>:<toolCallId>`), so a call, its result and the host's approval outcomes for it share one key;
+coding-agent: `<sessionId>:<toolCallId>`), so a call, its result and the person's approval of it share one key;
 the case `a tool call and its result read back under the gate's call key` asserts it. Two mappings are easy to miss:
 
-- Durable records a call the gate blocked as a tool result whose text is `Tool call blocked: <reason>`. Project it as a
-  `tool-result` with `isError: true` and that text; the gate cases look for the reason in it.
+- A call the gate blocked is a `tool-result` with `isError: true` whose text names the reason, and whose `blocked` is
+  the reason exactly as `GateVerdict.block` gave it. Durable keeps that reason in the result's `blocked` diagnostic
+  (`Tool call blocked: <reason>`); coding-agent keeps it only as the result text, which the extension starts with
+  `Tool call blocked: `. The goal rules read a denial from `blocked` alone, so a missing one hides it (D9).
 - coding-agent stores markers as `custom_message` entries and records as `custom` entries. Pass `customType` as
   `RawEntry.kind`; for a `custom_message`, `details` as `RawEntry.data` and the text of `content` as `RawEntry.text`;
   for a `custom` entry, its `data` as `RawEntry.data`.
@@ -353,9 +364,9 @@ ensures a new job when necessary; deduplicating the old live job must not lose t
 
 The host must also:
 
-- Persist approval outcomes across restarts and identify a call by its `CallRef`; `Approvals.outcomes(thread, [])`
-  lists every call it knows on that thread, and the package asks for a conversation and for each of its children. The
-  `ToolCallFact` the gate passes carries the call key as its `callId`, because the gate sees no provider call id.
+- Identify a call by its `CallRef`. The `ToolCallFact` the gate passes carries the call key as its `callId`, because
+  the gate sees no provider call id. The package never asks how a person answered: the gate records the answer under
+  `cherry.approval:<callKey>` and a denial becomes the call's blocked result, so the host keeps no outcome for the rules.
 - Show an ask the way `ApprovalRequest.presentation` says, and compute `withinAllowedRoots` per permission mode and tool
   category in `Approvals.facts`.
 - Answer `Models.current(thread)` with both keys non-empty and whether the conversation's model can call tools.
@@ -386,6 +397,22 @@ running children (PR-3a); worktree isolation and its `Workspaces` port (PR-4). A
 leftover inputs hold a conversation, the idle driver leaves results it would deliver quietly and a compaction's
 status for later and exits, and a person's later turn does not wake it; they wait for its next wake (a child's run
 ending, a compaction or a reopen).
+
+## Tool intent
+
+`createToolIntent()` returns a transform an adapter applies to every tool it declares to the model, with whether that
+model is offered `intent` (`offersToolIntent(modelId)`: DeepSeek models only, because other models already narrate
+between calls). When offered, the transform adds an optional `intent` string (why this call is made) to an object
+schema that does not already declare one. Either way it wraps `prepareArguments` so the argument is removed before the
+tool's own argument repair, schema validation, gate and execution; a call that still carries `intent` after a model
+switch therefore runs normally. The model's call keeps it, so the transcript and the UI read it. Tools whose schema is
+not an object, or that declare `intent` themselves, are returned unchanged. One transform returns one wrapper per tool
+and offer, so repeated loadouts keep the schema object a validator is cached by. `TOOL_INTENT_GUIDE` is the one
+system-prompt paragraph that asks the model to fill it in; an adapter adds it exactly when it offers `intent`.
+
+The Pi adapter installs it through `AgentSession.setToolTransform` and the appended system prompt; the Durable adapter
+through the behavior extension's `wrapTools` and a `tool_intent` prompt section. Both hooks come from Cherry's patches
+of `pi-coding-agent` and `pi-durable`.
 
 ## Running the contract in an adapter
 
@@ -510,8 +537,7 @@ To check that a flow survives a crash at any step, sweep the crash over every aw
 - `asked`: how many times approvals, questions and verdicts were requested. `emitted`: the `BehaviorEvent`s
   in order. `saved`: every `OutputFile` saved.
 
-While an approval is pending, `Approvals.outcomes` reports it as `pending`; once answered, as `granted`, `denied`
-(with feedback) or `unavailable`. `OutputStore.save` returns `outputs/<name>`.
+`OutputStore.save` returns `outputs/<name>`.
 
 ## Validation
 
@@ -524,7 +550,7 @@ pnpm --filter @cherrystudio/agent-behavior typecheck
 Pass explicit test file paths under `packages/agent-behavior/tests/`; `tests/orchestration/` runs the orchestration on
 the fake, and `tests/orchestration/fixtures/` runs each scenario fixture three ways (to the end, crashed at every await
 point, replayed into the core). `typecheck` resolves `@cherrystudio/agent-runtime`
-types from its built `dist/`, hence the first command, and runs `tsc` twice: once over the package and once over
+types from its built `dist/`, hence the first command, and runs `tsrs` twice: once over the package and once over
 `src/core/` alone with no Node or DOM types, which keeps core free of the environment. The lint guards for imports,
 layers and key minting have their own test:
 `pnpm test:scripts scripts/__tests__/agent-behavior-boundary.test.ts`.

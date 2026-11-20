@@ -13,7 +13,6 @@
  * - Consecutive tool-* / dynamic-tool parts → nested ToolBlockGroup row
  * - data-video parts with same filePath → video block row
  */
-
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -82,6 +81,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
+import { ImportedStatusBlock } from './ImportedStatusBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import MessageCompactionStatus from './MessageCompactionStatus'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
@@ -101,7 +101,7 @@ import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
-import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
+import { hasToolIntent, ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
@@ -302,6 +302,7 @@ type GroupedEntry = PartEntry | PartEntry[]
 interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
+  expandToolGroups?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
@@ -729,6 +730,8 @@ function renderPart(
       : undefined
 
   switch (partType) {
+    case 'data-imported-status':
+      return <ImportedStatusBlock key={partId} status={part.data.status} />
     case 'reasoning': {
       const reasoningPart = part
       const isReasoningStreaming = !options?.settleStreamingReasoning && reasoningPart.state === 'streaming'
@@ -1065,7 +1068,7 @@ function renderGroupedEntry(
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={enableAnimation} animation="fade">
           {options?.toolDisplay === 'disclosure' ? (
-            <ToolBlockGroup items={toolItems} />
+            <ToolBlockGroup items={toolItems} defaultExpanded={options?.expandToolGroups} />
           ) : (
             <ToolBlockGroupContent items={toolItems} />
           )}
@@ -1218,11 +1221,21 @@ function renderNestedHistory(
       (lastProcessEntry.part.type as string) === 'reasoning' &&
       (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
 
+    // Stated intents already say what each step is for, so thinking blocks between them only add noise.
+    const showsReasoning = !toolItems.some(hasToolIntent)
+    const visibleEntries = groupPartEntries(item.entries).filter(
+      (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
+    )
+
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
-        <ToolBlockGroup items={toolItems} isLiveProgress={isLiveProgress} isThinking={isThinking}>
+        <ToolBlockGroup
+          items={toolItems}
+          defaultExpanded={options.expandToolGroups}
+          isLiveProgress={isLiveProgress}
+          isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
-            {groupPartEntries(item.entries).map((entry) =>
+            {visibleEntries.map((entry) =>
               renderGroupedEntry(entry, message, false, {
                 ...options,
                 enableAnimation: false,
@@ -1401,7 +1414,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
-  const { thoughtAutoCollapse } = useMessageRenderConfig()
+  const { expandToolSteps, thoughtAutoCollapse } = useMessageRenderConfig()
   const projectedLiveItems = useMemo(
     () =>
       isActive
@@ -1552,7 +1565,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={
-          !thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))
+          expandToolSteps ||
+          (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part)))
         }
         message={message}
         toolItems={completedToolItems}>
@@ -1591,7 +1605,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
+  const { expandToolSteps, subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
@@ -1773,6 +1787,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const renderOptions = useMemo(
     () => ({
       citationProjectionByPart,
+      expandToolGroups: expandToolSteps,
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
@@ -1782,6 +1797,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
+      expandToolSteps,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,

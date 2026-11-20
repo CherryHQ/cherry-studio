@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-13-qveris-oauth-sign-in.md
+2026-11-13-qveris-oauth-sign-in.md: 47652c5e8f7ea5d6e12262d5648bb2d15e807a3a
+2026-11-13-qveris-oauth-sign-in.zh.md: ee7c4ea6f2f9f6d79823ac81d86c09ac2cf01e56

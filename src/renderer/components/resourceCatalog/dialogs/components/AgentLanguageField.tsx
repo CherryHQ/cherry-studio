@@ -71,7 +71,7 @@ export function AgentLanguageField({
   return (
     <div className={cn('grid w-full grid-cols-1 gap-2', className)}>
       <Combobox
-        className="min-w-0"
+        className="h-9 min-w-0"
         options={[
           { value: FOLLOW_VALUE, label: nullOptionLabel },
           ...AGENT_LANGUAGE_PRESETS.map((preset) => ({ value: preset, label: preset })),

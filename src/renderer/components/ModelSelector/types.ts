@@ -28,6 +28,7 @@ interface ModelSelectorCommonProps {
   sideOffset?: number
   contentClassName?: string
   portalContainer?: HTMLElement | null
+  allowPresentationSwitch?: boolean
   mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
@@ -108,6 +109,8 @@ export interface ModelSelectorActionItem {
   leading?: ReactNode
   trailing?: ReactNode
   detail?: ReactNode
+  /** Same rank as `ModelSelectorPresentation.priority`: higher sorts later in its group. */
+  priority?: number
   onAction: () => void
 }
 

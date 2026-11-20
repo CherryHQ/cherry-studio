@@ -1,4 +1,5 @@
 // Primitive Components
+export { Progress } from './primitives/progress'
 export { KeyboardLayerProvider, type KeyboardLayerProps } from './primitives/keyboard-layer'
 export { BarVisualizer, type BarVisualizerProps, type BarVisualizerState } from './primitives/bar-visualizer'
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
@@ -47,12 +48,7 @@ export {
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
 export { default as EmojiAvatar } from './composites/emoji-avatar'
-export {
-  EmptyState,
-  type EmptyStateIllustration,
-  type EmptyStatePreset,
-  type EmptyStateProps
-} from './composites/empty-state'
+export { EmptyState, type EmptyStateIllustration, type EmptyStateProps } from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,
@@ -148,7 +144,9 @@ export {
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
 export {
-  BlurCancelPointerSensor,
+  BUTTON_HANDLE_DRAG_SENSORS,
+  DragDropRoot,
+  type DragDropRootProps,
   Sortable,
   type SortableAccessibility,
   type SortableDragHandleProps,

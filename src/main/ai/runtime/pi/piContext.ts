@@ -23,6 +23,6 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
         throw new Error('Requested Pi identity does not match the captured branch')
       return existing
     }
-    return reservePiBranchTx(tx, sessionId, root, nativeId ?? uuid())
+    return reservePiBranchTx(tx, sessionId, messageId ?? root, nativeId ?? uuid())
   })
 }

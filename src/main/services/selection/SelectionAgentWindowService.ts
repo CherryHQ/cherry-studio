@@ -75,15 +75,8 @@ export class SelectionAgentWindowService extends BaseService {
         getSelectionNativePanel().interceptMiniaturize(window.getNativeWindowHandle())
       })
     )
-    this.registerDisposable(
-      wm.onWindowDestroyedByType(WindowType.SelectionAgent, ({ id }) => {
-        this.layouts.delete(id)
-        this.replaceable.delete(id)
-        this.summaries.delete(id)
-        this.shrinking.delete(id)
-        if (this.collapsed.delete(id)) this.syncCapsules()
-      })
-    )
+    this.registerDisposable(wm.onWindowDestroyedByType(WindowType.SelectionAgent, ({ id }) => this.forget(id)))
+    this.registerDisposable(wm.onWindowReleasedToPoolByType(WindowType.SelectionAgent, ({ id }) => this.forget(id)))
     this.registerDisposable(
       wm.onWindowDestroyedByType(WindowType.SelectionCapsule, ({ id }) => {
         this.capsuleHostSizes.delete(id)
@@ -162,7 +155,8 @@ export class SelectionAgentWindowService extends BaseService {
 
     const bounds = window.getBounds()
     const display = screen.getDisplayMatching(bounds)
-    this.collapsed.set(windowId, { displayId: display.id, collapsedAt: Date.now() })
+    const entry = { displayId: display.id, collapsedAt: Date.now() }
+    this.collapsed.set(windowId, entry)
     const hide = () => {
       if (window.isDestroyed()) return
       wm.hide(windowId)
@@ -177,9 +171,14 @@ export class SelectionAgentWindowService extends BaseService {
     window.setMinimumSize(0, 0)
     this.shrinking.add(windowId)
     void this.animate(window, placeSelectionCapsuleSlot(display.workArea), 0).then(() => {
+      if (window.isDestroyed()) return
+      // Closed mid-animation: the pool already hid it but keeps its opacity, so it must not reopen invisible.
+      if (this.collapsed.get(windowId) !== entry) {
+        window.setOpacity(1)
+        return
+      }
       this.shrinking.delete(windowId)
       hide()
-      if (window.isDestroyed()) return
       window.setBounds(bounds)
       window.setOpacity(1)
       this.applyLayoutLimits(window, 'conversation')
@@ -289,6 +288,14 @@ export class SelectionAgentWindowService extends BaseService {
     window.setMinimizable(mode === 'conversation')
   }
 
+  private forget(windowId: string): void {
+    this.layouts.delete(windowId)
+    this.replaceable.delete(windowId)
+    this.summaries.delete(windowId)
+    this.shrinking.delete(windowId)
+    if (this.collapsed.delete(windowId)) this.syncCapsules()
+  }
+
   private collapseByHandle(handle: Buffer): void {
     const wm = application.get('WindowManager')
     const window = wm
@@ -363,8 +370,13 @@ export class SelectionAgentWindowService extends BaseService {
     }
 
     if (!isFullScreen) {
+      // A pooled panel can be left at normal level by the renderer's unpin request, and an inactive
+      // app's normal-level panel can stay behind the active app's windows (#24622).
+      const pinned = window.isAlwaysOnTop()
+      window.setAlwaysOnTop(true)
       getSelectionNativePanel().moveToActiveSpace(window.getNativeWindowHandle())
       window.show()
+      if (!pinned) window.setAlwaysOnTop(false)
       return
     }
 
