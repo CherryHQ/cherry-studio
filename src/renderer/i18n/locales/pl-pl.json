@@ -1708,6 +1708,7 @@
   "error.notice.server.title": "Dostawca tymczasowo niedostępny",
   "error.notice.stream.info": "Połączenie zostało przerwane podczas odbierania odpowiedzi. Sprawdź, czy sieć działa stabilnie, i spróbuj ponownie.",
   "error.notice.stream.title": "Odpowiedź przerwana",
+  "error.notice.switch_to_subscription_model": "Użyj modelu z subskrypcji",
   "error.notice.unknown.original": "Pierwotny komunikat: {{message}}",
   "error.notice.unknown.summarizing": "Ustalanie, co poszło nie tak…",
   "error.ocr_detail_empty": "Mechanizm OCR został uruchomiony, ale nie znalazł czytelnego tekstu na obrazie. Jeśli obraz zawiera tekst, sprawdź skonfigurowany procesor OCR (np. jego ustawienia językowe) w Ustawienia → Przetwarzanie plików lub zmień procesor.",

@@ -155,6 +155,8 @@ export interface MessageModelPickerRenderOptions {
   messageParts: CherryMessagePart[]
   trigger: ReactNode
   onOpenChange?: (open: boolean) => void
+  /** Limits the picker to this provider's models. */
+  providerId?: string
 }
 
 export interface MessageErrorDiagnosisStep {

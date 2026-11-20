@@ -1688,6 +1688,7 @@
   "error.notice.server.title": "ผู้ให้บริการไม่พร้อมใช้งานชั่วคราว",
   "error.notice.stream.info": "การเชื่อมต่อขาดระหว่างรับการตอบกลับ โปรดตรวจสอบว่าเครือข่ายเสถียรแล้วลองอีกครั้ง",
   "error.notice.stream.title": "การตอบกลับถูกขัดจังหวะ",
+  "error.notice.switch_to_subscription_model": "ใช้โมเดลจากการสมัครสมาชิก",
   "error.notice.unknown.original": "ข้อความต้นฉบับ: {{message}}",
   "error.notice.unknown.summarizing": "กำลังวิเคราะห์ข้อผิดพลาด…",
   "error.ocr_detail_empty": "OCR ทำงานแล้วแต่ไม่พบข้อความที่อ่านได้ในภาพ ถ้าภาพนั้นมีข้อความจริง โปรดตรวจสอบตัวประมวลผล OCR ที่ตั้งค่าไว้ (เช่น การตั้งค่าภาษา) ในหน้า Settings → File Processing",
