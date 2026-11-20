@@ -17,5 +17,12 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<Record<string, { tool: ModelConf
     copilot: { tool: CodeCli.GITHUB_COPILOT_CLI, target: 'copilot-settings' },
     'factory-droid': { tool: 'factory-droid', target: 'factory-settings' },
     'mistral-vibe': { tool: 'mistral-vibe', target: 'vibe-config' },
-    poolside: { tool: 'poolside', target: 'poolside-settings' }
+    poolside: { tool: 'poolside', target: 'poolside-settings' },
+    'grok-build': { tool: 'grok-build', target: 'grok-config' },
+    omp: { tool: 'omp', target: 'omp-settings' },
+    goose: { tool: 'goose', target: 'goose-config' },
+    cline: { tool: 'cline', target: 'cline-settings' },
+    zcode: { tool: 'zcode', target: 'zcode-config' },
+    snow: { tool: 'snow', target: 'snow-config' },
+    'glm-acp-agent': { tool: 'glm-acp-agent', target: 'glm-credentials' }
   }

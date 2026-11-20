@@ -197,7 +197,7 @@ export class CodexConnection extends LocalConnection {
     const nativeModel = z.object({ model: z.string().optional() }).parse(response).model
     if (nativeModel) this.localSessionInfo.activeModel = { id: nativeModel }
     const selected = models.find((model) => (model.model ?? model.id) === nativeModel)
-    this.localSessionInfo.images = selected ? (selected.inputModalities ?? ['text', 'image']).includes('image') : false
+    this.localSessionInfo.images = (selected?.inputModalities ?? ['text', 'image']).includes('image')
     this.threadId = ThreadSchema.parse(response).thread.id
     this.supportedCommands = CODEX_SUPPORTED_COMMANDS
     this.events.push({ type: 'resume-token', token: this.threadId })

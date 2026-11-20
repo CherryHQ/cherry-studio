@@ -33,7 +33,16 @@ function hasConfigOverrides(env: Record<string, string>, shellEnv: Record<string
     'VIBE_ACTIVE_MODEL',
     'POOLSIDE_API_KEY',
     'POOLSIDE_STANDALONE_BASE_URL',
-    'POOLSIDE_STANDALONE_MODEL'
+    'POOLSIDE_STANDALONE_MODEL',
+    'GROK_HOME',
+    'OMP_PROFILE',
+    'PI_PROFILE',
+    'PI_CONFIG_DIR',
+    'GOOSE_PATH_ROOT',
+    'CLINE_DATA_DIR',
+    'CLINE_DIR',
+    'ZCODE_HOME',
+    'SNOW_CONFIG_DIR'
   ]
   return overrides.some((key) => {
     const override = getEnvironmentValue(env, key)

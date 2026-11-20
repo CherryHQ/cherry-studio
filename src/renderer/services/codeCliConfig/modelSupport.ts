@@ -79,7 +79,14 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
   'mistral-vibe': (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   [CodeCli.HERMES]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
+  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  'grok-build': (providers) => providers.filter(hasOpenAILike),
+  omp: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
+  goose: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  cline: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  zcode: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  snow: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  'glm-acp-agent': (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
 }
 
 const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
@@ -117,14 +124,21 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     case CodeCli.GITHUB_COPILOT_CLI:
     case 'factory-droid':
     case 'mistral-vibe':
+    case 'goose':
+    case 'cline':
+    case 'zcode':
+    case 'snow':
+    case 'glm-acp-agent':
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case CodeCli.ANTIGRAVITY_CLI:
       return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     case 'codebuddy-code':
     case CodeCli.QWEN_CODE:
     case CodeCli.KIMI_CODE:
+    case 'grok-build':
       return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
     case CodeCli.PI:
+    case 'omp':
       return hasAnyModelEndpoint(model, [
         ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,

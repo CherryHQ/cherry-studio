@@ -188,8 +188,8 @@ Cherry supplies `ZCODE_ACP_MODE=build` rather than the adapter's unrestricted
 default. User environment overrides and the adapter's own configuration retain
 their documented precedence. ACP model and configuration controls depend on what
 the connected version returns. Snow currently provides no model selection through
-ACP; it follows its CLI profile. No new global-model writer is implied by these
-presets. Existing user credentials remain owned by each CLI.
+ACP; it follows its CLI profile. Native and Cherry gateway model selections write
+each preset's registered configuration files while preserving existing user credentials.
 
 Snow's recovery acknowledgment does not guarantee context recall after a process restart.
 ZCode requires a working native backend; a successful lazy session creation does not

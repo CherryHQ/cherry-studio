@@ -148,3 +148,45 @@ describe('provider-configured ACP model identities', () => {
     expect(resolveConfiguredAcpModel(preset, configured, [configured, advertised])).toBe(configured)
   })
 })
+
+describe('extra CLI nativeModelConfig targets', () => {
+  it('updates, reads, and clears grok-config [models].default', () => {
+    const initial = '[models]\nother = 1\n'
+    const updated = updateNativeModelConfig('grok-config', initial, 'cherry-gateway')
+    expect(readNativeModelConfig('grok-config', updated)).toBe('cherry-gateway')
+    const cleared = updateNativeModelConfig('grok-config', updated, undefined)
+    expect(readNativeModelConfig('grok-config', cleared)).toBeUndefined()
+    expect(cleared).toContain('other = 1')
+  })
+
+  it('updates, reads, and clears omp-settings YAML provider and model', () => {
+    const updated = updateNativeModelConfig('omp-settings', 'custom: false\n', 'cherry-gateway/openai:gpt-5')
+    expect(readNativeModelConfig('omp-settings', updated)).toBe('cherry-gateway/openai:gpt-5')
+    const plain = updateNativeModelConfig('omp-settings', updated, 'gpt-5')
+    expect(readNativeModelConfig('omp-settings', plain)).toBe('gpt-5')
+    const cleared = updateNativeModelConfig('omp-settings', updated, undefined)
+    expect(readNativeModelConfig('omp-settings', cleared)).toBeUndefined()
+    expect(cleared).toContain('custom: false')
+  })
+
+  it('updates, reads, and clears goose-config GOOSE_MODEL while preserving YAML comments', () => {
+    const initial = '# goose settings\nGOOSE_PROVIDER: anthropic\n'
+    const updated = updateNativeModelConfig('goose-config', initial, 'claude-sonnet-4-5')
+    expect(updated).toContain('# goose settings')
+    expect(readNativeModelConfig('goose-config', updated)).toBe('claude-sonnet-4-5')
+    const cleared = updateNativeModelConfig('goose-config', updated, undefined)
+    expect(readNativeModelConfig('goose-config', cleared)).toBeUndefined()
+    expect(cleared).toContain('GOOSE_PROVIDER: anthropic')
+  })
+
+  it.each(['cline-settings', 'zcode-config', 'snow-config', 'glm-credentials'] as const)(
+    'updates, reads, and clears JSON model field on %s',
+    (target) => {
+      const updated = updateNativeModelConfig(target, '{"keep":true}', 'openai:gpt-5')
+      expect(readNativeModelConfig(target, updated)).toBe('openai:gpt-5')
+      const cleared = updateNativeModelConfig(target, updated, undefined)
+      expect(readNativeModelConfig(target, cleared)).toBeUndefined()
+      expect(JSON.parse(cleared)).toEqual({ keep: true })
+    }
+  )
+})

@@ -90,7 +90,7 @@ import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { imageExts, textExts, documentExts, audioExts } from '@shared/utils/file'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
@@ -717,14 +717,16 @@ const AgentComposerInner = ({
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
-  const canAddImageFile = agent?.type === 'local' ? localInfo?.images === true : fileCapabilities.canAddImageFile
+  const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
   const supportedExts = useMemo(
     () =>
       agent?.type === 'local'
         ? [
             ...textExts,
             ...documentExts,
-            ...(localInfo?.images ? imageExts : []),
+            ...archiveExts,
+            ...videoExts,
+            ...(localInfo?.images !== false ? imageExts : []),
             ...(localInfo?.audio ? audioExts : [])
           ]
         : fileCapabilities.supportedExts,

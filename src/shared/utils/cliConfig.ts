@@ -234,7 +234,14 @@ export const MODEL_CONFIGURED_CLI_TOOL_IDS = [
   'kilo',
   'factory-droid',
   'mistral-vibe',
-  'poolside'
+  'poolside',
+  'grok-build',
+  'omp',
+  'goose',
+  'cline',
+  'zcode',
+  'snow',
+  'glm-acp-agent'
 ] as const
 
 export type ModelConfiguredCli = (typeof MODEL_CONFIGURED_CLI_TOOL_IDS)[number]
@@ -243,21 +250,14 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   ...MODEL_CONFIGURED_CLI_TOOL_IDS,
   CodeCli.OPENCLAW,
   CodeCli.DEEPSEEK_HARNESS,
-  'omp',
-  'snow',
-  'zcode',
-  'glm-acp-agent',
   'cursor',
   'kiro',
   CodeCli.QODER_CLI,
-  'goose',
   'auggie',
   'junie',
   'devin',
   'amp-acp',
-  'grok-build',
   'cortex-code',
-  'cline',
   CodeCli.ANTIGRAVITY_CLI,
   'trae'
 ] as const

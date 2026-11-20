@@ -36,6 +36,15 @@ import {
   readConfigFilesForDraft,
   readDraftFileText
 } from './draftFiles'
+import {
+  clineAdapter,
+  glmAcpAgentAdapter,
+  gooseAdapter,
+  grokBuildAdapter,
+  ompAdapter,
+  snowAdapter,
+  zcodeAdapter
+} from './extraAdapters'
 import { factoryAdapter } from './factory'
 import {
   parseJsonOrThrow,
@@ -1089,7 +1098,14 @@ export const CLI_CONFIG_ADAPTERS: Record<ModelConfiguredCli, CliConfigAdapter> =
   [CodeCli.PI]: piAdapter,
   'codebuddy-code': codebuddyAdapter,
   [CodeCli.HERMES]: hermesAdapter,
-  [CodeCli.MINIMAX_CODE]: minimaxAdapter
+  [CodeCli.MINIMAX_CODE]: minimaxAdapter,
+  'grok-build': grokBuildAdapter,
+  omp: ompAdapter,
+  goose: gooseAdapter,
+  cline: clineAdapter,
+  zcode: zcodeAdapter,
+  snow: snowAdapter,
+  'glm-acp-agent': glmAcpAgentAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {

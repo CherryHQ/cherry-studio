@@ -14,6 +14,19 @@ function parseToml(content: string) {
   }
 }
 
+function parseYamlDoc(content: string | null) {
+  const doc = parseDocument(content ?? '{}')
+  if (doc.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+  if (doc.contents === null) doc.contents = doc.createNode({}) as unknown as typeof doc.contents
+  return doc
+}
+
+function tomlTable(value: unknown): toml.TomlTable {
+  return value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
+    ? { ...(value as toml.TomlTable) }
+    : {}
+}
+
 /** Changes only the native default, preserving credentials and unrelated settings. */
 export function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string): string {
   if (target === 'poolside-settings') {
@@ -34,12 +47,42 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
     else config[key] = model
     return toml.stringify(config)
   }
-  if (target === 'hermes-config' || target === 'minimax-config') {
-    const config = parseDocument(content ?? '{}')
-    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-    const key = target === 'hermes-config' ? ['model', 'default'] : ['defaultModel']
+  if (target === 'grok-config') {
+    const config = parseToml(content ?? '')
+    const models = tomlTable(config.models)
+    if (model === undefined) {
+      delete models.default
+      if (Object.keys(models).length === 0) delete config.models
+      else config.models = models
+    } else {
+      models.default = model
+      config.models = models
+    }
+    return toml.stringify(config)
+  }
+  if (target === 'hermes-config' || target === 'minimax-config' || target === 'goose-config') {
+    const config = parseYamlDoc(content)
+    const key =
+      target === 'hermes-config' ? ['model', 'default'] : target === 'goose-config' ? ['GOOSE_MODEL'] : ['defaultModel']
     if (model === undefined) config.deleteIn(key)
     else config.setIn(key, model)
+    return config.toString()
+  }
+  if (target === 'omp-settings') {
+    const config = parseYamlDoc(content)
+    if (model === undefined) {
+      config.deleteIn(['defaultProvider'])
+      config.deleteIn(['defaultModel'])
+    } else {
+      const slash = model.indexOf('/')
+      if (slash > 0 && slash < model.length - 1) {
+        config.setIn(['defaultProvider'], model.slice(0, slash))
+        config.setIn(['defaultModel'], model.slice(slash + 1))
+      } else {
+        config.deleteIn(['defaultProvider'])
+        config.setIn(['defaultModel'], model)
+      }
+    }
     return config.toString()
   }
   const errors: ParseError[] = []
@@ -59,6 +102,10 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
     case 'opencode-config':
     case 'kilo-config':
     case 'copilot-settings':
+    case 'cline-settings':
+    case 'zcode-config':
+    case 'snow-config':
+    case 'glm-credentials':
       updates = [[['model'], model]]
       break
     case 'factory-settings':
@@ -106,11 +153,24 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
       config[target === 'codex-config' ? 'model' : target === 'vibe-config' ? 'active_model' : 'default_model']
     return typeof value === 'string' ? value : undefined
   }
-  if (target === 'hermes-config' || target === 'minimax-config') {
-    const config = parseDocument(content)
-    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-    const value = config.getIn(target === 'hermes-config' ? ['model', 'default'] : ['defaultModel'])
+  if (target === 'grok-config') {
+    const config = parseToml(content)
+    const value = tomlTable(config.models).default
     return typeof value === 'string' ? value : undefined
+  }
+  if (target === 'hermes-config' || target === 'minimax-config' || target === 'goose-config') {
+    const config = parseYamlDoc(content)
+    const value = config.getIn(
+      target === 'hermes-config' ? ['model', 'default'] : target === 'goose-config' ? ['GOOSE_MODEL'] : ['defaultModel']
+    )
+    return typeof value === 'string' ? value : undefined
+  }
+  if (target === 'omp-settings') {
+    const config = parseYamlDoc(content)
+    const provider = config.getIn(['defaultProvider'])
+    const model = config.getIn(['defaultModel'])
+    if (typeof model !== 'string' || !model) return undefined
+    return typeof provider === 'string' && provider ? `${provider}/${model}` : model
   }
   const errors: ParseError[] = []
   const config = parse(content, errors, { allowTrailingComma: true })

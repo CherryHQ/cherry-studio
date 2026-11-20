@@ -202,3 +202,143 @@ it.each([
     ).rejects.toThrow()
   }
 )
+
+describe('extra custom-endpoint local agent adapters', () => {
+  const extraTools = ['grok-build', 'omp', 'goose', 'cline', 'zcode', 'snow', 'glm-acp-agent'] as const
+
+  function makeInitialFiles(tool: (typeof extraTools)[number]) {
+    const adapter = getAdapter(tool)!
+    const seedContent: Record<string, string> = {
+      'grok-config': 'theme = "dark"\n[model.user-model]\nmodel = "grok-4.6"\napi_key = "user-key"\n',
+      'omp-settings': 'theme: dark\ncustom: false\n',
+      'omp-models': 'providers:\n  user-provider:\n    apiKey: user-key\n',
+      'goose-config': 'theme: dark\nUSER_API_KEY: user-key\n',
+      'cline-settings': '{"theme":"dark","userKey":"user-key"}\n',
+      'cline-providers': '{"providers":{"user-provider":{"apiKey":"user-key"}}}\n',
+      'zcode-config': '{"theme":"dark","userKey":"user-key"}\n',
+      'zcode-providers': '{"providers":{"user-provider":{"apiKey":"user-key"}}}\n',
+      'snow-config': '{"theme":"dark","providers":{"user-provider":{"apiKey":"user-key"}}}\n',
+      'glm-credentials': '{"theme":"dark","providers":{"user-provider":{"apiKey":"user-key"}}}\n'
+    }
+    return createCliConfigDraftFiles(
+      adapter.targets.map((target) => ({
+        target,
+        path: `/test/${target}`,
+        content: seedContent[target] ?? null
+      }))
+    )
+  }
+
+  it.each(extraTools)('%s builds, extracts, preserves user keys, and clears cleanly', async (tool) => {
+    const adapter = getAdapter(tool)!
+    const files = makeInitialFiles(tool)
+    const draft = await adapter.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context)
+    const draftText = draft.map((f) => f.content).join('\n')
+    expect(draftText).toContain('gateway-key')
+    expect(draftText).toContain('provider:org/test-model')
+    expect(draftText).toContain('user-key')
+    expect(draftText).toContain('dark')
+
+    const connection = adapter.extractConnection(draft)
+    expect(connection).toMatchObject({
+      apiKey: 'gateway-key',
+      model: 'provider:org/test-model'
+    })
+    expect(connection?.baseUrl).toBeTruthy()
+
+    vi.spyOn(ipcApi, 'request').mockResolvedValue({
+      files: adapter.targets.map((target) => ({
+        target,
+        path: `/test/${target}`,
+        content: draft.find((f) => f.target === target)?.content ?? null
+      }))
+    })
+    const cleared = await adapter.buildClearFiles()
+    const clearedText = cleared.map((f) => f.content).join('\n')
+    expect(clearedText).not.toContain('gateway-key')
+    expect(clearedText).not.toContain('provider:org/test-model')
+    expect(clearedText).toContain('user-key')
+    expect(clearedText).toContain('dark')
+
+    const clearedDraft = createCliConfigDraftFiles(
+      adapter.targets.map((target) => ({
+        target,
+        path: `/test/${target}`,
+        content:
+          cleared.find((f) => f.target === target)?.content ?? draft.find((f) => f.target === target)?.content ?? null
+      }))
+    )
+    expect(adapter.extractConnection(clearedDraft)).toBeNull()
+  })
+
+  it('keeps unmanaged goose-config and grok-config hidden from connection extraction', () => {
+    expect(
+      getAdapter('goose')!.extractConnection(
+        createCliConfigDraftFiles([{ target: 'goose-config', path: '/test/goose', content: 'GOOSE_MODEL: old\n' }])
+      )
+    ).toBeNull()
+    expect(
+      getAdapter('grok-build')!.extractConnection(
+        createCliConfigDraftFiles([
+          {
+            target: 'grok-config',
+            path: '/test/grok',
+            content: '[models]\ndefault = "grok-4.6"\n[model."grok-4.6"]\nmodel = "grok-4.6"\n'
+          }
+        ])
+      )
+    ).toBeNull()
+  })
+
+  it('writes api_backend = "responses" for grok-build only on openai-responses', async () => {
+    const adapter = getAdapter('grok-build')!
+    const responsesDraft = await adapter.buildDraft(
+      { cliTool: 'grok-build', modelId: 'test::model', files: makeInitialFiles('grok-build') },
+      {
+        ...context,
+        provider: {
+          ...context.provider,
+          endpointConfigs: { 'openai-responses': { baseUrl: 'https://example.test/v1' } }
+        },
+        modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-responses'] }
+      }
+    )
+    expect(responsesDraft[0].content).toContain('api_backend = "responses"')
+
+    const chatDraft = await adapter.buildDraft(
+      { cliTool: 'grok-build', modelId: 'test::model', files: makeInitialFiles('grok-build') },
+      {
+        ...context,
+        provider: {
+          ...context.provider,
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://example.test/v1' } }
+        },
+        modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-chat-completions'] }
+      }
+    )
+    expect(chatDraft[0].content).not.toContain('api_backend')
+  })
+
+  it.each(['anthropic-messages', 'openai-responses'] as const)(
+    'goose selects %s protocol cleanly',
+    async (endpoint) => {
+      const adapter = getAdapter('goose')!
+      const draft = await adapter.buildDraft(
+        { cliTool: 'goose', modelId: 'test::model', files: makeInitialFiles('goose') },
+        {
+          ...context,
+          provider: {
+            ...context.provider,
+            endpointConfigs: { [endpoint]: { baseUrl: 'https://example.test/v1' } }
+          },
+          modelRecord: { ...context.modelRecord!, endpointTypes: [endpoint] }
+        }
+      )
+      expect(adapter.extractConnection(draft)).toEqual({
+        baseUrl: endpoint === 'anthropic-messages' ? 'https://example.test' : 'https://example.test/v1',
+        apiKey: 'gateway-key',
+        model: 'provider:org/test-model'
+      })
+    }
+  )
+})

@@ -1709,7 +1709,7 @@ describe('local protocol processes', () => {
       message: {
         data: {
           parts: [
-            { type: 'data-cherry-knowledge-scope', data: { knowledgeBaseIds: ['kb-1'] } },
+            { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } },
             { type: 'text', text: '/compact' }
           ]
         }
