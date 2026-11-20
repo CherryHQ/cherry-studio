@@ -222,6 +222,69 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await testInfo.attach('dark', { path: screenshot, contentType: 'image/png' })
 })
 
+test('running gateway actions do not overlap at 200% zoom', async ({ mainWindow: page }) => {
+  await prepare(page)
+  await page.setViewportSize({ width: 680, height: 700 })
+  await openLaunchpad(page)
+  await gatewayTile(page).click()
+  const panel = uiLocator(page, 'api-gateway.panel').filter({ visible: true })
+  await panel.getByRole('button', { name: uiLocale['apiGateway.actions.start'], exact: true }).click()
+  const status = panel.getByText(uiLocale['apiGateway.status.running'], { exact: true })
+  await expect(status).toBeVisible()
+
+  const previousZoom = await page.evaluate(() => window.api.preference.get('app.zoom_factor'))
+  const initialWidth = await page.evaluate(() => window.innerWidth)
+  try {
+    if (previousZoom !== 2) {
+      await page.evaluate((zoom) => window.api.ipcApi.request('app.adjust_zoom', { delta: 2 - zoom }), previousZoom)
+      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(initialWidth)
+    }
+
+    const restart = panel.getByRole('button', { name: uiLocale['apiGateway.actions.restart.button'], exact: true })
+    const endpoint = panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
+    const documentation = panel.getByRole('button', { name: uiLocale['apiGateway.documentation.title'], exact: true })
+    await expect(documentation).toBeVisible()
+    const actions = documentation.locator('..')
+    await expect(actions.getByRole('button')).toHaveCount(3)
+    await expect
+      .poll(async () => {
+        const boxes = await Promise.all([restart.boundingBox(), status.boundingBox(), endpoint.boundingBox()])
+        const group = await actions.boundingBox()
+        const buttons = await Promise.all(
+          (await actions.getByRole('button').all()).map((button) => button.boundingBox())
+        )
+        if (!group || boxes.some((box) => !box) || buttons.some((box) => !box)) return false
+        const disjoint = boxes.every((a, i) =>
+          boxes
+            .slice(i + 1)
+            .every(
+              (b) =>
+                a!.x + a!.width <= b!.x ||
+                b!.x + b!.width <= a!.x ||
+                a!.y + a!.height <= b!.y ||
+                b!.y + b!.height <= a!.y
+            )
+        )
+        return (
+          disjoint &&
+          buttons.every(
+            (button) =>
+              button!.x >= group.x - 1 &&
+              button!.y >= group.y - 1 &&
+              button!.x + button!.width <= group.x + group.width + 1 &&
+              button!.y + button!.height <= group.y + group.height + 1
+          )
+        )
+      })
+      .toBe(true)
+  } finally {
+    await page.evaluate(async (zoom) => {
+      await window.api.ipcApi.request('app.adjust_zoom', { reset: true, delta: 0 })
+      await window.api.ipcApi.request('app.adjust_zoom', { delta: zoom - 1 })
+    }, previousZoom)
+  }
+})
+
 test('Spanish gateway tile shows its full label', async ({ mainWindow: page }) => {
   await prepare(page)
   await page.evaluate(() => window.api.preference.set('app.language', 'es-ES'))

@@ -340,9 +340,13 @@ const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('truncate text-muted-foreground text-xs', className)} {...props} />
 )
 
+// About 20rem fits Documentation, Restart, Stop, and their gaps.
 const StatusActions = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('@container/actions flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2', className)}
+    className={cn(
+      '@container/actions flex flex-1 basis-[min(100%,20rem)] flex-wrap items-center justify-end gap-2',
+      className
+    )}
     {...props}
   />
 )
