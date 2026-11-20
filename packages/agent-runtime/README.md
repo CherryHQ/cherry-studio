@@ -30,7 +30,8 @@ recovery; product reply identity and billing do not come from a common response 
 Interrupt, resume and shutdown return `OperationResult<void>`; success confirms the operation's
 native contract, not application-wide cancellation.
 
-`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness and optional placed-input metadata.
+`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness, optional placed-input metadata and
+message-local model-response errors in `metadata.error`.
 `ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.
 Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
 originating tool part. Activity, input outcomes, and child relationships remain separate facts.

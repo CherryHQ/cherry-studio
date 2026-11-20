@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Uzaklaştır",
   "backup.restore.failed": "Geri yükleme başarısız",
   "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Lütfen geri yüklemeyi yeniden deneyin.",
+  "chat.cherryai.sign_in_required": "Bu modeli kullanmak için Cherry AI'da oturum açın",
   "chat.conversation.new": "Yeni Sohbet",
   "command_approval.builtin-destructive-command": "Bu yerleşik aracı yıkıcı işlemler yapamaz. Onaylanan dosya silme işlemleri için çöp kutusu aracını kullanın. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Komut ilkesi yüklenemedi. Çalıştırma engellendi.",

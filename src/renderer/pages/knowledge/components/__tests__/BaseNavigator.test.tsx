@@ -4,13 +4,17 @@ import type * as ReactModule from 'react'
 import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type * as DragDropRootModule from '@cherrystudio/ui/components/composites/sortable/drag-drop-root'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 
 import { BaseNavigator as BaseNavigatorComponent } from '../navigator'
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react') as typeof ReactModule
+  const dragDropRoot = await vi.importActual<typeof DragDropRootModule>(
+    '@cherrystudio/ui/components/composites/sortable/drag-drop-root'
+  )
 
   const PopoverContext = React.createContext<{ open: boolean; onOpenChange?: (open: boolean) => void }>({ open: false })
   const DropdownMenuContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
@@ -31,7 +35,8 @@ vi.mock('@cherrystudio/ui', () => {
   const AccordionItemContext = React.createContext<string | null>(null)
 
   return {
-    BlurCancelPointerSensor: require('@dnd-kit/core').PointerSensor,
+    BUTTON_HANDLE_DRAG_SENSORS: dragDropRoot.BUTTON_HANDLE_DRAG_SENSORS,
+    DragDropRoot: dragDropRoot.DragDropRoot,
     Accordion: ({
       children,
       defaultValue,

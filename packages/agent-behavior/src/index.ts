@@ -33,7 +33,6 @@ export type {
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
 export type {
   CallRef,
-  ApprovalOutcome,
   ToolCategory,
   ApprovalHostFacts,
   ApprovalAnswer,

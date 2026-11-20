@@ -1822,6 +1822,7 @@ const ChatComposerInner = ({
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
+    assistantAvatarSrc: displayAssistant?.avatarSrc,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,
@@ -1893,6 +1894,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          focusOnTabActivation
           markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}

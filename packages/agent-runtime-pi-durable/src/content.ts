@@ -76,6 +76,12 @@ export class ContentProjection {
       return
     }
     const value: RuntimeMessage = { id, role: message.role, parts: [], metadata: { completeness } }
+    if (message.role === 'assistant' && message.stopReason === 'error' && completeness === 'complete')
+      value.metadata!.error = {
+        operation: 'input',
+        code: 'model-error',
+        message: message.errorMessage ?? 'Durable response ended: error'
+      }
     const state = completeness === 'complete' ? 'done' : 'streaming'
     if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
     else

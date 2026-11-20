@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Herauszoomen",
   "backup.restore.failed": "Wiederherstellung fehlgeschlagen",
   "backup.restore.retry": "Die Sicherung wurde nicht wiederhergestellt. Ihre bisherigen Daten wurden beibehalten. Bitte versuchen Sie die Wiederherstellung erneut.",
+  "chat.cherryai.sign_in_required": "Melde dich bei Cherry AI an, um dieses Modell zu nutzen",
   "chat.conversation.new": "Neuer Chat",
   "command_approval.builtin-destructive-command": "Dieser integrierte Agent darf keine destruktiven Aktionen ausführen. Verwenden Sie für bestätigte Dateilöschungen den Papierkorb. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Die Befehlsrichtlinie konnte nicht geladen werden. Die Ausführung wurde blockiert.",

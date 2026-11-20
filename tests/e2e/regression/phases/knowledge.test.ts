@@ -724,7 +724,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Fetch a public article and verify indexed chunks reach Ready', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder(/^https:\/\/example\.com/).fill(articleUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(articleUrl)
       await attachScreenshot('MP-62 public article URL before submission')
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
@@ -763,7 +763,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('An unreachable URL terminates with Error and an actionable failure reason', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder(/^https:\/\/example\.com/).fill(unreachableUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(unreachableUrl)
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
       await expect
@@ -783,15 +783,9 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Reject malformed URL before it becomes a data source', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder(/^https:\/\/example\.com/).fill('not a valid URL')
-      const submit = dialog.getByRole('button', { name: 'Add', exact: true })
-      if (await submit.isEnabled()) {
-        await submit.click()
-        await expect.soft(dialog, 'Invalid URL must keep the input dialog open').toBeVisible({ timeout: 5_000 })
-        await expect
-          .soft(dialog.getByRole('alert'), 'Invalid URL must show validation feedback')
-          .toBeVisible({ timeout: 5_000 })
-      }
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill('not-a-valid-url')
+      await expect(dialog.getByRole('button', { name: 'Add', exact: true })).toBeDisabled()
+      await expect(dialog.getByText(/enter a complete HTTP or HTTPS URL/i)).toBeVisible()
       expect
         .soft(
           (await readItems()).map((item) => item.data.source),

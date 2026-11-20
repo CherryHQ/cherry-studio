@@ -94,7 +94,8 @@ async function resolveRefCommand(): Promise<void> {
 
 function selectTasksCommand(): void {
   const inputs = JSON.parse(argument('inputs-json') ?? '{}')
-  const resolved = resolveWorkflowTasks(inputs)
+  const mode = oneOf(argument('mode', false) ?? 'branch', RUN_MODES, 'mode')
+  const resolved = resolveWorkflowTasks(inputs, mode)
   for (const [name, value] of Object.entries(resolved)) outputLine(name, value)
 }
 

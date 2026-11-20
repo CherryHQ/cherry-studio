@@ -24,7 +24,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
-import { selectSidebarApp } from '../helpers/navigation'
+import { openConversationListOptions, selectSidebarApp } from '../helpers/navigation'
 import { switchConversationModel } from '../scenarios/switchConversationModel'
 
 test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
@@ -559,10 +559,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     const original = AssistantSchema.parse(created.data)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    const showSidebar = page.getByRole('button', { name: 'Show Sidebar', exact: true })
-    if (await showSidebar.isVisible()) await showSidebar.click()
-    await screenshot('MP-23 assistants list before opening manage')
-    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await openConversationListOptions(page.locator('[data-ui~="chat.view"]:visible'))
     await page.getByRole('menuitem', { name: 'Manage Assistants', exact: true }).click()
     const cards = page
       .getByRole('button', { name, exact: true })

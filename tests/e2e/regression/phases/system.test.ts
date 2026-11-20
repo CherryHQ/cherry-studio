@@ -224,9 +224,9 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     expect(await devices()).toEqual([])
     await openSettingsSection(page, 'Device Connections')
     const settings = () => page.locator('[data-ui~="settings.view"]:visible')
-    await expect(
-      settings().getByRole('img', { name: 'Connect mobile devices over a local, company or VPN network.', exact: true })
-    ).toBeVisible()
+    const connectionHelp = 'Connect mobile devices over a local, company or VPN network.'
+    await settings().getByRole('img', { name: connectionHelp, exact: true }).hover()
+    await expect(page.getByRole('tooltip', { name: connectionHelp, exact: true })).toBeVisible()
     const continueButton = () =>
       page.getByRole('button', { name: 'Already installed? Connect your device', exact: true })
     if (!(await continueButton().isVisible())) {
