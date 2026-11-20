@@ -25,7 +25,8 @@ export const webviewRequestSchemas = {
     output: z.void()
   }),
   'webview.region.prepare': defineRoute({
-    input: z.strictObject({ appId: z.string().min(1).max(256) }),
+    // Default launch also accepts long IDs already stored in the website catalog.
+    input: z.strictObject({ appId: z.string().min(1) }),
     output: z.strictObject({ partition: z.string(), fake: z.boolean(), leaseId: z.uuid().nullable() })
   }),
   'webview.region.release': defineRoute({

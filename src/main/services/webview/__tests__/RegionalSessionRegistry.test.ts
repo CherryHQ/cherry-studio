@@ -9,7 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { miniAppHandlers } from '@data/api/handlers/miniApps'
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { miniAppService } from '@data/services/MiniAppService'
 import { miniAppHandlers as miniAppCommands } from '@main/ipc/handlers/miniApp'
+import { webviewHandlers } from '@main/ipc/handlers/webview'
+import { IpcRouter } from '@main/ipc/IpcRouter'
+import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MINI_APP_REGIONS } from '@shared/types/miniAppRegion'
@@ -94,6 +98,7 @@ describe('regional session ownership and data removal', () => {
     MockApplicationUtils.setService('ProxyService', { registerSession, unregisterSession })
     registry = new RegionalSessionRegistry(() => () => {})
     MockApplicationUtils.setService('WebviewService', {
+      prepareRegionSession: (appId: string, senderId: WindowId | null) => registry.prepare(appId, senderId),
       removeSiteMiniApp: (appId: string, senderId: WindowId | null) => registry.removeApp(appId, senderId)
     })
   })
@@ -101,6 +106,22 @@ describe('regional session ownership and data removal', () => {
   afterEach(async () => {
     await registry.dispose()
     MockMainPreferenceServiceUtils.resetMocks()
+  })
+
+  it('opens a saved website with a long catalog ID in the default session through IPC', async () => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    const appId = `saved-site-${'x'.repeat(256)}`
+    await miniAppHandlers['/mini-apps'].POST({
+      body: { appId, name: 'Saved site', url: 'https://saved-site.example' }
+    })
+    const saved = miniAppService.getByAppId(appId)
+    expect(saved.appId).toBe(appId)
+    const router = new IpcRouter(webviewRequestSchemas, webviewHandlers)
+
+    await expect(
+      router.dispatch('webview.region.prepare', { appId: saved.appId }, { senderId: 'one' })
+    ).resolves.toEqual({ partition: 'persist:webview', fake: false, leaseId: null })
+    expect(sessions.size).toBe(0)
   })
 
   it('keeps different countries and admits only the host that prepared the app', async () => {
