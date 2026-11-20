@@ -122,7 +122,7 @@ export function serializeError(error: unknown): SerializedError {
  * A plain error object carries its HTTP status only in text the display filter drops (e.g. `429 null`).
  * Keep the allowlisted status and category so the failure still classifies as a provider rate limit.
  */
-function plainErrorFacts(error: unknown): Pick<SerializedError, 'statusCode' | 'providerErrorCategory'> {
+function plainErrorFacts(error: unknown): Partial<Pick<SerializedError, 'statusCode' | 'providerErrorCategory'>> {
   if (typeof error !== 'object' || error === null || Array.isArray(error)) return {}
   const record = error as Record<string, unknown>
   const nested =

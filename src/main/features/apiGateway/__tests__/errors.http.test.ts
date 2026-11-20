@@ -446,7 +446,8 @@ async function sdkSseFailure() {
     await drain
     expect(captured).toHaveLength(1)
     const serialized = serializeError(captured[0])
-    expect(serialized).toEqual({ name: null, message: phrases[0], stack: null })
+    // The plain upstream-idle error keeps its allowlisted category so it still classifies as a network failure.
+    expect(serialized).toEqual({ name: null, message: phrases[0], stack: null, providerErrorCategory: 'network' })
     return serialized
   } finally {
     await fixture.close()
