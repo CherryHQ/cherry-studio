@@ -98,6 +98,7 @@ export interface MemoryClearPreview {
 }
 
 interface MemoryCommitConditions {
+  onWriteStart?: () => void
   readReceipts?: readonly string[]
   clearTargets?: readonly string[]
   legacy?: MemoryLegacyOriginal
@@ -358,7 +359,16 @@ export class MemoryStore {
       this.assertGeneration(generation)
       const advanceGeneration = source === 'clear' || source === 'recovery'
       if (advanceGeneration) this.invalidate()
-      return this.apply(access, changes, source, validateApproval, generation + Number(advanceGeneration), legacy)
+      return this.apply(
+        access,
+        changes,
+        source,
+        validateApproval,
+        generation + Number(advanceGeneration),
+        legacy,
+        undefined,
+        conditions.onWriteStart
+      )
     })
   }
 
@@ -448,7 +458,9 @@ export class MemoryStore {
       access.assertAuthorized()
       validateApproval()
       this.assertGeneration(preview.generation)
-      if ((await this.latestRecoverableBatch())?.id !== preview.batch.id) {
+      const confirmations: Array<() => Promise<void>> = []
+      const currentPlan = await this.latestRecoverableBatch(true, confirmations)
+      if (JSON.stringify(currentPlan) !== JSON.stringify(preview.batch)) {
         throw new MemoryError('conflict', 'A newer memory operation requires a new recovery preview')
       }
       for (const [target, hash] of preview.hashes) {
@@ -458,9 +470,13 @@ export class MemoryStore {
       this.assertGeneration(preview.generation)
       this.recoveries.delete(access)
       this.invalidate()
-      const previousStatus = preview.batch.status
-      preview.batch.status = 'partial'
-      await saveMemoryBackup(this.backupRoot, preview.batch)
+      for (const confirm of confirmations) await confirm()
+      const root = this.backupRoot
+      const manifest = await latestMemoryBackup(root, preview.batch.id)
+      if (!manifest) throw new MemoryError('conflict', 'The recovery manifest is unavailable')
+      const previousStatus = manifest.status
+      manifest.status = 'partial'
+      await saveMemoryBackup(root, manifest)
       let result: MemoryCommitResult
       try {
         result = await this.apply(
@@ -473,8 +489,8 @@ export class MemoryStore {
           preview.batch.id
         )
       } catch (error) {
-        preview.batch.status = previousStatus
-        await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
+        manifest.status = previousStatus
+        await saveMemoryBackup(root, manifest).catch(() => undefined)
         throw error
       }
       if (
@@ -482,9 +498,9 @@ export class MemoryStore {
         !conflicts.length &&
         result.files.every((file) => file.outcome === 'applied' || file.outcome === 'unchanged')
       ) {
-        preview.batch.status = 'completed'
+        manifest.status = 'completed'
         try {
-          await saveMemoryBackup(this.backupRoot, preview.batch)
+          await saveMemoryBackup(root, manifest)
         } catch (error) {
           result.error = error instanceof Error ? error.message : String(error)
         }
@@ -501,7 +517,8 @@ export class MemoryStore {
     approval: () => undefined,
     generation: number,
     legacy?: MemoryLegacyOriginal,
-    recoveryOf?: string
+    recoveryOf?: string,
+    onWriteStart?: () => void
   ): Promise<MemoryCommitResult> {
     access.assertAuthorized()
     approval()
@@ -542,6 +559,7 @@ export class MemoryStore {
           access.assertAuthorized()
           approval()
           this.assertGeneration(generation)
+          onWriteStart?.()
         })
         const actual = await readMemoryBytes(this.root, change.path)
         if (memoryHash(actual) !== memoryHash(change.after))
@@ -581,7 +599,10 @@ export class MemoryStore {
     return result
   }
 
-  private async latestRecoverableBatch(resume = true): Promise<MemoryBatch | undefined> {
+  private async latestRecoverableBatch(
+    resume = true,
+    confirmations?: Array<() => Promise<void>>
+  ): Promise<MemoryBatch | undefined> {
     let batch = await latestMemoryBackup(this.backupRoot)
     while (batch) {
       batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
@@ -589,33 +610,38 @@ export class MemoryStore {
         if (batch.recoveryOf) {
           const original = await latestMemoryBackup(this.backupRoot, batch.recoveryOf)
           if (original?.status === 'partial') {
+            if (!resume) return batch
+            const completedManifest = { ...structuredClone(original), status: 'completed' as const }
             const confirmed: MemoryFileChange[] = []
             const root = this.backupRoot
-            const predecessor =
-              original.recoveryOf && hasOrderedRecovery(original)
-                ? await latestMemoryBackup(root, original.recoveryOf)
-                : undefined
+            const predecessor = original.recoveryOf ? await latestMemoryBackup(root, original.recoveryOf) : undefined
             for (const step of original.steps) {
               if (step.outcome === 'unchanged') continue
               const reverse = batch.steps.find((candidate) => candidate.path === step.path)
+              const current = await readMemoryBytes(this.root, step.path)
+              if (memoryHash(current) !== step.beforeHash) continue
               if (reverse?.outcome !== 'applied') {
-                const current = await readMemoryBytes(this.root, step.path)
-                if (memoryHash(current) !== step.beforeHash) continue
                 // Rebuild the inverse only from verified originals; a matching live hash alone
                 // does not tell us which bytes an eventual undo should put back.
                 const prior =
                   reverse ??
                   predecessor?.steps.find((item) => item.path === step.path && item.beforeHash === step.afterHash)
+                if (original.recoveryOf && prior?.beforeHash !== step.afterHash)
+                  throw new MemoryError('conflict', 'Cannot verify the previous contents of ' + step.path)
                 if (prior?.beforeHash === step.afterHash)
                   confirmed.push({ path: step.path, before: decodeOriginal(prior), after: current })
               }
               step.outcome = 'unchanged'
             }
-            if (confirmed.length)
-              batch = await createMemoryBackup(root, [], 'recovery', { recoveryOf: original.id, confirmed })
+            if (confirmed.length) {
+              const options = { recoveryOf: original.id, confirmed }
+              batch = await createMemoryBackup(root, [], 'recovery', { ...options, preview: true })
+              confirmations?.push(async () => {
+                await createMemoryBackup(root, [], 'recovery', options)
+              })
+            }
             if (original.steps.some((step) => step.outcome !== 'unchanged')) return resume ? original : batch
-            original.status = 'completed'
-            await saveMemoryBackup(this.backupRoot, original)
+            confirmations?.push(() => saveMemoryBackup(root, completedManifest))
           }
         }
         return batch
