@@ -93,7 +93,8 @@ export function extractPersistableText(output: unknown): PersistableText | null 
   if (typeof output === 'string') return { text: output, shape: 'text' }
   if (typeof output !== 'object' || output === null || Array.isArray(output)) return null
 
-  const record = output as Record<string, unknown>
+  // SAFETY: Only these optional envelope fields are read; their values remain unvalidated until the checks below.
+  const record = output as { isError?: unknown; content?: unknown; metadata?: unknown }
   if (record.isError) return null
   // Reconstruction rebuilds only `content` + `metadata`; any other sibling
   // field would be silently lost, so its presence disqualifies the output.
@@ -106,7 +107,8 @@ export function extractPersistableText(output: unknown): PersistableText | null 
   const texts: string[] = []
   for (const item of content) {
     if (typeof item !== 'object' || item === null) return null
-    const block = item as Record<string, unknown>
+    // SAFETY: The object check permits field inspection; the following checks establish text-block eligibility.
+    const block = item as { type?: unknown; text?: unknown }
     if (block.type !== 'text') return null
     if (block.text !== undefined && typeof block.text !== 'string') return null
     texts.push(block.text || '')

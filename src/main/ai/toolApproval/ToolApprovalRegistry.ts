@@ -15,6 +15,7 @@ export type DispatchDecision = {
   /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
    *  than to the host (registry/abort strings must stay unattributed). */
   reasonSource?: 'user'
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each selected tool owns its edited argument types; the shared dispatcher stays independent of driver schemas.
   updatedInput?: Record<string, unknown>
 }
 
@@ -23,6 +24,7 @@ type PendingApproval = {
   sessionId: string
   toolCallId: string
   toolName: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve the original driver-owned argument values for approval fallback without coercing them.
   originalInput: Record<string, unknown>
   presentation: 'stream' | 'message' | 'application'
   resolve: (decision: DispatchDecision) => void
