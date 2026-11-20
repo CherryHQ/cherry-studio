@@ -255,6 +255,52 @@ it('commits IME once and preserves later intentional identical text and characte
   fireEvent.input(area, { target: { value: 'a' } })
   await waitFor(() => expect(stdin).toBe('你好你好aa'))
 })
+
+it('accepts input after viewport changes queued behind an unfinished resize', async () => {
+  let measure: (width: number) => void = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        measure = (width) =>
+          this.callback([{ target, contentRect: { width, height: 400 } } as ResizeObserverEntry], this)
+        measure(640)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const originalRequest = window.api.ipcApi.request
+  const firstResize = Promise.withResolvers<void>()
+  let started = false
+  window.api.ipcApi.request = vi.fn(async (route, payload) => {
+    if (route === 'terminal.action') {
+      const { action } = payload as InputFor<'terminal.action'>
+      if (action.kind === 'resize') {
+        if (!started) {
+          started = true
+          await firstResize.promise
+        }
+        if (action.geometryEpoch !== current.geometryEpoch)
+          return { ok: true, data: { kind: 'rejected', reason: 'stale_control' } }
+        current = { ...current, geometryEpoch: (current.geometryEpoch ?? 0) + 1, revision: current.revision + 1 }
+      }
+    }
+    return originalRequest(route, payload)
+  })
+  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  await waitFor(() => expect(started).toBe(true))
+  act(() => {
+    measure(620)
+    measure(600)
+  })
+  await act(async () => firstResize.resolve())
+  const area = await input()
+  fireEvent.input(area, { target: { value: 'after-resize' } })
+  await waitFor(() => expect(stdin).toBe('after-resize'))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
 it('refuses a composition commit after control transfers', async () => {
   const rendered = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
   const area = await input()

@@ -16,4 +16,6 @@ Each view has its own scroll position, selection and attachment identity. Only a
 
 Input stays read-only after takeover until the current viewport has been measured and its resize acknowledged. A pending control transition disables another takeover/return action; an unconfirmed or rejected resize cannot enable typing.
 
+Queued resizes use the preceding acknowledged geometry epoch; keyboard input retains the epoch of its displayed frame. A controlling view clips the old grid during resize so transient scrollbars cannot feed back into viewport measurement. Observing views retain scrolling over the authoritative grid.
+
 Frames use compact style dictionaries, bounded chunks and an explicit baseline revision. Missing or stale frames reset presentation and request a baseline. Final screens can be served from Main after Host retirement; when unavailable, the pane shows the retained raw suffix. Visible viewport selection clears when its text changes rather than copying different output at stale coordinates. Links require an explicit modified click and resolve through the Host before the existing external-link policy.
