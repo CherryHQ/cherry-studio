@@ -82,7 +82,6 @@ export async function memorySearchTarget(directory: string): Promise<boolean> {
 /** A second name is only sensitive when its open file identity occurs under a managed root. */
 export async function assertNotMemoryHardLink(opened: BigIntStats): Promise<void> {
   if (opened.nlink < 2n) return
-  if (opened.ino === 0n) throw new Error('The hard-linked file has no verifiable identity')
   const missing = (error: NodeJS.ErrnoException) => {
     if (error.code !== 'ENOENT') throw error
     return undefined
