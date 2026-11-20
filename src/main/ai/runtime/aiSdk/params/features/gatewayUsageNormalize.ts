@@ -25,9 +25,8 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
 
   const { raw } = usage
   const toCount = (value: JSONValue | undefined) => (typeof value === 'number' ? value : undefined)
-  const details: JSONObject | undefined = isPlainObject(raw.prompt_tokens_details)
-    ? raw.prompt_tokens_details
-    : undefined
+  // SAFETY: SDK raw usage is JSON; the plain-object check excludes arrays and scalars.
+  const details = isPlainObject(raw.prompt_tokens_details) ? (raw.prompt_tokens_details as JSONObject) : undefined
   const rawRead =
     toCount(raw.cache_read_input_tokens) ?? toCount(details?.cached_tokens) ?? toCount(details?.cache_read_tokens)
   const rawWrite = toCount(raw.cache_creation_input_tokens) ?? toCount(details?.cache_creation_tokens)
