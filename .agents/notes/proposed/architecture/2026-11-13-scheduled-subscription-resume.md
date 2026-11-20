@@ -19,6 +19,7 @@ Issue #23914 asks for quota-recovery resume to be triggered by an explicitly reg
 - Concurrency: an operation token gates submission so a timer fire and a manual resume cannot both submit. A late callback or late result cannot overwrite a newer snooze or cancel.
 - Lifecycle: registration and cleanup belong to the Cloud service lifecycle. Logout, account switch, cancel, or session invalidation unregisters the id. `SchedulerService` also auto-cleans on stop.
 - Submission: an unaccepted submission stays a draft. An accepted one follows the existing conversation retry flow. Nothing is submitted twice.
+- Renderer handoff: the owning conversation controller registers intent with `cherryCloud.registerResume({ operationId, conversationId })` when a send is blocked by quota. Main captures the account and session generation, then registers the once-trigger. When it fires, Main re-checks the captured generations and broadcasts `cherry_cloud.quota_resume_due` to the owning window only. That window performs the submission through the existing send path, then calls `cherryCloud.claimResume({ operationId })`. Main grants the claim once per intent. A manual resume also goes through `claimResume`, so the claim is the single gate for both paths. If no owning window exists, the intent is dropped and the user resumes manually.
 
 ## Alternatives considered
 

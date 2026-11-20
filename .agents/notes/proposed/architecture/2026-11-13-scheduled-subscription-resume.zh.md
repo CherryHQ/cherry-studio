@@ -19,6 +19,7 @@ Issue #23914 要求额度恢复后的续发由显式注册的定时任务触发�
 - 并发：操作令牌门控提交，定时触发与手动恢复不会同时提交。迟到的回调或结果不能覆盖更新的 `snooze` 或取消。
 - 生命周期：注册与清理归属 Cloud 服务的生命周期。登出、切换账号、取消或会话失效时注销该 ID。`SchedulerService` 停止时也会自动清理。
 - 提交：未被接收的提交保留为草稿；已接收的提交走现有会话重试流程。任何输入都不会被重复提交。
+- 渲染进程交接：额度拦截发送时，归属的会话控制器调用 `cherryCloud.registerResume({ operationId, conversationId })` 注册意图。主进程捕获账号与会话代际后注册 once 触发器。触发时，主进程重新检查捕获的代际，并仅向归属窗口广播 `cherry_cloud.quota_resume_due`。该窗口通过现有发送路径提交，然后调用 `cherryCloud.claimResume({ operationId })`。主进程每个意图只授予一次 claim。手动恢复同样走 `claimResume`，因此 claim 是两条路径共用的唯一门控。若不存在归属窗口，则丢弃意图，由用户手动恢复。
 
 ## Alternatives considered
 
