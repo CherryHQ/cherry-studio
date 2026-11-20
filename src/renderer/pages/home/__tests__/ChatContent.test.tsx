@@ -1,5 +1,5 @@
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -540,6 +540,36 @@ describe('ChatContent', () => {
         })
       )
     })
+  })
+
+  // Catches the empty-chat greeting replacing a broken uploaded avatar with a generic robot.
+  it('greets with the saved emoji when the uploaded avatar fails to load', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    const assistantContext = {
+      assistant: {
+        id: 'assistant-1',
+        emoji: '🦊',
+        avatarSrc: 'file:///missing-avatar.png',
+        knowledgeBaseIds: [],
+        settings: { enableWebSearch: false }
+      }
+    } as never
+
+    render(<ChatContent topic={topic} assistantContext={assistantContext} />)
+
+    const greeting = screen.getByTestId('conversation-greeting')
+    fireEvent.error(greeting.querySelector('img')!)
+    expect(within(greeting).getAllByText('🦊').length).toBeGreaterThan(0)
+    expect(within(greeting).queryAllByText('🤖')).toHaveLength(0)
   })
 
   it('keeps the composer visible while topic history is loading', () => {

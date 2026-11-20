@@ -75,6 +75,8 @@ export interface Tab {
   url: string
   title: string
   icon?: string
+  /** Emoji descriptor shown when an image `icon` fails to load. */
+  iconFallback?: string
   metadata?: Record<string, unknown>
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新

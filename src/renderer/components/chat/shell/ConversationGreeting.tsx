@@ -1,10 +1,13 @@
-import { Avatar, AvatarFallback, AvatarImage, EmojiIcon } from '@cherrystudio/ui'
+import { EmojiIcon } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { isEmoji } from '@renderer/utils/naming'
 
 export interface ConversationGreetingProps {
   /** Assistant / agent avatar — an emoji glyph or an image URL. */
   avatar?: string
+  /** Saved emoji shown when an image `avatar` fails to load. */
+  fallbackEmoji?: string
   title: string
 }
 
@@ -16,7 +19,7 @@ export interface ConversationGreetingProps {
  * than a muted "no results" glyph. Centered within the space above the docked
  * composer via the bottom-overlay inset, so it reads as connected to the input.
  */
-export function ConversationGreeting({ avatar, title }: ConversationGreetingProps) {
+export function ConversationGreeting({ avatar, fallbackEmoji, title }: ConversationGreetingProps) {
   const inset = useChatBottomOverlayInset()
 
   return (
@@ -28,10 +31,13 @@ export function ConversationGreeting({ avatar, title }: ConversationGreetingProp
         (isEmoji(avatar) ? (
           <EmojiIcon emoji={avatar} size={48} />
         ) : (
-          <Avatar className="size-12">
-            <AvatarImage className="size-full object-cover" src={avatar} />
-            <AvatarFallback className="text-2xl">🤖</AvatarFallback>
-          </Avatar>
+          <AssistantAvatarImage
+            src={avatar}
+            alt=""
+            size={48}
+            className="rounded-full object-cover"
+            fallback={<EmojiIcon emoji={fallbackEmoji || '🤖'} size={48} />}
+          />
         ))}
       <h2 className="m-0 text-lg font-medium text-foreground">{title}</h2>
     </div>

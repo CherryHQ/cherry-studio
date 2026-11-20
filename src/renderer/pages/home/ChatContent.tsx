@@ -240,6 +240,7 @@ const ChatContentInner: FC<InnerProps> = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={assistant?.avatarSrc ?? assistant?.emoji}
+            fallbackEmoji={assistant?.emoji}
             title={t('chat.home.welcome_title')}
           />
         </div>
