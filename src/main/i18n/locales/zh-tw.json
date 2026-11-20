@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "跟隨全域",
   "agent.config_tool.value.language_off": "不限制",
   "agent.config_tool.value.none": "無",
+  "agent.config_tool.value.uploaded_image": "上傳的圖片",
   "agent.import.missing_file": "匯出檔中缺少附件：{{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent 尚未就緒，請等待下載完成或重試。",
   "agent.session.fork.execution_not_inherited": "此分叉工作階段未繼承原本的執行狀態。",

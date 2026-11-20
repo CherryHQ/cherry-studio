@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Podle globálního nastavení",
   "agent.config_tool.value.language_off": "Bez omezení",
   "agent.config_tool.value.none": "Žádné",
+  "agent.config_tool.value.uploaded_image": "Nahraný obrázek",
   "agent.import.missing_file": "Příloha v exportu není dostupná: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent ještě není připraven. Počkejte na dokončení stahování nebo to zkuste znovu.",
   "agent.session.fork.execution_not_inherited": "Tato větev relace nezdědila původní provádění.",

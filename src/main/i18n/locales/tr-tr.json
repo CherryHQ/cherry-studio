@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Genel ayarı izle",
   "agent.config_tool.value.language_off": "Kısıtlama yok",
   "agent.config_tool.value.none": "Yok",
+  "agent.config_tool.value.uploaded_image": "Yüklenen görsel",
   "agent.import.missing_file": "Dışa aktarımda ek bulunamadı: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent henüz hazır değil. İndirmenin bitmesini bekleyin veya tekrar deneyin.",
   "agent.session.fork.execution_not_inherited": "Yürütme durumu bu oturum dalına aktarılmadı.",

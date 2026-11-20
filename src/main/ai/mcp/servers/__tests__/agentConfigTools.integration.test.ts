@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -100,6 +101,24 @@ describe('Agent create and configure tools', () => {
         agentService.updateAgentTx(tx, id, { configuration: { ...agent.configuration, builtin_role: role } })
       )
     return id
+  }
+
+  /** An uploaded avatar image in the Agent's avatar slot, shown instead of its stored emoji. */
+  function uploadAvatar(agentId: string) {
+    const fileId = `avatar-${agentId}`
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: fileId,
+        name: 'avatar',
+        ext: 'webp',
+        size: 1,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: Date.now()
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) => agentService.setAvatarSlotTx(tx, agentId, fileId as never))
   }
 
   function createSession(agentId: string) {
@@ -385,6 +404,23 @@ describe('Agent create and configure tools', () => {
   })
 
   describe('update_agent', () => {
+    // Catches an approved emoji written only as the hidden fallback while the uploaded image stays on screen.
+    it.each([
+      ['a new emoji', '🐼'],
+      ['the emoji already stored behind the image', '🦊']
+    ])('replaces an uploaded avatar image with %s', async (_case, emoji) => {
+      seedAgent('target')
+      uploadAvatar('target')
+      expect(agentService.getAgent('target')?.avatarFileId).toBeDefined()
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: 'target', emoji })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(agentService.getAgent('target')?.avatarFileId).toBeUndefined()
+      expect(agentService.getAgent('target')?.configuration?.avatar).toBe(emoji)
+      expect((result.structuredContent as { summary: string[] }).summary).toContain(`Avatar: Uploaded image → ${emoji}`)
+    })
+
     it('changes only the given fields and reports each one as current → new', async () => {
       seedAgent('target')
 

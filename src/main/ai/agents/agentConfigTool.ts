@@ -678,11 +678,17 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
     .list({ agentId })
     .filter((skill) => skill.isEnabled)
     .map((skill) => skill.id)
-  const baseline = buildInitialAgentFormState(agent, skillIds)
+  const loaded = buildInitialAgentFormState(agent, skillIds)
+  // An uploaded image is the avatar the user sees; the stored emoji is only its fallback.
+  const baseline = agent.avatarFileId ? { ...loaded, avatar: t('agent.config_tool.value.uploaded_image') } : loaded
   const next = applySettingsInput(baseline, input, agent.type, { creating: false })
   const diff = diffAgentUpdate(baseline, next)
   if (!diff) throw new Error('Nothing to change: every given value matches the current setting.')
-  return { dto: diff.dto, summary: describeChanges(baseline, next) }
+  return {
+    dto: diff.dto,
+    summary: describeChanges(baseline, next),
+    replaceAvatarImage: Boolean(agent.avatarFileId) && next.avatar !== baseline.avatar
+  }
 }
 
 /**
@@ -740,8 +746,8 @@ export function updateAgentFromTool(
   input: SettingsInput,
   options: { self: boolean }
 ): AgentConfigToolOutput {
-  const { dto, summary } = planAgentUpdate(agentId, input, options)
-  const updated = agentService.updateAgent(agentId, dto)
+  const { dto, summary, replaceAvatarImage } = planAgentUpdate(agentId, input, options)
+  const updated = agentService.updateAgent(agentId, dto, { replaceAvatarImage })
   if (!updated) throw new Error(`Agent not found: ${agentId}`)
   return toOutput(updated, summary)
 }

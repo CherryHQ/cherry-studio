@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Ακολουθία γενικής ρύθμισης",
   "agent.config_tool.value.language_off": "Χωρίς περιορισμό",
   "agent.config_tool.value.none": "Χωρίς",
+  "agent.config_tool.value.uploaded_image": "Μεταφορτωμένη εικόνα",
   "agent.import.missing_file": "Το συνημμένο λείπει από την εξαγωγή: {{name}}",
   "agent.session.claude.runtime_unavailable": "Το Claude Agent δεν είναι έτοιμο. Περιμένετε να ολοκληρωθεί η λήψη ή δοκιμάστε ξανά.",
   "agent.session.fork.execution_not_inherited": "Η εκτέλεση δεν μεταφέρθηκε σε αυτή τη διακλάδωση της συνεδρίας.",

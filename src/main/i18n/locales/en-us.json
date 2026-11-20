@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Follow global setting",
   "agent.config_tool.value.language_off": "No constraint",
   "agent.config_tool.value.none": "None",
+  "agent.config_tool.value.uploaded_image": "Uploaded image",
   "agent.import.missing_file": "Attachment unavailable in export: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent is not ready. Wait for the download to finish or retry.",
   "agent.session.fork.execution_not_inherited": "Execution was not inherited by this session fork.",

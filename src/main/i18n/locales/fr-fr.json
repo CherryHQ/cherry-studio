@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Suivre le réglage global",
   "agent.config_tool.value.language_off": "Aucune contrainte",
   "agent.config_tool.value.none": "Aucun",
+  "agent.config_tool.value.uploaded_image": "Image importée",
   "agent.import.missing_file": "Pièce jointe absente de l’export : {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent n’est pas prêt. Attendez la fin du téléchargement ou réessayez.",
   "agent.session.fork.execution_not_inherited": "L’exécution n’a pas été héritée par cette bifurcation de session.",

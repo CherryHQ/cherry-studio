@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "グローバル設定に従う",
   "agent.config_tool.value.language_off": "制限なし",
   "agent.config_tool.value.none": "無",
+  "agent.config_tool.value.uploaded_image": "アップロードした画像",
   "agent.import.missing_file": "エクスポートに添付ファイルがありません: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent の準備ができていません。ダウンロードの完了を待つか、再試行してください。",
   "agent.session.fork.execution_not_inherited": "この分岐セッションには実行状態が引き継がれていません。",

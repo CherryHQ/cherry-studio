@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "ตามการตั้งค่าส่วนกลาง",
   "agent.config_tool.value.language_off": "ไม่จำกัด",
   "agent.config_tool.value.none": "ไม่มี",
+  "agent.config_tool.value.uploaded_image": "รูปภาพที่อัปโหลด",
   "agent.import.missing_file": "ไม่พบไฟล์แนบในไฟล์ส่งออก: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent ยังไม่พร้อม รอดาวน์โหลดเสร็จหรือลองอีกครั้ง",
   "agent.session.fork.execution_not_inherited": "การดำเนินการไม่ได้รับการสืบทอดไปยังการแตกกิ่งเซสชันนี้",

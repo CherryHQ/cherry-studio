@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Как в глобальных настройках",
   "agent.config_tool.value.language_off": "Без ограничений",
   "agent.config_tool.value.none": "без",
+  "agent.config_tool.value.uploaded_image": "Загруженное изображение",
   "agent.import.missing_file": "Вложение отсутствует в экспорте: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent ещё не готов. Дождитесь завершения загрузки или повторите попытку.",
   "agent.session.fork.execution_not_inherited": "Выполнение не было перенесено в эту ветку сеанса.",

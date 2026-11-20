@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Seguir la configuración global",
   "agent.config_tool.value.language_off": "Sin restricción",
   "agent.config_tool.value.none": "Ninguno",
+  "agent.config_tool.value.uploaded_image": "Imagen subida",
   "agent.import.missing_file": "Archivo adjunto no disponible en la exportación: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent aún no está listo. Espera a que termine la descarga o vuelve a intentarlo.",
   "agent.session.fork.execution_not_inherited": "La ejecución no se heredó en esta bifurcación de la sesión.",

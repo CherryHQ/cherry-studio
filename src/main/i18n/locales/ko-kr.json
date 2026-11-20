@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "전역 설정 따르기",
   "agent.config_tool.value.language_off": "제한 없음",
   "agent.config_tool.value.none": "없음",
+  "agent.config_tool.value.uploaded_image": "업로드한 이미지",
   "agent.import.missing_file": "내보내기 파일에 첨부 파일이 없습니다: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude 에이전트가 아직 준비되지 않았습니다. 다운로드가 완료될 때까지 기다리거나 다시 시도하세요.",
   "agent.session.fork.execution_not_inherited": "분기된 이 세션에는 실행 상태가 상속되지 않았습니다.",

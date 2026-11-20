@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Theo cài đặt chung",
   "agent.config_tool.value.language_off": "Không giới hạn",
   "agent.config_tool.value.none": "Không",
+  "agent.config_tool.value.uploaded_image": "Ảnh đã tải lên",
   "agent.import.missing_file": "Bản xuất không có tệp đính kèm: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent chưa sẵn sàng. Hãy chờ tải xuống hoàn tất hoặc thử lại.",
   "agent.session.fork.execution_not_inherited": "Trạng thái thực thi không được kế thừa trong nhánh phiên này.",

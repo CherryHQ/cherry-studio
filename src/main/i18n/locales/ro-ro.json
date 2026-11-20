@@ -28,6 +28,7 @@
   "agent.config_tool.value.language_inherit": "Urmează setarea globală",
   "agent.config_tool.value.language_off": "Fără restricție",
   "agent.config_tool.value.none": "Nimic",
+  "agent.config_tool.value.uploaded_image": "Imagine încărcată",
   "agent.import.missing_file": "Atașament indisponibil în export: {{name}}",
   "agent.session.claude.runtime_unavailable": "Claude Agent nu este încă pregătit. Așteptați finalizarea descărcării sau încercați din nou.",
   "agent.session.fork.execution_not_inherited": "Execuția nu a fost preluată în această ramificare a sesiunii.",

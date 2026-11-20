@@ -830,7 +830,12 @@ export class AgentService {
     }))
   }
 
-  updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
+  /** `replaceAvatarImage` drops an uploaded avatar in the same transaction, so a new emoji is what shows. */
+  updateAgent(
+    id: string,
+    updates: UpdateAgentDto,
+    { replaceAvatarImage = false }: { replaceAvatarImage?: boolean } = {}
+  ): AgentEntity | null {
     // Preserve the existing not-found precedence before validating related IDs.
     // The authoritative configuration read still happens inside the write tx.
     if (!this.findAgentRow(id)) return null
@@ -941,6 +946,7 @@ export class AgentService {
           if (newSkillUpdates !== undefined) {
             getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
+          if (replaceAvatarImage) this.clearAvatarSlotTx(tx, id)
         }),
       defaultHandlersFor('Agent', id)
     )
