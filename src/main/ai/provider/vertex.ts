@@ -1,3 +1,5 @@
+import type { AuthConfig } from '@shared/data/types/provider'
+
 const VERTEX_MAAS_MODEL_ID_PATTERN = /^[^/]+\/[^/]+-maas$/i
 
 export function isVertexMaasModelId(modelId: string): boolean {
@@ -10,7 +12,7 @@ export function isVertexMaasModelId(modelId: string): boolean {
  * keys depending on how the JSON key file was stored. Normalize both shapes to
  * the camelCase form the Vertex SDK expects.
  */
-export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
+export function normalizeVertexCredentials(credentials: Extract<AuthConfig, { type: 'iam-gcp' }>['credentials']): {
   privateKey?: string
   clientEmail?: string
 } {

@@ -597,7 +597,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
 }
 
 function buildCommonOptions(ctx: BuilderContext) {
-  const options: Record<string, any> = {
+  const options = {
     headers: {
       ...getProviderAppHeaders(ctx.actualProvider),
       ...getExtraHeaders(ctx.actualProvider)

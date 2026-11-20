@@ -237,7 +237,9 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
 }
 
 /** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
-function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+function readOllamaContextLength(
+  modelInfo: z.infer<typeof OllamaShowResponseSchema>['model_info']
+): number | undefined {
   const architecture = modelInfo?.['general.architecture']
   if (typeof architecture !== 'string') return undefined
   const contextLength = modelInfo?.[`${architecture}.context_length`]

@@ -28,6 +28,7 @@ export interface SignatureOptions {
   method: string
   path: string
   query?: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Signing preserves JSON.stringify omission and toJSON behavior for caller-owned payload values.
   body?: string | Record<string, unknown>
 }
 
