@@ -1,8 +1,8 @@
-import { ArrowRight, Check, ChevronDown } from 'lucide-react'
-import { type MouseEvent, useState } from 'react'
+import { Check, ChevronDown, Settings2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -11,8 +11,9 @@ import { resolveChatEntryTopicIdForAssistant } from '@renderer/utils/conversatio
 import { cn } from '@renderer/utils/style'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
+import { ResultCard } from '../shared/ResultCard'
 import type { ResourceIdentityResult } from './resourceIdentityResult'
-import { ResourceIdentityRow } from './ResourceIdentityRow'
+import { ResourceAvatar } from './ResourceIdentityRow'
 
 const logger = loggerService.withContext('ResourceIdentityCard')
 
@@ -58,87 +59,60 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
   // Results saved before the tools reported highlights only carry the summary lines.
   const chips = created ? (result.highlights ?? result.summary).slice(0, 3) : []
 
-  const handleButton = (action: () => void) => (event: MouseEvent) => {
-    event.stopPropagation()
-    action()
-  }
-
   const changeCount = created ? 0 : result.summary.length
-  // An update reads as a change count, so the card keeps one size however many fields changed.
-  const meta = changeCount
-    ? t('message.tools.identity_card.changes', { count: changeCount })
-    : [result.description, ...chips].filter(Boolean).join(' · ')
-  // A drag that selects text ends in a click too; copying the description must not leave the conversation.
-  const handleCardClick = openConversation
-    ? () => {
-        if (window.getSelection()?.isCollapsed === false) return
-        openConversation()
-      }
-    : undefined
 
   return (
-    // The card is a mouse shortcut for the Start conversation button, which stays the keyboard path.
-    <div
+    <ResultCard
       data-testid="resource-identity-card"
-      className="my-1 w-full max-w-md rounded-lg border border-border-subtle bg-card px-2.5 py-2 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-accent/40"
-      data-clickable={openConversation ? 'true' : undefined}
-      onClick={handleCardClick}>
-      <ResourceIdentityRow
-        kind={result.kind}
-        name={result.name}
-        emoji={result.emoji}
-        avatarSrc={avatarSrc}
-        meta={
-          changeCount ? (
-            <button
-              type="button"
-              aria-expanded={showChanges}
-              className="flex items-center gap-0.5 hover:text-foreground"
-              onClick={handleButton(() => setShowChanges((shown) => !shown))}>
-              {meta}
-              <ChevronDown
-                aria-hidden="true"
-                className={cn('size-3 transition-transform', showChanges && 'rotate-180')}
-              />
-            </button>
-          ) : (
-            meta
-          )
-        }
-        badge={
-          created ? null : (
-            <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-success-subtle-foreground leading-5">
-              <Check aria-hidden="true" size={11} strokeWidth={2} />
-              {t('message.tools.identity_card.updated')}
-            </span>
-          )
-        }>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+      media={<ResourceAvatar kind={result.kind} emoji={result.emoji} avatarSrc={avatarSrc} size={40} />}
+      title={result.name}
+      tag={result.kind === 'agent' ? t('library.type.agent') : t('library.type.assistant')}
+      badge={
+        created ? null : (
+          <span className="flex shrink-0 items-center gap-0.5 font-normal text-[11px] text-success-subtle-foreground leading-5">
+            <Check aria-hidden="true" size={11} strokeWidth={2} />
+            {t('message.tools.identity_card.updated')}
+          </span>
+        )
+      }
+      // An update reads as a change count, so the card keeps one size however many fields changed.
+      description={
+        changeCount ? (
+          <button
+            type="button"
+            aria-expanded={showChanges}
+            className="inline-flex items-center gap-0.5 hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation()
+              setShowChanges((shown) => !shown)
+            }}>
+            {t('message.tools.identity_card.changes', { count: changeCount })}
+            <ChevronDown
+              aria-hidden="true"
+              className={cn('size-3 transition-transform', showChanges && 'rotate-180')}
+            />
+          </button>
+        ) : (
+          result.description || undefined
+        )
+      }
+      meta={chips.join(' · ') || undefined}
+      primary={openConversation ? { label: `${startLabel}: ${result.name}`, onClick: openConversation } : undefined}
+      actions={
+        <Tooltip content={adjustLabel}>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="h-6 min-h-6 px-1.5 text-muted-foreground"
+            size="icon-sm"
             aria-label={`${adjustLabel}: ${result.name}`}
-            onClick={handleButton(() => openResourceEditDialog({ kind: result.kind, id: result.id }))}>
-            {adjustLabel}
+            onClick={() => openResourceEditDialog({ kind: result.kind, id: result.id })}
+            className="size-8 rounded-lg text-muted-foreground">
+            <Settings2 className="size-4" />
           </Button>
-          {openConversation ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-6 min-h-6 gap-0.5 rounded-md px-2 font-medium text-foreground"
-              aria-label={`${startLabel}: ${result.name}`}
-              onClick={handleButton(openConversation)}>
-              {startLabel}
-              <ArrowRight aria-hidden="true" className="size-2.5" />
-            </Button>
-          ) : null}
-        </div>
-      </ResourceIdentityRow>
+        </Tooltip>
+      }>
       {showChanges ? (
-        <ul className="mt-2 space-y-1 rounded-md bg-muted/50 px-2.5 py-2">
+        <ul className="space-y-1 rounded-md bg-muted/50 px-2.5 py-2">
           {result.summary.map((line) => (
             <li key={line} className="truncate text-foreground text-xs leading-4" title={line}>
               {line}
@@ -146,6 +120,6 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
           ))}
         </ul>
       ) : null}
-    </div>
+    </ResultCard>
   )
 }

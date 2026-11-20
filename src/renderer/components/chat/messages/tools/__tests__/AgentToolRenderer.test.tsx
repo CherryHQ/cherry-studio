@@ -795,7 +795,8 @@ describe('AgentToolRenderer', () => {
       expect(within(card).getByText('🧐')).toBeInTheDocument()
       expect(within(card).getByText('Reviewer')).toBeInTheDocument()
       expect(within(card).getByText('Agent')).toBeInTheDocument()
-      expect(card).toHaveTextContent('Reviews pull requests · Other Model · Ask Before Acting')
+      expect(within(card).getByText('Reviews pull requests')).toBeInTheDocument()
+      expect(within(card).getByText('Other Model · Ask Before Acting')).toBeInTheDocument()
       expect(within(card).queryByText('System Prompt: Review the diff.')).not.toBeInTheDocument()
       expect(within(card).queryByText('Updated')).not.toBeInTheDocument()
     })
@@ -893,7 +894,7 @@ describe('AgentToolRenderer', () => {
       const selection = vi.spyOn(window, 'getSelection').mockReturnValue({ isCollapsed: false } as Selection)
       render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
 
-      await user.click(screen.getByText('Reviews pull requests · Other Model · Ask Before Acting'))
+      await user.click(screen.getByText('Reviews pull requests'))
       selection.mockRestore()
 
       expect(navigateToRoute).not.toHaveBeenCalled()

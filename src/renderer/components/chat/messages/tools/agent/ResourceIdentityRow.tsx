@@ -6,7 +6,38 @@ import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvata
 import { DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import { DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 
-/** Avatar, name, kind and one meta line: the identity shared by the result card and the create approval. */
+/** An Agent's or Assistant's avatar: its uploaded image, else its emoji, else the kind's default. */
+export function ResourceAvatar({
+  kind,
+  emoji,
+  avatarSrc,
+  size
+}: {
+  kind: 'agent' | 'assistant'
+  emoji: string
+  avatarSrc?: string
+  size: number
+}) {
+  const fallbackEmoji = kind === 'agent' ? DEFAULT_AGENT_CREATE_AVATAR : DEFAULT_ASSISTANT_CREATE_AVATAR
+  return (
+    <AssistantAvatarImage
+      src={avatarSrc}
+      alt=""
+      size={size}
+      className="shrink-0 rounded-lg border border-border-subtle object-cover"
+      fallback={
+        <EmojiAvatar
+          size={size}
+          fontSize={Math.round(size * 0.53)}
+          className="shrink-0 cursor-default rounded-lg border border-border-subtle bg-background hover:opacity-100">
+          {emoji || fallbackEmoji}
+        </EmojiAvatar>
+      }
+    />
+  )
+}
+
+/** Avatar, name, kind and one meta line: the identity the create approval shows. */
 export function ResourceIdentityRow({
   kind,
   name,
@@ -28,25 +59,11 @@ export function ResourceIdentityRow({
   children?: ReactNode
 }) {
   const { t } = useTranslation()
-  const fallbackEmoji = kind === 'agent' ? DEFAULT_AGENT_CREATE_AVATAR : DEFAULT_ASSISTANT_CREATE_AVATAR
 
   return (
     // The name keeps a readable width; on a narrow card the trailing actions wrap below it instead.
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-      <AssistantAvatarImage
-        src={avatarSrc}
-        alt=""
-        size={32}
-        className="shrink-0 rounded-lg border border-border-subtle object-cover"
-        fallback={
-          <EmojiAvatar
-            size={32}
-            fontSize={17}
-            className="shrink-0 cursor-default rounded-lg border border-border-subtle bg-background hover:opacity-100">
-            {emoji || fallbackEmoji}
-          </EmojiAvatar>
-        }
-      />
+      <ResourceAvatar kind={kind} emoji={emoji} avatarSrc={avatarSrc} size={32} />
       <div className="min-w-40 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate font-medium text-[13px] text-foreground leading-5" title={name}>
