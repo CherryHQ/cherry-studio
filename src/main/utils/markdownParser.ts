@@ -126,7 +126,7 @@ function parseLooseValue(raw: string): FrontmatterValue {
   }
 }
 
-function parseFrontmatterLoose(content: string): Record<string, unknown> {
+function parseFrontmatterLoose(content: string): Record<string, FrontmatterValue> {
   const lines = content.split(/\r?\n/)
   if (lines.length === 0 || lines[0].trim() !== '---') {
     return {}
@@ -144,7 +144,7 @@ function parseFrontmatterLoose(content: string): Record<string, unknown> {
   }
 
   const frontmatterLines = lines.slice(1, endIndex)
-  const data: Record<string, unknown> = {}
+  const data: Record<string, FrontmatterValue> = {}
   let currentKey: string | null = null
   let buffer: string[] = []
 
@@ -177,7 +177,7 @@ function parseFrontmatterLoose(content: string): Record<string, unknown> {
   return data
 }
 
-function recoverFrontmatter(content: string, context: FrontmatterContext): Record<string, unknown> {
+function recoverFrontmatter(content: string, context: FrontmatterContext): Record<string, FrontmatterValue> {
   const data = parseFrontmatterLoose(content)
   logger.warn('Recovered frontmatter using loose parser', {
     ...context,
@@ -203,7 +203,7 @@ export async function parsePluginMetadata(
   const content = await fs.promises.readFile(filePath, 'utf8')
   const stats = await fs.promises.stat(filePath)
 
-  // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- gray-matter may select another built-in engine; field readers validate the resulting values.
   let data: Record<string, unknown> = {}
   try {
     const parsed = matter(content, {
@@ -362,7 +362,7 @@ export async function parseSkillMetadata(
     })
   }
 
-  // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- gray-matter may select another built-in engine; field readers validate the resulting values.
   let data: Record<string, unknown> = {}
   try {
     const parsed = matter(content, {
@@ -417,7 +417,7 @@ export async function parseSkillMetadata(
   // Validate version and author
   const nestedMetadata =
     typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
-      ? (data.metadata as Record<string, unknown>)
+      ? (data.metadata as Record<string, unknown>) // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- Alternate engines may produce opaque metadata; version is checked as a string.
       : undefined
   const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)

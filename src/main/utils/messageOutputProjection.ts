@@ -44,6 +44,7 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
   KB_READ_TOOL_NAME
 ])
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Live and historical tool envelopes have opaque extensions; attribution checks and citation schemas validate displayable fields.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
