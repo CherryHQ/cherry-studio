@@ -196,6 +196,15 @@ export const DMXAPI_OPENAI_PROFILE: WireProfile = {
     outputFormat: {
       contribute: (value, all): Record<string, JSONValue> =>
         value === 'jpeg' && all.background === 'transparent' ? {} : { outputFormat: value as JSONValue }
+    },
+    // The OpenAI adapter takes the animation timing only with GIF output.
+    frameCount: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameCount: value as JSONValue } : {}
+    },
+    frameDurationMs: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameDurationMs: value as JSONValue } : {}
     }
   }
 }

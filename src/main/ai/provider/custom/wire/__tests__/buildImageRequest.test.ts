@@ -114,6 +114,17 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
   })
 })
 
+describe('buildVendorProviderOptions — dmxapi OpenAI-routed GIF', () => {
+  it('forwards the frame timing only with GIF output', () => {
+    const gif = engine('dmxapi', { outputFormat: 'gif', frameCount: 9, frameDurationMs: 200 })
+    expect(JSON.stringify(gif)).toContain('"frameCount":9')
+    expect(JSON.stringify(gif)).toContain('"frameDurationMs":200')
+    const png = engine('dmxapi', { outputFormat: 'png', frameCount: 9, frameDurationMs: 200 })
+    expect(JSON.stringify(png)).not.toContain('frameCount')
+    expect(JSON.stringify(png)).not.toContain('frameDurationMs')
+  })
+})
+
 describe('buildVendorProviderOptions — New API image relay', () => {
   it('preserves OpenAI fields, diffusion fields and vendor extras under the SDK namespace', () => {
     expect(

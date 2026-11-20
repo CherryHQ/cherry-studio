@@ -138,6 +138,7 @@ import {
 const {
   createCustomModel,
   mergePresetModel,
+  projectImageGenerationSupport,
   projectRuntimeReasoning,
   providerRegistryService,
   resolveReasoningProfileFromRegistry
@@ -974,6 +975,25 @@ describe('ProviderRegistryService', () => {
         mockReadModels('models.json').models.find((model) => model.id === 'gpt-image-2-6-flare')?.imageGeneration?.modes
           .edit?.supports?.outputFormat
       ).toMatchObject({ options: ['png', 'jpeg', 'webp', 'gif'] })
+    })
+
+    it('narrows gpt-image animation support for dmxapi, which routes to the OpenAI image adapter', () => {
+      const support = {
+        modes: {
+          generate: { supports: { frameDurationMs: { type: 'range', min: 20, max: 655350, default: 200, step: 10 } } },
+          edit: {
+            supports: {
+              outputFormat: { type: 'enum', options: ['png', 'gif'] },
+              frameCount: { type: 'range', min: 2, max: 16, default: 9, step: 1 }
+            }
+          }
+        }
+      } as never
+      const projected = projectImageGenerationSupport(support, undefined, 'dmxapi')
+      expect(projected?.modes.generate?.supports?.frameDurationMs).toMatchObject({ max: 2000 })
+      expect(projected?.modes.edit?.supports?.outputFormat).toMatchObject({ options: ['png'] })
+      expect(projected?.modes.edit?.supports?.frameCount).toBeUndefined()
+      expect(projectImageGenerationSupport(support, undefined, 'other')?.modes.edit?.supports?.frameCount).toBeDefined()
     })
 
     it('does not expose native Grok ratio controls for a provider without a preset', () => {

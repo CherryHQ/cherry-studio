@@ -699,16 +699,19 @@ export function projectRuntimeReasoning(
 }
 
 /** Narrow official image metadata to the selected Desktop adapter's executable options. */
-function projectImageGenerationSupport(
+export function projectImageGenerationSupport(
   support: ImageGenerationSupport | null,
-  endpointConfigs: Provider['endpointConfigs']
+  endpointConfigs: Provider['endpointConfigs'],
+  providerId?: string
 ): ImageGenerationSupport | null {
   if (!support) return null
   const modes = { ...support.modes }
   for (const mode of ['generate', 'edit'] as const) {
     const endpoint = mode === 'generate' ? 'openai-image-generation' : 'openai-image-edit'
     const descriptor = modes[mode]
-    if (endpointConfigs?.[endpoint]?.adapterFamily !== 'openai' || !descriptor?.supports) continue
+    // dmxapi routes gpt-image models to the native OpenAI image adapter, so it shares its limits.
+    const usesOpenAiAdapter = endpointConfigs?.[endpoint]?.adapterFamily === 'openai' || providerId === 'dmxapi'
+    if (!usesOpenAiAdapter || !descriptor?.supports) continue
     const supports = { ...descriptor.supports }
     if (mode === 'edit') {
       const format = supports.outputFormat
@@ -1374,7 +1377,8 @@ class ProviderRegistryService {
       support ?? null,
       context.endpointConfigs ??
         (preset ? buildPersistedEndpointConfigs(preset.endpointConfigs) : undefined) ??
-        undefined
+        undefined,
+      context.presetProviderId ?? context.id
     )
   }
 }
