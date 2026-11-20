@@ -1,6 +1,5 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -12,25 +11,10 @@ import { AvatarCropPopup } from '../AvatarCropPopup'
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
-const FRAMED = { x: 30, y: 12, width: 96, height: 96 }
-
-// jsdom cannot load images, so the cropper reports a framed area as soon as it mounts.
-vi.mock('react-easy-crop', () => ({
-  default: function Cropper({
-    zoom,
-    cropShape,
-    onCropComplete
-  }: {
-    zoom: number
-    cropShape: string
-    onCropComplete: (area: unknown, pixels: typeof FRAMED) => void
-  }) {
-    useEffect(() => onCropComplete({}, FRAMED), [onCropComplete])
-    return <div data-testid="cropper" data-zoom={zoom} data-shape={cropShape} />
-  }
-}))
-
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
+// jsdom has no layout or decoder: give the crop box a size and the image its pixel dimensions.
+const BOX = 288
+let natural = { width: 3, height: 2 }
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
@@ -43,6 +27,9 @@ beforeEach(async () => {
       disconnect() {}
     }
   )
+  vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(() => natural.width)
+  vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockImplementation(() => natural.height)
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, BOX, BOX))
 })
 
 afterEach(() => {
@@ -51,9 +38,13 @@ afterEach(() => {
   })
   cleanup()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
-async function showCrop(shape: 'square' | 'round' = 'square') {
+const image = () => document.querySelector('img') as HTMLImageElement
+
+async function showCrop(shape: 'square' | 'round' = 'square', size = { width: 3, height: 2 }) {
+  natural = size
   render(<PopupHost />)
   let result!: Promise<unknown>
   act(() => {
@@ -64,17 +55,43 @@ async function showCrop(shape: 'square' | 'round' = 'square') {
 }
 
 describe('AvatarCropPopup', () => {
-  it('returns the framed area when confirmed', async () => {
+  // Catches the library rounding the 3×2 centered square's x from 0.5 to 1, shifting the crop.
+  it('returns the untouched centered square of a tiny odd-sized image', async () => {
     const { result } = await showCrop()
+    fireEvent.load(image())
 
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
 
-    await expect(result).resolves.toEqual(FRAMED)
+    await expect(result).resolves.toEqual({
+      x: expect.closeTo(0.5),
+      y: expect.closeTo(0),
+      width: expect.closeTo(2),
+      height: expect.closeTo(2)
+    })
+  })
+
+  // Catches the library rounding a 1×1 image's quarter-pixel square at 4× zoom to width 0.
+  it('keeps a non-empty source square for a 1×1 image at maximum zoom', async () => {
+    const { result } = await showCrop('square', { width: 1, height: 1 })
+    fireEvent.load(image())
+    const user = userEvent.setup()
+
+    screen.getByRole('slider', { name: 'Zoom' }).focus()
+    await user.keyboard('{End}')
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    await expect(result).resolves.toEqual({
+      x: expect.closeTo(0.375),
+      y: expect.closeTo(0.375),
+      width: expect.closeTo(0.25),
+      height: expect.closeTo(0.25)
+    })
   })
 
   it('frames the user avatar in a circle', async () => {
     await showCrop('round')
-    expect(screen.getByTestId('cropper')).toHaveAttribute('data-shape', 'round')
+    fireEvent.load(image())
+    expect(document.querySelector('.reactEasyCrop_CropAreaRound')).toBeInTheDocument()
   })
 
   it.each([
@@ -99,6 +116,6 @@ describe('AvatarCropPopup', () => {
     screen.getByRole('slider', { name: 'Zoom' }).focus()
     await user.keyboard('{End}')
 
-    expect(screen.getByTestId('cropper')).toHaveAttribute('data-zoom', '4')
+    expect(image().style.transform).toContain('scale(4)')
   })
 })

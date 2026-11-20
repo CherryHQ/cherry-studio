@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Cropper from 'react-easy-crop'
+import Cropper, { type Area, type MediaSize } from 'react-easy-crop'
 
 import {
   Button,
@@ -38,7 +38,8 @@ function AvatarCropDialog({
   const [src, setSrc] = useState<string>()
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(MIN_ZOOM)
-  const [area, setArea] = useState<ImageCropArea>()
+  const [framed, setFramed] = useState<Area>()
+  const [media, setMedia] = useState<MediaSize>()
 
   useEffect(() => setOpenState(open), [open])
   useEffect(() => {
@@ -51,6 +52,17 @@ function AvatarCropDialog({
     setOpenState(false)
     resolve(result)
   }
+
+  // The library's pixel area is rounded, which empties or shifts crops of tiny images; scale its exact percentages.
+  const area: ImageCropArea | undefined =
+    framed && media
+      ? {
+          x: (framed.x * media.naturalWidth) / 100,
+          y: (framed.y * media.naturalHeight) / 100,
+          width: (framed.width * media.naturalWidth) / 100,
+          height: (framed.height * media.naturalHeight) / 100
+        }
+      : undefined
 
   return (
     <Dialog open={openState} onOpenChange={(next) => !next && close(null)}>
@@ -74,7 +86,8 @@ function AvatarCropDialog({
               style={{ cropAreaStyle: { border: '2px solid var(--primary)' } }}
               onCropChange={setCrop}
               onZoomChange={setZoom}
-              onCropComplete={(_, pixels) => setArea(pixels)}
+              onMediaLoaded={setMedia}
+              onCropComplete={setFramed}
             />
           ) : null}
         </div>
