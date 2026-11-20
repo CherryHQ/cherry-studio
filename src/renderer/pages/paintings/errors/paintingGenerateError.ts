@@ -49,7 +49,7 @@ export function translatePaintingGenerateError(error: Error): string {
     NO_USABLE_IMAGE: 'paintings.no_usable_image'
   }
 
-  return i18n.t(keyMap[error.code], error.values)
+  return i18n.t(keyMap[error.code], error.translationValues)
 }
 
 export function presentPaintingGenerateError(error: unknown) {

@@ -1,9 +1,20 @@
 import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidationError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('serializes a PaintingGenerateError without tripping the AI SDK embedding-values branch', () => {
+    const error = new PaintingGenerateError('REMOTE_ERROR', { message: 'boom', values: { model: 'm1' } })
+
+    const serialized = serializeError(error)
+
+    expect(serialized.name).toBe('PaintingGenerateError')
+    expect(serialized.message).toBe('boom')
+  })
+
   it('preserves reporting ownership for API errors and structured stream events without leaking payloads', () => {
     for (const error of [
       new APICallError({

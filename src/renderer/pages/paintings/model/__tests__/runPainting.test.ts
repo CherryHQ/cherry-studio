@@ -38,7 +38,7 @@ describe('runPainting error surfacing', () => {
     }
     const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
 
-    await expect(fail(err)).rejects.toMatchObject({ code: 'NO_USABLE_IMAGE', values: { model: 'm1' } })
+    await expect(fail(err)).rejects.toMatchObject({ code: 'NO_USABLE_IMAGE', translationValues: { model: 'm1' } })
   })
 
   it('maps authentication failures to localized token guidance without echoing the credential', async () => {

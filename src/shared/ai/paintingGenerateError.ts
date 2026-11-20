@@ -34,14 +34,14 @@ export interface PaintingGenerateErrorOptions {
   presentation?: 'modal' | 'toast'
   severity?: 'error' | 'warning'
   /** i18n interpolation values for the translated message. */
-  values?: Record<string, string>
+  translationValues?: Record<string, string>
 }
 
 export class PaintingGenerateError extends Error {
   code: PaintingGenerateErrorCode
   presentation: 'modal' | 'toast'
   severity: 'error' | 'warning'
-  values?: Record<string, string>
+  translationValues?: Record<string, string>
 
   constructor(code: PaintingGenerateErrorCode, options: PaintingGenerateErrorOptions = {}) {
     super(options.message || code)
@@ -49,7 +49,7 @@ export class PaintingGenerateError extends Error {
     this.code = code
     this.presentation = options.presentation || 'modal'
     this.severity = options.severity || 'error'
-    this.values = options.values
+    this.translationValues = options.values
   }
 }
 
