@@ -211,6 +211,34 @@ required service tier.`
     }
   )
 
+  it('recovers the HTTP status of an older saved error part from its stored execution failure', () => {
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: '429 null',
+          stack: null,
+          responseBody: 'null',
+          executionFailure: {
+            message: 'rate limited',
+            retryable: true,
+            failure: {
+              version: 1,
+              reasonCode: 'rate_limit',
+              source: { layer: 'provider' },
+              context: { statusCode: 429 }
+            }
+          }
+        }}
+        message={message}
+      />
+    )
+
+    expect(container.textContent).toContain('HTTP 429')
+    expect(container.textContent).not.toContain('error.unknown')
+  })
+
   it('shows generic guidance when a provider error has no usable message or status', () => {
     const { container } = render(
       <ErrorBlock

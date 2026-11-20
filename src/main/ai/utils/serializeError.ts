@@ -149,9 +149,14 @@ function plainErrorFacts(error: unknown): Partial<Pick<SerializedError, 'statusC
   )
   // An explicit wrapper (`429 null`) outranks a numeric status, which the SDK may have synthesized (500) when
   // the frame had no code. Otherwise recover a status only from explicit formats, never from a bare number.
+  const wrapperStatus = texts.map(wrapperTextStatus).find((value) => value !== undefined)
+  // The adapter assigns 500 to a `response.failed` frame whose code it does not map. When the text itself
+  // names a safety or context-limit failure, that 500 is a fallback and must not override the classification.
+  const textCategory = classifyErrorCategory({ text: texts.join('\n') })
+  const fallbackStatus = numeric === 500 && (textCategory === 'content' || textCategory === 'context_length')
   const status =
-    texts.map(wrapperTextStatus).find((value) => value !== undefined) ??
-    numeric ??
+    wrapperStatus ??
+    (fallbackStatus ? undefined : numeric) ??
     texts.map(labelledTextStatus).find((value) => value !== undefined)
   const category = classifyErrorCategory({ text: texts.join('\n'), status })
   return {

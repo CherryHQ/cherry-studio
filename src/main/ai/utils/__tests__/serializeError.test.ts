@@ -348,6 +348,36 @@ describe('serializeError', () => {
     expect(serialized.providerErrorCategory).toBe('rate_limit')
   })
 
+  it('keeps a safety classification when the adapter assigned its fallback 500', () => {
+    const serialized = serializeError({
+      message: 'Your request was rejected by the content policy',
+      code: 'content_policy_violation',
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('content')
+  })
+
+  it('keeps a context-limit classification when the adapter assigned its fallback 500', () => {
+    const serialized = serializeError({
+      message: 'Input exceeds the context window of this model',
+      code: null,
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
+  it('keeps a genuine 500 server failure as a server error', () => {
+    const serialized = serializeError({
+      message: 'The server had an error while processing your request',
+      code: 'server_error',
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBe(500)
+    expect(serialized.providerErrorCategory).toBe('server')
+  })
+
   it('does not read a token count in a statusless context-limit message as an HTTP status', () => {
     const serialized = serializeError({ message: 'Input exceeds the context limit by 500 tokens' })
     expect(serialized.statusCode).toBeUndefined()
