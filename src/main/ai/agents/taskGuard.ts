@@ -4,7 +4,7 @@
  */
 
 import { execFile, spawn } from 'node:child_process'
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { TaskGuard } from '@shared/data/api/schemas/agents'
@@ -28,10 +28,42 @@ export function resolveAgentGuardPath(workspaceRoot: string, requested: string):
   const root = path.resolve(workspaceRoot)
   const target = path.resolve(root, trimmed)
   const relative = path.relative(root, target)
-  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (!isStrictlyInside(relative)) {
     throw new Error(`file_changed guard path must be inside the session workspace: ${requested}`)
   }
   return target
+}
+
+/** `relative` is a path.relative(root, target) result. Whole `..` components escape; `..report.json` does not. */
+function isStrictlyInside(relative: string): boolean {
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+
+/**
+ * Resolve a guard file for stat. A guard that carries its proposing workspace is confined there by
+ * `realpath` (symlinks followed on both sides); otherwise the saved path is used as the user wrote it.
+ */
+async function resolveGuardFileForStat(guard: {
+  path: string
+  workspaceRoot?: string
+}): Promise<{ kind: 'stat'; path: string } | { kind: 'outside' } | { kind: 'missing' }> {
+  if (!guard.workspaceRoot) return { kind: 'stat', path: guard.path }
+  let realRoot: string
+  try {
+    realRoot = await realpath(guard.workspaceRoot)
+  } catch {
+    // Without the root the confinement cannot be confirmed, so nothing is statted.
+    return { kind: 'outside' }
+  }
+  let realTarget: string
+  try {
+    realTarget = await realpath(guard.path)
+  } catch {
+    return { kind: 'missing' }
+  }
+  return isStrictlyInside(path.relative(realRoot, realTarget))
+    ? { kind: 'stat', path: realTarget }
+    : { kind: 'outside' }
 }
 
 export type TaskGuardOutcome = { proceed: true } | { proceed: false; reason: string }
@@ -51,9 +83,14 @@ export async function evaluateTaskGuard(
       if (/^[\\/]{2}/.test(guard.path.trim())) {
         return { proceed: false, reason: 'file guard path is not allowed' }
       }
+      const resolved = await resolveGuardFileForStat(guard)
+      if (resolved.kind === 'outside') {
+        return { proceed: false, reason: 'file guard path is outside the workspace' }
+      }
       let mtimeMs: number
       try {
-        mtimeMs = (await stat(guard.path)).mtimeMs
+        if (resolved.kind === 'missing') throw new Error('missing')
+        mtimeMs = (await stat(resolved.path)).mtimeMs
       } catch {
         return { proceed: false, reason: `file missing: ${guard.path}` }
       }

@@ -174,7 +174,17 @@ export type AgentEntity = z.infer<typeof AgentEntitySchema>
 export const TaskGuardSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('always') }),
   /** Proceed only when the file exists and was modified after the last executed run started. */
-  z.strictObject({ type: z.literal('file_changed'), path: z.string().trim().min(1) }),
+  z.strictObject({
+    type: z.literal('file_changed'),
+    path: z.string().trim().min(1),
+    /**
+     * Set by agent-driven saves (MCP cron) to the workspace the proposing session ran in. Fire time
+     * resolves both through `realpath` and skips unless the file is still inside it, so a symlink
+     * created or retargeted after save cannot widen the agent's file authority. Absent for guards
+     * the user wrote, which keep the user's own authority.
+     */
+    workspaceRoot: z.string().trim().min(1).optional()
+  }),
   /** Proceed only when the shell command exits 0. */
   z.strictObject({ type: z.literal('command'), command: z.string().trim().min(1) })
 ])

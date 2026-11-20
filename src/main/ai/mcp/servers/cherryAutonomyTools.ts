@@ -664,7 +664,10 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   // An agent-proposed file guard is later stat'ed with app privileges, so it needs file authority
   // (inside the session workspace) before it can be saved, mirroring `notify`'s file_path rule.
   const safeGuard =
-    guard?.type === 'file_changed' ? { ...guard, path: resolveAgentGuardPath(ctx.workspacePath, guard.path) } : guard
+    guard?.type === 'file_changed'
+      ? // The root rides with the guard so fire time can re-confine it (symlinks resolve then, not only now).
+        { ...guard, path: resolveAgentGuardPath(ctx.workspacePath, guard.path), workspaceRoot: ctx.workspacePath }
+      : guard
 
   const service = application.get('AgentJobsService')
   const patch = {

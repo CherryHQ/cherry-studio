@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -247,7 +247,78 @@ describe('evaluateTaskGuard', () => {
   })
 })
 
+describe('workspace-confined file_changed guard', () => {
+  let base: string
+  let workspace: string
+  let outside: string
+  beforeEach(async () => {
+    base = await mkdtemp(join(tmpdir(), 'task-guard-ws-'))
+    workspace = join(base, 'ws')
+    outside = join(base, 'outside')
+    await mkdir(workspace)
+    await mkdir(outside)
+    await writeFile(join(outside, 'secret.txt'), 'x')
+    await writeFile(join(workspace, 'in.txt'), 'x')
+  })
+  afterEach(async () => {
+    await rm(base, { recursive: true, force: true })
+  })
+
+  it('proceeds for a changed file inside the workspace', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(workspace, 'in.txt'), workspaceRoot: workspace },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toEqual({ proceed: true })
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'skips a path that went through a workspace symlink to outside, without admitting it',
+    async () => {
+      await symlink(outside, join(workspace, 'link'))
+      const outcome = await evaluateTaskGuard(
+        { type: 'file_changed', path: join(workspace, 'link', 'secret.txt'), workspaceRoot: workspace },
+        { lastRunStartedAt: null }
+      )
+      expect(outcome).toEqual({ proceed: false, reason: 'file guard path is outside the workspace' })
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')('skips when a path component is retargeted after save', async () => {
+    await mkdir(join(workspace, 'dir'))
+    await writeFile(join(workspace, 'dir', 'f.txt'), 'x')
+    const guard = { type: 'file_changed' as const, path: join(workspace, 'dir', 'f.txt'), workspaceRoot: workspace }
+    expect(await evaluateTaskGuard(guard, { lastRunStartedAt: null })).toEqual({ proceed: true })
+    await rm(join(workspace, 'dir'), { recursive: true })
+    await symlink(outside, join(workspace, 'dir'))
+    await writeFile(join(outside, 'f.txt'), 'x')
+    expect(await evaluateTaskGuard(guard, { lastRunStartedAt: null })).toMatchObject({ proceed: false })
+  })
+
+  it('skips when the workspace root no longer exists', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(outside, 'secret.txt'), workspaceRoot: join(base, 'gone') },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toMatchObject({ proceed: false })
+  })
+
+  it('reports a missing file inside the workspace as missing', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(workspace, 'nope.txt'), workspaceRoot: workspace },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toMatchObject({ proceed: false, reason: expect.stringContaining('file missing') })
+  })
+})
+
 describe('resolveAgentGuardPath', () => {
+  it('accepts a filename that merely starts with two dots, and still rejects real traversal', () => {
+    expect(resolveAgentGuardPath('/ws', '..report.json')).toBe(resolve('/ws', '..report.json'))
+    expect(resolveAgentGuardPath('/ws', 'a/..b/c.txt')).toBe(resolve('/ws', 'a/..b/c.txt'))
+    expect(() => resolveAgentGuardPath('/ws', '../report.json')).toThrow('inside the session workspace')
+  })
+
   it('resolves relative and absolute paths inside the workspace', () => {
     expect(resolveAgentGuardPath('/ws', 'a/b.txt')).toBe(resolve('/ws', 'a/b.txt'))
     expect(resolveAgentGuardPath('/ws', '/ws/a.txt')).toBe(resolve('/ws', 'a.txt'))

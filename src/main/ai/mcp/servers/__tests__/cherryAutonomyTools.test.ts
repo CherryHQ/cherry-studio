@@ -906,7 +906,11 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_1',
         expect.objectContaining({
-          guard: { type: 'file_changed', path: path.resolve(WORKSPACE_PATH, 'data/report.csv') }
+          guard: {
+            type: 'file_changed',
+            path: path.resolve(WORKSPACE_PATH, 'data/report.csv'),
+            workspaceRoot: WORKSPACE_PATH
+          }
         })
       )
     })
