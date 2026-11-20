@@ -398,20 +398,11 @@ export class MemoryStore {
       const batch = await this.latestRecoverableBatch()
       if (!batch) return undefined
       const scope = await this.entrySnapshot()
-      const hashes = new Map<string, string | null>()
-      const files: MemoryRecoveryPreview['files'] = []
-      for (const step of batch.steps) {
-        if (step.outcome === 'unchanged') continue
-        const currentHash = memoryHash(scope.get(step.path) ?? null)
-        hashes.set(step.path, currentHash)
-        files.push({ path: step.path, currentHash, conflict: currentHash !== step.afterHash })
-      }
+      const { changes, files } = this.recoveryChanges(batch, scope)
+      const hashes = new Map(files.map((file) => [file.path, file.currentHash]))
       access.assertAuthorized()
       const token = randomUUID()
       this.assertGeneration(generation)
-      const changes = batch.steps
-        .filter((step) => step.outcome !== 'unchanged' && hashes.get(step.path) === step.afterHash)
-        .map((step) => ({ path: step.path, before: scope.get(step.path) ?? null, after: decodeOriginal(step) }))
       try {
         this.protectRecovery(batch, changes, scope)
       } catch (error) {
@@ -428,22 +419,14 @@ export class MemoryStore {
     const preview = this.recoveries.get(access)?.get(token)
     if (!preview) throw new MemoryError('invalid-receipt', 'Recovery requires this caller to preview the latest batch')
     this.assertGeneration(preview.generation)
-    const changes: MemoryFileChange[] = []
-    const conflicts: MemoryCommitResult['files'] = []
-    for (const step of preview.batch.steps) {
-      if (step.outcome === 'unchanged') continue
-      const before = await this.readMatching({
-        path: step.path,
-        hash: preview.hashes.get(step.path) ?? null,
-        generation: preview.generation
-      })
-      if (memoryHash(before) !== step.afterHash) {
-        conflicts.push({ path: step.path, hash: memoryHash(before), outcome: 'conflict' })
-      } else {
-        changes.push({ path: step.path, before, after: decodeOriginal(step) })
-      }
-    }
     const scope = await this.entrySnapshot()
+    for (const [target, hash] of preview.hashes) {
+      if (memoryHash(scope.get(target) ?? null) !== hash) throw new MemoryError('conflict', 'Recovery preview is stale')
+    }
+    const { changes, files } = this.recoveryChanges(preview.batch, scope)
+    const conflicts = files
+      .filter((file) => file.conflict)
+      .map((file) => ({ path: file.path, hash: file.currentHash, outcome: 'conflict' as const }))
     this.protectRecovery(preview.batch, changes, scope)
     this.assertGeneration(preview.generation)
     access.assertAuthorized()
@@ -526,26 +509,16 @@ export class MemoryStore {
       source === 'clear'
         ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, memoryHash(after)])))
         : undefined
-    const previous = recoveryOf ? await latestMemoryBackup(this.backupRoot) : undefined
-    const batch =
-      previous &&
-      previous.recoveryOf === recoveryOf &&
-      changes.every((change) =>
-        previous.steps.some(
-          (step) =>
-            step.path === change.path &&
-            step.beforeHash === memoryHash(change.before) &&
-            step.afterHash === memoryHash(change.after)
-        )
-      )
-        ? previous
-        : await createMemoryBackup(this.backupRoot, changes, source, legacy, clearScopeHash, recoveryOf)
+    const batch = await createMemoryBackup(
+      this.backupRoot,
+      changes,
+      source,
+      legacy,
+      clearScopeHash,
+      recoveryOf,
+      this.root
+    )
     const steps = new Map(batch.steps.map((step) => [step.path, step]))
-    if (batch === previous) {
-      for (const change of changes) steps.get(change.path)!.outcome = 'pending'
-      batch.status = 'pending'
-      await saveMemoryBackup(this.backupRoot, batch)
-    }
     const result: MemoryCommitResult = {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))
@@ -605,7 +578,7 @@ export class MemoryStore {
     while (batch) {
       batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
       if (batch.steps.some((step) => step.outcome !== 'unchanged')) {
-        if (resume && batch.recoveryOf) {
+        if (batch.recoveryOf) {
           const original = await latestMemoryBackup(this.backupRoot, batch.recoveryOf)
           if (original?.status === 'partial') {
             for (const step of original.steps) {
@@ -617,7 +590,7 @@ export class MemoryStore {
               )
                 step.outcome = 'unchanged'
             }
-            if (original.steps.some((step) => step.outcome !== 'unchanged')) return original
+            if (original.steps.some((step) => step.outcome !== 'unchanged')) return resume ? original : batch
             original.status = 'completed'
             await saveMemoryBackup(this.backupRoot, original)
           }
@@ -658,6 +631,30 @@ export class MemoryStore {
     }
   }
 
+  private recoveryChanges(batch: MemoryBatch, scope: Map<string, Buffer | null>) {
+    const changes: MemoryFileChange[] = []
+    const files: MemoryRecoveryPreview['files'] = []
+    const restoringMerge = batch.source === 'dreaming' && batch.steps.some((step) => step.afterHash === null)
+    const steps = restoringMerge ? batch.steps.toReversed() : batch.steps
+    let prerequisiteConflict = false
+    for (const step of steps) {
+      const before = scope.get(step.path) ?? null
+      const currentHash = memoryHash(before)
+      if (step.outcome === 'unchanged') {
+        if (restoringMerge && currentHash !== step.beforeHash) prerequisiteConflict = true
+        continue
+      }
+      const conflict = currentHash !== step.afterHash || prerequisiteConflict
+      files.push({ path: step.path, currentHash, conflict })
+      if (conflict) {
+        if (restoringMerge) prerequisiteConflict = true
+      } else {
+        changes.push({ path: step.path, before, after: decodeOriginal(step) })
+      }
+    }
+    return { changes, files }
+  }
+
   private protectRecovery(batch: MemoryBatch, changes: MemoryFileChange[], scope: Map<string, Buffer | null>): void {
     if (batch.source === 'clear') {
       const hashes = new Map([...scope].map(([target, bytes]) => [target, memoryHash(bytes)]))
@@ -675,6 +672,19 @@ export class MemoryStore {
       )
         return
     }
+    if (
+      batch.source === 'extraction' &&
+      changes.every((change) => {
+        const current = this.decode(change.before ?? Buffer.alloc(0))
+        const original = this.decode(change.after ?? Buffer.alloc(0))
+        assertMemoryContent(change.path, original)
+        parseMemoryEntries(original)
+        // Removing an appended suffix preserves the original text and every protection marker.
+        const prefix = original.length && !original.endsWith('\n') ? original + '\n' : original
+        return current.startsWith(prefix) && !entriesIn(parseMemoryEntries(current.slice(prefix.length))).length
+      })
+    )
+      return
     this.protectEntries(changes, scope, 'recovery')
   }
 
