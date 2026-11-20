@@ -262,6 +262,20 @@ describe('PiPromptField', () => {
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.')
   })
 
+  // Catches Restore staying disabled for a saved prompt equal to the built-in one, pinning it against template updates.
+  it('clears a saved Agent prompt that matches the built-in prompt', async () => {
+    answerWithDraft('You are Cherry Assistant.')
+    const user = userEvent.setup()
+    render(<Harness initial="You are Cherry Assistant." />)
+    await screen.findByRole('button', { name: '技能: 只读' })
+    await openInstructions(user)
+
+    await user.click(screen.getByRole('button', { name: '恢复内置提示词' }))
+
+    expect(screen.getByText(/^saved:\s*$/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '恢复内置提示词' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
   // Catches Generate on a blank Agent prompt having nothing to generate from.
   it('generates a blank Agent prompt from the Agent name', async () => {
     answerWithDraft()

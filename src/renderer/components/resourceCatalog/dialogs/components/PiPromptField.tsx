@@ -199,6 +199,7 @@ export function PiPromptField({
           }
           value={instructions}
           builtin={preview?.builtinInstructions}
+          overridden={Boolean(value)}
           name={name}
           onChange={onChange}
           fill={Boolean(onSectionChange)}
@@ -407,6 +408,7 @@ function InstructionsEditor({
   label,
   value,
   builtin,
+  overridden,
   name,
   onChange,
   fill
@@ -414,6 +416,8 @@ function InstructionsEditor({
   label: ReactNode
   value: string
   builtin: string | undefined
+  /** A saved prompt, even one equal to the built-in, keeps the Agent from following later built-in updates. */
+  overridden: boolean
   name: string
   onChange: (next: string) => void
   /** Fills a dialog page; in a scrolling step it takes a fixed tall height instead. */
@@ -439,7 +443,7 @@ function InstructionsEditor({
           {builtin ? (
             <RestoreButton
               label={t('library.config.agent.prompt.restore_builtin')}
-              disabled={value === builtin}
+              disabled={!overridden}
               onClick={() => onChange('')}
             />
           ) : null}
