@@ -677,8 +677,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
       await projection.refresh()
       const result = await handle.input.submit(draft)
-      applyNativeSubmissionResult(sessionId, contextId, result)
       admitted = result.status !== 'rejected' && result.status !== 'unsupported'
+      applyNativeSubmissionResult(sessionId, contextId, result)
       await projection.refresh()
       if (result.status !== 'acknowledged') throw new Error(result.error.message)
     } finally {

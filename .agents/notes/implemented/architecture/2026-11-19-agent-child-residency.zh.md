@@ -16,8 +16,8 @@ Status: implemented
 
 - `src/main/ai/agentSession/ChildResidency.ts` 统一负责 Claude Code、Pi 和 Pi Durable 连接的子线程挂载，包括：opening、attached、releasing、closing 四种状态，合并并发打开，查看者和命令的 pin，在释放与重开之间保持不变的视图，drain（也会等待排队中的恢复、进行中的打开和释放 flush）以及 close。
 - 连接把观察到的每条 `Subagent` 关系交给 `ChildResidency.relate`。子线程最新的关系报告 `work: 'idle'` 时即为已结束（[子智能体工作状态](2026-11-19-agent-subagent-work-state.md)）。对没有被查看者、命令或已加载的嵌套子线程 pin 住的已结束子线程，residency 会 flush、释放并记录下来。
-- 释放时，在最后一次 flush 之后通过 `AgentSessionContextService.settleChild` 往子线程的 context 行写入 `checkpointMapping.child.settled`。关闭时，为它停止的已结束子线程同样写入该标记。重新挂载一个已 settle 的子线程时清除标记。
-- 重新打开时，整棵子树都已 settle 的后代先通过 `restoreReleased` 记为已释放；已 settle 但有未 settle 后代的子线程会被恢复，因为那个后代的关系由它的观察带出。关系重放会让已释放的子线程保持释放，并一次一个地恢复未 settle 的空闲子线程，每个都 flush 并释放后才恢复下一个。已释放的子线程会在以下情况重新加载：查看者调用 `childProjection`、命令调用 `messageChild`、Pi 子线程完成或用量归属，以及关系报告它正在运行。
+- 释放时，在最后一次 flush 之后通过 `AgentSessionContextService.settleChild` 往子线程的 context 行写入 `checkpointMapping.child.settled`，前提是 flush 之后子线程仍然空闲。已释放的子线程若被关系报告重新工作，会失去该标记和已释放记录，因此即使重新打开失败，下一次空闲关系也会恢复它。关闭时，为它停止的已结束子线程同样写入该标记。重新挂载一个已 settle 的子线程时清除标记。
+- 重新打开时，整棵子树都已 settle 的后代先通过 `restoreReleased` 记为已释放；已 settle 但有未 settle 后代的子线程会被恢复，因为那个后代的关系由它的观察带出。关系重放会让已释放的子线程保持释放，并一次一个地恢复未 settle 的空闲子线程，每个子线程连同它引发的父线程释放都 flush 并释放后，才恢复下一个。已释放的子线程会在以下情况重新加载：查看者调用 `childProjection`、命令调用 `messageChild`、Pi 子线程完成或用量归属，以及关系报告它正在运行。
 - 不需要 schema 迁移：`checkpointMapping` 是 JSON 列，`saveProjectionTx` 会把子线程的写入合并进已有的子线程 checkpoint。
 
 ## Alternatives considered

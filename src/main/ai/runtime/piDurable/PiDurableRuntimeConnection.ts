@@ -612,6 +612,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     try {
       const result = await this.submitChild(projection, handle, contextId, text)
       admitted = result.status !== 'rejected' && result.status !== 'unsupported'
+      applyNativeSubmissionResult(projection.context.sessionId, contextId, result)
+      await projection.refresh()
       if (result.status !== 'acknowledged') throw new Error(result.error.message)
     } finally {
       done(admitted)
@@ -630,10 +632,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
     const draft = prepareNativeSubmission(sessionId, id, contextId, 'steer')
     await projection.refresh()
-    const result = await handle.input.submit(draft)
-    applyNativeSubmissionResult(sessionId, contextId, result)
-    await projection.refresh()
-    return result
+    return handle.input.submit(draft)
   }
 
   async stopTask(taskId: string): Promise<boolean> {

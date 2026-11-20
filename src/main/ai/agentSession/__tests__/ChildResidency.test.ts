@@ -28,9 +28,20 @@ function fixture() {
   const rootThread: Thread = { backendId: runtimeId(root.backendId), id: runtimeId(root.nativeThreadId!) }
   const residency = new ChildResidency<{ release(): Promise<void> }>({ accepting: () => true, closing: () => false })
   const attaches: string[] = []
-  // Archive reads per child, and gates keyed by child and read number (the last read is the release's final flush).
+  // Archive reads per child, and gates keyed by child and read number (the last read is the release's final flush)
+  // or by `${child}:build` for the build.
   const reads = new Map<string, number>()
   const gates = new Map<string, Promise<void>>()
+  const gate = (key: string) => {
+    let open!: () => void
+    gates.set(key, new Promise<void>((resolve) => (open = resolve)))
+    return open
+  }
+  /** Children whose next acquire fails, and native handle releases per child. */
+  const failures = new Set<string>()
+  const handleReleases = new Map<string, number>()
+  /** One-shot hooks run when a child's observation drains. */
+  const drains = new Map<string, () => void>()
 
   const child = (parentContextId: string, id: string): Child => {
     const context = contexts.child(parentContextId, id, `call-${id}`, id)
@@ -45,7 +56,12 @@ function fixture() {
     }),
     observe: async (sink) => {
       await sink({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'idle' } })
-      return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
+      const drain = async () => {
+        const hook = drains.get(thread.id)
+        drains.delete(thread.id)
+        hook?.()
+      }
+      return { status: 'confirmed', value: { drain, stop: async () => {} } }
     },
     release: async () => {}
   })
@@ -56,11 +72,18 @@ function fixture() {
     origin: { toolCallId: `call-${target.thread.id}` },
     work
   })
-  const open = (target: Child, parent: Thread) => () =>
+  const open = (target: Child, parent: Thread, granted?: { release(): Promise<void> }) => () =>
     residency.open(target.key, {
-      acquire: async () => ({ release: async () => {} }),
-      build: async () => {
+      granted,
+      acquire: async () => {
+        if (failures.delete(target.thread.id)) throw new Error('acquire failed')
+        const id = target.thread.id
+        return { release: async () => void handleReleases.set(id, (handleReleases.get(id) ?? 0) + 1) }
+      },
+      build: async (_handle, hold) => {
         attaches.push(target.thread.id)
+        hold(relation(target, parent, undefined))
+        await gates.get(`${target.thread.id}:build`)
         const projection = new ChildThreadProjection(
           contexts.context(target.contextId),
           handle(target.thread),
@@ -78,7 +101,23 @@ function fixture() {
     residency.relate(relation(target, parent, work), open(target, parent))
   const loaded = async (target: Child) => (await residency.resource(target.key)) !== undefined
   const settled = (target: Child) => contexts.context(target.contextId).checkpointMapping?.child?.settled === true
-  return { root, rootThread, residency, attaches, reads, gates, child, open, relate, loaded, settled }
+  return {
+    root,
+    rootThread,
+    residency,
+    attaches,
+    reads,
+    gates,
+    gate,
+    failures,
+    handleReleases,
+    drains,
+    child,
+    open,
+    relate,
+    loaded,
+    settled
+  }
 }
 
 // Catches a nested child losing its relationship stream because its parent child was released first.
@@ -188,20 +227,19 @@ it('drains queued restores and the final flushes of the releases they start', as
   expect(settled(first) && settled(second)).toBe(true)
 })
 
-// Catches a parent releasing while its nested child's attach awaits the archive, stranding the nested child.
-it('keeps a parent child loaded while its nested child attaches', async () => {
-  const { root, rootThread, reads, gates, child, relate, loaded, settled } = fixture()
+// Catches a parent releasing while its nested child's build or attach awaits the archive, stranding the nested child.
+it('keeps a parent child loaded while its nested child builds and attaches', async () => {
+  const { root, rootThread, attaches, gate, child, relate, loaded, settled } = fixture()
   const parent = child(root.id, 'parent')
   const nested = child(parent.contextId, 'nested')
   relate(parent, rootThread, 'running')
   await expect.poll(() => loaded(parent)).toBe(true)
-  let unblock!: () => void
-  gates.set('nested:1', new Promise<void>((resolve) => (unblock = resolve)))
+  const finishBuild = gate('nested:build')
   relate(nested, parent.thread, 'running')
-  await expect.poll(() => reads.get('nested')).toBe(1)
+  await expect.poll(() => attaches).toEqual(['parent', 'nested'])
   relate(parent, rootThread, 'idle')
   expect(await loaded(parent)).toBe(true)
-  unblock()
+  finishBuild()
   await expect.poll(() => loaded(nested)).toBe(true)
   relate(nested, parent.thread, 'idle')
   await expect.poll(() => settled(nested) && settled(parent)).toBe(true)
@@ -259,4 +297,114 @@ it('returns a pinned, current child from a lookup that waited on another attach'
   expect(attaches.filter((id) => id === 'target')).toHaveLength(2)
   found!.unpin()
   await expect.poll(() => settled(target)).toBe(true)
+})
+
+// Catches the next restore loading while a parent that a restored nested child unpinned is still flushing.
+it('waits for the parent release a restored nested child sets off before the next restore', async () => {
+  const { root, rootThread, attaches, reads, gate, child, relate, loaded, settled } = fixture()
+  const parent = child(root.id, 'parent')
+  const nested = child(parent.contextId, 'nested')
+  const next = child(root.id, 'next')
+  relate(parent, rootThread, 'running')
+  await expect.poll(() => loaded(parent)).toBe(true)
+  const finishNested = gate('nested:2')
+  const finishParent = gate('parent:2')
+  relate(nested, parent.thread, 'idle')
+  relate(next, rootThread, 'idle')
+  await expect.poll(() => reads.get('nested')).toBe(2)
+  relate(parent, rootThread, 'idle')
+  finishNested()
+  await expect.poll(() => reads.get('parent')).toBe(2)
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(attaches).toEqual(['parent', 'nested'])
+  finishParent()
+  await expect.poll(() => settled(next)).toBe(true)
+  expect(settled(parent) && settled(nested)).toBe(true)
+})
+
+// Catches a child marked settled though work resumed, so neither a replay nor a cold reopen repaired its saved rows.
+it('leaves a child that works again unsettled and restores it after a failed reopen', async () => {
+  const { root, rootThread, attaches, reads, gate, failures, child, relate, loaded, settled } = fixture()
+  const target = child(root.id, 'target')
+  relate(target, rootThread, 'running')
+  await expect.poll(() => loaded(target)).toBe(true)
+  const finishFlush = gate('target:2')
+  relate(target, rootThread, 'idle')
+  await expect.poll(() => reads.get('target')).toBe(2)
+  failures.add('target')
+  relate(target, rootThread, 'running')
+  finishFlush()
+  await expect.poll(() => failures.size).toBe(0)
+  await new Promise((resolve) => setImmediate(resolve))
+  expect(settled(target)).toBe(false)
+  relate(target, rootThread, 'idle')
+  await expect.poll(() => settled(target)).toBe(true)
+  expect(attaches).toEqual(['target', 'target'])
+  // A released child that works again and fails to reopen is restored the same way.
+  failures.add('target')
+  relate(target, rootThread, 'running')
+  await expect.poll(() => failures.size).toBe(0)
+  await new Promise((resolve) => setImmediate(resolve))
+  expect(settled(target)).toBe(false)
+  relate(target, rootThread, 'idle')
+  await expect.poll(() => attaches).toEqual(['target', 'target', 'target'])
+  await expect.poll(() => settled(target)).toBe(true)
+})
+
+// Catches a backup drain returning while a restore that a parent's projection drain queued can still write.
+it('drains the restores a loaded parent queues while its projection drains', async () => {
+  const { root, rootThread, residency, drains, child, relate, loaded, settled } = fixture()
+  const parent = child(root.id, 'parent')
+  const late = child(parent.contextId, 'late')
+  relate(parent, rootThread, 'running')
+  await expect.poll(() => loaded(parent)).toBe(true)
+  drains.set('parent', () => relate(late, parent.thread, 'idle'))
+  await residency.drain()
+  expect(settled(late)).toBe(true)
+})
+
+// Catches a viewer receiving a child that was released while its redundant native handle closed.
+it('returns the current child when it releases while a redundant handle closes', async () => {
+  const { root, rootThread, residency, child, open, relate, loaded } = fixture()
+  const target = child(root.id, 'target')
+  relate(target, rootThread, 'running')
+  await expect.poll(() => loaded(target)).toBe(true)
+  let closeHandle!: () => void
+  const granted = { release: () => new Promise<void>((resolve) => (closeHandle = resolve)) }
+  const opened = open(target, rootThread, granted)()
+  relate(target, rootThread, 'idle')
+  closeHandle()
+  const current = await opened
+  expect(current).toBeDefined()
+  expect(await residency.resource(target.key)).toBe(current)
+})
+
+// Catches concurrent opens each retrying a failed release flush and releasing the same native handle twice, and an
+// automatic reopen's failure going unhandled.
+it('shares one retry of a failed release flush between opens and reports a repeated failure', async () => {
+  const { root, rootThread, attaches, reads, gates, gate, handleReleases, child, open, relate, loaded } = fixture()
+  const target = child(root.id, 'target')
+  const fail = (read: number) => {
+    const failed = Promise.reject(new Error('flush failed'))
+    failed.catch(() => {})
+    gates.set(`target:${read}`, failed)
+  }
+  relate(target, rootThread, 'running')
+  await expect.poll(() => loaded(target)).toBe(true)
+  fail(2)
+  relate(target, rootThread, 'idle')
+  await expect.poll(() => reads.get('target')).toBe(2)
+  fail(3)
+  relate(target, rootThread, 'running')
+  await expect.poll(() => reads.get('target')).toBe(3)
+  const finishRetry = gate('target:4')
+  const first = open(target, rootThread)()
+  const second = open(target, rootThread)()
+  await expect.poll(() => reads.get('target')).toBe(4)
+  finishRetry()
+  const reopened = await first
+  expect(reopened).toBeDefined()
+  expect(await second).toBe(reopened)
+  expect(attaches).toEqual(['target', 'target'])
+  expect(handleReleases.get('target')).toBe(1)
 })

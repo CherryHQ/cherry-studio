@@ -1086,11 +1086,13 @@ failed final persistence retains the resource and its unflushed output. `ChildRe
 record for Claude Code, Pi and Pi Durable. Each connection hands it every observed `Subagent`
 relationship; a child is finished when its latest relationship reports `work: 'idle'`, and none computes
 runtime-specific finished evidence. A finished child that no viewer, command or loaded nested child pins is
-flushed, marked settled on its context row and released, keeping only its origin and context ID. Opening its
-panel, messaging it or a relationship reporting it running attaches it again; a command keeps it loaded until
-a later relationship reports `idle`, or until the command's input is refused. A reopen leaves fully settled
-subtrees unloaded and restores unsettled idle children one at a time, each flushed and released before the
-next; the connection drain joins those restores, in-flight opens and release flushes. A detached or
+flushed, marked settled on its context row (only if it is still idle after the flush) and released, keeping
+only its origin and context ID. Opening its panel, messaging it or a relationship reporting it running attaches
+it again; that relationship also clears the marker, so a failed reopen is retried. A command keeps the child
+loaded until a later relationship reports `idle`, or until the command's input is refused. A reopen leaves
+fully settled subtrees unloaded and restores unsettled idle children one at a time, each flushed and released,
+with any parent release it sets off, before the next; the connection drain repeats until no restore, open or
+release flush remains, including those its projection drains set off. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.

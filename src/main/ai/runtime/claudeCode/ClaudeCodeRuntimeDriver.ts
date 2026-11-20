@@ -759,7 +759,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         return opened.value
       },
-      build: async (handle) => {
+      build: async (handle, hold) => {
         const relation = handle.claude.relation()
         let context = saved
         if (!context) {
@@ -780,6 +780,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         const childContext = context
         const access = handle
+        hold(relation)
         // The SDK stores the child prompt without forwarding it in the live conversation feed.
         await access.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
