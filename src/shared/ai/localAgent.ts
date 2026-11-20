@@ -67,6 +67,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     protocol: 'acp',
     executable: 'mcode',
     args: ['acp'],
+    // The registry ships the code-acp launcher, whose global install does not expose mcode.
+    npmPackage: '@minimax-ai/code',
     helpUrl: 'https://github.com/MiniMax-AI/minimax-code'
   },
   {

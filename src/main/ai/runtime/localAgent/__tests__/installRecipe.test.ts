@@ -50,6 +50,15 @@ describe('system agent install recipes', () => {
     })
   })
 
+  it('installs the MiniMax package that provides mcode instead of the registry launcher', () => {
+    const launcher = registry('minimax-code', { npx: { package: '@minimax-ai/code-acp@0.7.8' } })
+    expect(resolveInstallRecipe('minimax', launcher)).toEqual({
+      manager: 'npm',
+      package: '@minimax-ai/code',
+      args: ['install', '--global', '@minimax-ai/code']
+    })
+  })
+
   it('installs Kimi Code instead of the retired Kimi package in the ACP registry', () => {
     const expected = { manager: 'npm', package: '@moonshot-ai/kimi-code' }
     expect(resolveInstallRecipe('kimi', registry('kimi', { uvx: { package: 'kimi-cli' } }))).toMatchObject(expected)

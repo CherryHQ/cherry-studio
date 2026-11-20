@@ -30,7 +30,6 @@ const registrySchema = z.object({
 })
 const registryIds: Record<string, string> = {
   copilot: 'github-copilot-cli',
-  minimax: 'minimax-code',
   qwen: 'qwen-code'
 }
 

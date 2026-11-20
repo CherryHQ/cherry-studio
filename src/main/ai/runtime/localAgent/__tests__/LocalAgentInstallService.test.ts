@@ -313,9 +313,10 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   it.each([
     ['omp', '@oh-my-pi/pi-coding-agent'],
     ['snow', 'snow-ai'],
-    ['zcode', 'zcode-acp-server']
+    ['zcode', 'zcode-acp-server'],
+    ['minimax', '@minimax-ai/code']
   ])('installs %s even when the ACP registry is unavailable', async (id, packageName) => {
-    state.name = id === 'zcode' ? 'zcode-acp' : id
+    state.name = id === 'zcode' ? 'zcode-acp' : id === 'minimax' ? 'mcode' : id
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Registry unavailable')))
     expect(await new LocalAgentInstallService().install(id)).toMatchObject({ ok: true, reused: false })
     expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
