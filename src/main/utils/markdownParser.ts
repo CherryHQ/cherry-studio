@@ -46,6 +46,16 @@ function parseFrontmatterYaml(block: string): object {
   return parse(block.replace(/\r\n?/g, '\n'), YAML_PARSE_OPTIONS) as object
 }
 
+const FRONTMATTER_OPTIONS = {
+  engines: {
+    yaml: parseFrontmatterYaml,
+    // gray-matter merges built-in engines; overriding YAML alone leaves its eval engine enabled.
+    javascript: () => {
+      throw new Error('JavaScript frontmatter is not supported; use YAML or JSON')
+    }
+  }
+}
+
 // Skill markdown filename variants (case-insensitive support)
 const SKILL_MD_VARIANTS = ['SKILL.md', 'skill.md']
 
@@ -203,14 +213,10 @@ export async function parsePluginMetadata(
   const content = await fs.promises.readFile(filePath, 'utf8')
   const stats = await fs.promises.stat(filePath)
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- gray-matter may select another built-in engine; field readers validate the resulting values.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML and JSON fields are unvalidated metadata; readers check each selected field.
   let data: Record<string, unknown> = {}
   try {
-    const parsed = matter(content, {
-      engines: {
-        yaml: parseFrontmatterYaml
-      }
-    })
+    const parsed = matter(content, FRONTMATTER_OPTIONS)
     data = parsed.data ?? {}
   } catch (error: any) {
     logger.warn('Failed to parse plugin frontmatter, attempting recovery', {
@@ -362,14 +368,10 @@ export async function parseSkillMetadata(
     })
   }
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- gray-matter may select another built-in engine; field readers validate the resulting values.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML and JSON fields are unvalidated metadata; readers check each selected field.
   let data: Record<string, unknown> = {}
   try {
-    const parsed = matter(content, {
-      engines: {
-        yaml: parseFrontmatterYaml
-      }
-    })
+    const parsed = matter(content, FRONTMATTER_OPTIONS)
     data = parsed.data ?? {}
   } catch (error: any) {
     logger.warn('Failed to parse SKILL.md frontmatter, attempting recovery', {
@@ -417,7 +419,7 @@ export async function parseSkillMetadata(
   // Validate version and author
   const nestedMetadata =
     typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
-      ? (data.metadata as Record<string, unknown>) // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- Alternate engines may produce opaque metadata; version is checked as a string.
+      ? (data.metadata as Record<string, unknown>) // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- Nested YAML/JSON metadata is unvalidated; version is checked as a string.
       : undefined
   const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)

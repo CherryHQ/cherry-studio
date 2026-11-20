@@ -22,6 +22,8 @@ The ai-core `AiPlugin.transformParams` contract changes from partial patches to 
 
 Literal parameter names, including `__proto__`, must remain own data properties on ordinary objects during parameter routing. Data-property construction avoids invoking prototype setters; regression coverage protects this contract.
 
+Plugin and skill Markdown metadata supports YAML and JSON frontmatter. Disable gray-matter's built-in JavaScript engine, including its `js` alias, so parsing metadata cannot execute code. This removes support for JavaScript frontmatter; affected files must migrate their metadata to YAML or JSON. Preserve the existing loose YAML recovery and metadata defaults.
+
 ## Alternatives considered
 
 - Disable rules solely because existing code violates them: clear worthwhile rules before activation instead. Exclude `no-shape-in-symbol-names` for its low-value naming policy, not because of migration volume.
@@ -36,6 +38,7 @@ Literal parameter names, including `__proto__`, must remain own data properties 
 - AC4 — The remaining rule inventory and verification limits are reported accurately; documentation describes full adoption and the incomplete migration. (verification: docs gate)
 
 - AC5 — `transformParams` requires complete parameters, all repository callers are migrated, and contract tests verify chaining and omitted-field removal. Package documentation and a major Changeset explain the breaking migration. (verification: unit)
+- AC6 — Plugin and skill metadata parsing never evaluates JavaScript frontmatter or its aliases; YAML and JSON remain readable. Regression tests cover both entry points. (verification: unit)
 
 ## Risks
 

@@ -22,6 +22,8 @@ ai-core 的 `AiPlugin.transformParams` 契约从局部补丁改为完整参数�
 
 自定义参数分流必须将 `__proto__` 等保留属性名作为自有数据字段保留，并保持普通对象的原型。构造数据属性可避免调用原型 setter；回归测试保护这一契约。
 
+插件与技能的 Markdown 元数据支持 YAML 和 JSON frontmatter。禁用 gray-matter 内置的 JavaScript 引擎及其 `js` 别名，确保解析元数据不会执行代码。这会移除 JavaScript frontmatter 支持；受影响文件必须将元数据迁移为 YAML 或 JSON。保留现有的宽松 YAML 恢复与元数据默认值。
+
 ## 考虑过的替代方案
 
 - 仅因存量代码违规而关闭规则：有价值的规则应先清理再启用。排除 `no-shape-in-symbol-names` 是因为其命名策略价值有限，而非迁移量大。
@@ -36,6 +38,7 @@ ai-core 的 `AiPlugin.transformParams` 契约从局部补丁改为完整参数�
 - AC4 — 准确报告剩余规则盘点及验证边界；文档说明全量采用和迁移尚未完成的状态。 (verification: docs gate)
 
 - AC5 — `transformParams` 要求返回完整参数，仓库内调用方全部迁移，契约测试验证串联及省略字段的移除。包文档与 major Changeset 说明破坏性迁移。 (verification: unit)
+- AC6 — 插件与技能的元数据解析不求值 JavaScript frontmatter 及其别名；YAML 与 JSON 仍可读取。回归测试覆盖两个入口。 (verification: unit)
 
 ## 风险
 
