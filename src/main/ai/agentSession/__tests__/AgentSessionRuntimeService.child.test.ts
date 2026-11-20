@@ -415,6 +415,16 @@ it('stops after one retry and returns the saved child when every connection atte
   expect(f.connect.mock.calls.length).toBeLessThanOrEqual(2)
 })
 
+// Catches the retry re-priming an owner while the service is stopping, outside the close sweep.
+it('does not retry a failed connection once the service is shutting down', async () => {
+  const f = fixture()
+  ;(f.service as unknown as { isShuttingDown: boolean }).isShuttingDown = true
+  f.connect.mockImplementation(() => Promise.reject(new Error('startup failed')))
+  const view = await f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
+  expect(view).toMatchObject({ available: false })
+  expect(f.connect).toHaveBeenCalledTimes(1)
+})
+
 // Catches losing readable persisted output when the native owner cannot be opened.
 it('returns the saved read-only child when connection fails', async () => {
   const f = fixture()
