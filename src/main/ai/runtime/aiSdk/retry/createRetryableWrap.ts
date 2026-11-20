@@ -84,6 +84,11 @@ export interface CreateRetryableWrapOptions {
    * surfaces instead of re-issuing behind partial output.
    */
   streamContinuation?: boolean
+  /**
+   * The consumer's idle-chunk timeout (ms). While a resumed attempt is buffered the live retry status is the
+   * only chunk the consumer sees, so its heartbeat interval is kept well under this bound.
+   */
+  idleTimeoutMs?: number
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
@@ -92,6 +97,18 @@ export interface CreateRetryableWrapOptions {
 
 const RETRY_BASE_DELAY_MS = 1_000
 const BUFFERED_ACTIVITY_INTERVAL_MS = 5_000
+const MIN_BUFFERED_ACTIVITY_INTERVAL_MS = 100
+
+/** Heartbeat interval: 5s by default, shortened to a third of a smaller idle timeout so the timer never starves. */
+export function bufferedActivityIntervalMs(idleTimeoutMs?: number): number {
+  if (idleTimeoutMs === undefined || !Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0) {
+    return BUFFERED_ACTIVITY_INTERVAL_MS
+  }
+  return Math.min(
+    BUFFERED_ACTIVITY_INTERVAL_MS,
+    Math.max(MIN_BUFFERED_ACTIVITY_INTERVAL_MS, Math.floor(idleTimeoutMs / 3))
+  )
+}
 
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
@@ -238,6 +255,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     let retryActive = false
     let lastRetryEvent: RetryPartData | undefined
     let lastActivityEmit = 0
+    const activityIntervalMs = bufferedActivityIntervalMs(options.idleTimeoutMs)
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
@@ -400,7 +418,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               // idle-chunk timer sees activity while the resumed attempt is buffered.
               onBufferedActivity: () => {
                 const now = Date.now()
-                if (!retryActive || !lastRetryEvent || now - lastActivityEmit < BUFFERED_ACTIVITY_INTERVAL_MS) return
+                if (!retryActive || !lastRetryEvent || now - lastActivityEmit < activityIntervalMs) return
                 lastActivityEmit = now
                 options.onRetryEvent?.(lastRetryEvent)
               }

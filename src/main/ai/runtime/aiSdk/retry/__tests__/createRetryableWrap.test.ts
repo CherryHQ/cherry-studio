@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
-const { createRetryableWrap } = await import('../createRetryableWrap')
+const { bufferedActivityIntervalMs, createRetryableWrap } = await import('../createRetryableWrap')
 
 function makeApiError(statusCode: number): APICallError {
   return new APICallError({
@@ -588,6 +588,61 @@ it('does not replay a settled retry status from a late buffered-activity heartbe
     const settledAt = states.lastIndexOf('settled')
     expect(settledAt).toBeGreaterThan(-1)
     expect(states.slice(settledAt + 1)).not.toContain('retrying')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('shortens the buffered-activity heartbeat under a small idle timeout', () => {
+  expect(bufferedActivityIntervalMs()).toBe(5_000)
+  expect(bufferedActivityIntervalMs(120 * 60 * 1000)).toBe(5_000)
+  expect(bufferedActivityIntervalMs(1_600)).toBe(533)
+  expect(bufferedActivityIntervalMs(50)).toBe(100)
+})
+
+it('keeps emitting retry activity under a 1.6s idle timeout while a resumed attempt is buffered', async () => {
+  vi.useFakeTimers()
+  try {
+    const stamps: number[] = []
+    const replacement = new ReadableStream({
+      async start(controller) {
+        for (let i = 0; i < 30; i++) {
+          controller.enqueue({ type: 'text-delta', id: 'partial', delta: 'x' })
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+        controller.enqueue({
+          type: 'finish',
+          finishReason: { unified: 'stop', raw: 'stop' },
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        })
+        controller.close()
+      }
+    })
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce({ stream: replacement })
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      idleTimeoutMs: 1_600,
+      onRetryEvent: () => stamps.push(Date.now())
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    const gaps = stamps.slice(1).map((at, i) => at - stamps[i])
+    expect(gaps.length).toBeGreaterThan(0)
+    expect(Math.max(...gaps)).toBeLessThan(1_600)
   } finally {
     vi.useRealTimers()
   }

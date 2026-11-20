@@ -764,6 +764,7 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
+        ...(request.requestOptions?.timeout !== undefined ? { idleTimeoutMs: request.requestOptions.timeout } : {}),
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
