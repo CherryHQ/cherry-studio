@@ -27,6 +27,7 @@ export interface ToolGuardInteractionState {
 /** Read-only per-invocation snapshot; every field is resolved at fire-time by the caller. */
 export interface ToolGuardContext {
   readonly toolName: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Selected guards inspect their own fields; this shared context carries heterogeneous tool arguments without an SDK-specific schema.
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined
   readonly builtinRole: string | undefined

@@ -50,7 +50,7 @@ export const claudeWorkspaceRelocation: RuntimeWorkspaceRelocation = {
         configDirs.set(`${sessionId}:${checkpoint.runtimeSessionId}`, checkpoint.configDir)
       }
     }
-    const claudeHistory: Array<{ id: string; checkpoint: Record<string, unknown> | undefined }> = []
+    const claudeHistory: Array<{ id: string; checkpoint: RelocatedCheckpoint['checkpoint'] | undefined }> = []
     const checkpoints: RelocatedCheckpoint[] = []
     for (const row of history) {
       const checkpoint = row.checkpoint
