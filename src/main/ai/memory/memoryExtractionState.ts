@@ -34,6 +34,7 @@ const stateSchema = z.object({
   boundary: z.number(),
   pending: z.array(ticketSchema),
   submitted: z.record(z.string(), z.string()).default({}),
+  submittedAt: z.record(z.string(), z.number()).default({}),
   settled: z.array(z.string()),
   settledAt: z.number().default(0),
   batchEnd: z.string().optional(),
@@ -94,7 +95,10 @@ export function stageExtractionInvalidation(batchId: string, changes: readonly M
   db.insert(appStateTable)
     .values({
       key: INVALIDATION + batchId,
-      value: changes.map(({ path, before }) => ({ path, beforeHash: memoryHash(before) }))
+      value: {
+        boundary: Date.now(),
+        files: changes.map(({ path, before }) => ({ path, beforeHash: memoryHash(before) }))
+      }
     })
     .run()
 }
@@ -102,12 +106,28 @@ export function stageExtractionInvalidation(batchId: string, changes: readonly M
 export function finishExtractionInvalidation(batchId: string | null, changed: boolean): void {
   const db = application.get('DbService').getDb()
   db.transaction((tx) => {
-    if (changed) invalidateExtractions()
+    const intent = batchId ? read(INVALIDATION + batchId) : undefined
+    if (changed)
+      invalidateExtractions(
+        undefined,
+        intent && !Array.isArray(intent) ? z.object({ boundary: z.number() }).parse(intent).boundary : undefined
+      )
     if (batchId)
       tx.delete(appStateTable)
         .where(eq(appStateTable.key, INVALIDATION + batchId))
         .run()
   })
+}
+
+export function hasPendingExtractionInvalidation(): boolean {
+  return !!application
+    .get('DbService')
+    .getDb()
+    .select({ key: appStateTable.key })
+    .from(appStateTable)
+    .where(like(appStateTable.key, INVALIDATION + '%'))
+    .limit(1)
+    .get()
 }
 
 export async function reconcileExtractionInvalidations(): Promise<void> {
@@ -119,7 +139,9 @@ export async function reconcileExtractionInvalidations(): Promise<void> {
     .where(like(appStateTable.key, INVALIDATION + '%'))
     .all()
   for (const intent of intents) {
-    const files = z.array(z.object({ path: z.string(), beforeHash: z.string().nullable() })).parse(intent.value)
+    const files = z
+      .array(z.object({ path: z.string(), beforeHash: z.string().nullable() }))
+      .parse(Array.isArray(intent.value) ? intent.value : z.object({ files: z.unknown() }).parse(intent.value).files)
     let changed = false
     for (const file of files) {
       assertMemoryTarget(file.path)
@@ -195,6 +217,7 @@ export function recordExtractionSubmission(
       outcome: 'pending'
     })
   state.entityKey = entityKey
+  state.submittedAt[messageId] ??= Date.now()
   state.submitted[messageId] ??= inputHash
   writeExtractionState(key, state)
 }
@@ -245,6 +268,7 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
     }
     state.pending.push({ ...ticket, receivedAt: Date.now() })
   }
+  delete state.submittedAt[ticket.messageId]
   delete state.submitted[ticket.messageId]
   state.entityKey = ticket.entityKey
   state.outcome = 'pending'
@@ -385,22 +409,33 @@ export function skipExtractionTurns(
   return removed.length
 }
 
-export function invalidateExtractions(sourceKey?: string): number {
-  const boundary = Date.now()
+export function invalidateExtractions(sourceKey?: string, operationAt?: number): number {
+  const boundary = Math.max(
+    operationAt ?? Date.now(),
+    Number(read(sourceKey ? `${BOUNDARY}:${sourceKey}` : BOUNDARY) ?? 0)
+  )
   write(sourceKey ? `${BOUNDARY}:${sourceKey}` : BOUNDARY, boundary)
   for (const { key, state } of extractionStates()) {
     if (sourceKey && key !== sourceKey && state.entityKey !== sourceKey) continue
-    settle(state, state.pending)
-    state.submitted = {}
-    state.pending = []
-    state.recent = []
+    const keep = (ticket: ExtractionTicket) => operationAt !== undefined && ticket.createdAt > boundary
+    settle(
+      state,
+      state.pending.filter((ticket) => !keep(ticket))
+    )
+    for (const id of Object.keys(state.submitted)) {
+      if (operationAt !== undefined && state.submittedAt[id] > boundary) continue
+      delete state.submitted[id]
+      delete state.submittedAt[id]
+    }
+    state.pending = state.pending.filter(keep)
+    state.recent = state.recent.filter(keep)
     state.generation++
     state.retryAt = 0
     state.attempts = 0
     state.prepared = undefined
     state.batchEnd = undefined
     state.boundary = boundary
-    state.outcome = 'cancelled'
+    state.outcome = state.pending.length ? 'pending' : 'cancelled'
     writeExtractionState(key, state)
   }
   return boundary

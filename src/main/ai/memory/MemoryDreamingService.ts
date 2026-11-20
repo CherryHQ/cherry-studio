@@ -41,6 +41,7 @@ import {
   deferExtraction,
   enqueueExtraction,
   extractionBoundary,
+  hasPendingExtractionInvalidation,
   invalidateExtractions,
   readExtractionState,
   recordExtractionSubmission,
@@ -269,12 +270,16 @@ export class MemoryDreamingService extends BaseService {
         assertCaller()
         this.assertScope(scope)
         if (!application.get('PreferenceService').get(GENERATION_KEY)) throw new DreamingError('unavailable')
+        if (!(await this.reconcileExtraction())) throw new DreamingError('unavailable')
         const initial = readExtractionSource(range.source)
-        const minimum = Math.max(
-          boundary,
-          this.sourceBoundaries.get(initial.entityKey) ?? 0,
-          this.sourceBoundaries.get(initial.key) ?? 0
-        )
+        const currentBoundary = () =>
+          Math.max(
+            boundary,
+            extractionBoundary(),
+            extractionBoundary(initial.key),
+            extractionBoundary(initial.entityKey)
+          )
+        const minimum = currentBoundary()
         const assertActive = (): undefined => {
           assertCaller()
           this.assertScope(scope)
@@ -286,20 +291,26 @@ export class MemoryDreamingService extends BaseService {
             readDreamingState(scope).generation !== generation ||
             !application.get('PreferenceService').get(GENERATION_KEY) ||
             this.foregroundBusy() ||
-            Math.max(
-              boundary,
-              this.sourceBoundaries.get(initial.entityKey) ?? 0,
-              this.sourceBoundaries.get(initial.key) ?? 0
-            ) !== minimum
+            hasPendingExtractionInvalidation() ||
+            currentBoundary() !== minimum
           )
             throw new DOMException('Memory preview invalidated', 'AbortError')
           return undefined
         }
         assertActive()
-        const source = readExtractionRange(range, minimum)
+        const readRange = () => {
+          const state = readExtractionState(initial.key)
+          const admissions = new Map(
+            [...(state?.recent ?? []), ...(state?.pending ?? [])]
+              .filter((item) => item.inputHash)
+              .map((item) => [item.input.responseId, item])
+          )
+          return readExtractionRange(range, minimum, false, undefined, admissions)
+        }
+        const source = readRange()
         const assertCurrent = (): undefined => {
           assertActive()
-          if (readExtractionRange(range, minimum).hash !== source.hash) throw new DreamingError('conflict')
+          if (readRange().hash !== source.hash) throw new DreamingError('conflict')
           return undefined
         }
         const ticket: ExtractionTicket = {
@@ -339,6 +350,7 @@ export class MemoryDreamingService extends BaseService {
             files.map(({ path, hash, content }) => ({ path, hash, content })),
             controller.signal,
             async () => {
+              if (!(await this.reconcileExtraction())) throw new DreamingError('unavailable')
               await session!.validateModelReads()
               return assertCurrent()
             }
@@ -377,6 +389,10 @@ export class MemoryDreamingService extends BaseService {
       this.queue.runExclusive(async () => {
         ctx.signal.throwIfAborted()
         if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        const reconciled =
+          application.get('PreferenceService').get(GENERATION_KEY) && (await this.reconcileExtraction())
+        ctx.signal.throwIfAborted()
+        if (this.stopped || this.foregroundBusy()) return { deferred: true }
         const states = new Map(readDreamingStates().map((state) => [memoryScopeKey(state.scope), state]))
         const scopes: MemoryScope[] = [
           { kind: 'shared' },
@@ -387,13 +403,13 @@ export class MemoryDreamingService extends BaseService {
           application.get('PreferenceService').get(GENERATION_KEY) &&
           ![...states.values()].some((state) => manualReady(state, now))
         ) {
-          const pending = (await this.reconcileExtraction()) && readyExtraction()
+          const pending = reconciled && readyExtraction()
           if (pending) return this.extract(pending, ctx)
         }
         const automatic = application.get('PreferenceService').get(AUTO_KEY)
         const candidates = scopes
           .map((scope) => states.get(memoryScopeKey(scope)) ?? readDreamingState(scope))
-          .filter((state) => state.manual || (automatic && !state.cancelled))
+          .filter((state) => state.manual || (automatic && !state.cancelled && (state.scanRetryAt ?? 0) <= now))
         const priority = (state: DreamingState) => {
           if (manualReady(state, now)) return 0
           const entry = state.files[MEMORY_ENTRY]
@@ -936,6 +952,7 @@ export class MemoryDreamingService extends BaseService {
     this.active = { scope, controller }
     const revisions = new Map<string, number>()
     const attempts = new Map<string, number>()
+    let readingFiles = false
     let attempted = false
     let inputs: MemoryRead[] = []
     const assertCurrent = (): undefined => {
@@ -967,7 +984,9 @@ export class MemoryDreamingService extends BaseService {
       }
       if (scope.kind === 'private' && !(await application.get('MemoryService').prepareAgent(scope.agentId)))
         throw new DreamingError('migration')
+      readingFiles = true
       const paths = await session.list()
+      readingFiles = false
       const state = readDreamingState(scope)
       const topics = [...new Set([...paths, ...Object.keys(state.files)])]
         .filter((target) => target !== MEMORY_ENTRY)
@@ -980,7 +999,9 @@ export class MemoryDreamingService extends BaseService {
       )
       const selected = [MEMORY_ENTRY, ...rotated.slice(0, 9)]
       for (const target of selected) {
+        readingFiles = true
         const read = await session.read(target)
+        readingFiles = false
         const latest = readDreamingState(scope)
         observeMemory(latest, read, Date.now())
         latest.lastScanAt = Date.now()
@@ -1138,6 +1159,7 @@ export class MemoryDreamingService extends BaseService {
           latest.cancelled = true
         }
         latest.lastScanAt = Date.now()
+        if (!interrupted && readingFiles) latest.scanRetryAt = Date.now() + 60_000
         latest.status = interrupted ? (latest.manual ? 'queued' : 'cancelled') : 'failed'
         latest.reason =
           error instanceof DreamingError

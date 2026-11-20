@@ -459,9 +459,14 @@ describe('lifecycle memory owner', () => {
     }
   )
 
-  it.each([false, true])(
-    'baselines pre-rollout history only on a pre-feature database (preview=%s)',
-    async (preview) => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true]
+  ])(
+    'baselines pre-rollout history only on a pre-feature database (preview=%s, detached=%s)',
+    async (preview, detached) => {
       MockApplicationUtils.setService('MemoryService', service)
       const { topicId, assistantId, replyId } = seedAssistantTopic()
       dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, replyId)).run()
@@ -474,6 +479,7 @@ describe('lifecycle memory owner', () => {
           .insert(appStateTable)
           .values({ key: 'memory:runtime:other', value: { version: 1, protection: null } })
           .run()
+      if (detached) dbh.db.update(topicTable).set({ assistantId: null }).where(eq(topicTable.id, topicId)).run()
       new SharedMemoryRolloutSeeder().run(dbh.db)
       const editor = service.open(authority())
       await editor.entry()
@@ -482,7 +488,7 @@ describe('lifecycle memory owner', () => {
       editor.dispose()
       const run = memoryRuntimeFetch(
         async () => Response.json({}),
-        (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
+        (signal) => runtimeMemoryAuthorities({ topicId, assistantId: detached ? undefined : assistantId }, signal)
       )
       const request = run('https://test.invalid')
       if (preview) await expect(request).rejects.toThrow('isolation')

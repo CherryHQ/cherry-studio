@@ -305,7 +305,11 @@ describe('memory organization lifecycle and commit fences', () => {
     return dreaming.execute(job())
   }
 
-  function conversation(enabled = true, text = 'Please remember: I prefer concise answers.') {
+  function conversation(
+    enabled = true,
+    text = 'Please remember: I prefer concise answers.',
+    answer = 'Assistant-only unsupported claim'
+  ) {
     const assistantId = randomUUID()
     const topicId = randomUUID()
     dbh.db
@@ -343,7 +347,7 @@ describe('memory organization lifecycle and commit fences', () => {
         parentId: user.id,
         role: 'assistant',
         status: 'success',
-        data: { parts: [{ type: 'text', text: 'Assistant-only unsupported claim' }] },
+        data: { parts: [{ type: 'text', text: answer }] },
         messageSnapshot: {
           id: assistantId,
           name: 'Memory assistant',
@@ -360,9 +364,10 @@ describe('memory organization lifecycle and commit fences', () => {
 
   function previewFixture(
     first = '这台 Windows 机器缺少 ATL，系统语音组件编译不了。',
-    next = '以后本机默认跳过这个组件的编译，其他构建照常。'
+    next = '以后本机默认跳过这个组件的编译，其他构建照常。',
+    answer?: string
   ) {
-    const chat = conversation(true, first)
+    const chat = conversation(true, first, answer)
     const [user] = dbh.db
       .insert(messageTable)
       .values({
@@ -387,7 +392,17 @@ describe('memory organization lifecycle and commit fences', () => {
       .returning()
       .all()
     dreaming.authorizeSubmission('assistant', chat.topicId, chat.assistantId)?.(user.id, user.data.parts ?? [])
+    const admit = () => {
+      chat.emit()
+      chats.fire({
+        topicId: chat.topicId,
+        turnId: response.id,
+        completedAt: Date.now(),
+        memoryResponseIds: [response.id]
+      })
+    }
     return {
+      admit,
       chat,
       range: {
         source: { kind: 'assistant' as const, topicId: chat.topicId, responseId: response.id },
@@ -750,8 +765,9 @@ describe('memory organization lifecycle and commit fences', () => {
       else if (action === 'clear') expect(file.content).not.toContain('Withdrawn')
       else expect(file.content).toBe('Withdrawn')
       if (action === 'recovery') {
+        batch.append(1)
         await dreaming.execute(job())
-        expect(readExtractionState(batch.key)?.pending).toHaveLength(0)
+        expect(readExtractionState(batch.key)?.pending.map((turn) => turn.messageId)).toEqual([batch.users[8]])
         expect(generate).not.toHaveBeenCalled()
       }
       await dreaming._doStop()
@@ -768,7 +784,9 @@ describe('memory organization lifecycle and commit fences', () => {
         expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
         await dreaming.execute(job())
       }
-      expect(readExtractionState(batch.key)?.pending).toHaveLength(action === 'unchanged' ? 8 : 0)
+      expect(readExtractionState(batch.key)?.pending).toHaveLength(
+        action === 'unchanged' ? 8 : action === 'recovery' ? 1 : 0
+      )
       if (action !== 'unchanged') {
         await dreaming.execute(job())
         expect(generate).not.toHaveBeenCalled()
@@ -1127,7 +1145,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it.each([true, false])('blocks preview for forgotten source (known=%s)', async (known) => {
-    const { chat, range } = previewFixture()
+    const { chat, range, admit } = previewFixture()
+    admit()
     await save('')
     const content = serializeMemoryEntries([
       {
@@ -1154,7 +1173,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('filters actual candidate input and rejects a result after scope state changes', async () => {
-    const { range } = previewFixture()
+    const { range, admit } = previewFixture()
+    admit()
     await save('')
     const target = application.getPath('feature.memory.data', 'MEMORY.md')
     const entries = [
@@ -1182,8 +1202,21 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(await readFile(target, 'utf8')).toContain('forgotten')
   })
 
+  it('requires completed admissions for each turn of an explicit preview after restart', async () => {
+    const { chat, range, admit } = previewFixture()
+    await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
+    admit()
+    extractionState.invalidateExtractions(`assistant/${chat.assistantId}`)
+    await dreaming._doStop()
+    dreaming = new MemoryDreamingService()
+    await dreaming._doInit()
+    await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('previews a complete multi-turn candidate with topic memory without saving, advancing a cursor or reading a sibling', async () => {
-    const { chat, range } = previewFixture()
+    const { chat, range, admit } = previewFixture()
+    admit()
     await save('已有入口')
     await save('本机仍然执行其他构建。', '.memories/build.md')
     const source = readExtractionRange(range, 0)
@@ -1244,7 +1277,8 @@ describe('memory organization lifecycle and commit fences', () => {
     'unknown-memory',
     'wrong-memory-quote'
   ])('rejects unsupported preview evidence: %s', async (kind) => {
-    const { range } = previewFixture()
+    const { range, admit } = previewFixture()
+    admit()
     generate.mockImplementationOnce(async (input) => {
       const output = candidateReply(input)
       const evidence = output.candidates[0].evidence[0]
@@ -1268,7 +1302,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('rejects an unauthorized caller before reading sources or calling the model', async () => {
-    const { range } = previewFixture()
+    const { range, admit } = previewFixture()
+    admit()
     await expect(
       dreaming.previewExtraction(range, () => {
         throw new Error('denied')
@@ -1278,7 +1313,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('does not revisit a range before the clear boundary, even on a manual preview', async () => {
-    const { range } = previewFixture()
+    const { range, admit } = previewFixture()
+    admit()
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
     await session.clear((await session.previewClear()).token, approve)
     await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toMatchObject({ reason: 'unavailable' })
@@ -1286,7 +1322,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('rejects a selected start on a sibling branch without sending any text to the model', async () => {
-    const { chat, range } = previewFixture()
+    const { chat, range, admit } = previewFixture()
+    admit()
     const [sibling] = dbh.db
       .insert(messageTable)
       .values({
@@ -1305,23 +1342,9 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('splits a selected range into overlapping complete messages and checks every selected message', async () => {
-    const { chat, range } = previewFixture()
-    dbh.db
-      .update(messageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'a'.repeat(7000) }] } })
-      .where(eq(messageTable.id, chat.user.id))
-      .run()
-    dbh.db
-      .update(messageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'b'.repeat(7000) }] } })
-      .where(eq(messageTable.id, chat.response.id))
-      .run()
-    const [last] = dbh.db.select().from(messageTable).where(eq(messageTable.id, range.source.responseId)).all()
-    dbh.db
-      .update(messageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'c'.repeat(7000) }] } })
-      .where(eq(messageTable.id, last.parentId!))
-      .run()
+    const { chat, range, admit } = previewFixture('a'.repeat(7000), 'c'.repeat(7000), 'b'.repeat(7000))
+    admit()
+    const last = dbh.db.select().from(messageTable).where(eq(messageTable.id, range.source.responseId)).get()!
     generate.mockResolvedValue({
       text: JSON.stringify({ outcome: 'no_eligible', reason: 'Filler text only', candidates: [] }),
       finishReason: 'stop'
@@ -2026,6 +2049,8 @@ describe('memory organization lifecycle and commit fences', () => {
       .all()
     dbh.db.update(agentSessionTable).set({ activeNodeId: response.id }).where(eq(agentSessionTable.id, sessionId)).run()
     if (kind.startsWith('preview')) {
+      dreaming.authorizeSubmission('agent', sessionId, agentId)?.(user.id, user.data.parts ?? [])
+      dreaming['captureExtraction']({ kind: 'agent', sessionId, userMessageId: user.id, responseId: response.id })
       generate.mockImplementationOnce(async (input) => {
         const message = JSON.parse(input.prompt!).messages[0]
         return {

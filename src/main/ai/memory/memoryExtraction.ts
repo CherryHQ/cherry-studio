@@ -224,7 +224,7 @@ export function readExtractionRange(
       leftContextIncomplete = true
       break
     }
-    if (recent) rows.set(row.id, row)
+    if (recent || admissions) rows.set(row.id, row)
     const text = row.data.parts
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
@@ -243,6 +243,22 @@ export function readExtractionRange(
     })
     if (row.id === range.fromMessageId) {
       if (row.role !== 'user') throw new DreamingError('unavailable')
+      if (!recent && admissions) {
+        for (let index = 0; index < messages.length; index += 2) {
+          const user = messages[index]
+          const reply = messages[index + 1]
+          const responseId = reply?.id ?? range.source.responseId
+          const ticket = admissions.get(responseId)
+          const hash = reply ? turnHash(rows.get(user.id)!, rows.get(reply.id)!, source.entityKey) : source.hash
+          if (
+            user.role !== 'user' ||
+            (reply && (reply.role !== 'assistant' || reply.parentId !== user.id)) ||
+            ticket?.messageId !== user.id ||
+            ticket.hash !== hash
+          )
+            throw new InvalidExtractionSource()
+        }
+      }
       return result()
     }
     id = row.parentId

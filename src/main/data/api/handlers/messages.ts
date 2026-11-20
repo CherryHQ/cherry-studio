@@ -7,6 +7,8 @@
  * - Message CRUD operations
  */
 
+import { z } from 'zod'
+
 import { application } from '@application'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
@@ -91,7 +93,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
   '/messages/:id/siblings': {
     POST: async ({ params, body }) => {
-      const { resend, ...data } = body
+      const { resend, ...data } = MessageDataSchema.and(z.looseObject({ resend: z.boolean().optional() })).parse(body)
       const parsed = MessageDataSchema.parse(data)
       const sibling = messageService.createSibling(params.id, parsed)
       const assistantId = resend === true && topicService.getById(sibling.topicId).assistantId
