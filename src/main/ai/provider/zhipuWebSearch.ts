@@ -1,3 +1,9 @@
+interface ZhipuRequestBody {
+  tools?: Iterable<unknown> | null
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve pre-serialization provider fields and arbitrary tool-schema values without interpreting them.
+  [key: string]: unknown
+}
+
 /**
  * BigModel's built-in web search is a `tools`-array entry
  * (`{type:'web_search', web_search:{...}}`), which the openai-compatible wire
@@ -7,7 +13,7 @@
  * providerOptions, and this request-body transform moves it into `tools`,
  * preserving any function tools already present.
  */
-export function transformZhipuRequestBody(args: Record<string, any>): Record<string, any> {
+export function transformZhipuRequestBody(args: ZhipuRequestBody): ZhipuRequestBody {
   const { web_search: webSearch, ...rest } = args
   if (!webSearch || typeof webSearch !== 'object') return args
 

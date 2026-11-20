@@ -6,7 +6,8 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
  * data URI. Keep the workaround scoped to multi-image messages so single-image
  * requests retain their existing wire format.
  */
-export function transformLmStudioRequestBody(args: Record<string, any>): Record<string, any> {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This hook runs before JSON serialization; unrelated SDK options and tool-schema values remain opaque.
+export function transformLmStudioRequestBody(args: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(args.messages)) return args
 
   let changed = false
