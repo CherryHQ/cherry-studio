@@ -210,6 +210,7 @@
   "agent.memory.save_failed": "Nie udało się zapisać",
   "agent.memory.saved": "Zapisano",
   "agent.memory.title": "Pamięć agenta",
+  "agent.memory.too_long": "Za długi, aby zapisać: {{current}} / {{max}} znaków. Skróć tekst lub otwórz folder, aby edytować plik.",
   "agent.memory.truncated": "Wyświetlono tylko {{part}}",
   "agent.memory.truncated_head": "pierwszy 1 MB",
   "agent.memory.truncated_readonly": "Ten plik ma rozmiar większy niż 1 MB i jest tutaj tylko do odczytu. Otwórz folder, aby go edytować.",

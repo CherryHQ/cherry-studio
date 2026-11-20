@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Không thể lưu",
   "agent.memory.saved": "Đã lưu",
   "agent.memory.title": "Bộ nhớ Agent",
+  "agent.memory.too_long": "Quá dài để lưu: {{current}} / {{max}} ký tự. Hãy rút ngắn văn bản hoặc mở thư mục để chỉnh sửa tệp.",
   "agent.memory.truncated": "Chỉ hiển thị {{part}}",
   "agent.memory.truncated_head": "1 MB đầu tiên",
   "agent.memory.truncated_readonly": "Tệp này lớn hơn 1 MB và chỉ đọc tại đây. Mở thư mục để chỉnh sửa.",

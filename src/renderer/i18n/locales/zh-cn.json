@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "保存失败",
   "agent.memory.saved": "已保存",
   "agent.memory.title": "智能体记忆",
+  "agent.memory.too_long": "内容过长，无法保存：{{current}} / {{max}} 个字符。请缩短文本，或打开文件夹后编辑文件。",
   "agent.memory.truncated": "仅显示{{part}}",
   "agent.memory.truncated_head": "前 1 MB",
   "agent.memory.truncated_readonly": "文件超过 1 MB，只能查看；请打开文件夹后编辑。",

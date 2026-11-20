@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Failed to save",
   "agent.memory.saved": "Saved",
   "agent.memory.title": "Agent Memory",
+  "agent.memory.too_long": "Too long to save: {{current}} / {{max}} characters. Shorten the text, or open the folder to edit the file.",
   "agent.memory.truncated": "Only the {{part}} is shown",
   "agent.memory.truncated_head": "first 1 MB",
   "agent.memory.truncated_readonly": "This file is larger than 1 MB and is read-only here. Open the folder to edit it.",

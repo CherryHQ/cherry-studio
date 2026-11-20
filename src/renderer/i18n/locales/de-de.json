@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Speichern fehlgeschlagen",
   "agent.memory.saved": "Gespeichert",
   "agent.memory.title": "Agent-Speicher",
+  "agent.memory.too_long": "Zu lang zum Speichern: {{current}} / {{max}} Zeichen. Kürze den Text oder öffne den Ordner, um die Datei zu bearbeiten.",
   "agent.memory.truncated": "Nur {{part}} wird angezeigt",
   "agent.memory.truncated_head": "die ersten 1 MB",
   "agent.memory.truncated_readonly": "Diese Datei ist größer als 1 MB und hier schreibgeschützt. Öffne den Ordner, um sie zu bearbeiten.",

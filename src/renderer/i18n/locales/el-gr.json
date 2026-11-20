@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Αποτυχία αποθήκευσης",
   "agent.memory.saved": "Αποθηκεύτηκε",
   "agent.memory.title": "Μνήμη Agent",
+  "agent.memory.too_long": "Πολύ μεγάλο για αποθήκευση: {{current}} / {{max}} χαρακτήρες. Σύντμησε το κείμενο ή άνοιξε τον φάκελο για να επεξεργαστείς το αρχείο.",
   "agent.memory.truncated": "Εμφανίζεται μόνο {{part}}",
   "agent.memory.truncated_head": "το πρώτο 1 MB",
   "agent.memory.truncated_readonly": "Το αρχείο είναι μεγαλύτερο από 1 MB και είναι μόνο για ανάγνωση εδώ. Άνοιξε τον φάκελο για επεξεργασία.",

@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "儲存失敗",
   "agent.memory.saved": "已儲存",
   "agent.memory.title": "智能體記憶",
+  "agent.memory.too_long": "內容過長，無法儲存：{{current}} / {{max}} 個字元。請縮短文字，或開啟資料夾後編輯檔案。",
   "agent.memory.truncated": "僅顯示{{part}}",
   "agent.memory.truncated_head": "前 1 MB",
   "agent.memory.truncated_readonly": "檔案超過 1 MB，在這裡僅供檢視；請開啟資料夾後編輯。",

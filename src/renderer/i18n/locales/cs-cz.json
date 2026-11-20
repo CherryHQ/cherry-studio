@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Uložení se nezdařilo",
   "agent.memory.saved": "Uloženo",
   "agent.memory.title": "Paměť agenta",
+  "agent.memory.too_long": "Příliš dlouhé k uložení: {{current}} / {{max}} znaků. Zkraťte text nebo soubor upravte po otevření složky.",
   "agent.memory.truncated": "Zobrazeno pouze {{part}}",
   "agent.memory.truncated_head": "prvních 1 MB",
   "agent.memory.truncated_readonly": "Tento soubor je větší než 1 MB a zde je jen pro čtení. Pro úpravu otevřete složku.",

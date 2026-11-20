@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "บันทึกไม่สำเร็จ",
   "agent.memory.saved": "บันทึกแล้ว",
   "agent.memory.title": "ความจำของ Agent",
+  "agent.memory.too_long": "ยาวเกินกว่าจะบันทึกได้: {{current}} / {{max}} อักขระ ย่อข้อความให้สั้นลง หรือเปิดโฟลเดอร์เพื่อแก้ไขไฟล์",
   "agent.memory.truncated": "แสดงเฉพาะ {{part}}",
   "agent.memory.truncated_head": "1 MB แรก",
   "agent.memory.truncated_readonly": "ไฟล์นี้มีขนาดเกิน 1 MB และเป็นแบบอ่านอย่างเดียวที่นี่ เปิดโฟลเดอร์เพื่อแก้ไข",

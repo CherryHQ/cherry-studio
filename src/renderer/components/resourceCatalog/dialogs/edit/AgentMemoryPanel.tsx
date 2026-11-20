@@ -8,6 +8,7 @@ import { StaticMarkdown } from '@renderer/components/markdown'
 import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
 
 const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
@@ -94,6 +95,7 @@ export function AgentMemoryPanel({
   const readOnlyReason = selected ? readOnlyReasonOf(selected) : null
   const canEdit = !!selected && readOnlyReason === null
   const shownContent = canEdit && draft ? draft.text : (selected?.content ?? '')
+  const isTooLong = isDirty && shownContent.length > AGENT_MEMORY_MAX_WRITE_CHARS
 
   // A file page starts from the saved text; its draft never follows the user back to the list.
   useEffect(() => setDraft(null), [file])
@@ -282,6 +284,14 @@ export function AgentMemoryPanel({
         value={shownContent}
         onChange={changeDraft}
         placeholder={t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
+        error={
+          isTooLong
+            ? t('agent.memory.too_long', {
+                current: shownContent.length.toLocaleString(i18n.resolvedLanguage),
+                max: AGENT_MEMORY_MAX_WRITE_CHARS.toLocaleString(i18n.resolvedLanguage)
+              })
+            : undefined
+        }
         actions={
           <>
             {isDirty ? (
@@ -289,7 +299,12 @@ export function AgentMemoryPanel({
                 <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={cancelEdit}>
                   {t('common.cancel')}
                 </Button>
-                <Button type="button" size="sm" loading={saving} disabled={saving} onClick={() => void save()}>
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={saving}
+                  disabled={saving || isTooLong}
+                  onClick={() => void save()}>
                   {t('common.save')}
                 </Button>
               </>

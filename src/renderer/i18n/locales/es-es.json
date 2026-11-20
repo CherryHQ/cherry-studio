@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "No se pudo guardar",
   "agent.memory.saved": "Guardado",
   "agent.memory.title": "Memoria del Agent",
+  "agent.memory.too_long": "Demasiado largo para guardar: {{current}} / {{max}} caracteres. Acorta el texto o abre la carpeta para editar el archivo.",
   "agent.memory.truncated": "Solo se muestra {{part}}",
   "agent.memory.truncated_head": "el primer 1 MB",
   "agent.memory.truncated_readonly": "Este archivo supera 1 MB y aquí es de solo lectura. Abre la carpeta para editarlo.",

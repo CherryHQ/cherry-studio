@@ -172,7 +172,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     resetPreviewKey,
     minHeight,
     maxHeight,
-    editorLabel
+    editorLabel,
+    error
   }: {
     actions?: ReactNode
     inlineActions?: ReactNode
@@ -186,6 +187,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     minHeight?: string
     maxHeight?: string
     editorLabel?: string
+    error?: string
   }) => (
     <div>
       <div>
@@ -203,6 +205,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
       />
       <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
+      {error ? <p role="alert">{error}</p> : null}
     </div>
   )
 }))
@@ -2938,6 +2941,22 @@ describe('Agent configuration memory', () => {
         expectedVersion: 'v2'
       })
     )
+  })
+
+  // Catches Save submitting a draft the write route rejects for length, which only surfaced as a generic failure.
+  it('blocks saving a draft longer than the write limit and says why', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
+
+    fireEvent.change(editor, { target: { value: 'a'.repeat(1_000_001) } })
+    expect(screen.getByRole('alert')).toHaveTextContent('1,000,001 / 1,000,000')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+    fireEvent.change(editor, { target: { value: 'a'.repeat(1_000_000) } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
   // Catches Copy putting the saved revision on the clipboard while the editor shows an unsaved draft.

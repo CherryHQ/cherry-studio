@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
+
 import { defineRoute } from '../define'
 import { ImageBytesSchema } from './entityImage'
 
@@ -35,9 +37,6 @@ export const AgentMemorySnapshotSchema = z.object({
 export type AgentMemorySnapshot = z.infer<typeof AgentMemorySnapshotSchema>
 
 const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) })
-
-/** The editor caps a single write well below the 1 MB viewer slice (UTF-8 bytes can exceed char count). */
-export const AGENT_MEMORY_MAX_WRITE_CHARS = 1_000_000
 
 /** An Agent's prompt-relevant settings as currently edited; `agentId` is absent while creating one. */
 export const AgentSystemPromptDraftSchema = z.strictObject({

@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Salvarea a eșuat",
   "agent.memory.saved": "Salvat",
   "agent.memory.title": "Memoria Agentului",
+  "agent.memory.too_long": "Prea lung pentru a fi salvat: {{current}} / {{max}} caractere. Scurtează textul sau deschide folderul pentru a edita fișierul.",
   "agent.memory.truncated": "Se afișează doar {{part}}",
   "agent.memory.truncated_head": "primul 1 MB",
   "agent.memory.truncated_readonly": "Acest fișier depășește 1 MB și este doar pentru citire aici. Deschide folderul pentru a-l edita.",

@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "Échec de l'enregistrement",
   "agent.memory.saved": "Enregistré",
   "agent.memory.title": "Mémoire de l'Agent",
+  "agent.memory.too_long": "Trop long pour être enregistré : {{current}} / {{max}} caractères. Raccourcissez le texte ou ouvrez le dossier pour modifier le fichier.",
   "agent.memory.truncated": "Seul {{part}} est affiché",
   "agent.memory.truncated_head": "le premier 1 Mo",
   "agent.memory.truncated_readonly": "Ce fichier dépasse 1 Mo et est en lecture seule ici. Ouvrez le dossier pour le modifier.",

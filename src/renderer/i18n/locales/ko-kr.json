@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "저장하지 못했습니다",
   "agent.memory.saved": "저장됨",
   "agent.memory.title": "에이전트 메모리",
+  "agent.memory.too_long": "너무 길어서 저장할 수 없습니다: {{current}} / {{max}}자. 텍스트를 줄이거나 폴더를 열어 파일을 편집하세요.",
   "agent.memory.truncated": "{{part}}만 표시됩니다",
   "agent.memory.truncated_head": "처음 1 MB",
   "agent.memory.truncated_readonly": "이 파일은 1 MB보다 커서 여기서는 읽기 전용입니다. 편집하려면 폴더를 여세요.",

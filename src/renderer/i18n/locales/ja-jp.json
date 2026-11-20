@@ -208,6 +208,7 @@
   "agent.memory.save_failed": "保存に失敗しました",
   "agent.memory.saved": "保存しました",
   "agent.memory.title": "Agent メモリ",
+  "agent.memory.too_long": "長すぎるため保存できません：{{current}} / {{max}} 文字。テキストを短くするか、フォルダーを開いてファイルを編集してください。",
   "agent.memory.truncated": "{{part}}のみ表示しています",
   "agent.memory.truncated_head": "先頭 1 MB",
   "agent.memory.truncated_readonly": "このファイルは 1 MB を超えているため、ここでは読み取り専用です。編集するにはフォルダーを開いてください。",
