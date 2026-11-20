@@ -207,22 +207,6 @@ jobs:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
-      - name: Collect dictionary rule diagnostic
-        id: dictionary-diagnostic
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && github.event_name == 'workflow_dispatch'"
-        run: |
-          node -e 'require("node:fs").writeFileSync(".anti-slop-dictionary-diagnostic.json", JSON.stringify({extends: ["./.oxlintrc.json"], rules: {"anti-slop/no-unsafe-dictionary-type": "error"}}))'
-          pnpm exec oxlint --config .anti-slop-dictionary-diagnostic.json --format json --deny-warnings > "$RUNNER_TEMP/anti-slop-dictionary.json"
-
-      - name: Upload dictionary rule diagnostic
-        if: "!cancelled() && (steps.dictionary-diagnostic.outcome == 'success' || steps.dictionary-diagnostic.outcome == 'failure')"
-        uses: actions/upload-artifact@v7
-        with:
-          name: anti-slop-dictionary-diagnostic
-          path: ${{ runner.temp }}/anti-slop-dictionary.json
-          if-no-files-found: error
-          retention-days: 7
-
   main-test-shard:
     name: main-test (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest

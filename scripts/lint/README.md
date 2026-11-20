@@ -35,6 +35,11 @@ replacing omitted fields with `undefined` or changing callback order is not a sa
 mechanical cleanup. The [migration Spec](../../.agents/notes/proposed/process/2026-11-18-anti-slop-lint.md)
 defines the target and incremental acceptance criteria.
 
+For a migration inventory, copy the complete root configuration and override only
+the selected rule. An extending diagnostic configuration does not preserve the
+root `ignorePatterns`. Keep generated configurations at the repository root for
+relative plugin paths, and record the exact probe commit and effective scope.
+
 Run `pnpm test:scripts scripts/lint/__tests__/anti-slop.test.ts` to verify every
 available rule using a focused configuration extending the repository config.
 Rule-specific layers also add probes of actual repository enforcement. Use
