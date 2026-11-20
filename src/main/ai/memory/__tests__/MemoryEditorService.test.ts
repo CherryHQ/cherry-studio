@@ -80,7 +80,7 @@ describe('memory editor command boundary', () => {
     expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('Keep me')
   })
 
-  it('clears through IPC and refuses recovery that would erase the unknown-source tombstone', async () => {
+  it('clears through IPC and restores the exact pre-clear version', async () => {
     const { editorId } = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, main)
     await memoryHandlers['memory.clear.preview']({ editorId }, main)
     await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Remember me')
@@ -94,10 +94,9 @@ describe('memory editor command boundary', () => {
       expect.objectContaining({ status: 'forgotten', text: '', sources: [] })
     ])
     const recovery = await memoryHandlers['memory.recovery.preview']({ editorId }, main)
-    await expect(
-      memoryHandlers['memory.recovery.confirm']({ editorId, token: recovery!.token }, main)
-    ).rejects.toMatchObject({ data: { reason: 'conflict' } })
-    expect(await readFile(file, 'utf8')).toBe(tombstone)
+    const restored = await memoryHandlers['memory.recovery.confirm']({ editorId, token: recovery!.token }, main)
+    expect(restored.files).toMatchObject([{ path: 'MEMORY.md', outcome: 'applied' }])
+    expect(await readFile(file, 'utf8')).toBe('Remember me')
   })
 
   it('expires editors when their window is destroyed even if that window ID is later reused', async () => {
