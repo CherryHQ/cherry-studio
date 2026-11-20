@@ -250,6 +250,48 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId(otherReply.id)).toHaveLength(0)
   })
 
+  it('reserves a live steer on its surviving question instead of the active unrelated branch', async () => {
+    const other = messageService.create('topic-1', {
+      role: 'user',
+      parentId: 'u1',
+      data: { parts: [{ type: 'text', text: 'unrelated branch' }] }
+    })
+    messageService.delete('a1')
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        fallbackParentAnchorId: 'u1',
+        targetMode: 'active-path',
+        userMessageParts: [{ type: 'text', text: 'steered question' }]
+      },
+      { hasLiveStream: true }
+    )
+    expect(messageService.getById(prepared.pendingSteerUserMessageId!).parentId).toBe('u1')
+    const replyId = '019606a0-0000-7000-8000-00000000aa09'
+    const continuation = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'steer-continuation',
+        topicId: 'topic-1',
+        userMessageId: prepared.pendingSteerUserMessageId!,
+        assistantMessageId: replyId,
+        fastMode: false
+      },
+      { hasLiveStream: false }
+    )
+    expect(messageService.getById(replyId).parentId).toBe(prepared.pendingSteerUserMessageId)
+    const history = flatten(continuation.models[0].request.messages!)
+      .map((message) => message.text)
+      .join(' ')
+    expect(history).toContain('first question')
+    expect(history).toContain('steered question')
+    expect(history).not.toContain('unrelated branch')
+    expect(messageService.getById(other.id)).toMatchObject({ role: 'user' })
+  })
+
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
@@ -492,6 +534,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'steer-continuation',
         topicId: 'topic-1',
         userMessageId: 'u2',
+        assistantMessageId: '019606a0-0000-7000-8000-00000000aa08',
         serviceTier: 'flex',
         fastMode: false
       } satisfies MainSteerContinuationRequest,
@@ -652,7 +695,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       vi.mocked(resolveAssistantModelId).mockReturnValueOnce({ assistantId: assistant.id, defaultModelId: MODEL_ID })
       const request =
         trigger === 'steer-continuation'
-          ? { topicId: 'topic-1', trigger, userMessageId: 'u1', fastMode: false }
+          ? {
+              topicId: 'topic-1',
+              trigger,
+              userMessageId: 'u1',
+              assistantMessageId: '019606a0-0000-7000-8000-00000000aa07',
+              fastMode: false
+            }
           : { topicId: 'topic-1', trigger, userMessageParts: [{ type: 'text' as const, text: 'question' }] }
       const result = await provider.prepareDispatch(makeSubscriber(), request, { hasLiveStream: false })
       const placeholder = messageService.getById(result.models[0].request.messageId!)

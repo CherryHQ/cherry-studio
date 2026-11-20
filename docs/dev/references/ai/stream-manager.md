@@ -469,7 +469,7 @@ class AiStreamManager {
   hasLiveStream(topicId: string): boolean
   // Queue a steer user row persisted while a turn was live; the running turn
   // yields and `onExecutionDone` chains a `steer-continuation` to answer it.
-  enqueuePendingSteer(topicId: string, userMessageId: string): void
+  enqueuePendingSteer(topicId: string, userMessageId: string): string | undefined
   hasPendingSteer(topicId: string): boolean
 
   // ── Execution-loop callbacks (driven internally; public for tests) ─
@@ -737,14 +737,16 @@ is still streaming:
    steer message as a normal user row and returns an enqueue-only
    `PreparedDispatch` — no models, `pendingSteerUserMessageId` set.
 2. `dispatchStreamRequest` calls `manager.enqueuePendingSteer(topicId, id)`,
-   pushing the row onto the topic's `pendingSteers` FIFO, then `send()` — which,
-   seeing the live stream, just upserts the subscriber (inject).
+   pushing the row and its assigned reply ID onto the topic's `pendingSteers`
+   FIFO. An enqueued steer returns its reply ID as `submittedAssistantAnchorId`.
+   Then `send()` upserts the subscriber on the live stream (inject).
 3. The running turn's `steerYield` stop condition (OR'd into `stopWhen`) sees
    `hasPendingSteer` and stops the turn cleanly at the next step boundary
    (persisted as **`success`**, not `paused`).
 4. `onExecutionDone` sees the queued steer and, instead of finalizing the topic,
    chains a `steer-continuation` dispatch (`startNextChatTurn`) that answers the
-   head of the queue, carrying the prior turn's renderer listeners forward. The
+   head of the queue. It writes the reply with the ID assigned at acceptance
+   and carries the prior turn's renderer listeners forward. The
    FIFO drains one continuation per completed turn.
 
 **Drop-on-abort:** a steer chains only after a clean `done`. If the turn is

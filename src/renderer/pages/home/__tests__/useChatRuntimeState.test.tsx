@@ -231,6 +231,41 @@ describe('useChatRuntimeState', () => {
     latestRuntime = null
   })
 
+  it('captures the visible active reply and its question before the first follow-up is queued', () => {
+    const reply = {
+      ...reservedMessage,
+      metadata: { ...reservedMessage.metadata, parentId: 'first-question' }
+    }
+    render(<RuntimeHost topicId="topic-1" activeNodeId={reply.id} messages={[reply]} />)
+    expect(latestRuntime!.composerChatTarget).toEqual({
+      mode: 'active-path',
+      parentAnchorId: reply.id,
+      fallbackParentAnchorId: 'first-question'
+    })
+  })
+
+  it('advances queued drafts to the promised reply for an accepted live steer', async () => {
+    render(<RuntimeHost topicId="topic-1" />)
+    const advance = vi.fn()
+    mocks.sendTurn.mockImplementationOnce(async (_input, options) => {
+      options.onAccepted({
+        mode: 'injected',
+        submittedAssistantAnchorId: 'steer-reply',
+        reservedMessages: [{ id: 'steer-question', role: 'user', parts: [] }]
+      })
+      return true
+    })
+
+    await act(async () => {
+      await latestRuntime!.sendMessage('steered follow-up', { onQueuedTurnAccepted: advance })
+    })
+    expect(advance).toHaveBeenCalledWith({
+      mode: 'active-path',
+      parentAnchorId: 'steer-reply',
+      fallbackParentAnchorId: 'steer-question'
+    })
+  })
+
   it('reads eligible live text before completion through the incremental coordinator', async () => {
     mocks.autoReadEnabled = true
     const spoken: string[] = []

@@ -10,9 +10,9 @@ Follow-ups queued during the same reply captured the same parent. Later sends co
 
 ## Decision
 
-For ordinary Chat, an accepted queued send advances pending items that share its captured active-path anchor. The send receipt carries the reply ID chosen in the SQLite write transaction. Matching items taken out for queue editing advance too. Explicitly reserved branches retain their own targets.
+For ordinary Chat, an accepted queued send advances pending items that share its captured active-path anchor. The receipt identifies the reply selected at the SQLite write or assigned to an accepted Steer and written when its continuation starts. Matching items taken out for queue editing advance too. Explicitly reserved branches retain their own targets.
 
-A queued send uses its chosen reply while that reply exists. If it has been deleted, the transaction can continue from the same turn's surviving user question in the same topic. If that question is also unavailable, the draft remains queued for the existing failure handling.
+A queued send uses its chosen reply while that reply exists. Chat captures the original question with the first queued draft. If the reply has been deleted, both idle and live admission can continue from the same turn's surviving user question in the same topic. If that question is also unavailable, the draft remains queued for the existing failure handling.
 
 ## Alternatives considered
 

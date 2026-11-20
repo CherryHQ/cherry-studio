@@ -44,6 +44,8 @@ export interface MainSteerContinuationRequest {
   topicId: string
   /** The already-persisted steer user message to answer. */
   userMessageId: string
+  /** Reply ID issued when the busy submit joined the steer queue. */
+  assistantMessageId: string
   /** Selection captured with the original busy submit. */
   reasoningEffort?: ReasoningEffortOption
   /** Provider request tier captured with the original busy submit. */
@@ -136,8 +138,9 @@ export async function dispatchStreamRequest(
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
+  let submittedAssistantAnchorId = prepared.submittedAssistantAnchorId
   if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(
+    submittedAssistantAnchorId = manager.enqueuePendingSteer(
       req.topicId,
       prepared.pendingSteerUserMessageId,
       prepared.pendingSteerReasoningEffort,
@@ -216,6 +219,6 @@ export async function dispatchStreamRequest(
     activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
     preserveActiveNode,
     reservedMessages: prepared.reservedMessages,
-    ...(prepared.submittedAssistantAnchorId && { submittedAssistantAnchorId: prepared.submittedAssistantAnchorId })
+    ...(submittedAssistantAnchorId && { submittedAssistantAnchorId })
   }
 }

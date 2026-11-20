@@ -286,15 +286,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
       const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
-      const userMessage = messageService.create(req.topicId, {
-        role: 'user',
-        parentId: req.parentAnchorId,
-        data: { parts: req.userMessageParts },
-        status: 'success',
-        // User rows carry only `modelId` (read by steer-continuation); the author snapshot
-        // lives on the assistant reply, which is what the header renders.
-        modelId: steerModelId
-      })
+      const userMessage = messageService.create(
+        req.topicId,
+        {
+          role: 'user',
+          parentId: req.parentAnchorId,
+          data: { parts: req.userMessageParts },
+          status: 'success',
+          modelId: steerModelId
+        },
+        { fallbackParentId: req.targetMode === 'active-path' ? req.fallbackParentAnchorId : undefined }
+      )
 
       return {
         topicId: req.topicId,
@@ -786,6 +788,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessage: { mode: 'existing', id: req.userMessageId },
         placeholders: [
           {
+            id: req.assistantMessageId,
             role: 'assistant',
             data: { parts: [], turnOptions },
             status: 'pending',

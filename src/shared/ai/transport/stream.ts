@@ -338,7 +338,7 @@ export type AiStreamOpenResponse =
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
-      /** Reply selected in SQLite when a persistent chat submission was reserved. */
+      /** Chat reply ID selected on start or assigned to an accepted steer continuation. */
       submittedAssistantAnchorId?: string
     }
   | {

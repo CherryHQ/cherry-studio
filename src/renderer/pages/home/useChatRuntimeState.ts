@@ -216,28 +216,19 @@ export function useChatRuntimeState({
     executions: branchActiveExecutions,
     liveAssistants
   })
-  const activeAwaitingInputMessageId = useMemo(
-    () =>
-      activeNodeId
-        ? (messages.find(
-            (message) =>
-              message.id === activeNodeId &&
-              isBlankUserTurn({
-                role: message.role,
-                status: message.metadata?.status,
-                parts: message.parts
-              })
-          )?.id ?? null)
-        : null,
-    [activeNodeId, messages]
-  )
-  const composerChatTarget = useMemo<ComposerChatTarget>(
-    () => ({
+  const composerChatTarget = useMemo<ComposerChatTarget>(() => {
+    const active = activeNodeId ? messages.find((message) => message.id === activeNodeId) : undefined
+    if (active && isBlankUserTurn({ role: active.role, status: active.metadata?.status, parts: active.parts })) {
+      return { parentAnchorId: active.id, mode: 'reserved-branch' }
+    }
+    return {
       parentAnchorId: activeNodeId,
-      mode: activeAwaitingInputMessageId ? 'reserved-branch' : 'active-path'
-    }),
-    [activeAwaitingInputMessageId, activeNodeId]
-  )
+      mode: 'active-path',
+      ...(active?.role === 'assistant' && active.metadata?.parentId
+        ? { fallbackParentAnchorId: active.metadata.parentId }
+        : {})
+    }
+  }, [activeNodeId, messages])
   const displayMessages = useMemo(
     () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
     [messages, liveAssistants]
@@ -327,7 +318,7 @@ export function useChatRuntimeState({
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {}),
-        ...(options?.chatTarget?.fallbackParentAnchorId
+        ...(options?.onQueuedTurnAccepted && options.chatTarget?.fallbackParentAnchorId
           ? { fallbackParentAnchorId: options.chatTarget.fallbackParentAnchorId }
           : {})
       }
@@ -518,15 +509,17 @@ export function useChatRuntimeState({
             onAccepted:
               onQueuedTurnAccepted &&
               ((ack) => {
-                if (ack.mode !== 'started' || !ack.submittedAssistantAnchorId) return
-                const reply = ack.reservedMessages?.find((message) => message.id === ack.submittedAssistantAnchorId)
-                if (reply?.role === 'assistant') {
-                  onQueuedTurnAccepted({
-                    mode: 'active-path',
-                    parentAnchorId: reply.id,
-                    fallbackParentAnchorId: reply.metadata?.parentId ?? undefined
-                  })
-                }
+                const replyId = ack.submittedAssistantAnchorId
+                if (!replyId) return
+                const questionId =
+                  ack.mode === 'injected'
+                    ? ack.reservedMessages?.find((message) => message.role === 'user')?.id
+                    : ack.reservedMessages?.find((message) => message.id === replyId)?.metadata?.parentId
+                onQueuedTurnAccepted({
+                  mode: 'active-path',
+                  parentAnchorId: replyId,
+                  fallbackParentAnchorId: questionId ?? undefined
+                })
               })
           }
         )
