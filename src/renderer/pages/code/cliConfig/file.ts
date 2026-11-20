@@ -1,5 +1,5 @@
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
-import { parse as parseToml, type TomlTableWithoutBigInt } from 'smol-toml'
+import { parse as parseToml, type TomlTable } from 'smol-toml'
 import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } from 'yaml'
 
 import { ipcApi } from '@renderer/ipc'
@@ -58,12 +58,12 @@ export function readValidatedTomlOrNull(
   target: CliConfigTarget,
   files: CliConfigReadFiles,
   label: string
-): TomlTableWithoutBigInt | null {
+): TomlTable | null {
   const { path, content } = requireReadFile(target, files)
   return content === null ? null : parseOrThrow(content, label, path, parseTomlOrThrow)
 }
 
-export function parseTomlOrThrow(content: string): TomlTableWithoutBigInt {
+export function parseTomlOrThrow(content: string): TomlTable {
   if (!content) return {}
   try {
     return parseToml(content)

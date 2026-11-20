@@ -719,8 +719,8 @@ const geminiAdapter: CliConfigAdapter = {
     applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(settings)
     if (settings.model && typeof settings.model === 'object') {
-      delete settings.model.name
-      if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
+      if ('name' in settings.model) delete settings.model.name
+      if (Object.keys(settings.model).length === 0) delete settings.model
     }
     files.push({ target: 'gemini-settings', content: renderJsonFile(settings) })
     return files
@@ -810,7 +810,8 @@ const qwenAdapter: CliConfigAdapter = {
   },
   extractConnection(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
-    const models = Array.isArray(settings.modelProviders?.openai) ? settings.modelProviders.openai : []
+    const providers = asRecord(settings.modelProviders)
+    const models = Array.isArray(providers.openai) ? providers.openai : []
     const modelEntry = models.find((item: any) => isCherryManagedModel(item))
     const envKey = stringValue(modelEntry?.envKey)
     return {
