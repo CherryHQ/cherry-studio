@@ -131,7 +131,22 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
               // A replacement can end with finish reason `error` and no error chunk (OpenAI Responses
               // `response.failed` without details). Flushing it would save a truncated reply as a success
               // and hide the original disconnect, so treat it as a failed attempt and surface an error.
-              failure = { error: new Error('Resumed stream finished with an error and no error detail') }
+              // A provider-declared reason (Gemini `MALFORMED_FUNCTION_CALL`, with its `finishMessage`) is
+              // deterministic, so keep it in the surfaced error and do not spend another retry on it.
+              const raw = part.finishReason.raw
+              const finishMessage = (part.providerMetadata?.google as { finishMessage?: unknown } | undefined)
+                ?.finishMessage
+              const detail = [raw, typeof finishMessage === 'string' ? finishMessage : undefined]
+                .filter(Boolean)
+                .join(': ')
+              failure = {
+                error: detail
+                  ? new AISDKError({
+                      name: 'ResumedStreamFinishError',
+                      message: `Resumed stream finished with an error: ${detail}`
+                    })
+                  : new Error('Resumed stream finished with an error and no error detail')
+              }
               part = undefined
             }
           } catch (error) {

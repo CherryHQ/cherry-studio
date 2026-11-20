@@ -130,6 +130,38 @@ describe('withStreamContinuation', () => {
     expect(parts.some((p) => p.type === 'text-delta' && p.delta === 'x')).toBe(false)
   })
 
+  it('keeps a provider-declared finish reason and does not retry it', async () => {
+    const malformed = {
+      type: 'finish',
+      finishReason: { unified: 'error', raw: 'MALFORMED_FUNCTION_CALL' },
+      providerMetadata: { google: { finishMessage: 'Malformed function call: bad args' } },
+      usage: {}
+    } as unknown as LanguageModelV3StreamPart
+    const head: Script = {
+      parts: [
+        { type: 'stream-start', warnings: [] },
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'Hello ' }
+      ],
+      readError: new Error('socket hang up')
+    }
+    const replacement = (): Script => ({
+      parts: [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 'b' }, malformed]
+    })
+    const { model, doStream } = scripted([head, replacement(), replacement()])
+    const result = await withStreamContinuation(model, { ...opts, maxAttempts: 3 }).doStream(callOptions)
+    const reader = result.stream.getReader()
+    let error: unknown
+    try {
+      while (!(await reader.read()).done);
+    } catch (caught) {
+      error = caught
+    }
+    expect((error as Error).message).toContain('MALFORMED_FUNCTION_CALL')
+    expect((error as Error).message).toContain('bad args')
+    expect(doStream).toHaveBeenCalledTimes(2)
+  })
+
   it("drops a failed resume attempt's text instead of splicing or prefilling it", async () => {
     const { model, doStream } = scripted([
       {
