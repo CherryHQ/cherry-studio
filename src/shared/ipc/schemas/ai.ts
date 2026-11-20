@@ -132,7 +132,7 @@ const aiTransportOptionsSchema = z.object({
 })
 
 /** Clone-safe subset of `AiRequest` — the transport fields every modality shares. */
-const aiRequestShape = {
+const aiRequestFields = {
   assistantId: z.string().optional(),
   // Strict `providerId::modelId` validation (separator at a real position, both
   // parts well-formed) — a malformed id is rejected here instead of throwing later
@@ -143,13 +143,13 @@ const aiRequestShape = {
 }
 
 /** Clone-safe subset of `AiChatRequest`; `conversation` is assigned by the handler. */
-const aiChatRequestShape = {
-  ...aiRequestShape,
+const aiChatRequestFields = {
+  ...aiRequestFields,
   mcpToolIds: z.array(z.string()).optional()
 }
 
 const aiImagePayloadSchema = z.strictObject({
-  ...aiRequestShape,
+  ...aiRequestFields,
   prompt: z.string(),
   /**
    * The image-generation mode (which tab). A request property — NOT a param — so
@@ -187,7 +187,7 @@ const aiImagePayloadSchema = z.strictObject({
 // Keep the public output named so declaration emit does not expose FileEntry's private path brand.
 const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
 
-const aiStreamRegenerateShape = {
+const aiStreamRegenerateFields = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
   userMessageParts: z.never().optional(),
@@ -248,7 +248,7 @@ export const aiRequestSchemas = {
       // Optional request identity pairs this one-shot call with `ai.text.abort`.
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
-      ...aiChatRequestShape,
+      ...aiChatRequestFields,
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -263,7 +263,7 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.embedding.embed_many': defineRoute({
-    input: z.strictObject({ ...aiRequestShape, values: z.array(z.string()) }),
+    input: z.strictObject({ ...aiRequestFields, values: z.array(z.string()) }),
     output: z.object({ embeddings: z.array(z.array(z.number())), usage: z.custom<EmbeddingModelUsage>().optional() })
   }),
   'ai.image.generate': defineRoute({
@@ -293,7 +293,7 @@ export const aiRequestSchemas = {
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({
-      ...aiRequestShape,
+      ...aiRequestFields,
       apiKeyOverride: z.string().optional(),
       timeout: z.number().optional()
     }),
@@ -323,17 +323,17 @@ export const aiRequestSchemas = {
           fastMode: z.boolean().optional()
         }),
         z.object({
-          ...aiStreamRegenerateShape,
+          ...aiStreamRegenerateFields,
           retryMessageId: z.string().min(1),
           appendToLiveGroupMessageId: z.never().optional()
         }),
         z.object({
-          ...aiStreamRegenerateShape,
+          ...aiStreamRegenerateFields,
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.string().min(1)
         }),
         z.object({
-          ...aiStreamRegenerateShape,
+          ...aiStreamRegenerateFields,
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional()
         })
