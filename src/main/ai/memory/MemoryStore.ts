@@ -6,6 +6,7 @@ import { Mutex } from 'async-mutex'
 
 import {
   createMemoryBackup,
+  hasOrderedRecovery,
   decodeOriginal,
   latestMemoryBackup,
   memoryBatchStatus,
@@ -634,7 +635,7 @@ export class MemoryStore {
   private recoveryChanges(batch: MemoryBatch, scope: Map<string, Buffer | null>) {
     const changes: MemoryFileChange[] = []
     const files: MemoryRecoveryPreview['files'] = []
-    const restoringMerge = batch.source === 'dreaming' && batch.steps.some((step) => step.afterHash === null)
+    const restoringMerge = hasOrderedRecovery(batch)
     const steps = restoringMerge ? batch.steps.toReversed() : batch.steps
     let prerequisiteConflict = false
     for (const step of steps) {
