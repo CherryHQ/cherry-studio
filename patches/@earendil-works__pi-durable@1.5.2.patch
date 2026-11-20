@@ -854,3 +854,100 @@ index 783d56468bdd1c4d2f07e1e58a38b9ae004c2e97..706312d02e58efb1de7d3aa902ac88d6
      doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
+diff --git a/dist/env/node.d.ts b/dist/env/node.d.ts
+--- a/dist/env/node.d.ts
++++ b/dist/env/node.d.ts
+@@ -14,6 +14,8 @@
+         shellPath?: string;
+         shellEnv?: NodeJS.ProcessEnv;
+         watch?: NodeWatchOptions;
++        /** Check the open file before native read/write/edit performs I/O. */
++        authorizeOpenedFile?: (path: string, stat: import("node:fs").BigIntStats) => Promise<void>;
+     });
+     watch(targets: readonly WatchTarget[], onChange: (change: FileChange) => void, context: Context): Promise<Result<FileWatcher, FileError>>;
+     absolutePath(path: string, _context: Context): Promise<Result<string, FileError>>;
+diff --git a/dist/env/node.js b/dist/env/node.js
+--- a/dist/env/node.js
++++ b/dist/env/node.js
+@@ -555,12 +555,14 @@
+     shellPath;
+     shellEnv;
+     watchOptions;
++    authorizeOpenedFile;
+     activeChildPids = new Set();
+     constructor(options) {
+         this.cwd = options.cwd;
+         this.shellPath = options.shellPath;
+         this.shellEnv = options.shellEnv;
+         this.watchOptions = options.watch ?? {};
++        this.authorizeOpenedFile = options.authorizeOpenedFile;
+     }
+     async watch(targets, onChange, context) {
+         const aborted = abortResult(context.abortSignal);
+@@ -846,6 +848,20 @@
+             return err(toFileError(error, resolved));
+         }
+     }
++    async openCheckedFile(path, flags, context) {
++        const file = await openFile(path, flags);
++        try {
++            if (this.authorizeOpenedFile) {
++                await this.authorizeOpenedFile(path, await file.stat({ bigint: true }));
++                context.abortSignal?.throwIfAborted();
++            }
++            return file;
++        }
++        catch (error) {
++            await file.close();
++            throw error;
++        }
++    }
+     async readTextFile(path, context) {
+         const resolved = resolvePath(this.cwd, path);
+         const signal = context.abortSignal;
+@@ -853,7 +869,15 @@
+         if (aborted)
+             return aborted;
+         try {
+-            return ok(await readFile(resolved, { encoding: "utf8", signal }));
++            if (!this.authorizeOpenedFile)
++                return ok(await readFile(resolved, { encoding: "utf8", signal }));
++            const file = await this.openCheckedFile(resolved, constants.O_RDONLY | constants.O_NONBLOCK, context);
++            try {
++                return ok(await file.readFile({ encoding: "utf8", signal }));
++            }
++            finally {
++                await file.close();
++            }
+         }
+         catch (error) {
+             return err(toFileError(error, resolved));
+@@ -914,7 +938,7 @@
+                 if (noFollow)
+                     flags |= constants.O_NOFOLLOW;
+             }
+-            file = await openFile(resolved, flags);
++            file = await this.openCheckedFile(resolved, flags, context);
+             const stats = await file.stat();
+             if (!stats.isFile()) {
+                 await file.close().catch(() => undefined);
+@@ -949,7 +973,18 @@
+             const afterMkdirAbort = abortResult(signal, resolved);
+             if (afterMkdirAbort)
+                 return afterMkdirAbort;
+-            await writeFile(resolved, content, { signal });
++            if (!this.authorizeOpenedFile) {
++                await writeFile(resolved, content, { signal });
++                return ok(undefined);
++            }
++            const file = await this.openCheckedFile(resolved, constants.O_WRONLY | constants.O_CREAT | constants.O_NONBLOCK, context);
++            try {
++                await file.truncate(0);
++                await file.writeFile(content, { signal });
++            }
++            finally {
++                await file.close();
++            }
+             return ok(undefined);
+         }
+         catch (error) {

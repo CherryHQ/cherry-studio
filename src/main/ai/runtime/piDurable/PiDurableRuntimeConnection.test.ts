@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
-import { realpath } from 'node:fs/promises'
+import { existsSync, linkSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { realpath, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -329,6 +329,51 @@ describe('desktop Pi Durable connection', () => {
     expect(JSON.stringify(results)).not.toContain('RECOVERY_SECRET')
     expect(readFileSync(join(shared, 'MEMORY.md'), 'utf8')).toBe('old')
     expect(readFileSync(privateFile, 'utf8')).toBe('private original')
+  })
+
+  it.each([false, true])(
+    'checks the opened identity for native read, write and edit of a hard link (backup=%s)',
+    async (managed) => {
+      const target = managed
+        ? application.getPath('feature.memory.backups', 'original.md')
+        : join(directory, 'plain.md')
+      const alias = join(directory, 'link.md')
+      writeFileSync(target, 'first')
+      linkSync(target, alias)
+      setScript([
+        assistantReply([toolCallPart('read-link', 'read', { path: alias })], 'toolUse'),
+        assistantReply([toolCallPart('write-link', 'write', { path: alias, content: 'second' })], 'toolUse'),
+        assistantReply(
+          [toolCallPart('edit-link', 'edit', { path: alias, edits: [{ oldText: 'second', newText: 'third' }] })],
+          'toolUse'
+        ),
+        assistantReply('done')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Use the file tools') })
+      await done(events)
+      const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+      expect(results.map((result) => result.isError)).toEqual([managed, managed, managed])
+      expect(JSON.stringify(results[0].content).includes('first')).toBe(!managed)
+      expect(readFileSync(target, 'utf8')).toBe(managed ? 'first' : 'third')
+    }
+  )
+
+  it('writes through the handle that was checked when the directory entry is replaced', async () => {
+    const { NodeExecutionEnv } = await import('@earendil-works/pi-durable/env/node')
+    const target = join(directory, 'selected.md')
+    const checked = join(directory, 'checked.md')
+    writeFileSync(target, 'original')
+    const env = new NodeExecutionEnv({
+      cwd: directory,
+      authorizeOpenedFile: async () => {
+        await rename(target, checked)
+        writeFileSync(target, 'replacement')
+      }
+    })
+    expect((await env.writeFile(target, 'approved', BACKGROUND_CONTEXT)).ok).toBe(true)
+    expect(readFileSync(checked, 'utf8')).toBe('approved')
+    expect(readFileSync(target, 'utf8')).toBe('replacement')
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
