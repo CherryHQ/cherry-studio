@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { PageHeader, ScrollArea } from '@cherrystudio/ui'
-import ApiGatewayPanel from '@renderer/components/apiGateway/ApiGatewayPanel'
+import ApiGatewayPanel from '@renderer/components/ApiGatewayPanel'
 
 export default function ApiGatewayPage() {
   const { t } = useTranslation()

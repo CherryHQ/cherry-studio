@@ -115,16 +115,23 @@ describe('ApiGatewayPanel', () => {
     expect(screen.getByLabelText(en['apiGateway.fields.port.label'])).toHaveValue('23333')
     fireEvent.click(screen.getByRole('button', { name: en['apiGateway.actions.start'] }))
     expect(startApiGateway).toHaveBeenCalledOnce()
-    useApiGatewayMock.mockReturnValue({ ...state, apiGatewayRunning: true })
+    useApiGatewayMock.mockReturnValue({
+      ...state,
+      apiGatewayRunning: true,
+      apiGatewayEndpoint: { host: '127.0.0.1', port: 24444 }
+    })
     rerender(<ApiGatewayPanel />)
     expect(screen.getByText(en['apiGateway.status.running'])).toBeInTheDocument()
-    expect(screen.getByText('http://127.0.0.1:23333')).toBeInTheDocument()
+    expect(screen.getByText('http://127.0.0.1:24444')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: en['apiGateway.fields.url.copyTooltip'] })).toHaveAttribute(
       'data-copy-text',
-      'http://127.0.0.1:23333'
+      'http://127.0.0.1:24444'
     )
     fireEvent.click(screen.getByRole('button', { name: en['apiGateway.actions.stop'] }))
     expect(stopApiGateway).toHaveBeenCalledOnce()
+    useApiGatewayMock.mockReturnValue({ ...state, apiGatewayEndpoint: null })
+    rerender(<ApiGatewayPanel />)
+    expect(screen.getByLabelText(en['apiGateway.fields.url.label'])).toHaveValue('http://127.0.0.1:23333')
   })
 
   it('remasks both fields when a revealed credential changes in another panel', () => {

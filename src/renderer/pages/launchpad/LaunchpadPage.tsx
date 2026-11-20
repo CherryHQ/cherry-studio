@@ -31,7 +31,8 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
+const LAUNCHPAD_GRID_CLASS =
+  'grid grid-cols-[repeat(auto-fit,minmax(max(92px,calc((100%_-_40px)/6)),1fr))] justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
   'relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'

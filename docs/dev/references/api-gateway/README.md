@@ -4,7 +4,7 @@ sources:
   - src/main/features/apiGateway
   - src/main/ai/runtime/agentApiGateway.ts
   - src/main/services/PdfTranslationService.ts
-  - src/renderer/components/apiGateway
+  - src/renderer/components/ApiGatewayPanel.tsx
   - src/renderer/pages/apiGateway
   - src/renderer/routes/app/api-gateway.tsx
   - src/renderer/pages/launchpad/LaunchpadPage.tsx
@@ -483,7 +483,9 @@ configured gateway port; a fresh QR is only needed if the endpoint changes.
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. It also publishes
-`feature.api_gateway.lan_running` for remote-access availability. **Main is authoritative**;
+`feature.api_gateway.lan_running` for remote-access availability and the bound host and port in
+`feature.api_gateway.endpoint`, cleared when stopped. The panel uses that endpoint while running
+and the configured host and port while stopped. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared

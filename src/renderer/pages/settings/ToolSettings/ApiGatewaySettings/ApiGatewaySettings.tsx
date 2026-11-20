@@ -1,7 +1,7 @@
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ApiGatewayPanel from '@renderer/components/apiGateway/ApiGatewayPanel'
+import ApiGatewayPanel from '@renderer/components/ApiGatewayPanel'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { SettingsContentColumn, SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
