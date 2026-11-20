@@ -41,6 +41,7 @@ const batchSchema = z.strictObject({
     .optional(),
   recoveryOf: z.uuid().optional(),
   orderedRecovery: z.boolean().optional(),
+  dependencies: z.array(z.object({ path: z.string(), hash: hashSchema })).optional(),
   clearScopeHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/)
@@ -175,6 +176,13 @@ export async function createMemoryBackup(
     clearScopeHash,
     recoveryOf,
     orderedRecovery: parent && hasOrderedRecovery(parent),
+    dependencies:
+      parent && hasOrderedRecovery(parent)
+        ? [
+            ...(parent.dependencies ?? []).filter((dep) => !parent.steps.some((step) => step.path === dep.path)),
+            ...parent.steps.map((step) => ({ path: step.path, hash: step.afterHash }))
+          ]
+        : undefined,
     ...(legacy
       ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content) } }
       : {}),
