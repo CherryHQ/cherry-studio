@@ -123,7 +123,7 @@ describe('memory organization lifecycle and commit fences', () => {
     })
     MockApplicationUtils.setService('AiStreamManager', {
       listActiveWork: () => [],
-      onConversationCompleted: chats.event
+      onMemoryResponsesCompleted: chats.event
     })
     await memory._doInit()
     await dreaming._doInit()
@@ -1218,6 +1218,58 @@ describe('memory organization lifecycle and commit fences', () => {
     await expect(dispatch).resolves.toEqual({ deferred: true })
     await stop
     expect(readDreamingState(scope)).toEqual(before)
+  })
+
+  it('defers work when the application quits while reconciliation is pending', async () => {
+    const before = readDreamingState(scope)
+    const app = application as { isQuitting: boolean }
+    vi.spyOn(extractionState, 'withReconciledExtractionHistory').mockImplementationOnce(async (run) => {
+      app.isQuitting = true
+      return run()
+    })
+    try {
+      await expect(dreaming.execute(job())).resolves.toEqual({ deferred: true })
+      expect(readDreamingState(scope)).toEqual(before)
+      expect(generate).not.toHaveBeenCalled()
+    } finally {
+      app.isQuitting = false
+    }
+  })
+
+  it('can preview nine completed turns with intact receipts', async () => {
+    const batch = batchConversation(9)
+    extractionState.completeExtraction(batch.key, batch.users[7], 'done')
+    extractionState.completeExtraction(batch.key, batch.users[8], 'done')
+    const last = readExtractionState(batch.key)!.recent.at(-1)!
+    generate.mockResolvedValue({
+      text: JSON.stringify({ outcome: 'no_eligible', reason: 'No useful fact', candidates: [] }),
+      finishReason: 'stop'
+    })
+    await expect(
+      dreaming.previewExtraction({ source: last.input, fromMessageId: batch.users[0] }, () => undefined)
+    ).resolves.toMatchObject({ mode: 'preview' })
+  })
+
+  it('admits first-filled content even when its reserved row predates recovery', async () => {
+    const chat = conversation()
+    await save('Before')
+    await save('Withdrawn')
+    await session.recover((await session.previewRecovery())!.token, approve)
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    const parts = [{ type: 'text' as const, text: 'Newly filled after recovery' }]
+    dbh.db.update(messageTable).set({ data: { parts } }).where(eq(messageTable.id, chat.user.id)).run()
+    dbh.db.update(messageTable).set({ createdAt: Date.now() }).where(eq(messageTable.id, chat.response.id)).run()
+    dreaming.authorizeSubmission('assistant', chat.topicId, chat.assistantId)?.(chat.user.id, parts)
+    chat.emit()
+    const state = readExtractionState(`memory:extraction:assistant/${chat.topicId}`)!
+    expect(state.pending.map((ticket) => ticket.messageId)).toEqual([chat.user.id])
+    generate.mockResolvedValue({
+      text: JSON.stringify({ outcome: 'no_eligible', reason: 'No useful fact', candidates: [] }),
+      finishReason: 'stop'
+    })
+    await expect(
+      dreaming.previewExtraction({ source: state.pending[0].input, fromMessageId: chat.user.id }, () => undefined)
+    ).resolves.toMatchObject({ mode: 'preview' })
   })
 
   it('requires completed admissions for each turn of an explicit preview after restart', async () => {

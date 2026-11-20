@@ -3203,7 +3203,14 @@ describe('AiStreamManager', () => {
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+      const memory = vi.fn()
+      mgr.onMemoryResponsesCompleted(memory)
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        models: [{ modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'first-response' } }],
+        listeners: [listener]
+      })
 
       // Steer arrives while the turn is live → queued, not started.
       mgr.enqueuePendingSteer('a', 'u2')
@@ -3213,6 +3220,7 @@ describe('AiStreamManager', () => {
 
       // The assistant bubble finalises but the topic stays busy (isTopicDone=false), and no
       // terminal `done` is broadcast to the status cache.
+      expect(memory).toHaveBeenCalledWith({ topicId: 'a', memoryResponseIds: ['first-response'] })
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
       expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')

@@ -138,6 +138,12 @@ function makeDb(dbPath: string, which: 'old' | 'new'): void {
   applyMigrations(db, resolveMigrationsPath())
   db.insert(appStateTable).values({ key: MARKER_KEY, value: { which } }).run()
   db.insert(appStateTable).values({ key: 'memory:extraction-boundary', value: 1 }).run()
+  db.insert(appStateTable)
+    .values([
+      { key: 'memory:extraction:assistant/restored', value: { pending: [{ receivedAt: 3 }] } },
+      { key: 'memory:extraction-invalidation:pending', value: { boundary: 2, files: [] } }
+    ])
+    .run()
   sqlite.close()
 }
 
@@ -378,6 +384,8 @@ describe('runRestorePromotion', () => {
     expect(readMarker(livePath())).toBe('new')
     expect(readMarker(asidePath())).toBe('old')
     expect(hasRow(livePath(), 'memory:extraction-boundary')).toBe(false)
+    expect(hasRow(livePath(), 'memory:extraction:assistant/restored')).toBe(false)
+    expect(hasRow(livePath(), 'memory:extraction-invalidation:pending')).toBe(false)
     expect(hasRow(asidePath(), 'memory:extraction-boundary')).toBe(true)
     // Manifest applied: blob + KB dir moved in, note added, note overwritten
     // with its original parked aside.

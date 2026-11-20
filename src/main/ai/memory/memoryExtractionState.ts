@@ -12,6 +12,7 @@ import { assertMemoryTarget, memoryHash, readMemoryBytes } from './memoryFiles'
 const PREFIX = 'memory:extraction:'
 const INVALIDATION = 'memory:extraction-invalidation:'
 const BOUNDARY = 'memory:extraction-boundary'
+const PREVIEW_RECEIPTS = 64
 export const EXTRACTION_TURNS = 8
 
 const ticketSchema = z.object({
@@ -309,7 +310,7 @@ export function completeExtraction(
   if (index < 0) return
   const completed = state.pending.splice(0, index + 1)
   settle(state, completed)
-  state.recent = [...state.recent, ...completed].slice(-EXTRACTION_TURNS)
+  state.recent = [...state.recent, ...completed].slice(-PREVIEW_RECEIPTS)
   state.generation++
   state.completed = end
   if (end === state.batchEnd) state.batchEnd = undefined

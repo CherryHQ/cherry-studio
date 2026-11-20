@@ -168,6 +168,7 @@ export function readExtractionRange(
   const contextGaps: { afterMessageId: string | null; beforeMessageId: string | null }[] = []
   let windowHash: string | undefined
   const rows = new Map<string, SourceRow>()
+  const admissionsByUser = new Map([...(admissions?.values() ?? [])].map((ticket) => [ticket.messageId, ticket]))
   const seen = new Set<string>()
   let id: string | null = recent ? range.source.responseId : source.messageId
   let bytes = 0
@@ -192,18 +193,20 @@ export function readExtractionRange(
       range.source.kind === 'assistant'
         ? db.select().from(messageTable).where(eq(messageTable.id, id)).get()
         : db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()
+    const admittedAt = row?.role === 'user' ? admissionsByUser.get(row.id)?.createdAt : undefined
+    const sourceTime = admittedAt ?? row?.createdAt ?? 0
     if (
       recent &&
       row?.role === 'user' &&
       excludedThrough &&
-      (row.createdAt < excludedThrough.createdAt ||
-        (row.createdAt === excludedThrough.createdAt && excludedThrough.messageIds.includes(row.id)))
+      (sourceTime < excludedThrough.createdAt ||
+        (sourceTime === excludedThrough.createdAt && excludedThrough.messageIds.includes(row.id)))
     ) {
       leftContextIncomplete = true
       id = null
       break
     }
-    if (recent && row && (row.role === 'root' || row.createdAt <= boundary)) {
+    if (recent && row && (row.role === 'root' || sourceTime <= boundary)) {
       leftContextIncomplete = row.role !== 'root'
       id = null
       break
@@ -212,7 +215,7 @@ export function readExtractionRange(
       !row ||
       (!recent && row.status !== 'success') ||
       !['user', 'assistant'].includes(row.role) ||
-      row.createdAt <= boundary ||
+      sourceTime <= boundary ||
       ('deletedAt' in row && row.deletedAt) ||
       ('delivery' in row && row.delivery) ||
       (row.role === 'assistant' && row.messageSnapshot?.id !== source.entityKey.split('/')[1]) ||
@@ -237,7 +240,7 @@ export function readExtractionRange(
       role: row.role,
       text,
       version: memoryHash(Buffer.from(JSON.stringify(row))),
-      createdAt: row.createdAt,
+      createdAt: sourceTime,
       parentId: row.parentId,
       status: row.status
     })

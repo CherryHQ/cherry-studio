@@ -141,7 +141,7 @@ export class MemoryDreamingService extends BaseService {
       })
     )
     this.registerDisposable(
-      application.get('AiStreamManager').onConversationCompleted((event) => {
+      application.get('AiStreamManager').onMemoryResponsesCompleted((event) => {
         for (const responseId of event.memoryResponseIds ?? [])
           this.captureExtraction({ kind: 'assistant', topicId: event.topicId, responseId })
       })
@@ -388,11 +388,11 @@ export class MemoryDreamingService extends BaseService {
     return this.work.track(
       this.queue.runExclusive(async () => {
         ctx.signal.throwIfAborted()
-        if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        if (this.stopped || application.isQuitting || this.foregroundBusy()) return { deferred: true }
         const reconciled =
           application.get('PreferenceService').get(GENERATION_KEY) && (await this.reconcileExtraction())
         ctx.signal.throwIfAborted()
-        if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        if (this.stopped || application.isQuitting || this.foregroundBusy()) return { deferred: true }
         const states = new Map(readDreamingStates().map((state) => [memoryScopeKey(state.scope), state]))
         const scopes: MemoryScope[] = [
           { kind: 'shared' },
@@ -438,7 +438,7 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private assertScope(scope: MemoryScope): void {
-    if (this.stopped || (scope.kind === 'private' && !agentService.getAgent(scope.agentId)))
+    if (this.stopped || application.isQuitting || (scope.kind === 'private' && !agentService.getAgent(scope.agentId)))
       throw new DOMException('Memory maintenance is unavailable', 'AbortError')
   }
 
@@ -541,12 +541,19 @@ export class MemoryDreamingService extends BaseService {
     if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
     try {
       const resolved = readExtractionSource(input, true)
+      const admission = readExtractionState(resolved.key)
       const source: ExtractionTicket = {
         input,
         entityKey: resolved.entityKey,
         key: resolved.key,
         messageId: resolved.messageId,
-        createdAt: resolved.createdAt,
+        // The placeholder row can predate the first submission of its actual body.
+        createdAt:
+          admission?.submittedAt[resolved.messageId] ??
+          admission?.pending.find(
+            (ticket) => ticket.messageId === resolved.messageId && ticket.inputHash === resolved.inputHash
+          )?.createdAt ??
+          resolved.createdAt,
         inputHash: resolved.inputHash,
         hash: resolved.hash
       }
@@ -903,10 +910,11 @@ export class MemoryDreamingService extends BaseService {
     } catch (error) {
       const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
       const cancelled =
-        !timedOut &&
-        (controller.signal.aborted ||
-          ctx.signal.aborted ||
-          (error instanceof DOMException && error.name === 'AbortError'))
+        application.isQuitting ||
+        (!timedOut &&
+          (controller.signal.aborted ||
+            ctx.signal.aborted ||
+            (error instanceof DOMException && error.name === 'AbortError')))
       deferExtraction(
         ticket.key,
         pending.state.generation,
@@ -1121,7 +1129,7 @@ export class MemoryDreamingService extends BaseService {
       }
     } catch (error) {
       const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
-      const interrupted = !timedOut && (controller.signal.aborted || ctx.signal.aborted)
+      const interrupted = application.isQuitting || (!timedOut && (controller.signal.aborted || ctx.signal.aborted))
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
         if (error instanceof DreamingError)

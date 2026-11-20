@@ -487,7 +487,11 @@ function integrityCheck(dbPath: string): string {
       sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_state'").get()
     ) {
       // The first startup of the restored profile must invalidate extraction tickets from the backup.
-      sqlite.prepare("DELETE FROM app_state WHERE key = 'memory:extraction-boundary'").run()
+      sqlite
+        .prepare(
+          "DELETE FROM app_state WHERE key = 'memory:extraction-boundary' OR key GLOB 'memory:extraction:*' OR key GLOB 'memory:extraction-invalidation:*'"
+        )
+        .run()
     }
     return result
   } catch (error) {

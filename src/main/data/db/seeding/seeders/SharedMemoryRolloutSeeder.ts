@@ -19,8 +19,7 @@ export class SharedMemoryRolloutSeeder implements ISeeder {
       SELECT 'memory:runtime:' || json_array('topic', id, 'shared', ''),
              json_quote('never-exposed'), 'Conversation predates shared memory', ${now}, ${now}
       FROM ${topicTable}
-      WHERE deleted_at IS NULL
-        AND EXISTS (SELECT 1 FROM ${appStateTable} WHERE key = 'seedRunner:bootstrapCompleted')
+      WHERE EXISTS (SELECT 1 FROM ${appStateTable} WHERE key = 'seedRunner:bootstrapCompleted')
         AND NOT EXISTS (SELECT 1 FROM ${appStateTable} WHERE key = 'seed:sharedMemoryRollout' OR key GLOB 'memory:runtime:*')
         AND NOT EXISTS (SELECT 1 FROM ${assistantTable} WHERE json_type(settings, '$.enableSharedMemory') IS NOT NULL)
     `)

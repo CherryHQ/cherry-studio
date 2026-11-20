@@ -369,6 +369,10 @@ const nullStreamListener: StreamListener = {
 export class AiStreamManager extends BaseService {
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
+  private readonly _onMemoryResponsesCompleted = new Emitter<
+    Pick<ConversationCompletedEvent, 'topicId' | 'memoryResponseIds'>
+  >()
+  public readonly onMemoryResponsesCompleted = this._onMemoryResponsesCompleted.event
   private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly _onConversationUnsuccessful = new Emitter<ConversationUnsuccessfulEvent>()
@@ -494,9 +498,10 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) =>
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) => {
+      this._onMemoryResponsesCompleted.fire(event)
       this._onConversationCompleted.fire(event)
-    )
+    })
   }
 
   protected async onInit(): Promise<void> {
@@ -753,6 +758,7 @@ export class AiStreamManager extends BaseService {
     for (const projection of this.projections.values()) projection.dispose()
     this.projections.clear()
     this._onApprovalRequested.dispose()
+    this._onMemoryResponsesCompleted.dispose()
     this._onConversationCompleted.dispose()
     this._onConversationUnsuccessful.dispose()
   }
@@ -1624,8 +1630,17 @@ export class AiStreamManager extends BaseService {
       // the current stream generation only; a stale callback must not touch it.
       if (this.activeStreams.get(topicId) !== stream) return
 
-      if (chatChaining) this.scheduleNextChatTurn(topicId)
-      else if (topicDone && !chaining) {
+      if (chatChaining) {
+        if (stream.isPersistentConversation && !stream.hasTaskResultOwner && !stream.completionFailed) {
+          this._onMemoryResponsesCompleted.fire({
+            topicId,
+            memoryResponseIds: [...stream.executions.values()].flatMap((execution) =>
+              execution.anchorMessageId ? [execution.anchorMessageId] : []
+            )
+          })
+        }
+        this.scheduleNextChatTurn(topicId)
+      } else if (topicDone && !chaining) {
         // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
         // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
         if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
