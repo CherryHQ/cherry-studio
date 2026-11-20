@@ -242,6 +242,10 @@ namespace bags remain exclusive to `providerOptions`, non-JSON requests are
 left unchanged, and SDK-produced body fields take precedence over custom
 parameters.
 
+The wrapper snapshots custom values through JSON serialization. This boundary
+owns omitted values, `toJSON` conversion and serialization errors; it does not
+require raw custom values to satisfy the SDK's JSON types beforehand.
+
 ## Where to read more
 
 - Code: `src/main/ai/runtime/aiSdk/params/`
