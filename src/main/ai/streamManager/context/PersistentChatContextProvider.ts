@@ -393,6 +393,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             } as const)
           : ({
               mode: 'create' as const,
+              fallbackParentId: req.targetMode === 'active-path' ? req.fallbackParentAnchorId : undefined,
               dto: {
                 role: 'user' as const,
                 parentId: req.parentAnchorId,
@@ -409,7 +410,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
-      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
+      const { userMessage, placeholders, activeNodeId } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
@@ -512,6 +513,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: models_,
         listeners,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
+        ...(req.trigger === 'submit-message' && { submittedAssistantAnchorId: activeNodeId }),
         siblingsGroupId,
         liveExecutionChange: preparedLiveExecutionChange,
         preserveActiveNode: Boolean(liveGroupAppendMessageId)

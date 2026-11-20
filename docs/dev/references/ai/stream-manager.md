@@ -815,7 +815,7 @@ chunks-only prompt stream with no message target. See
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
+| `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode?, submittedAssistantAnchorId? }` | Open / inject; provider routes by topicId |
 | `ai.projection.attach` | `{ target, subscriptionId }` | message baseline or `null` | Subscribe to a desktop topic or child view |
 | `ai.projection.detach` | `{ target, subscriptionId }` | void | Release a desktop delivery subscription (execution continues) |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Raw-stream consumers: subscribe and receive compact replay when streaming |
@@ -890,7 +890,7 @@ dispatchStreamRequest(manager, subscriber, req)
   → provider = providers.find(p => p.canHandle(req.topicId))
   → prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream })
   → result   = manager.send(prepared)        // ← the only manager.send call
-  → return { mode, activeExecutions?, reservedMessages?, preserveActiveNode? }
+  → return { mode, activeExecutions?, reservedMessages?, preserveActiveNode?, submittedAssistantAnchorId? }
 ```
 
 Providers only "prepare" — they never call `manager.send` directly. Two
@@ -920,6 +920,7 @@ interface PreparedDispatch {
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
   pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch
+  submittedAssistantAnchorId?: string // persistent submit: assistant selected by the write transaction
   siblingsGroupId?: number
   liveExecutionChange?:
     | { mode: 'replace' }

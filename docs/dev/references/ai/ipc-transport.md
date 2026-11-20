@@ -38,6 +38,8 @@ Detach only removes a delivery lease. It never aborts a model or releases a nati
 
 `streamDispatchService` returns and broadcasts the admission result, including reserved messages, active executions and branch-preservation facts. Existing optimistic-message consumers keep this result path. Blocked admission uses the existing localized toast; request failures reach the command caller. The service does not serialize submissions: Main arbitrates concurrent input, chat steering and Agent follow-ups.
 
+A persistent Chat submission that starts a new turn can return `submittedAssistantAnchorId`, the assistant placeholder selected in the same SQLite write. Chat uses this receipt to advance pending items on the same captured path. An active-path follow-up can send the original question as `fallbackParentAnchorId`. Main uses it only when the selected reply is unavailable and the question still belongs to the same topic. The reserved-branch and Agent paths keep their existing behavior.
+
 `useStreamCommands` retains local input messages for temporary views, fences late command failures after a topic switch, and reads runtime errors from the same shared projection used by the message list. It does not create another stream subscription or parse model chunks.
 
 ## Status and other transports

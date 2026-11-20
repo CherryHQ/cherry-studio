@@ -82,7 +82,7 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
   userMessage:
-    | { mode: 'create'; dto: CreateMessageDto }
+    | { mode: 'create'; dto: CreateMessageDto; fallbackParentId?: string }
     | { mode: 'existing'; id: string }
     | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: UniqueModelId }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
@@ -96,6 +96,8 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+  /** The branch node selected by this transaction, if it activated the reservation. */
+  activeNodeId?: string
 }
 
 export interface LiveMessageRangeMetadata {
@@ -1183,11 +1185,22 @@ export class MessageService {
           // First-turn message: hang it off the topic's virtual root (created if absent).
           resolvedParentId = this.getRootMessageIdTx(tx, input.topicId)
         } else {
-          const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
+          let parent = this.findAddressableMessageRowTx(tx, dto.parentId)
+          if (!parent && input.userMessage.fallbackParentId) {
+            const question = this.findAddressableMessageRowTx(tx, input.userMessage.fallbackParentId)
+            if (
+              question?.topicId === input.topicId &&
+              question.role === 'user' &&
+              !this.isAwaitingInputLeafTx(tx, rowToMessage(question))
+            ) {
+              parent = question
+            }
+          }
+          if (!parent) throw DataApiErrorFactory.notFound('Message', dto.parentId)
           if (parent.topicId !== input.topicId) {
             throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
           }
-          resolvedParentId = dto.parentId
+          resolvedParentId = parent.id
         }
 
         const createdAt = Date.now()
@@ -1288,9 +1301,9 @@ export class MessageService {
       // 4. Point activeNodeId at the new turn unless this is an explicitly non-activating
       // live-group append. Streaming work must not move the user's selected branch.
       const topicService = getDataService('TopicService')
-      if (!input.preserveActiveNode) {
-        const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
-        topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      const activeNodeId = input.preserveActiveNode ? undefined : (placeholders.at(-1)?.id ?? userMessage.id)
+      if (activeNodeId) {
+        topicService.setActiveNodeTx(tx, input.topicId, activeNodeId, { assumeValid: true })
       }
       if (latestActivityAt !== null) {
         topicService.advanceLastActivityAtTx(tx, input.topicId, latestActivityAt)
@@ -1305,7 +1318,7 @@ export class MessageService {
         preserveActiveNode: input.preserveActiveNode === true
       })
 
-      return { userMessage, placeholders }
+      return { userMessage, placeholders, activeNodeId }
     })
     const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
     notifyDataApiDataChange([

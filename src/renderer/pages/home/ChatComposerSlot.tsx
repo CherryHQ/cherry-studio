@@ -5,14 +5,13 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import {
   type ChatComposerResolvedContext,
+  type ChatComposerSendOptions,
   type ChatContextUsageSource,
   type ChatConversationControlsChangeHandler,
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
 import type { Topic } from '@renderer/types/topic'
 import type { ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { AddNewTopicPayload } from './types'
@@ -20,14 +19,7 @@ import type { AddNewTopicPayload } from './types'
 interface ChatComposerSlotBaseProps {
   topic: Topic
   contextUsage: ChatContextUsageSource | null
-  onSend: (
-    text: string,
-    options?: {
-      mentionedModels?: UniqueModelId[]
-      userMessageParts?: CherryMessagePart[]
-      chatTarget?: ComposerChatTarget
-    }
-  ) => Promise<boolean>
+  onSend: (text: string, options?: ChatComposerSendOptions) => Promise<boolean>
   chatTarget: ComposerChatTarget
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>

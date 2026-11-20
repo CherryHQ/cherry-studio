@@ -325,6 +325,7 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
+          fallbackParentAnchorId: z.string().min(1).optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
           targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           retryMessageId: z.never().optional(),

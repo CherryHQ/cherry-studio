@@ -88,6 +88,8 @@ export interface ActiveExecution {
 /** Chat-tree target captured when a queued draft is created. */
 export interface ComposerChatTarget {
   parentAnchorId: string | null
+  /** The accepted queued turn's question, used when its reply has been deleted. */
+  fallbackParentAnchorId?: string
   /** Reserved branches wait for topic idle and must not be injected into the running turn. */
   mode: 'active-path' | 'reserved-branch'
 }
@@ -204,6 +206,7 @@ export type AiStreamOpenRequest = {
        * not auto-resolve to the active tip.
        */
       parentAnchorId?: string
+      fallbackParentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
       /** Target intent captured by the chat composer; reserved intent must never degrade into a live steer. */
@@ -335,6 +338,8 @@ export type AiStreamOpenResponse =
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
+      /** Reply selected in SQLite when a persistent chat submission was reserved. */
+      submittedAssistantAnchorId?: string
     }
   | {
       mode: 'blocked'

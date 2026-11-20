@@ -15,6 +15,7 @@ import type { MessageListRuntime } from '@renderer/components/chat/messages/type
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { ChatComposerSendOptions } from '@renderer/components/composer/variants/ChatComposer'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
@@ -35,10 +36,9 @@ import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useToolApprovalBridge } from './hooks/useToolApprovalBridge'
@@ -48,14 +48,7 @@ const logger = loggerService.withContext('useChatRuntimeState')
 
 export interface ChatTurnInput {
   text: string
-  options?: {
-    mentionedModels?: UniqueModelId[]
-    userMessageParts?: CherryMessagePart[]
-    reasoningEffort?: ReasoningEffortOption
-    serviceTier?: ServiceTierSelection
-    fastMode?: boolean
-    chatTarget?: ComposerChatTarget
-  }
+  options?: ChatComposerSendOptions
 }
 
 interface UseChatRuntimeStateParams {
@@ -333,7 +326,10 @@ export function useChatRuntimeState({
         trigger: 'submit-message' as const,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
-        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {}),
+        ...(options?.chatTarget?.fallbackParentAnchorId
+          ? { fallbackParentAnchorId: options.chatTarget.fallbackParentAnchorId }
+          : {})
       }
     },
     []
@@ -515,7 +511,25 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        const sent = await send({ text, options })
+        const onQueuedTurnAccepted = options?.onQueuedTurnAccepted
+        const sent = await send(
+          { text, options },
+          {
+            onAccepted:
+              onQueuedTurnAccepted &&
+              ((ack) => {
+                if (ack.mode !== 'started' || !ack.submittedAssistantAnchorId) return
+                const reply = ack.reservedMessages?.find((message) => message.id === ack.submittedAssistantAnchorId)
+                if (reply?.role === 'assistant') {
+                  onQueuedTurnAccepted({
+                    mode: 'active-path',
+                    parentAnchorId: reply.id,
+                    fallbackParentAnchorId: reply.metadata?.parentId ?? undefined
+                  })
+                }
+              })
+          }
+        )
         if (sent && scrollToBottomOnSend) scrollToBottom()
         return sent
       } catch (err) {

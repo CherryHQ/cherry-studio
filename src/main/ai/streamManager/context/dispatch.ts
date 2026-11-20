@@ -215,6 +215,7 @@ export async function dispatchStreamRequest(
     mode: result.mode,
     activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
     preserveActiveNode,
-    reservedMessages: prepared.reservedMessages
+    reservedMessages: prepared.reservedMessages,
+    ...(prepared.submittedAssistantAnchorId && { submittedAssistantAnchorId: prepared.submittedAssistantAnchorId })
   }
 }
