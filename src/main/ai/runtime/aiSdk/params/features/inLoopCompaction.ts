@@ -31,16 +31,11 @@ import {
   fromAISDK,
   getContextTokens,
   groupIntoTurns,
-  resolveCompressionOutputTokens,
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
 import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
@@ -160,7 +155,8 @@ export const inLoopCompactionFeature: RequestFeature = {
     const window =
       resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
     if (!compressor || !window) return []
-    const maxOutputTokens = resolveCompressionOutputTokens(window)
+    // Same budget as the turn-start and in-loop paths, so a capped compressor is not asked to reserve nearly its whole window for output.
+    const { maxOutputTokens, maxInputTokens: compressionInputBudget } = resolveCompressionBudget(window)
     const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
       const history = fromAISDK(prompt)
       const conversation = history.filter((message) => message.role !== 'system')
@@ -177,10 +173,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           createCompressionAdapter(compressor.languageModel, maxOutputTokens, signal ?? scope.signal),
           {
             keepRecentTurns,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((window - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-            )
+            maxInputTokens: compressionInputBudget
           }
         )
         const size = (items: typeof history) =>
