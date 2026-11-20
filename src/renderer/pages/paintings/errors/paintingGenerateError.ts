@@ -45,10 +45,11 @@ export function translatePaintingGenerateError(error: Error): string {
     CUSTOM_SIZE_REQUIRED: 'paintings.zhipu.custom_size_required',
     CUSTOM_SIZE_RANGE: 'paintings.zhipu.custom_size_range',
     CUSTOM_SIZE_DIVISIBLE: 'paintings.zhipu.custom_size_divisible',
-    CUSTOM_SIZE_PIXELS: 'paintings.zhipu.custom_size_pixels'
+    CUSTOM_SIZE_PIXELS: 'paintings.zhipu.custom_size_pixels',
+    NO_USABLE_IMAGE: 'paintings.no_usable_image'
   }
 
-  return i18n.t(keyMap[error.code])
+  return i18n.t(keyMap[error.code], error.values)
 }
 
 export function presentPaintingGenerateError(error: unknown) {

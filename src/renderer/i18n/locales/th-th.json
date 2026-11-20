@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "ต่ำ",
   "paintings.negative_prompt": "Negative Prompt",
   "paintings.negative_prompt_tip": "อธิบายสิ่งที่คุณไม่ต้องการให้รวมในรูปภาพ",
+  "paintings.no_usable_image": "ผู้ให้บริการไม่ส่งภาพที่ใช้งานได้กลับมาสำหรับโมเดล \"{{model}}\" คำขอนี้อาจถูกเรียกเก็บเงินไปแล้ว ไม่มีการส่งคำขอเพิ่มเติมหลังจากผลลัพธ์นี้",
   "paintings.number_images": "จำนวนรูปภาพ",
   "paintings.number_images_tip": "จำนวนรูปภาพที่จะสร้าง ({{min}}-{{max}})",
   "paintings.operation_failed": "ดำเนินการไม่สำเร็จ โปรดลองอีกครั้งภายหลัง",

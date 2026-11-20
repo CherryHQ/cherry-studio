@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "Düşük",
   "paintings.negative_prompt": "Negatif İstem",
   "paintings.negative_prompt_tip": "Görselde yer alması istenmeyen öğeleri açıklayın",
+  "paintings.no_usable_image": "Sağlayıcı \"{{model}}\" modeli için kullanılabilir bir görsel döndürmedi. Bu istek için ücret zaten alınmış olabilir. Bu sonuçtan sonra başka bir istek gönderilmedi.",
   "paintings.number_images": "Görsel Sayısı",
   "paintings.number_images_tip": "Oluşturulacak görsel sayısı ({{min}}-{{max}})",
   "paintings.operation_failed": "İşlem başarısız oldu, lütfen daha sonra tekrar deneyin",

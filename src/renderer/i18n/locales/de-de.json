@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "Niedrig",
   "paintings.negative_prompt": "Negativ-Prompt",
   "paintings.negative_prompt_tip": "Beschreiben Sie, was nicht im Bild erscheinen soll",
+  "paintings.no_usable_image": "Der Anbieter hat für das Modell „{{model}}“ kein verwendbares Bild zurückgegeben. Für diese Anfrage wurden möglicherweise bereits Kosten berechnet. Nach diesem Ergebnis wurde keine weitere Anfrage gesendet.",
   "paintings.number_images": "Generierungsanzahl",
   "paintings.number_images_tip": "Anzahl der zu generierenden Bilder ({{min}}–{{max}})",
   "paintings.operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",

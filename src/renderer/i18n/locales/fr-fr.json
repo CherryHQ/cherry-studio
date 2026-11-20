@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "Bas",
   "paintings.negative_prompt": "Prompt négatif",
   "paintings.negative_prompt_tip": "Décrivez ce que vous ne voulez pas voir dans l'image",
+  "paintings.no_usable_image": "Le fournisseur n'a renvoyé aucune image exploitable pour le modèle « {{model}} ». Cette requête a peut-être déjà été facturée. Aucune autre requête n'a été envoyée après ce résultat.",
   "paintings.number_images": "Nombre d'images générées",
   "paintings.number_images_tip": "Nombre d'images à générer ({{min}}-{{max}})",
   "paintings.operation_failed": "L'opération a échoué, veuillez réessayer plus tard",

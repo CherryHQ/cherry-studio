@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "낮음",
   "paintings.negative_prompt": "네거티브 프롬프트",
   "paintings.negative_prompt_tip": "이미지에 포함하지 않을 내용을 설명하세요",
+  "paintings.no_usable_image": "제공자가 모델 \"{{model}}\"에 대해 사용 가능한 이미지를 반환하지 않았습니다. 이 요청에 대해 제공자가 이미 비용을 청구했을 수 있습니다. 이 결과 이후 추가 요청은 전송되지 않았습니다.",
   "paintings.number_images": "이미지 수",
   "paintings.number_images_tip": "생성할 이미지 수({{min}}-{{max}})",
   "paintings.operation_failed": "작업에 실패했습니다. 나중에 다시 시도하세요",

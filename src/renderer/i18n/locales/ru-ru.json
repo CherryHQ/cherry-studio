@@ -3334,6 +3334,7 @@
   "paintings.moderation_options.low": "Низкое",
   "paintings.negative_prompt": "Негативный промпт",
   "paintings.negative_prompt_tip": "Опишите, что вы не хотите включать в изображение",
+  "paintings.no_usable_image": "Провайдер не вернул пригодное изображение для модели «{{model}}». За этот запрос плата, возможно, уже списана. После этого результата дополнительные запросы не отправлялись.",
   "paintings.number_images": "Количество изображений",
   "paintings.number_images_tip": "Количество создаваемых изображений ({{min}}–{{max}})",
   "paintings.operation_failed": "Операция не удалась, повторите попытку позже",

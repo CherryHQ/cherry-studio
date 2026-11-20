@@ -107,6 +107,7 @@ import type {
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
+import { createNoUsableImageError } from './utils/noUsableImageError'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
@@ -1221,9 +1222,7 @@ export class AiService extends BaseService {
       }
       if (dataUrls.length === 0) {
         if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
-        throw new Error(
-          `Image generation for '${sdkConfig.modelId}' completed upstream but returned no usable images. The provider may still have billed this request, so it was not retried automatically.`
-        )
+        throw createNoUsableImageError(sdkConfig.modelId)
       }
       const fileManager = application.get('FileManager')
       const files = await Promise.all(

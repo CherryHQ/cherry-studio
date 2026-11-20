@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "Low",
   "paintings.negative_prompt": "Negative Prompt",
   "paintings.negative_prompt_tip": "Describe what you don't want included in the image",
+  "paintings.no_usable_image": "The provider returned no usable image for model \"{{model}}\". It may already have charged for this request. No further request was sent after this result.",
   "paintings.number_images": "Number Images",
   "paintings.number_images_tip": "Number of images to generate ({{min}}-{{max}})",
   "paintings.operation_failed": "Operation failed, please try again later",

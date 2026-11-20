@@ -976,7 +976,35 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         paramValues: {}
       })
-    ).rejects.toThrow(/completed upstream but returned no usable images.*may still have billed.*not retried/)
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /completed upstream but returned no usable images.*may still have billed.*no further request was sent/
+      ),
+      i18nKey: 'image_no_usable_output',
+      detailI18nValues: { model: 'test-model' }
+    })
+    expect(createInternalEntry).not.toHaveBeenCalled()
+  })
+
+  it('rejects a whitespace-only base64 payload without writing any file', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: '   ', mediaType: 'image/png' }] })
+    const createInternalEntry = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry } : undefined
+    )
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toMatchObject({ i18nKey: 'image_no_usable_output' })
     expect(createInternalEntry).not.toHaveBeenCalled()
   })
 

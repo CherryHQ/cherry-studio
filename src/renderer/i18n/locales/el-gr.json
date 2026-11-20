@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "Χαμηλό",
   "paintings.negative_prompt": "Αρνητική προτροπή",
   "paintings.negative_prompt_tip": "Περιγράψτε τα πράγματα που δεν θέλετε να εμφανίζονται στην εικόνα",
+  "paintings.no_usable_image": "Ο πάροχος δεν επέστρεψε χρησιμοποιήσιμη εικόνα για το μοντέλο «{{model}}». Το αίτημα ενδέχεται να έχει ήδη χρεωθεί. Μετά από αυτό το αποτέλεσμα δεν στάλθηκε άλλο αίτημα.",
   "paintings.number_images": "Ποσότητα δημιουργιών",
   "paintings.number_images_tip": "Αριθμός εικόνων προς δημιουργία ({{min}}-{{max}})",
   "paintings.operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",

@@ -3332,6 +3332,7 @@
   "paintings.moderation_options.low": "低",
   "paintings.negative_prompt": "反向提示词",
   "paintings.negative_prompt_tip": "描述你不想在图片中出现的内容",
+  "paintings.no_usable_image": "提供商未为模型“{{model}}”返回可用图像。此请求可能已被计费。此结果之后未再发送任何请求。",
   "paintings.number_images": "生成数量",
   "paintings.number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
   "paintings.operation_failed": "操作失败，请稍后重试",

@@ -3370,6 +3370,7 @@
   "paintings.moderation_options.low": "Niska",
   "paintings.negative_prompt": "Prompt negatywny",
   "paintings.negative_prompt_tip": "Opisz, czego nie chcesz widzieć na obrazie",
+  "paintings.no_usable_image": "Dostawca nie zwrócił użytecznego obrazu dla modelu „{{model}}”. Za to żądanie mogła już zostać naliczona opłata. Po tym wyniku nie wysłano żadnego kolejnego żądania.",
   "paintings.number_images": "Liczba obrazów",
   "paintings.number_images_tip": "Liczba obrazów do wygenerowania ({{min}}-{{max}})",
   "paintings.operation_failed": "Operacja nie powiodła się, spróbuj ponownie później",
