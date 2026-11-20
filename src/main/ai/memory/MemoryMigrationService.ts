@@ -157,11 +157,11 @@ export class MemoryMigrationService extends BaseService {
         const allAfter = actual.every((file, index) => file.hash === previous.files[index].afterHash)
         const backups = application.getPath('feature.memory.backups')
         const backupId =
-          sourceHash === null
+          previous.sourceHash === null
             ? undefined
             : await findLegacyMemoryBackup(
                 await assertMemoryPath(path.dirname(backups), path.join(path.basename(backups), 'agent', agentId)),
-                sourceHash
+                previous.sourceHash
               )
         if (previous.sourceHash === sourceHash && allAfter && (sourceHash === null || backupId)) {
           await session.commit(
@@ -178,7 +178,6 @@ export class MemoryMigrationService extends BaseService {
           const conflict = () => new MemoryError('conflict', 'Interrupted migration no longer matches its backup')
           if (
             !backupId ||
-            sourceHash !== previous.sourceHash ||
             applied.some((file) => actual.find((read) => read.path === file.path)?.hash !== file.afterHash)
           )
             throw conflict()

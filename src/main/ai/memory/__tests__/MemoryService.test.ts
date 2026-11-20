@@ -381,6 +381,31 @@ describe('lifecycle memory owner', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it.each(['unexposed', 'unknown'] as const)(
+    'retains only proven shared isolation when duplicating %s history',
+    async (state) => {
+      MockApplicationUtils.setService('MemoryService', service)
+      const source = seedAssistantTopic(false)
+      const run = (topicId: string) =>
+        memoryRuntimeFetch(
+          async () => Response.json({}),
+          (signal) => runtimeMemoryAuthorities({ topicId, assistantId: source.assistantId }, signal)
+        )('https://test.invalid')
+      if (state === 'unexposed') await run(source.topicId)
+      dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, source.replyId)).run()
+      const copy = topicService.duplicate(source.topicId, {
+        nodeId: state === 'unknown' ? source.userId : source.replyId
+      })
+      const editor = service.open(authority())
+      await editor.entry()
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'CLEARED')
+      await editor.clear((await editor.previewClear()).token, approve)
+      editor.dispose()
+      if (state === 'unexposed') expect((await run(copy.id)).ok).toBe(true)
+      else await expect(run(copy.id)).rejects.toThrow('isolation')
+    }
+  )
+
   it.each(['fresh', 'rollout', 'legacy'] as const)(
     'keeps shared exposure with the topic after moving it back to its %s owner',
     async (kind) => {

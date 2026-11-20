@@ -247,23 +247,29 @@ describe('legacy memory activation', () => {
     }
   )
 
-  it('recovers an interrupted multi-file FACT migration on restart', async () => {
-    const original = '# First\n' + 'a'.repeat(15000) + '\n# Second\n' + 'b'.repeat(15000)
-    await writeFile(path.join(root, 'memory', 'FACT.md'), original)
-    const write = memoryFiles.writeMemoryBytes
-    const failure = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
-      if (args[0] === root && args[1] === 'MEMORY.md' && args[2]?.length) throw new Error('interrupted')
-      return write(...args)
-    })
-    expect(await migration.ensureAgent(agentId)).toBe(false)
-    expect(await readdir(path.join(root, '.memories'))).toHaveLength(1)
-    failure.mockRestore()
-    await migration._doStop()
-    await migration._doInit()
-    expect(await migration.ensureAgent(agentId)).toBe(true)
-    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toContain('# First')
-    expect(await readFile(path.join(root, 'memory', 'FACT.md'), 'utf8')).toBe(original)
-  })
+  it.each([false, true])(
+    'recovers an interrupted multi-file FACT migration on restart (FACT edited=%s)',
+    async (edited) => {
+      const original = '# First\n' + 'a'.repeat(15000) + '\n# Second\n' + 'b'.repeat(15000)
+      await writeFile(path.join(root, 'memory', 'FACT.md'), original)
+      const write = memoryFiles.writeMemoryBytes
+      const failure = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (args[0] === root && args[1] === 'MEMORY.md' && args[2]?.length) throw new Error('interrupted')
+        return write(...args)
+      })
+      expect(await migration.ensureAgent(agentId)).toBe(false)
+      expect(await readdir(path.join(root, '.memories'))).toHaveLength(1)
+      failure.mockRestore()
+      const latest = edited ? 'Updated FACT after interruption' : original
+      if (edited) await writeFile(path.join(root, 'memory', 'FACT.md'), latest)
+      await migration._doStop()
+      await migration._doInit()
+      expect(await migration.ensureAgent(agentId)).toBe(true)
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toContain(edited ? latest : '# First')
+      if (edited) expect(await readdir(path.join(root, '.memories'))).toEqual([])
+      expect(await readFile(path.join(root, 'memory', 'FACT.md'), 'utf8')).toBe(latest)
+    }
+  )
 
   it('keeps complete Markdown sections and fenced headings together when spilling into topics', async () => {
     const first = '# First\n' + 'a'.repeat(15000) + '\n'

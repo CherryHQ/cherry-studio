@@ -161,7 +161,7 @@ export function MemoryFileControls() {
         onConfirm={() => run(confirm)}
         content={
           pending?.kind === 'recover' ? (
-            <ul>
+            <ul className="max-h-[min(50dvh,24rem)] overflow-y-auto overscroll-contain break-all">
               {previewFiles.map((file) => (
                 <li key={file.path}>
                   {file.path}
