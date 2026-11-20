@@ -5754,6 +5754,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Connecté via OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Autoriser avec CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Déconnexion",
+  "settings.provider.oauth.cherryIn.missing_keys": "Autorisation réussie. Aucune clé API n’est disponible. Créez une clé dans le groupe default, puis autorisez à nouveau l’accès.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Non connecté",
   "settings.provider.oauth.cherryIn.register_account": "Créer un compte",
   "settings.provider.oauth.cherryIn.service_attribution": "Ce service est fourni par <link>open.cherryin.ai</link>",

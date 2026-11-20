@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 
-import { _electron as electron, type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
+import { type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
 
+import { terminateExactProcess } from '../../../scripts/e2e/regression/process'
 import type {} from '../../../src/renderer/data/utils/dataApiDevtools'
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
 import { AgentSessionMessageEntitySchema } from '../../../src/shared/data/api/schemas/agentSessionMessages'
@@ -10,7 +12,7 @@ import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatRequest, type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../regression/helpers/navigation'
-import { closeElectronApp, expect, test } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
 // AC7 of the Pi Durable turn-authority note: each scenario runs a real `pi-durable` session against a
@@ -57,15 +59,27 @@ function routeRequests(server: MockChatServer) {
 async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
   const env = { ...process.env, NODE_ENV: 'development' }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
-  let page: Page | undefined
-  await expect
-    .poll(() => (page = app.windows().find((window) => /\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url()))), {
-      timeout: 60_000
-    })
-    .toBeTruthy()
-  await page!.waitForSelector('#root', { state: 'attached', timeout: 60_000 })
-  return { app, page: page! }
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
+  try {
+    let page: Page | undefined
+    await expect
+      .poll(
+        () => (page = app.windows().find((window) => /\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url()))),
+        {
+          timeout: 60_000
+        }
+      )
+      .toBeTruthy()
+    await page!.waitForSelector('#root', { state: 'attached', timeout: 60_000 })
+    return { app, page: page! }
+  } catch (error) {
+    try {
+      await closeElectronApp(app)
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Electron startup and cleanup failed')
+    }
+    throw error
+  }
 }
 
 async function createSession(page: Page, server: MockChatServer): Promise<Session> {
@@ -448,11 +462,26 @@ test.describe('Pi Durable turn authority in Electron', () => {
       // Main saves the user row, then submits it; give the native submission time to commit.
       await first.page.waitForTimeout(2_000)
 
-      const exited = new Promise((resolve) => first.app.process().once('exit', resolve))
-      first.app.process().kill('SIGKILL')
-      await exited
+      await test.step('Crash the owned Electron application', async () => {
+        const child = first.app.process()
+        const pid = child.pid
+        if (!pid) throw new Error('Owned Electron process has no PID')
+        await Promise.all([
+          once(child, 'exit', { signal: AbortSignal.timeout(20_000) }),
+          Promise.resolve().then(() => {
+            if (process.platform === 'win32') terminateExactProcess(pid, 'windows')
+            else if (!child.kill('SIGKILL')) throw new Error('Could not kill the owned Electron process')
+          })
+        ])
+      })
       running = undefined
-      await held.closed
+      let disconnected = false
+      void held.closed.then(() => {
+        disconnected = true
+      })
+      await expect
+        .poll(() => disconnected, { timeout: 20_000, message: 'Crashed Electron must disconnect its held request' })
+        .toBe(true)
 
       const second = await launch()
       running = second.app
@@ -483,10 +512,13 @@ test.describe('Pi Durable turn authority in Electron', () => {
       failed = true
       throw error
     } finally {
-      route.close()
-      // A failed step stays the reported error even if the app then cannot quit.
-      if (running) await closeElectronApp(running).catch((error) => (failed ? undefined : Promise.reject(error)))
-      await server.close()
+      try {
+        route.close()
+        // A failed step stays the reported error even if the app then cannot quit.
+        if (running) await closeElectronApp(running).catch((error) => (failed ? undefined : Promise.reject(error)))
+      } finally {
+        await server.close()
+      }
     }
   })
 })

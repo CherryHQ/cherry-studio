@@ -5756,6 +5756,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Вошёл через OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Авторизоваться через CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Выход",
+  "settings.provider.oauth.cherryIn.missing_keys": "Авторизация выполнена. Нет доступных ключей API. Создайте ключ в группе default и пройдите авторизацию повторно.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Вход не выполнен",
   "settings.provider.oauth.cherryIn.register_account": "Создать учётную запись",
   "settings.provider.oauth.cherryIn.service_attribution": "Сервис предоставлен <link>open.cherryin.ai</link>",
