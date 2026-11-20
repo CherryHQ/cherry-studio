@@ -322,6 +322,23 @@ describe('useAssistant', () => {
       })
     })
 
+    it('remembers a settings write under the owning model id when one is passed', async () => {
+      const { hook } = setup({})
+      await act(async () => {
+        await hook.result.current.updateAssistantSettings({ reasoning_effort: 'low' }, 'provider::model-b')
+      })
+
+      expect(updateModelSettings).toHaveBeenCalledTimes(1)
+      expect(updateModelSettings).toHaveBeenCalledWith('provider::model-b', { reasoning_effort: 'low' })
+    })
+
+    it('previews the target model restored settings without writing', () => {
+      const { hook, trigger } = setup({ 'provider::model-b': { enableWebSearch: true } })
+
+      expect(hook.result.current.previewModelSwitch(modelB)?.enableWebSearch).toBe(true)
+      expect(trigger).not.toHaveBeenCalled()
+    })
+
     it('defaults web search to off for a model without saved settings', async () => {
       const { hook, trigger } = setup({})
 

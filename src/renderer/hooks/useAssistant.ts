@@ -258,40 +258,47 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
 
   // Remember the user's web search / reasoning effort choice for the active model so it is
   // restored when they switch back to it.
-  const rememberModelSettings = useCallback((settings: Partial<AssistantSettings> | undefined) => {
-    const activeModelId = assistantRef.current?.modelId
-    if (!activeModelId || !settings) return
-    const remembered: ChatModelSetting = {}
-    if (settings.enableWebSearch !== undefined) remembered.enableWebSearch = settings.enableWebSearch
-    if (settings.reasoning_effort !== undefined) remembered.reasoning_effort = settings.reasoning_effort
-    if (Object.keys(remembered).length === 0) return
-    const all = modelSettingsRef.current ?? {}
-    const next = { ...all, [activeModelId]: { ...all[activeModelId], ...remembered } }
-    modelSettingsRef.current = next
-    void preferenceService.updateModelSettings(activeModelId, remembered).catch((error) => {
-      logger.warn('Failed to persist per-model settings', { error })
-    })
-  }, [])
+  const rememberModelSettings = useCallback(
+    (settings: Partial<AssistantSettings> | undefined, ownerModelId?: string) => {
+      // `ownerModelId` is the model whose controls produced the change (the composer's single
+      // selected model in multi-select); it defaults to the assistant's own model.
+      const activeModelId = ownerModelId ?? assistantRef.current?.modelId
+      if (!activeModelId || !settings) return
+      const remembered: ChatModelSetting = {}
+      if (settings.enableWebSearch !== undefined) remembered.enableWebSearch = settings.enableWebSearch
+      if (settings.reasoning_effort !== undefined) remembered.reasoning_effort = settings.reasoning_effort
+      if (Object.keys(remembered).length === 0) return
+      const all = modelSettingsRef.current ?? {}
+      const next = { ...all, [activeModelId]: { ...all[activeModelId], ...remembered } }
+      modelSettingsRef.current = next
+      void preferenceService.updateModelSettings(activeModelId, remembered).catch((error) => {
+        logger.warn('Failed to persist per-model settings', { error })
+      })
+    },
+    []
+  )
 
   const updateAssistantSettings = useCallback(
-    (settings: Partial<AssistantSettings>) => {
+    (settings: Partial<AssistantSettings>, ownerModelId?: string) => {
       const currentId = idRef.current
       const currentAssistant = assistantRef.current
       if (!currentId || !currentAssistant) return Promise.resolve(undefined)
-      rememberModelSettings(settings)
+      rememberModelSettings(settings, ownerModelId)
       return patchAssistantRef.current(currentId, { settings })
     },
     [rememberModelSettings]
   )
 
-  const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
-    const currentId = idRef.current
+  // The settings patch a switch to `next` would write (restored + reconciled), or
+  // undefined when nothing needs writing. The composer uses it to show/submit the
+  // target's effort while the switch PATCH is still pending.
+  const previewModelSwitch = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
     const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return
+    if (!currentAssistant) return undefined
     // Shared model-switch operation (also used by the assistant edit dialog):
     // restores the target model's remembered choices and reconciles the pair
     // against the target model; next.id is the UniqueModelId.
-    const settingsPatch = resolveModelSwitchSettings({
+    return resolveModelSwitchSettings({
       next,
       nextProvider: providersRef.current.find((provider) => provider.id === next.providerId),
       currentModelId: currentAssistant.modelId,
@@ -302,11 +309,20 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       // Include scoped KB tools as well as MCP when predicting the Gemini conflict.
       hasFunctionToolSignals: hasMcpToolSignals(currentAssistant) || scopedKnowledgeToolsRef.current
     })
-    return patchAssistantRef.current(
-      currentId,
-      settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
-    )
   }, [])
+
+  const setModel = useCallback(
+    (next: Model, extraSettings?: Partial<AssistantSettings>) => {
+      const currentId = idRef.current
+      if (!currentId || !assistantRef.current) return
+      const settingsPatch = previewModelSwitch(next, extraSettings)
+      return patchAssistantRef.current(
+        currentId,
+        settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
+      )
+    },
+    [previewModelSwitch]
+  )
 
   const updateAssistant = useCallback(
     (patch: UpdateAssistantDto) => {
@@ -326,6 +342,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     isModelPending,
     isModelMissing,
     setModel,
+    previewModelSwitch,
     updateAssistant,
     updateAssistantSettings
   }

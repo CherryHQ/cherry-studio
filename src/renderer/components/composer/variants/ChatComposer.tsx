@@ -136,7 +136,14 @@ const openChatMcpStatusPanel = ({
 
 export type ChatComposerResolvedContext = Pick<
   ReturnType<typeof useAssistant>,
-  'assistant' | 'isLoading' | 'model' | 'isModelPending' | 'isModelMissing' | 'setModel' | 'updateAssistantSettings'
+  | 'assistant'
+  | 'isLoading'
+  | 'model'
+  | 'isModelPending'
+  | 'isModelMissing'
+  | 'setModel'
+  | 'previewModelSwitch'
+  | 'updateAssistantSettings'
 >
 
 export interface ChatConversationControlsSnapshot {
@@ -404,6 +411,7 @@ const ChatComposerInner = ({
     isModelPending,
     isModelMissing,
     setModel,
+    previewModelSwitch,
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
@@ -610,7 +618,10 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      // The effort the switch will actually write: the target's remembered choice,
+      // reconciled, not the outgoing model's. A send during the pending PATCH uses it.
+      const nextReasoningEffort =
+        previewModelSwitch(nextModel)?.reasoning_effort ?? resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         assistantId: assistant.id,
@@ -636,7 +647,7 @@ const ChatComposerInner = ({
           throw error
         })
     },
-    [assistant, reasoningEffort, reasoningOverride, setModel]
+    [assistant, previewModelSwitch, reasoningEffort, reasoningOverride, setModel]
   )
 
   const {
@@ -822,7 +833,7 @@ const ChatComposerInner = ({
         value: option,
         version
       })
-      void updateAssistantSettings({ reasoning_effort: option })
+      void updateAssistantSettings({ reasoning_effort: option }, effectiveSubmittedModel?.id)
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })
