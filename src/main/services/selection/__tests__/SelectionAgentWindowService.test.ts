@@ -538,7 +538,7 @@ describe('SelectionAgentWindowService', () => {
         )
         Object.assign(systemPreferences, { getAnimationSettings: vi.fn(() => ({ prefersReducedMotion: false })) })
         behavior = { hideMacDockWhileShown: vi.fn() }
-        Object.assign(wm, { behavior })
+        Object.assign(application.get('WindowManager'), { behavior })
       })
 
       afterEach(() => {
