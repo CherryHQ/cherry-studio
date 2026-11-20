@@ -55,6 +55,17 @@ describe('buildConfigToolsGuidance', () => {
     expect(prompt).toContain('<cherry-tools/cron>')
   })
 
+  // Catches cron attached to every non-create request, which can persist a job for work meant to run now.
+  it('asks for cron only for a scheduled or recurring request', () => {
+    const prompt = buildConfigToolsGuidance({ type: 'pi', configuration: {} }, { channelLinked: false, callForm }) ?? ''
+    const sentences = prompt.split(/(?<=\.)\s+/)
+
+    expect(sentences.find((sentence) => sentence.includes('<cherry-tools/cron>'))).toMatch(
+      /^When the user asks for a scheduled or recurring task/
+    )
+    expect(sentences.find((sentence) => sentence.includes('Any other request'))).not.toContain('cron')
+  })
+
   it('points Cherry Assistant at its host create and update tools', () => {
     const prompt = buildConfigToolsGuidance(
       { type: 'claude-code', configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } },
