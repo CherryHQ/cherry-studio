@@ -1,11 +1,11 @@
 import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import type { SWRConfiguration } from 'swr'
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
-import { getProviderDisplayName } from '@renderer/utils/naming'
+import { getProviderDisplayName, getProviderInstanceDisplayName } from '@renderer/utils/naming'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type {
   CreateProviderDto,
@@ -283,17 +283,23 @@ export function useProviderPreset(providerId: string | null | undefined, fields:
 export { getProviderDisplayName }
 
 /**
- * Hook variant of {@link getProviderDisplayName} for callers that have a
- * single provider id. For batch rendering (e.g. a dropdown of N providers),
- * use `useProviders()` + `getProviderDisplayName` to avoid hook-in-loop.
+ * Resolve the current name of a provider instance from its id.
  */
 export function useProviderDisplayName(providerId: string | undefined): string {
-  const { data, error } = useQuery('/providers/:providerId', {
-    params: { providerId: providerId ?? '' },
+  const params = { providerId: providerId ?? '' }
+  const { data, error, mutate, refetch } = useQuery('/providers/:providerId', {
+    params,
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  return isDataApiNotFoundError(error) ? '' : getProviderDisplayName(data)
+  useDataChange(providerId ? '/providers/:providerId' : [], () => void refetch(), { routeParams: params })
+
+  const isMissing = isDataApiNotFoundError(error)
+  useEffect(() => {
+    if (isMissing && data) void mutate(undefined, { revalidate: false })
+  }, [isMissing, data, mutate])
+
+  return !isMissing && data ? getProviderInstanceDisplayName(data) : ''
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──

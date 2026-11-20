@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, use, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
@@ -22,6 +22,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import { CaptureProviderNamesContext } from './CaptureProviderNamesContext'
 import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
 
@@ -116,9 +117,12 @@ const MessageHeader: FC<Props> = memo(
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     const isAssistantMessage = message.role === 'assistant'
-    const displayProviderName = useProviderDisplayName(
-      isAssistantMessage && showModelIdentity ? displayModel?.provider : undefined
-    )
+    const providerId = isAssistantMessage && showModelIdentity && displayModelName ? displayModel?.provider : undefined
+    const captureProviderNames = use(CaptureProviderNamesContext)
+    const liveProviderName = useProviderDisplayName(captureProviderNames ? undefined : providerId)
+    const displayProviderName = captureProviderNames
+      ? (providerId && captureProviderNames.get(providerId)) || ''
+      : liveProviderName
     const modelIdentityLabel = [displayModelName, displayProviderName].filter(Boolean).join(' | ')
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
@@ -190,7 +194,7 @@ const MessageHeader: FC<Props> = memo(
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
-          <div className="flex w-full min-w-0 items-center gap-1.5">
+          <div className="message-header-row flex w-full min-w-0 items-center gap-1.5">
             <span
               className="truncate text-sm leading-5 font-semibold"
               style={{
@@ -204,20 +208,22 @@ const MessageHeader: FC<Props> = memo(
             )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span
-                className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5"
+                className="message-model-identity flex min-w-0 shrink items-start gap-1 text-foreground-tertiary text-xs leading-5"
                 title={modelIdentityLabel}>
-                <span aria-hidden="true" className="shrink-0">
+                <span aria-hidden="true" className="mt-0.5 shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
-                <span className="min-w-0 truncate">{displayModelName}</span>
-                {displayProviderName && (
-                  <>
-                    <span aria-hidden="true" className="shrink-0">
-                      |
+                <span className="message-identity-label flex max-h-5 min-w-0 flex-wrap gap-x-1 overflow-hidden">
+                  <span className="min-w-0 truncate">{displayModelName}</span>
+                  {displayProviderName && (
+                    <span className="message-identity-provider flex max-w-36 shrink-0 gap-1">
+                      <span aria-hidden="true" className="shrink-0">
+                        |
+                      </span>
+                      <span className="min-w-0 truncate">{displayProviderName}</span>
                     </span>
-                    <span className="min-w-0 max-w-36 truncate">{displayProviderName}</span>
-                  </>
-                )}
+                  )}
+                </span>
               </span>
             )}
             {isGroupContextMessage && (

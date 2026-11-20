@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
@@ -164,6 +165,7 @@ vi.mock('../list/MessageAnchorLine', () => ({
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
   const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const { CaptureProviderNamesContext } = await import('../frame/CaptureProviderNamesContext')
   const { useOptionalMessageCaptureLease } = await import('../list/MessageCaptureLeaseContext')
   const { exportService } = await import('@renderer/services/ExportService')
   const ArtifactLifecycleControl = () => {
@@ -200,6 +202,7 @@ vi.mock('../list/MessageGroup', async () => {
     messages: MessageListItem[]
     registerMessageElement?: (id: string, element: HTMLElement | null) => void
   }) => {
+    const providerNames = React.use(CaptureProviderNamesContext)
     const groupId = messages.map((message) => message.id).join(',')
     messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
     const mountGroupIdRef = React.useRef(groupId)
@@ -252,6 +255,7 @@ vi.mock('../list/MessageGroup', async () => {
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}
+              data-provider-name={providerNames?.get(message.model?.provider ?? '')}
             />
           )
         })}
@@ -427,6 +431,7 @@ describe('MessageList', () => {
   })
 
   beforeEach(() => {
+    MockDataApiUtils.resetMocks()
     scrollToBottom.mockClear()
     scrollToTop.mockClear()
     scrollToKey.mockReset()
@@ -659,8 +664,10 @@ describe('MessageList', () => {
     expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
   })
 
-  it('exports topic image from a complete non-virtualized capture surface', async () => {
+  it('waits for provider names before exporting the complete non-virtualized topic', async () => {
     messageVirtualListMocks.renderItemLimit = 1
+    const providers = Promise.withResolvers<{ id: string; name: string }[]>()
+    MockDataApiUtils.setCustomResponse('/providers', 'GET', providers.promise)
     const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
@@ -679,13 +686,29 @@ describe('MessageList', () => {
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
       expect(capturedText).toContain('user-2')
+      expect(ref.current?.querySelector('#message-assistant-1')).toHaveAttribute(
+        'data-provider-name',
+        'Offscreen relay'
+      )
+      expect(ref.current?.querySelector('#message-assistant-2')).not.toHaveAttribute('data-provider-name')
       return 'data:image/png;base64,topic'
     })
 
     render(
       <MessageListProvider
         value={createValue(
-          [createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant'), createMessage('user-2', 'user')],
+          [
+            createMessage('user-1', 'user'),
+            {
+              ...createMessage('assistant-1', 'assistant'),
+              model: { id: 'model-a', name: 'Model A', provider: 'relay' }
+            },
+            createMessage('user-2', 'user'),
+            {
+              ...createMessage('assistant-2', 'assistant'),
+              model: { id: 'model-b', name: 'Model B', provider: 'missing' }
+            }
+          ],
           undefined,
           actions,
           { imageExportFileName: 'Topic' }
@@ -701,6 +724,15 @@ describe('MessageList', () => {
       exportPromise = runtime?.exportTopicImage()
     })
 
+    await act(async () => {
+      await new Promise(requestAnimationFrame)
+      await new Promise(requestAnimationFrame)
+    })
+    expect(captureScrollableAsDataUrlMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      providers.resolve([{ id: 'relay', name: 'Offscreen relay' }])
+    })
     await act(async () => {
       await exportPromise
     })
