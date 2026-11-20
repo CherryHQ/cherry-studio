@@ -9,10 +9,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { CallToolRequestParams, CallToolResult, JsonSchemaType } from '@modelcontextprotocol/server'
+
 import { application } from '@application'
 import { isBlockedSourceFile } from '@main/ai/mcp/servers/assistant'
 import { isSameOrInside } from '@main/utils/file'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
+import type { Serializable } from '@shared/types/serializable'
 import { isDoctorFixRequest } from '@shared/utils/doctor'
 
 import { incidentLogs, incidentMessages, incidentOverview, incidentRequest, incidentTranscript } from './doctorIncident'
@@ -31,11 +34,8 @@ export interface DoctorToolContext {
   readonly sessionId: string
 }
 
-export interface DoctorToolResult {
-  [key: string]: unknown
-  content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[]
-  isError?: boolean
-}
+export type DoctorToolArgs = NonNullable<CallToolRequestParams['arguments']>
+export type DoctorToolResult = CallToolResult
 
 export enum ToolErrorCode {
   InvalidParams = -32602
@@ -54,8 +54,8 @@ export class ToolError extends Error {
 export interface DoctorTool {
   name: string
   description: string
-  inputSchema: Record<string, unknown>
-  handler: (args: Record<string, unknown>, ctx: DoctorToolContext) => Promise<DoctorToolResult> | DoctorToolResult
+  inputSchema: JsonSchemaType
+  handler: (args: DoctorToolArgs, ctx: DoctorToolContext) => Promise<DoctorToolResult> | DoctorToolResult
 }
 
 const PROBE_TIMEOUT_MS = 15_000
@@ -85,7 +85,7 @@ function json(value: unknown): DoctorToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
 }
 
-function requireString(args: Record<string, unknown>, key: string): string {
+function requireString(args: DoctorToolArgs, key: string): string {
   const value = args[key]
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new ToolError(`'${key}' is required`, ToolErrorCode.InvalidParams)
@@ -93,13 +93,14 @@ function requireString(args: Record<string, unknown>, key: string): string {
   return value
 }
 
-function optionalRecord(args: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
+function optionalRecord(args: DoctorToolArgs, key: string): DoctorToolArgs | undefined {
   const value = args[key]
   if (value === undefined) return undefined
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ToolError(`'${key}' must be an object`, ToolErrorCode.InvalidParams)
   }
-  return value as Record<string, unknown>
+  // SAFETY: The container check establishes a record; the selected tool and DataApi handlers validate its values.
+  return value as DoctorToolArgs
 }
 
 async function requestWrite(
@@ -181,7 +182,8 @@ const PREFERENCE_TOOL: DoctorTool = {
     if (action === 'list') return json(redactForModel(preferences.getAll()))
     const key = requireString(args, 'key')
     if (action === 'get') {
-      const redacted = redactForModel({ [key]: preferences.get(key as never) }) as Record<string, unknown>
+      // SAFETY: Redaction preserves the fresh wrapper object and converts each property to Serializable.
+      const redacted = redactForModel({ [key]: preferences.get(key as never) }) as Record<string, Serializable>
       return json({ key, value: redacted[key] })
     }
     if (action !== 'set') throw new ToolError(`Unknown action: ${action}`, ToolErrorCode.InvalidParams)
