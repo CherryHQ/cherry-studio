@@ -956,7 +956,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       models[0],
       { id: topicId, topicId },
       assistantContextOverride,
-      assistantId ? { topicId, assistantId } : undefined
+      { topicId, assistantId }
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
@@ -1105,7 +1105,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): AiStreamRequest {
     return {
       conversation: { id: topicId, topicId },
-      ...(assistantId ? { memoryContext: { topicId, assistantId } } : {}),
+      ...(assistantId ? { memoryContext: { topicId, assistantId } } : { memoryHistoryTopicId: topicId }),
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,

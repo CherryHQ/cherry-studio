@@ -9,7 +9,11 @@ import type { MemoryScope } from '@shared/types/memory'
 import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
 import type { MemoryEntry, MemoryRevision, MemoryUse } from './memoryEntries'
-import { finishExtractionInvalidation, stageExtractionInvalidation } from './memoryExtractionState'
+import {
+  finishExtractionInvalidation,
+  stageExtractionInvalidation,
+  withReconciledExtractionHistory
+} from './memoryExtractionState'
 import { memoryEntryPreview, memoryHash } from './memoryFiles'
 import {
   type MemoryAccess,
@@ -202,12 +206,14 @@ export class MemoryService extends BaseService {
       previewClear: () => run((store) => store.previewClear(access)),
       clear: (token, approve) =>
         run(async (store) => {
-          return notify('clear', await store.clear(access, token, approve))
+          const apply = async () => notify('clear', await store.clear(access, token, approve))
+          return scope.kind === 'shared' ? withReconciledExtractionHistory(apply) : apply()
         }),
       previewRecovery: () => run((store) => store.previewRecovery(access), 'recovery'),
       recover: (token, approve) =>
         run(async (store) => {
-          return notify('recovery', await store.recover(access, token, approve))
+          const apply = async () => notify('recovery', await store.recover(access, token, approve))
+          return scope.kind === 'shared' ? withReconciledExtractionHistory(apply) : apply()
         }, 'recovery')
     }
   }

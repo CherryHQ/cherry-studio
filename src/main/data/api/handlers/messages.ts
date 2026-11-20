@@ -7,7 +7,9 @@
  * - Message CRUD operations
  */
 
+import { application } from '@application'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import {
   BranchMessagesQuerySchema,
   CreateMessageSchema,
@@ -89,8 +91,17 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
   '/messages/:id/siblings': {
     POST: async ({ params, body }) => {
-      const parsed = MessageDataSchema.parse(body)
-      return messageService.createSibling(params.id, parsed)
+      const { resend, ...data } = body
+      const parsed = MessageDataSchema.parse(data)
+      const sibling = messageService.createSibling(params.id, parsed)
+      const assistantId = resend === true && topicService.getById(sibling.topicId).assistantId
+      if (assistantId && sibling.role === 'user') {
+        const record = application
+          .get('MemoryDreamingService')
+          .authorizeSubmission('assistant', sibling.topicId, assistantId)
+        record?.(sibling.id, sibling.data.parts ?? [])
+      }
+      return sibling
     }
   },
 

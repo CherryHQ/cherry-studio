@@ -1,3 +1,4 @@
+import { Mutex } from 'async-mutex'
 import { eq, like } from 'drizzle-orm'
 import * as z from 'zod'
 
@@ -76,6 +77,15 @@ function write(key: string, value: unknown) {
       set: { value, updatedAt: Date.now() }
     })
     .run()
+}
+
+// Serialize recovery acknowledgement with reconciliation so an in-flight write cannot appear unchanged.
+const historyLock = new Mutex()
+export function withReconciledExtractionHistory<T>(operation: () => Promise<T>): Promise<T> {
+  return historyLock.runExclusive(async () => {
+    await reconcileExtractionInvalidations()
+    return operation()
+  })
 }
 
 // Persist the file versions before the first write. A process exit may prevent the normal completion notification.

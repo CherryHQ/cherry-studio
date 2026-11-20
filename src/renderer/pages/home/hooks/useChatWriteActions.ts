@@ -391,7 +391,7 @@ export function useChatWriteActions(params: Params): Result {
       const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
-        body: { parts: editedParts }
+        body: { parts: editedParts, resend: true }
       })
       await seedReservedMessages([
         {

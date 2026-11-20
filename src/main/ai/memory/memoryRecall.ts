@@ -57,7 +57,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
   const parentConversationId = sql.raw(agent ? 'p.session_id' : 'p.topic_id')
   const ownerCondition = agent
     ? sql`c.agent_id = ${agentSessionService.getById(owner.sessionId).agentId}
-        AND c.type = 'conversation' AND c.owner_session_id IS NULL
+        AND c.type = 'conversation' AND c.owner_session_id IS NULL AND c.task_id IS NULL
         AND NOT EXISTS (SELECT 1 FROM agent_channel_session WHERE session_id = c.id)
         AND NOT EXISTS (SELECT 1 FROM agent_channel WHERE session_id = c.id)
         AND m.delivery IS NULL`

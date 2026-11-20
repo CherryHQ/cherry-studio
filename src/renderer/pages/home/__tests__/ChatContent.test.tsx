@@ -922,7 +922,7 @@ describe('ChatContent', () => {
 
     expect(createSiblingTrigger).toHaveBeenCalledWith({
       params: { id: 'history-user' },
-      body: { parts: editedParts }
+      body: { parts: editedParts, resend: true }
     })
     expect(refresh).toHaveBeenCalled()
     expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
@@ -1258,7 +1258,7 @@ describe('ChatContent', () => {
 
     expect(createSiblingTrigger).toHaveBeenCalledWith({
       params: { id: 'root-user' },
-      body: { parts: editedParts }
+      body: { parts: editedParts, resend: true }
     })
     expect(refresh).toHaveBeenCalled()
     expect(setMessages).toHaveBeenCalledWith(

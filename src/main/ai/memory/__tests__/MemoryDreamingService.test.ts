@@ -749,6 +749,11 @@ describe('memory organization lifecycle and commit fences', () => {
       if (action === 'recovery') expect(file.content).toBe('Before')
       else if (action === 'clear') expect(file.content).not.toContain('Withdrawn')
       else expect(file.content).toBe('Withdrawn')
+      if (action === 'recovery') {
+        await dreaming.execute(job())
+        expect(readExtractionState(batch.key)?.pending).toHaveLength(0)
+        expect(generate).not.toHaveBeenCalled()
+      }
       await dreaming._doStop()
       await memory._doStop()
       BaseService.resetInstances()

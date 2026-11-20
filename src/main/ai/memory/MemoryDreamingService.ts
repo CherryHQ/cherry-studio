@@ -45,7 +45,7 @@ import {
   readExtractionState,
   recordExtractionSubmission,
   readyExtraction,
-  reconcileExtractionInvalidations,
+  withReconciledExtractionHistory,
   skipExtractionTurn,
   skipExtractionTurns,
   writeExtractionState,
@@ -87,7 +87,7 @@ export class MemoryDreamingService extends BaseService {
   }
 
   protected override async onReady(): Promise<void> {
-    await reconcileExtractionInvalidations()
+    await this.reconcileExtraction()
     this.stopped = false
     this.extractionBoundary = extractionBoundary()
     if (!application.get('PreferenceService').get(GENERATION_KEY)) this.resetExtraction()
@@ -360,6 +360,18 @@ export class MemoryDreamingService extends BaseService {
     )
   }
 
+  private async reconcileExtraction(): Promise<boolean> {
+    try {
+      await withReconciledExtractionHistory(async () => {
+        this.extractionBoundary = extractionBoundary()
+      })
+      return true
+    } catch (error) {
+      logger.warn('Shared memory extraction is waiting for recovery reconciliation', { error })
+      return false
+    }
+  }
+
   execute(ctx: JobContext<Record<string, never>>): Promise<unknown> {
     return this.work.track(
       this.queue.runExclusive(async () => {
@@ -375,7 +387,7 @@ export class MemoryDreamingService extends BaseService {
           application.get('PreferenceService').get(GENERATION_KEY) &&
           ![...states.values()].some((state) => manualReady(state, now))
         ) {
-          const pending = readyExtraction()
+          const pending = (await this.reconcileExtraction()) && readyExtraction()
           if (pending) return this.extract(pending, ctx)
         }
         const automatic = application.get('PreferenceService').get(AUTO_KEY)

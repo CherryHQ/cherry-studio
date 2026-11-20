@@ -699,6 +699,10 @@ describe('limits, access, and recovery', () => {
     })
     await store.recover(caller, preview!.token, approve)
     expect(writes).toEqual([source, 'MEMORY.md', target])
+    await writeFile(path.join(root, target), 'External change')
+    const redo = await store.previewRecovery(caller)
+    expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
+    expect((await store.read(caller, source)).content).toBe('Full source')
   })
 
   it('extends the same reverse backup after an external conflict clears', async () => {

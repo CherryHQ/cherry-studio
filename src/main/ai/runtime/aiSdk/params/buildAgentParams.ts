@@ -170,7 +170,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // context (fs_read's per-call cap follows the effective persist threshold).
   const memoryOwner = input.memoryAgentSessionId
     ? { agentSessionId: input.memoryAgentSessionId }
-    : request.memoryContext
+    : (request.memoryContext ?? (request.memoryHistoryTopicId ? { topicId: request.memoryHistoryTopicId } : undefined))
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,

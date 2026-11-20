@@ -356,12 +356,12 @@ describe('lifecycle memory owner', () => {
       credentialReceipt: { attribution: 'unknown' }
     }))
     const stages = vi.fn()
-    const fold = () =>
+    const fold = (owner: string | undefined) =>
       new PersistentChatContextProvider()['resolveCompactedHistory'](
         tail,
         topicId,
         [model],
-        assistantId,
+        owner,
         {
           enabled: true,
           maxMessages: null,
@@ -369,15 +369,17 @@ describe('lifecycle memory owner', () => {
         },
         stages
       )
-    await fold()
+    await fold(assistantId)
     expect(send.mock.calls[0]?.[1]?.body).toContain(secret)
     dbh.db.update(messageTable).set({ compactionSummary: null }).where(eq(messageTable.topicId, topicId)).run()
     await editor.clear((await editor.previewClear()).token, approve)
     editor.dispose()
     send.mockClear()
     stages.mockClear()
-    await fold()
+    await fold(assistantId)
     expect(stages.mock.calls.map(([, anchor]) => anchor.status)).toEqual(['compacting', 'skipped'])
+    dbh.db.update(topicTable).set({ assistantId: null }).where(eq(topicTable.id, topicId)).run()
+    await fold(undefined)
     expect(send).not.toHaveBeenCalled()
   })
 

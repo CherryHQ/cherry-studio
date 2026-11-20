@@ -19,6 +19,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { registerAutonomyTools } from '@main/ai/mcp/servers/cherryAutonomyTools'
@@ -491,7 +492,26 @@ describe('FTS conversation recall in memory references', () => {
       .run()
     const background = history('agent', 'car BACKGROUND_DATE')
     dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, background.id)).run()
+    const scheduled = history('agent', 'car TASK_DATE')
+    const taskId = randomUUID()
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: taskId,
+        type: 'agent',
+        trigger: { kind: 'once', at: 1 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      .run()
+    dbh.db.update(agentSessionTable).set({ taskId }).where(eq(agentSessionTable.id, scheduled.id)).run()
     const prompt = await recall('agent', 'car')
+    expect(prompt).not.toContain('TASK_DATE')
+    const expanded = await conversationRecallReference({ sessionId }, '', turn, {
+      conversationId: scheduled.id,
+      messageId: scheduled.message
+    })
+    expect(expanded).not.toContain('TASK_DATE')
     expect(prompt).not.toContain('CHANNEL_DATE')
     expect(prompt).not.toContain('BACKGROUND_DATE')
   })
