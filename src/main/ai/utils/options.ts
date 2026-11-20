@@ -2,6 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
+import type { JSONObject } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import type { JSONValue } from 'ai'
@@ -97,7 +98,7 @@ export function buildCapabilityProviderOptions(
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
   }
-): Record<string, Record<string, JSONValue>> {
+): ProviderOptions {
   const rawProviderId = context.runtimeProviderId
   const providerOptionsKey = context.providerOptionsKey
   const resolvedReasoningOptions = capabilities.enableReasoning
@@ -110,7 +111,7 @@ export function buildCapabilityProviderOptions(
     ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
     : resolvedReasoningOptions
 
-  let providerSpecificOptions: Record<string, any> = {}
+  let providerSpecificOptions: ProviderOptions = {}
 
   switch (rawProviderId) {
     case 'openai':
@@ -186,7 +187,7 @@ export function buildCapabilityProviderOptions(
 function encodeReasoningOptions(
   providerOptionsKey: string,
   invocation: ResolvedReasoningInvocation
-): { providerId: string; options: Record<string, unknown> } {
+): { providerId: string; options: JSONObject } {
   return { providerId: providerOptionsKey, options: encodeReasoningInvocation(invocation) }
 }
 
@@ -196,7 +197,7 @@ export function buildResolvedReasoningProviderOptions(context: {
   providerOptionsKey: string
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
-}): Record<string, Record<string, unknown>> {
+}): ProviderOptions {
   const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
   const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
     ? normalizeOpenAICompatibleParams(encoded.options)
@@ -230,11 +231,11 @@ export function isCustomProviderNamespace(
  * OpenAI Chat Completions dialect and silently drop snake_case reasoning keys.
  */
 export function mergeCustomProviderParameters(
-  providerOptions: Record<string, Record<string, JSONValue>>,
+  providerOptions: ProviderOptions,
   providerParams: Record<string, any>,
   rawProviderId: string,
   adapterFamily: AppProviderId = rawProviderId
-): Record<string, Record<string, JSONValue>> {
+): ProviderOptions {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
   const normalizedProviderParams =
@@ -242,7 +243,7 @@ export function mergeCustomProviderParameters(
       ? normalizeOpenAICompatibleParams(providerParams)
       : providerParams
 
-  const updatedNamespaces = new Map<string, Map<string, JSONValue>>()
+  const updatedNamespaces = new Map<string, Map<string, JSONValue | undefined>>()
   for (const key of Object.keys(normalizedProviderParams)) {
     const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
     const value =
@@ -265,7 +266,7 @@ export function mergeCustomProviderParameters(
       updatedNamespaces.set(namespace, fields)
     }
     if (mergeNamespace) {
-      for (const [field, fieldValue] of Object.entries<JSONValue>(value ?? {})) {
+      for (const [field, fieldValue] of Object.entries<JSONValue | undefined>(value ?? {})) {
         fields.set(field, fieldValue)
       }
     } else {
@@ -293,7 +294,7 @@ function normalizeOpenAICompatibleParams<T>(params: Record<string, T>): Record<s
 function buildOpenAIProviderOptions(
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  reasoningOptions: Record<string, unknown>
+  reasoningOptions: JSONObject
 ): Record<string, OpenAIResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
@@ -315,14 +316,12 @@ function buildOpenAIProviderOptions(
  * The package accepts only `reasoningEffort`/`reasoningSummary` — OpenAI-only keys
  * (store/serviceTier/textVerbosity/forceReasoning) are deliberately not sent.
  */
-function buildOpenResponsesProviderOptions(
-  reasoningOptions: Record<string, unknown>
-): Record<string, Record<string, unknown>> {
+function buildOpenResponsesProviderOptions(reasoningOptions: JSONObject): ProviderOptions {
   return { openai: { ...reasoningOptions } }
 }
 
 function buildAnthropicProviderOptions(
-  reasoningOptions: Record<string, unknown>,
+  reasoningOptions: JSONObject,
   providerOptionsKey = 'anthropic'
 ): Record<string, AnthropicProviderOptions> {
   const providerOptions = { ...reasoningOptions } as AnthropicProviderOptions
@@ -331,7 +330,7 @@ function buildAnthropicProviderOptions(
 
 function buildGeminiProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  reasoningOptions: Record<string, unknown>,
+  reasoningOptions: JSONObject,
   providerOptionsKey = 'google'
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableGenerateImage } = capabilities
@@ -366,15 +365,13 @@ function buildGeminiProviderOptions(
   return { [providerOptionsKey]: { ...providerOptions } }
 }
 
-function buildXAIProviderOptions(
-  reasoningOptions: Record<string, unknown>
-): Record<string, XaiResponsesProviderOptions> {
+function buildXAIProviderOptions(reasoningOptions: JSONObject): Record<string, XaiResponsesProviderOptions> {
   return { xai: { ...reasoningOptions } }
 }
 
 function buildBedrockProviderOptions(
   model: Model,
-  reasoningOptions: Record<string, unknown>
+  reasoningOptions: JSONObject
 ): Record<string, BedrockProviderOptions> {
   const providerOptions = { ...reasoningOptions } as BedrockProviderOptions
   const betaHeaders = addAnthropicHeaders(model)
@@ -384,11 +381,8 @@ function buildBedrockProviderOptions(
   return { bedrock: providerOptions }
 }
 
-function buildOllamaProviderOptions(
-  model: Model,
-  reasoningOptions: Record<string, unknown>
-): Record<string, Record<string, unknown>> {
-  const ollama = { ...reasoningOptions }
+function buildOllamaProviderOptions(model: Model, reasoningOptions: JSONObject): ProviderOptions {
+  const ollama: JSONObject = { ...reasoningOptions }
   // Without a declared context window, Ollama sizes it from available VRAM.
   if (model.contextWindow) ollama.options = { num_ctx: model.contextWindow }
   return { ollama }
@@ -399,10 +393,10 @@ function buildGenericProviderOptions(
   model: Model,
   provider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  reasoningOptions: Record<string, unknown>
-): Record<string, any> {
+  reasoningOptions: JSONObject
+): ProviderOptions {
   const { enableWebSearch } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: JSONObject = {}
 
   providerOptions = { ...providerOptions, ...reasoningOptions }
 
@@ -418,14 +412,8 @@ function buildAIGatewayOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   provider: Provider,
   endpointType: EndpointType | undefined,
-  reasoning: { providerId: string; options: Record<string, unknown> }
-): Record<
-  string,
-  | OpenAIResponsesProviderOptions
-  | AnthropicProviderOptions
-  | GoogleGenerativeAIProviderOptions
-  | Record<string, unknown>
-> {
+  reasoning: { providerId: string; options: JSONObject }
+): ProviderOptions {
   switch (endpointType) {
     case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
       return buildAnthropicProviderOptions(reasoning.options)

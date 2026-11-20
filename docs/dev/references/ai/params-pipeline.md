@@ -179,6 +179,11 @@ options).
 Splitting preserves literal names such as `__proto__` as own data properties and
 keeps ordinary record prototypes. It does not validate provider-specific values.
 
+Reasoning emissions and built-in search options use the SDK's JSON object
+contract; provider namespaces use `ProviderOptions`. The reasoning interpreter
+only writes registered wire paths and string, number or boolean leaf values.
+Raw user-defined custom values remain a separate, unvalidated boundary.
+
 Standard sampling params are assembled directly in `buildAgentOptions`;
 they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
