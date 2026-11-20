@@ -526,7 +526,8 @@ export class MemoryDreamingService extends BaseService {
             entityKey,
             messageId,
             memoryHash(Buffer.from(JSON.stringify(parts))),
-            this.extractionBoundary
+            this.extractionBoundary,
+            submittedAt
           )
         } catch (error) {
           logger.debug('Memory submission was not admitted', { error })

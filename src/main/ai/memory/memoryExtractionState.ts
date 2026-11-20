@@ -204,7 +204,8 @@ export function recordExtractionSubmission(
   entityKey: string,
   messageId: string,
   inputHash: string,
-  boundary: number
+  boundary: number,
+  submittedAt = Date.now()
 ): void {
   const state =
     readExtractionState(key) ??
@@ -218,7 +219,7 @@ export function recordExtractionSubmission(
       outcome: 'pending'
     })
   state.entityKey = entityKey
-  state.submittedAt[messageId] ??= Date.now()
+  state.submittedAt[messageId] ??= submittedAt
   state.submitted[messageId] ??= inputHash
   writeExtractionState(key, state)
 }
