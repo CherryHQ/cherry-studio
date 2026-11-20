@@ -1783,6 +1783,28 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   )
 
+  it('undoes only the latest automatic extraction after clearing shared memory', async () => {
+    await save('Forgotten preference')
+    await session.clear((await session.previewClear()).token, approve)
+    const file = application.getPath('feature.memory.data', 'MEMORY.md')
+    const versions: string[] = []
+    for (const quote of ['I prefer short answers.', 'I prefer numbered lists.']) {
+      batchConversation(8, quote)
+      generate.mockImplementationOnce(async () => ({
+        text: automaticReply([{ kind: 'preference', quote }]),
+        finishReason: 'stop'
+      }))
+      expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+      versions.push(await readFile(file, 'utf8'))
+      expect(versions.at(-1)).toContain(quote)
+    }
+    const preview = await session.previewRecovery()
+    expect(preview!.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
+    expect((await session.recover(preview!.token, approve)).error).toBeUndefined()
+    expect(await readFile(file, 'utf8')).toBe(versions[0])
+    expect(versions[0]).not.toContain('Forgotten preference')
+  })
+
   it('does not backfill historical, disabled or cleared work but resumes pending work after restart', async () => {
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     const old = conversation()
