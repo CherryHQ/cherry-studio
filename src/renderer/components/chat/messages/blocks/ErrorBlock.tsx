@@ -61,7 +61,7 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
   // Older saved error parts keep the HTTP status only in the validated execution failure.
   const storedFailure = error ? executionFailureSchema.safeParse(error.executionFailure) : undefined
   const errorStatus =
-    outerStatus ?? (storedFailure?.success ? storedFailure.data.failure.context.statusCode : undefined)
+    outerStatus ?? (storedFailure?.success ? storedFailure.data.failure.context?.statusCode : undefined)
 
   if (i18n.exists(i18nKey)) {
     const providerId =
