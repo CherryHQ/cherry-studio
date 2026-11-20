@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState, type ReactNode } from 'react'
+import { estimateTokenCount } from 'tokenx'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -306,6 +307,21 @@ describe('PiPromptField', () => {
     await user.click(screen.getByRole('button', { name: '技能' }))
 
     await waitFor(() => expect(screen.getByText(/^约 .* tokens$/).textContent).not.toBe(before))
+  })
+
+  // Catches `$&`-style sequences in the Agent prompt being expanded as replacement patterns in the count.
+  it('counts an Agent prompt with replacement patterns as written', async () => {
+    answerWithDraft()
+    const instructions = "Price: $& $` $' $$ ".repeat(20)
+    render(<Harness initial={instructions} />)
+    const sent = [
+      'skills=',
+      GENERATED_REPORT,
+      `<agent_instructions>\n${instructions}\n</agent_instructions>`,
+      'language=undefined'
+    ].join('\n\n')
+
+    expect(await screen.findByText(`约 ${estimateTokenCount(sent).toLocaleString()} tokens`)).toBeInTheDocument()
   })
 
   it('reports a failed assembly and recovers on retry, keeping the instructions editable', async () => {

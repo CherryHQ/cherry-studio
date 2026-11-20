@@ -155,9 +155,10 @@ export function PiPromptField({
   const setSection = onSectionChange ?? setLocalSection
   const instructions = value || preview?.builtinInstructions || ''
   const overrideOf = (key: string) => (isEditablePromptSection(key) ? overrides?.[key] : undefined)
+  // The callback keeps `$&`-style sequences in the Agent prompt literal.
   const sentText = (block: AgentPromptBlockPreview) =>
     block.kind === 'instructions'
-      ? block.text.replace(AGENT_INSTRUCTIONS_SLOT, instructions)
+      ? block.text.replace(AGENT_INSTRUCTIONS_SLOT, () => instructions)
       : (overrideOf(block.key) ?? block.text)
   const tokens = preview ? estimateTokenCount(preview.blocks.map(sentText).join('\n\n')) : null
 
