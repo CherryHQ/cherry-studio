@@ -364,6 +364,7 @@ describe('MessageGroup', () => {
     render(list)
     fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
     expect(screen.getByTestId('message-parts-content')).toBeVisible()
+    expect(screen.getByTestId('message-parts-content').closest('.message-assistant')).toHaveFocus()
     expect(selectMessage).not.toHaveBeenCalled()
   })
 

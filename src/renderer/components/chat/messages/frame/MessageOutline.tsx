@@ -6,10 +6,12 @@ import { visit } from 'unist-util-visit'
 
 import { createSlugger, extractTextFromNode, ScrollArea } from '@cherrystudio/ui'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
+import { ASSISTANT_REPLY_DISCLOSURE } from '@renderer/services/messageUiStateCache'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {
@@ -31,6 +33,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
   multiModelMessageStyle,
   onNavigateToElement
 }) => {
+  const [expanded] = useMessageDisclosureState(ASSISTANT_REPLY_DISCLOSURE, true, message.id)
   const messageParts = useMessageParts(message.id)
   const insets = useChatBottomOverlayInset()
   const bottomInset = insets ? insets.contentBottomPadding + insets.scrollerBottomMargin : 0
@@ -102,7 +105,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
   }
 
   // 暂时不支持 grid，因为在锚点滚动时会导致渲染错位
-  if (multiModelMessageStyle === 'grid' || !headings.length) return null
+  if (!expanded || multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
     <div

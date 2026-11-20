@@ -134,21 +134,20 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const moveFocus = useRef(false)
   const expandButton = useRef<HTMLButtonElement>(null)
   const setReplyExpanded = (next: boolean) => {
-    requestReadingControl()
+    if (next) requestReadingControl()
     moveFocus.current = true
     setExpanded(next)
   }
   useLayoutEffect(() => {
     if (!moveFocus.current) return
     moveFocus.current = false
-    if (collapsed) {
-      expandButton.current?.focus()
-    } else {
-      messageContainerRef.current
-        ?.querySelector<HTMLElement>('[data-message-action="more-menu"]')
-        ?.focus({ preventScroll: true })
+    const target = collapsed ? expandButton.current : messageContainerRef.current
+    if (!target) return
+    target.focus({ preventScroll: true })
+    if (collapsed && !navigateWithScrollRuntime(target, 'center')) {
+      scrollIntoView(target, { block: 'nearest', container: 'nearest' })
     }
-  }, [collapsed])
+  }, [collapsed, navigateWithScrollRuntime])
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
@@ -354,6 +353,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       )}
       aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
+      tabIndex={canCollapse ? -1 : undefined}
       onClickCapture={handleMessageSelectClick}>
       {isUserBubbleMessage ? (
         <UserBubbleMessage
