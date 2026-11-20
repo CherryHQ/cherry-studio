@@ -15,7 +15,6 @@
 
 import path from 'node:path'
 
-import { application } from '@application'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
@@ -26,6 +25,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
+import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { t } from '@main/i18n'
@@ -267,9 +267,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: {
       when: (ctx) => {
         const approval = ctx.sessionId
-          ? application
-              .get('McpSkillService')
-              .toolApproval(ctx.sessionId, ctx.toolName, ctx.input ?? {}, ctx.permissionMode)
+          ? getMcpSkillToolApproval(ctx.sessionId, ctx.toolName, ctx.input ?? {}, ctx.permissionMode)
           : undefined
         return approval ? {} : null
       }

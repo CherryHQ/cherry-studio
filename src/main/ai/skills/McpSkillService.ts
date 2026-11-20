@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
@@ -6,16 +5,16 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { McpResource } from '@shared/types/mcp'
 import type { McpSkillEntry } from '@shared/types/mcpSkills'
 
 import { skillRelativePath, skillRoot, verifyMcpSkillFile } from './mcpSkillContent'
 
+type OriginState = { key: string; abort: AbortController }
 type HeldSkill = {
   sessionId: string
   entry: McpSkillEntry
-  serverKey: string
+  origin: OriginState
   loaded: boolean
   abort: AbortController
   files: Map<string, McpResource>
@@ -24,11 +23,7 @@ type SessionSkillState = {
   agentId: string
   abort: AbortController
   skills: Map<string, HeldSkill>
-  loadTargets: Map<string, { serverKey: string; abort: AbortController }>
-  loadApprovals: Map<
-    string,
-    { serverId: string; uri: string; signal: AbortSignal; validate: () => void; dispose: () => void }
-  >
+  origins: Map<string, OriginState>
   loads: Map<
     string,
     {
@@ -39,34 +34,11 @@ type SessionSkillState = {
   >
 }
 
-const loadApprovalInput = '__cherry_mcp_skill_approval'
 const keyOf = (serverId: string, uri: string) => JSON.stringify([serverId, uri])
 const manifestOf = (entry: McpSkillEntry) => ({
   frontmatter: entry.frontmatter,
   resources: entry.resources === 'dynamic' ? 'dynamic' : [...entry.resources].sort((a, b) => a.uri.localeCompare(b.uri))
 })
-const executionTools = new Set([
-  'Bash',
-  'bash',
-  'powershell',
-  'PowerShell',
-  'codemode',
-  'Skill',
-  'Agent',
-  'Task',
-  'subagent',
-  'message_subagent',
-  'mcp__cherry-tools__session_create',
-  'mcp__cherry-tools__session_send',
-  'mcp__cherry_tools__session_create',
-  'mcp__cherry_tools__session_send',
-  'mcp__automation__js',
-  'mcp__skills__install_skill',
-  'mcp__mcp-manager__install_mcp_server',
-  'mcp__mcp_manager__install_mcp_server',
-  'mcp__cherry-tools__cli_install',
-  'mcp__cherry_tools__cli_install'
-])
 
 @Injectable('McpSkillService')
 @ServicePhase(Phase.WhenReady)
@@ -87,11 +59,11 @@ export class McpSkillService extends BaseService {
           if (session.agentId !== agentId) continue
           session.abort.abort()
           session.abort = new AbortController()
-          for (const held of session.skills.values()) {
+          for (const [serverId, origin] of session.origins) {
             try {
-              this.assertHeld(session, held)
+              this.assertOrigin(session, serverId, origin)
             } catch {
-              this.discard(held)
+              this.discardOrigin(session, serverId, origin)
             }
           }
         }
@@ -102,26 +74,16 @@ export class McpSkillService extends BaseService {
         const server = mcpServerService.findByIdOrName(serverId)
         const serverKey = server?.isActive ? application.get('McpRuntimeService').getServerKey(server) : undefined
         for (const session of this.sessions.values()) {
-          const target = session.loadTargets.get(serverId)
-          if (target && target.serverKey !== serverKey) target.abort.abort(new Error(t('mcp.skills.changed')))
-          for (const held of session.skills.values()) {
-            if (held.entry.serverId !== serverId) continue
-            try {
-              this.assertHeld(session, held)
-            } catch {
-              this.discard(held)
-            }
-          }
+          const origin = session.origins.get(serverId)
+          if (origin && origin.key !== serverKey) this.discardOrigin(session, serverId, origin)
         }
       })
     )
     this.registerDisposable(
       application.get('McpRuntimeService').onServerInvalidated((serverId) => {
         for (const session of this.sessions.values()) {
-          session.loadTargets.get(serverId)?.abort.abort(new Error(t('mcp.skills.changed')))
-          for (const held of session.skills.values()) {
-            if (held.entry.serverId === serverId) this.discard(held)
-          }
+          const origin = session.origins.get(serverId)
+          if (origin) this.discardOrigin(session, serverId, origin)
         }
       })
     )
@@ -140,8 +102,7 @@ export class McpSkillService extends BaseService {
       abort: new AbortController(),
       skills: new Map(),
       loads: new Map(),
-      loadTargets: new Map(),
-      loadApprovals: new Map()
+      origins: new Map()
     })
   }
 
@@ -178,16 +139,65 @@ export class McpSkillService extends BaseService {
   }
 
   private assertHeld(session: SessionSkillState, held: HeldSkill): void {
-    session.abort.signal.throwIfAborted()
     held.abort.signal.throwIfAborted()
+    this.assertOrigin(session, held.entry.serverId, held.origin)
+  }
+
+  private discardOrigin(session: SessionSkillState, serverId: string, origin: OriginState): void {
+    origin.abort.abort(new Error(t('mcp.skills.changed')))
+    for (const held of session.skills.values()) {
+      if (held.origin === origin) this.discard(held)
+    }
+    if (session.origins.get(serverId) === origin) session.origins.delete(serverId)
+  }
+
+  private assertOrigin(session: SessionSkillState, serverId: string, origin: OriginState): void {
+    session.abort.signal.throwIfAborted()
+    origin.abort.signal.throwIfAborted()
     try {
-      const server = this.server(session, held.entry.serverId)
-      if (application.get('McpRuntimeService').getServerKey(server) === held.serverKey) return
+      const server = this.server(session, serverId)
+      if (application.get('McpRuntimeService').getServerKey(server) === origin.key) return
     } catch {
       // A removed or deselected server cannot finish an active read.
     }
-    this.discard(held)
+    this.discardOrigin(session, serverId, origin)
     throw new Error(t('mcp.skills.changed'))
+  }
+
+  captureOrigin(sessionId: string, serverId: string) {
+    const session = this.session(sessionId)
+    const server = this.server(session, serverId)
+    const key = application.get('McpRuntimeService').getServerKey(server)
+    let origin = session.origins.get(serverId)
+    if (!origin || origin.abort.signal.aborted || origin.key !== key) {
+      if (origin) this.discardOrigin(session, serverId, origin)
+      origin = { key, abort: new AbortController() }
+      session.origins.set(serverId, origin)
+    }
+    const captured = origin
+    return {
+      server,
+      state: captured,
+      signal: AbortSignal.any([session.abort.signal, captured.abort.signal]),
+      validate: () => this.assertOrigin(session, serverId, captured)
+    }
+  }
+
+  captureContext(sessionId: string) {
+    const session = this.sessions.get(sessionId)
+    if (!session) return undefined
+    const active = [...session.skills.values()].filter((held) => held.loaded)
+    const signal = AbortSignal.any([session.abort.signal, ...active.map((held) => held.abort.signal)])
+    return {
+      signal,
+      origins: active.map(({ entry }) => ({ serverId: entry.serverId, serverName: entry.serverName, uri: entry.uri })),
+      validate: () => {
+        signal.throwIfAborted()
+        for (const held of active) this.assertHeld(session, held)
+        if ([...session.skills.values()].filter((held) => held.loaded).length !== active.length)
+          throw new Error(t('mcp.skills.changed'))
+      }
+    }
   }
 
   async list(sessionId: string, signal?: AbortSignal) {
@@ -265,35 +275,10 @@ export class McpSkillService extends BaseService {
     }
   }
 
-  async loadFromTool(
-    sessionId: string,
-    input: { server_id: string; skill_uri: string; [key: string]: unknown },
-    signal: AbortSignal
-  ) {
-    const session = this.session(sessionId)
-    const token = input[loadApprovalInput]
-    if (
-      token === undefined &&
-      agentService.getAgent(session.agentId)?.configuration?.permission_mode === 'bypassPermissions'
-    )
-      return this.load(sessionId, input.server_id, input.skill_uri, signal)
-    const approval = typeof token === 'string' ? session.loadApprovals.get(token) : undefined
-    if (!approval) throw new Error(t('mcp.skills.changed'))
-    approval.dispose()
-    if (approval.serverId !== input.server_id || approval.uri !== input.skill_uri)
-      throw new Error(t('mcp.skills.changed'))
-    approval.validate()
-    const requestSignal = AbortSignal.any([signal, approval.signal])
-    requestSignal.throwIfAborted()
-    const result = await this.load(sessionId, input.server_id, input.skill_uri, requestSignal)
-    requestSignal.throwIfAborted()
-    return result
-  }
-
   private async loadOnce(sessionId: string, serverId: string, uri: string, signal?: AbortSignal) {
     const session = this.session(sessionId)
-    const requestSignal = AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])])
-    const serverKey = application.get('McpRuntimeService').getServerKey(this.server(session, serverId))
+    const origin = this.captureOrigin(sessionId, serverId)
+    const requestSignal = AbortSignal.any([origin.signal, ...(signal ? [signal] : [])])
     const entry = await this.get(sessionId, serverId, uri, requestSignal)
     requestSignal.throwIfAborted()
     if (entry.resources === 'dynamic') throw new Error(t('mcp.skills.dynamic'))
@@ -304,7 +289,7 @@ export class McpSkillService extends BaseService {
       : {
           sessionId,
           entry,
-          serverKey,
+          origin: origin.state,
           loaded: false,
           abort: new AbortController(),
           files: new Map<string, McpResource>()
@@ -329,13 +314,15 @@ export class McpSkillService extends BaseService {
     const cached = held.files.get(uri)
     signal?.throwIfAborted()
     if (cached) {
-      await this.guardResourceRead(
-        sessionId,
-        held.entry.serverId,
-        uri,
-        AbortSignal.any([session.abort.signal, held.abort.signal, ...(signal ? [signal] : [])]),
-        async () => ({ contents: [cached] })
-      )
+      await application
+        .get('McpRuntimeService')
+        .guardResourceRead(
+          sessionId,
+          held.entry.serverId,
+          uri,
+          AbortSignal.any([session.abort.signal, held.abort.signal, ...(signal ? [signal] : [])]),
+          async () => ({ contents: [cached] })
+        )
       // oxlint-disable-next-line no-restricted-globals -- Prevent callers from mutating the verified cached resource and its nested metadata.
       return structuredClone(cached)
     }
@@ -347,7 +334,7 @@ export class McpSkillService extends BaseService {
       interactionContext: { sessionId }
     })
     this.assertHeld(session, held)
-    const file = this.verify(held, uri, result.contents)
+    const file = result.contents[0]
     held.files.set(uri, file)
     // oxlint-disable-next-line no-restricted-globals -- Keep the verified cache independent of the resource returned to tool callers.
     return structuredClone(file)
@@ -384,140 +371,36 @@ export class McpSkillService extends BaseService {
     return this.readHeld(sessionId, held, uri, signal)
   }
 
-  toolApproval(
-    sessionId: string,
-    toolName: string,
-    input: Record<string, unknown>,
-    permissionMode?: AgentPermissionMode,
-    requestSignal?: AbortSignal
-  ) {
-    if (permissionMode === 'bypassPermissions') return undefined
+  captureResourceRead(sessionId: string, serverId: string, uri: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
-    const active = [...session.skills.values()].filter((held) => held.loaded)
-    const isLoad = toolName === 'mcp__skills__load_mcp_skill'
-    const schedulesExecution =
-      (toolName === 'mcp__cherry-tools__cron' || toolName === 'mcp__cherry_tools__cron') &&
-      (input.action === 'add' || input.action === 'update')
-    if (!isLoad && (!active.length || (!executionTools.has(toolName) && !schedulesExecution))) return undefined
-    let target: { serverKey: string; abort: AbortController } | undefined
-    const targetId = isLoad && typeof input.server_id === 'string' ? input.server_id : undefined
-    if (targetId) {
-      const serverKey = application.get('McpRuntimeService').getServerKey(this.server(session, targetId))
-      target = session.loadTargets.get(targetId)
-      if (!target || target.abort.signal.aborted || target.serverKey !== serverKey) {
-        target = { serverKey, abort: new AbortController() }
-        session.loadTargets.set(targetId, target)
+    const context = this.captureContext(sessionId)!
+    const matching = [...session.skills.values()].filter(
+      (held) => held.entry.serverId === serverId && uri.startsWith(`${skillRoot(held.entry.uri)}/`)
+    )
+    if (!context.origins.length && !matching.length) return undefined
+    const origin = this.captureOrigin(sessionId, serverId)
+    context.validate()
+    for (const held of matching) {
+      this.assertHeld(session, held)
+      if (held.entry.resources === 'dynamic' || !held.entry.resources.some((file) => file.uri === uri)) {
+        this.discard(held)
+        throw new Error('File is not in the held skill manifest')
       }
     }
-    const signal = AbortSignal.any([
-      session.abort.signal,
-      ...active.map((held) => held.abort.signal),
-      ...(target ? [target.abort.signal] : []),
-      ...(requestSignal ? [requestSignal] : [])
-    ])
-    const validate = () => {
-      signal.throwIfAborted()
-      if (
-        target &&
-        targetId &&
-        application.get('McpRuntimeService').getServerKey(this.server(session, targetId)) !== target.serverKey
-      )
-        throw new Error(t('mcp.skills.changed'))
-      for (const held of active) this.assertHeld(session, held)
-      if ([...session.skills.values()].filter((held) => held.loaded).length !== active.length)
-        throw new Error(t('mcp.skills.changed'))
-    }
-    validate()
+    const signal = AbortSignal.any([context.signal, origin.signal, ...matching.map((held) => held.abort.signal)])
     return {
       signal,
-      approve: () => {
-        validate()
-        if (!targetId || typeof input.skill_uri !== 'string') return { ...input }
-        const token = randomUUID()
-        const dispose = () => {
-          session.loadApprovals.delete(token)
-          signal.removeEventListener('abort', dispose)
-        }
-        session.loadApprovals.set(token, { serverId: targetId, uri: input.skill_uri, signal, validate, dispose })
-        signal.addEventListener('abort', dispose, { once: true })
-        return { ...input, [loadApprovalInput]: token }
+      target: origin.server,
+      origins: context.origins,
+      verify: (contents: McpResource[]) => {
+        signal.throwIfAborted()
+        context.validate()
+        origin.validate()
+        for (const held of matching) this.assertHeld(session, held)
+        const verified = matching.map((held) => this.verify(held, uri, contents))
+        return verified.length ? [verified[0]] : contents
       }
-    }
-  }
-
-  async guardResourceRead<T extends { contents: McpResource[] }>(
-    sessionId: string,
-    serverId: string,
-    uri: string,
-    signal: AbortSignal,
-    run: (signal: AbortSignal) => Promise<T>
-  ): Promise<T> {
-    const session = this.sessions.get(sessionId)
-    if (!session) return run(signal)
-    const active = [...session.skills.values()].filter((held) => held.loaded)
-    if (!active.length) return run(signal)
-    signal = AbortSignal.any([signal, session.abort.signal, ...active.map((held) => held.abort.signal)])
-    const target = this.server(session, serverId)
-    const runtime = application.get('McpRuntimeService')
-    const targetKey = runtime.getServerKey(target)
-    const invalidated = new AbortController()
-    const checkTarget = () => {
-      try {
-        if (runtime.getServerKey(this.server(session, serverId)) === targetKey) return
-      } catch {
-        // A removed or disabled origin cannot finish an authorized read.
-      }
-      invalidated.abort(new Error(t('mcp.skills.changed')))
-    }
-    const changed = mcpServerService.onChanged((id) => {
-      if (id === serverId) checkTarget()
-    })
-    const closed = runtime.onServerInvalidated((id) => {
-      if (id === serverId) invalidated.abort(new Error(t('mcp.skills.changed')))
-    })
-    signal = AbortSignal.any([signal, invalidated.signal])
-    try {
-      const foreign = active.filter((held) => held.entry.serverId !== serverId)
-      for (const held of active) {
-        this.assertHeld(session, held)
-      }
-      if (foreign.length) {
-        const decision = await application.get('AgentSessionRuntimeService').requestToolApproval(sessionId, {
-          toolName: 'mcp__skills__read_mcp_skill_file',
-          input: {
-            source_servers: foreign.map(({ entry }) => ({
-              id: entry.serverId,
-              name: entry.serverName,
-              skill_uri: entry.uri
-            })),
-            server_id: serverId,
-            server_name: target.name,
-            resource_uri: uri
-          },
-          signal
-        })
-        if (!decision.approved) throw new Error(decision.reason ?? t('mcp.skills.denied'))
-      }
-      const matching = active.filter(
-        (held) => held.entry.serverId === serverId && uri.startsWith(`${skillRoot(held.entry.uri)}/`)
-      )
-      for (const held of matching) {
-        if (held.entry.resources === 'dynamic' || !held.entry.resources.some((file) => file.uri === uri)) {
-          this.discard(held)
-          throw new Error('File is not in the held skill manifest')
-        }
-      }
-      signal.throwIfAborted()
-      const result = await run(signal)
-      signal.throwIfAborted()
-      session.abort.signal.throwIfAborted()
-      for (const held of active) this.assertHeld(session, held)
-      for (const held of matching) this.verify(held, uri, result.contents)
-      return result
-    } finally {
-      changed.dispose()
-      closed.dispose()
     }
   }
 }

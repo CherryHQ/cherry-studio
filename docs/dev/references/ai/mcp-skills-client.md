@@ -5,6 +5,8 @@ sources:
   - src/main/ai/skills/mcpSkillContent.ts
   - src/main/ai/mcp/connections/ClientMcpConnection.ts
   - src/main/ai/mcp/servers/skills.ts
+  - src/main/ai/toolApproval/mcpSkillApproval.ts
+  - src/main/ai/toolApproval/ToolApprovalRegistry.ts
   - src/renderer/hooks/useMcpSkills.ts
   - src/renderer/components/composer/variants/AgentComposer.tsx
   - src/shared/types/mcpSkills.ts
@@ -31,11 +33,14 @@ Names are display labels. The stable identity is `(serverId, skillUri)`, includi
 |---|---|
 | `ClientMcpConnection` | SDK `SkillsClient` capability detection and direct lookup, with official core schemas and host pagination that rejects repeated cursors and duplicate URIs. |
 | `McpRuntimeService` / `McpCatalogService` | Existing connection, timeout, cancellation, current server configuration, and metadata projection. Metadata is fetched afresh. |
-| `McpSkillService` | Session-held manifests, provenance, integrity checks, memory-only content cache, origin enforcement, and tool guards. |
+| `McpSkillService` | Session-held manifests, verified memory-only content, and snapshots of origin and cancellation state. |
+| Tool Approval | Execution classification, cross-origin approval, and single-use approved invocations bound by `ToolApprovalRegistry` to the session, tool, arguments and captured state. |
 | `AgentSessionRuntimeService` | Open/close the in-memory skill session and present tool approvals through the existing Tool Approval registry. |
 | Composer / IpcApi | Metadata-only discovery while the picker is open, cancellation on close, and explicit error rows for failed origins. |
 
 The host exposes `list_mcp_skills`, `load_mcp_skill`, and `read_mcp_skill_file`. Both runtimes use the same service. Pi exposes the builtin skills server directly so reading supporting files does not require executing a code-mode script. The load result contains the complete manifest, including paths of supporting files; there is no additional directory tool. No remote directories enter the local skill library or native skill discovery.
+
+Skill state does not classify tools or decide permission modes. The approval layer consumes its snapshots, and the MCP resource boundary applies approval and content verification to both fetched and cached reads. One origin state per server cancels affected work when configuration changes; each read needs no separate configuration listener. Each resource response is verified once against every matching held manifest.
 
 ## Integrity and permissions
 

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-21-mcp-skills-client.md
-2026-10-21-mcp-skills-client.md: 674246e266ed8ebb09dcc25d74e5d7ce6ea47c9f
-2026-10-21-mcp-skills-client.zh.md: 9add3cb22de73110166c4fb9091d5705d7248e9e
+2026-10-21-mcp-skills-client.md: fc1c6f5258bfd01a3f9c96b100d5e6eac7feddf1
+2026-10-21-mcp-skills-client.zh.md: 2baf5781a14b5081b0bba11bd9c166f33378fe0c

@@ -29,6 +29,7 @@ import { loggerService } from '@logger'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main/ai/mcp/servers/factory'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
+import { guardMcpSkillResourceRead } from '@main/ai/toolApproval/mcpSkillApproval'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -1054,10 +1055,24 @@ export class McpRuntimeService extends BaseService {
       }
     }
     return interactionContext?.sessionId
-      ? application
-          .get('McpSkillService')
-          .guardResourceRead(interactionContext.sessionId, serverId, uri, signal ?? new AbortController().signal, read)
+      ? this.guardResourceRead(
+          interactionContext.sessionId,
+          serverId,
+          uri,
+          signal ?? new AbortController().signal,
+          read
+        )
       : read(signal ?? new AbortController().signal)
+  }
+
+  guardResourceRead<T extends { contents: McpResource[] }>(
+    sessionId: string,
+    serverId: string,
+    uri: string,
+    signal: AbortSignal,
+    run: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    return guardMcpSkillResourceRead(sessionId, serverId, uri, signal, run)
   }
 
   /** Abandons a pending browser authorization; the server stays in error until an explicit retry. */

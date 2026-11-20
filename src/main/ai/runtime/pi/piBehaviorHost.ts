@@ -7,7 +7,7 @@ import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-beha
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { McpSkillService } from '@main/ai/skills/McpSkillService'
+import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -162,7 +162,7 @@ export function createPiInteractionPorts(
   options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
 ): Pick<HostPorts, 'approvals' | 'questions'> {
   const { input, approval } = options
-  const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<McpSkillService['toolApproval']>>>()
+  const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<typeof getMcpSkillToolApproval>>>()
 
   async function ask(
     call: CallRef,
@@ -216,9 +216,8 @@ export function createPiInteractionPorts(
     approvals: {
       async facts(call, tool) {
         const args = recordSchema.parse(tool.args)
-        const skills = application.get('McpSkillService')
         const facts = await readPiApprovalFacts(approval, tool.name, args)
-        const skillApproval = skills.toolApproval(
+        const skillApproval = getMcpSkillToolApproval(
           input.sessionId,
           tool.name,
           facts.rewrittenArgs === undefined ? args : recordSchema.parse(facts.rewrittenArgs),

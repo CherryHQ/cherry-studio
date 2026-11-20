@@ -34,6 +34,7 @@ import type { PiApprovalContext } from '@main/ai/runtime/pi/piApprovalFacts'
 import { createPiInteractionPorts } from '@main/ai/runtime/pi/piBehaviorHost'
 import { buildPiMcpToolName } from '@main/ai/runtime/pi/piMcpExtension'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { BaseService } from '@main/core/lifecycle'
@@ -508,7 +509,7 @@ describe('session MCP skills through real protocol', () => {
     'cancels pending %s execution when discovery replaces the loaded skill',
     async (toolName) => {
       await skills.load(sessionId, serverId, fixture.uri)
-      const approval = skills.toolApproval(sessionId, toolName, { command: 'python ./scripts/task.py' }, 'auto')!
+      const approval = getMcpSkillToolApproval(sessionId, toolName, { command: 'python ./scripts/task.py' }, 'auto')!
       fixture.files.set('skill://reports/references/facts.txt', 'replacement')
       fixture.refresh()
       await skills.get(sessionId, serverId, fixture.uri)
@@ -536,8 +537,8 @@ describe('session MCP skills through real protocol', () => {
     const call = { toolName: 'bash', toolCallId: 'execute', input: { command: 'echo bypass' } }
     expect(await authorizer(true)(call)).toBeUndefined()
     expect(await authorizer(false)({ ...call, toolCallId: 'execute-again' })).toMatchObject({ block: true })
-    expect(skills.toolApproval(sessionId, 'read', {})).toBeUndefined()
-    expect(skills.toolApproval(sessionId, 'mcp__example__lookup', {})).toBeUndefined()
+    expect(getMcpSkillToolApproval(sessionId, 'read', {})).toBeUndefined()
+    expect(getMcpSkillToolApproval(sessionId, 'mcp__example__lookup', {})).toBeUndefined()
   })
 
   it.each(['subagent', 'message_subagent'])(
@@ -780,9 +781,18 @@ describe('session MCP skills through real protocol', () => {
         return server
       })
       const input = { server_id: serverId, skill_uri: fixture.uri }
-      const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', input, 'default')!
-      const pending = skills
-        .loadFromTool(sessionId, { ...input, ...approval.approve() }, new AbortController().signal)
+      const approval = getMcpSkillToolApproval(sessionId, 'mcp__skills__load_mcp_skill', input, 'default')!
+      const pending = toolApprovalRegistry
+        .runApprovedInvocation(
+          {
+            sessionId,
+            toolName: 'mcp__skills__load_mcp_skill',
+            input: approval.approve(),
+            signal: new AbortController().signal,
+            permissionMode: 'default'
+          },
+          (signal) => skills.load(sessionId, serverId, fixture.uri, signal)
+        )
         .then(
           (value) => ({ value, rejected: false }),
           () => ({ value: undefined, rejected: true })
@@ -814,7 +824,7 @@ describe('session MCP skills through real protocol', () => {
 
   it('invalidates another session when direct lookup discovers a replacement', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    const approval = getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')!
     skills.openSession('other-session', agentId)
     await skills.get('other-session', serverId, fixture.uri)
     expect(approval.signal.aborted).toBe(false)
@@ -831,7 +841,7 @@ describe('session MCP skills through real protocol', () => {
     'cancels pending execution approval and permits reload after %s catalog replacement',
     async (source) => {
       await skills.load(sessionId, serverId, fixture.uri)
-      const approval = skills.toolApproval(sessionId, 'Bash', { command: 'echo report' }, 'default')!
+      const approval = getMcpSkillToolApproval(sessionId, 'Bash', { command: 'echo report' }, 'default')!
       const discover = () =>
         source === 'picker' ? application.get('McpCatalogService').listSkills(serverId) : skills.list(sessionId)
 
@@ -861,7 +871,7 @@ describe('session MCP skills through real protocol', () => {
   )
 
   it('rejects initial-load approval after its origin changes without any protocol lookup', () => {
-    const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', {
+    const approval = getMcpSkillToolApproval(sessionId, 'mcp__skills__load_mcp_skill', {
       server_id: serverId,
       skill_uri: fixture.uri
     })!
@@ -980,7 +990,7 @@ describe('session MCP skills through real protocol', () => {
     await skills._doInit()
     skills.openSession(sessionId, agentId)
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    const approval = getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')!
 
     await runtime.stopServer(serverId)
 
@@ -993,14 +1003,14 @@ describe('session MCP skills through real protocol', () => {
 
   it('keeps activation only in memory and reloads after reopening a session', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+    expect(getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
     skills.closeSession(sessionId)
     fixture.files.set('skill://reports/references/facts.txt', 'updated after close')
     fixture.refresh()
     skills.openSession('other-session', agentId)
     await skills.get('other-session', serverId, fixture.uri)
     skills.openSession(sessionId, agentId)
-    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeUndefined()
+    expect(getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')).toBeUndefined()
     await expect(skills.read(sessionId, serverId, fixture.uri, fixture.uri)).rejects.toThrow('Load this skill')
     const loaded = await skills.load(sessionId, serverId, fixture.uri)
     expect(loaded.content.text).toContain('Read references/facts.txt')
@@ -1008,12 +1018,12 @@ describe('session MCP skills through real protocol', () => {
       'updated after close'
     )
     expect(agentSessionMessageService.getSessionMessage(sessionId, messageId).data).not.toHaveProperty('mcpSkills')
-    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+    expect(getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
   })
 
   it('cancels old approvals on replacement and reloads the new version in the same session', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    const approval = getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')!
     fixture.files.set(fixture.uri, `${fixture.files.get(fixture.uri)}Updated workflow.\n`)
     fixture.refresh()
     await skills.get(sessionId, serverId, fixture.uri)
@@ -1024,12 +1034,12 @@ describe('session MCP skills through real protocol', () => {
     ).resolves.toBeUndefined()
     const loaded = await skills.load(sessionId, serverId, fixture.uri)
     expect(loaded.content.text).toContain('Updated workflow.')
-    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+    expect(getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
   })
 
   it('rejects changed bytes but permits a fresh load without a new session', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    const approval = getMcpSkillToolApproval(sessionId, 'Bash', {}, 'default')!
     fixture.files.set('skill://reports/references/facts.txt', 'new content')
     await expect(skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).rejects.toThrow(
       'verification'
@@ -1044,7 +1054,7 @@ describe('session MCP skills through real protocol', () => {
 
   it('rejects calls after session closure', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {})!
+    const approval = getMcpSkillToolApproval(sessionId, 'Bash', {})!
     skills.closeSession(sessionId)
     expect(approval.signal.aborted).toBe(true)
     expect(() => approval.approve()).toThrow()

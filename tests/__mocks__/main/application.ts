@@ -126,10 +126,17 @@ export const defaultServiceInstances = {
   McpSkillService: {
     openSession: vi.fn(),
     closeSession: vi.fn(),
-    toolApproval: vi.fn<() => { signal: AbortSignal; approve: () => Record<string, unknown> } | undefined>(
-      () => undefined
-    ),
-    guardResourceRead: vi.fn(async (_sessionId, _serverId, _uri, signal, run) => run(signal))
+    captureContext: vi.fn<
+      () =>
+        | {
+            signal: AbortSignal
+            origins: { serverId: string; serverName: string; uri: string }[]
+            validate: () => void
+          }
+        | undefined
+    >(() => undefined),
+    captureOrigin: vi.fn(() => ({ signal: new AbortController().signal, validate: () => {} })),
+    captureResourceRead: vi.fn(() => undefined)
   },
   AgentImportService: {
     pause: vi.fn(() => ({ dispose: vi.fn() })),

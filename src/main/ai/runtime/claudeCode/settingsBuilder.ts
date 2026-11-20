@@ -54,6 +54,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
@@ -585,9 +586,13 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
-    const skillApproval = application
-      .get('McpSkillService')
-      .toolApproval(session.id, toolName, input, snapshot.getPermissionMode(), opts.signal)
+    const skillApproval = getMcpSkillToolApproval(
+      session.id,
+      toolName,
+      input,
+      snapshot.getPermissionMode(),
+      opts.signal
+    )
     const approvalHoldsInThisMode =
       !!skillApproval ||
       commandRequiresApproval ||

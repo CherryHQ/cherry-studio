@@ -3,8 +3,10 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
@@ -169,7 +171,16 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
         inputSchema: z.looseObject(identity)
       },
       async (input, ctx) => {
-        const result = await application.get('McpSkillService').loadFromTool(sessionId, input, ctx.mcpReq.signal)
+        const result = await toolApprovalRegistry.runApprovedInvocation(
+          {
+            sessionId,
+            toolName: 'mcp__skills__load_mcp_skill',
+            input,
+            signal: ctx.mcpReq.signal,
+            permissionMode: agentService.getAgent(agentId)?.configuration?.permission_mode
+          },
+          (signal) => application.get('McpSkillService').load(sessionId, input.server_id, input.skill_uri, signal)
+        )
         return { content: [{ type: 'text', text: JSON.stringify(result) }] }
       }
     )

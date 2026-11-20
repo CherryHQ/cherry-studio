@@ -5,6 +5,8 @@ sources:
   - src/main/ai/skills/mcpSkillContent.ts
   - src/main/ai/mcp/connections/ClientMcpConnection.ts
   - src/main/ai/mcp/servers/skills.ts
+  - src/main/ai/toolApproval/mcpSkillApproval.ts
+  - src/main/ai/toolApproval/ToolApprovalRegistry.ts
   - src/renderer/hooks/useMcpSkills.ts
   - src/renderer/components/composer/variants/AgentComposer.tsx
   - src/shared/types/mcpSkills.ts
@@ -31,11 +33,14 @@ Cherry 在 Claude Code 和 Pi Agent 会话中使用 [MCP Skills 扩展](https://
 |---|---|
 | `ClientMcpConnection` | 通过 SDK `SkillsClient` 检测能力并执行直接查询，复用官方 core schema，由宿主分页拒绝重复游标和重复 URI。 |
 | `McpRuntimeService` / `McpCatalogService` | 复用既有连接、超时、取消、当前服务配置和元数据投影。元数据每次重新获取。 |
-| `McpSkillService` | 会话持有的清单、来源、完整性校验、仅在内存中的内容缓存、来源限制及工具守卫。 |
+| `McpSkillService` | 会话持有的清单、仅在内存中的已验证内容，以及来源和取消状态的快照。 |
+| Tool Approval | 执行分类、跨来源审批，以及由 `ToolApprovalRegistry` 绑定到会话、工具、参数和捕获状态的一次性获批调用。 |
 | `AgentSessionRuntimeService` | 打开和关闭内存中的技能会话，并通过现有 Tool Approval 注册表展示工具审批。 |
 | 输入框 / IpcApi | 仅在选择面板打开时发现元数据，关闭后取消请求，并为失败来源显示明确的错误条目。 |
 
 宿主提供 `list_mcp_skills`、`load_mcp_skill` 和 `read_mcp_skill_file`。两种运行时使用同一服务。Pi 直接暴露内置 skills 服务，使辅助文件读取不必执行 code mode 脚本。加载结果包含完整清单和辅助文件路径，不另设目录工具。远端目录不会进入本地技能库或原生技能发现。
+
+技能状态不对工具分类，也不决定权限模式。审批层消费其快照，MCP 资源边界对远端获取和缓存读取统一应用审批及内容校验。每个服务只有一份来源状态，配置变更时取消相关工作；每次读取不再单独监听配置。每个资源响应对每份匹配的持有清单只校验一次。
 
 ## 完整性与权限
 

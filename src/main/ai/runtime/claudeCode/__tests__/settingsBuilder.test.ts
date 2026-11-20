@@ -239,6 +239,7 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
+    bindInvocation: ({ input }: { input: Record<string, unknown> }) => input,
     register: mocks.approvalRegister
   }
 }))
@@ -1556,14 +1557,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         {} as never
       )
       const validate = vi.fn()
-      defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
+      defaultServiceInstances.McpSkillService.captureContext.mockReturnValue({
         signal: new AbortController().signal,
-        approve: () => {
-          validate()
-          return toolName === 'Bash'
-            ? { command: 'echo ready' }
-            : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
-        }
+        origins: [{ serverId: 'origin', serverName: 'Origin', uri: 'skill://reports/SKILL.md' }],
+        validate
       })
       const emit = vi.fn()
       settings.approvalEmitter!.emit = emit
@@ -1579,18 +1576,18 @@ describe('buildClaudeCodeSessionSettings', () => {
             toolUseID: 'skill-exec',
             requestId: 'skill-exec-request'
           })
+          await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls.length).toBeGreaterThan(requestCount))
           if (changed)
             validate.mockImplementation(() => {
               throw new Error('Skill changed')
             })
-          await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls.length).toBeGreaterThan(requestCount))
           mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true })
           await expect(pending).resolves.toMatchObject(
             changed ? { behavior: 'deny', message: 'Skill changed' } : { behavior: 'allow', updatedInput: input }
           )
         }
       } finally {
-        defaultServiceInstances.McpSkillService.toolApproval.mockReset().mockReturnValue(undefined)
+        defaultServiceInstances.McpSkillService.captureContext.mockReset().mockReturnValue(undefined)
       }
     }
   )

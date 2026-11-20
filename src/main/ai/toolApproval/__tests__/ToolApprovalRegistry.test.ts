@@ -200,4 +200,134 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
+
+  it('executes the approved arguments once even after a wire round trip', async () => {
+    const input = toolApprovalRegistry.bindInvocation({
+      sessionId: 's1',
+      toolName: 'load',
+      input: { target: 'server', options: { path: 'skill' } },
+      signal: new AbortController().signal,
+      validate: () => {}
+    })
+    const request = {
+      sessionId: 's1',
+      toolName: 'load',
+      input: JSON.parse(JSON.stringify(input)),
+      signal: new AbortController().signal,
+      permissionMode: 'default' as const
+    }
+    let executions = 0
+    const run = async () => ++executions
+    await expect(toolApprovalRegistry.runApprovedInvocation(request, run)).resolves.toBe(1)
+    await expect(toolApprovalRegistry.runApprovedInvocation(request, run)).rejects.toThrow()
+    expect(executions).toBe(1)
+  })
+
+  it.each(['session', 'tool', 'arguments', 'mutated-original'] as const)(
+    'rejects changed %s before execution',
+    async (change) => {
+      const original = { target: 'server', options: { path: 'skill' } }
+      const input = toolApprovalRegistry.bindInvocation({
+        sessionId: 's1',
+        toolName: 'load',
+        input: original,
+        signal: new AbortController().signal,
+        validate: () => {}
+      })
+      if (change === 'mutated-original') original.options.path = 'another'
+      let executed = false
+      await expect(
+        toolApprovalRegistry.runApprovedInvocation(
+          {
+            sessionId: change === 'session' ? 's2' : 's1',
+            toolName: change === 'tool' ? 'install' : 'load',
+            input: change === 'arguments' ? { ...input, target: 'other' } : input,
+            signal: new AbortController().signal,
+            permissionMode: 'default'
+          },
+          async () => {
+            executed = true
+          }
+        )
+      ).rejects.toThrow()
+      expect(executed).toBe(false)
+    }
+  )
+
+  it.each(['signal', 'session', 'shutdown'] as const)(
+    'revokes an unused approved invocation on %s cancellation',
+    async (reason) => {
+      const abort = new AbortController()
+      const input = toolApprovalRegistry.bindInvocation({
+        sessionId: 's1',
+        toolName: 'load',
+        input: { target: 'server' },
+        signal: abort.signal,
+        validate: () => {}
+      })
+      if (reason === 'signal') abort.abort()
+      else if (reason === 'session') toolApprovalRegistry.abort('s1')
+      else toolApprovalRegistry.clear()
+      let executed = false
+      await expect(
+        toolApprovalRegistry.runApprovedInvocation(
+          {
+            sessionId: 's1',
+            toolName: 'load',
+            input,
+            signal: new AbortController().signal,
+            permissionMode: 'default'
+          },
+          async () => {
+            executed = true
+          }
+        )
+      ).rejects.toThrow()
+      expect(executed).toBe(false)
+    }
+  )
+
+  it('rejects a late result when its approved context changes during execution', async () => {
+    const abort = new AbortController()
+    const input = toolApprovalRegistry.bindInvocation({
+      sessionId: 's1',
+      toolName: 'load',
+      input: { target: 'server' },
+      signal: abort.signal,
+      validate: () => {}
+    })
+    await expect(
+      toolApprovalRegistry.runApprovedInvocation(
+        {
+          sessionId: 's1',
+          toolName: 'load',
+          input,
+          signal: new AbortController().signal,
+          permissionMode: 'default'
+        },
+        async () => {
+          abort.abort()
+          return 'superseded content'
+        }
+      )
+    ).rejects.toThrow()
+  })
+
+  it('requires a receipt in ordinary mode and permits Full Access without one', async () => {
+    const request = {
+      sessionId: 's1',
+      toolName: 'load',
+      input: { target: 'server' },
+      signal: new AbortController().signal
+    }
+    let executions = 0
+    const run = async () => ++executions
+    await expect(
+      toolApprovalRegistry.runApprovedInvocation({ ...request, permissionMode: 'default' }, run)
+    ).rejects.toThrow()
+    await expect(
+      toolApprovalRegistry.runApprovedInvocation({ ...request, permissionMode: 'bypassPermissions' }, run)
+    ).resolves.toBe(1)
+    expect(executions).toBe(1)
+  })
 })

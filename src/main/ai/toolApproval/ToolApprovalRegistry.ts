@@ -1,7 +1,21 @@
+import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
+
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
+const invocationInput = '__cherry_tool_approval'
+
+type ApprovedInvocation = {
+  sessionId: string
+  toolName: string
+  inputJson: string
+  signal: AbortSignal
+  validate: () => void
+  dispose: () => void
+}
 
 /**
  * Driver-neutral tool-approval decision. Drivers map this to their SDK-native
@@ -50,6 +64,7 @@ export type AbortedApproval = ApprovalRegistration & {
  */
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
+  private readonly invocations = new Map<string, ApprovedInvocation>()
   private readonly _onAborted = new Emitter<AbortedApproval>()
 
   /**
@@ -57,6 +72,68 @@ class ToolApprovalRegistry {
    * Listeners retire any persisted card parked at `approval-requested`.
    */
   public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
+
+  bindInvocation({
+    sessionId,
+    toolName,
+    input,
+    signal,
+    validate
+  }: Pick<ApprovedInvocation, 'sessionId' | 'toolName' | 'signal' | 'validate'> & {
+    input: Record<string, unknown>
+  }): Record<string, unknown> {
+    signal.throwIfAborted()
+    validate()
+    const originalInput = { ...input }
+    delete originalInput[invocationInput]
+    const token = randomUUID()
+    const dispose = () => {
+      this.invocations.delete(token)
+      signal.removeEventListener('abort', dispose)
+    }
+    this.invocations.set(token, {
+      sessionId,
+      toolName,
+      inputJson: JSON.stringify(originalInput),
+      signal,
+      validate,
+      dispose
+    })
+    signal.addEventListener('abort', dispose, { once: true })
+    return { ...originalInput, [invocationInput]: token }
+  }
+
+  async runApprovedInvocation<T>(
+    request: {
+      sessionId: string
+      toolName: string
+      input: Record<string, unknown>
+      signal: AbortSignal
+      permissionMode: AgentPermissionMode | undefined
+    },
+    run: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    const input = { ...request.input }
+    const token = input[invocationInput]
+    delete input[invocationInput]
+    request.signal.throwIfAborted()
+    if (token === undefined && request.permissionMode === 'bypassPermissions') return run(request.signal)
+    const approval = typeof token === 'string' ? this.invocations.get(token) : undefined
+    if (!approval) throw new Error('Tool approval is no longer valid')
+    approval.dispose()
+    if (
+      approval.sessionId !== request.sessionId ||
+      approval.toolName !== request.toolName ||
+      !isDeepStrictEqual(JSON.parse(approval.inputJson), input)
+    )
+      throw new Error('Tool approval does not match this invocation')
+    approval.validate()
+    const signal = AbortSignal.any([request.signal, approval.signal])
+    signal.throwIfAborted()
+    const result = await run(signal)
+    signal.throwIfAborted()
+    return result
+  }
 
   /**
    * Register a pending approval. Returns `true` when the request is now pending a
@@ -115,6 +192,9 @@ class ToolApprovalRegistry {
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {
+    for (const invocation of this.invocations.values()) {
+      if (invocation.sessionId === sessionId) invocation.dispose()
+    }
     const approvalIds = [...this.pending.values()]
       .filter((entry) => entry.sessionId === sessionId)
       .map((entry) => entry.approvalId)
@@ -129,6 +209,7 @@ class ToolApprovalRegistry {
    * held tool promises don't hang forever) across a service restart.
    */
   clear(reason = 'service-shutdown'): number {
+    for (const invocation of this.invocations.values()) invocation.dispose()
     const count = this.cancel([...this.pending.keys()], reason)
     if (count > 0) logger.info('Cleared all pending approvals', { count, reason })
     return count
