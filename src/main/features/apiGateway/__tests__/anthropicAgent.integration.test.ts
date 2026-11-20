@@ -7,6 +7,9 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -132,6 +135,24 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
   const dbh = setupTestDatabase()
   beforeEach(() => {
     BaseService.resetInstances()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'wire-agent', type: 'claude-code', name: 'Wire', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'wire-workspace', name: 'Wire', path: process.cwd(), orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'agent-session',
+        agentId: 'wire-agent',
+        workspaceId: 'wire-workspace',
+        name: 'Wire',
+        orderKey: 'a0'
+      })
+      .run()
     mocks.internal = true
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()

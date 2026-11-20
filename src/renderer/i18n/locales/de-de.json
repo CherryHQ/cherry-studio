@@ -5185,7 +5185,6 @@
   "settings.memory.result": "Dateiergebnisse",
   "settings.memory.retention": "Nur die aufgeführten Dateien werden geändert. Wiederherstellungskopien bleiben erhalten; widersprüchliche Änderungen werden nicht überschrieben.",
   "settings.memory.title": "Gemeinsamer Speicher",
-  "settings.memory.use": "Gemeinsamen Speicher verwenden",
   "settings.menuGroups.automation": "Effizienz",
   "settings.menuGroups.builtinTools": "Integrierte Werkzeuge",
   "settings.menuGroups.capabilities": "Werkzeuge",

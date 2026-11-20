@@ -5185,7 +5185,6 @@
   "settings.memory.result": "Risultati dei file",
   "settings.memory.retention": "Verranno modificati solo i file elencati. Le copie di ripristino vengono conservate e le modifiche in conflitto non vengono sovrascritte.",
   "settings.memory.title": "Memoria condivisa",
-  "settings.memory.use": "Usa la memoria condivisa",
   "settings.menuGroups.automation": "Efficienza",
   "settings.menuGroups.builtinTools": "Strumenti integrati",
   "settings.menuGroups.capabilities": "Strumenti",

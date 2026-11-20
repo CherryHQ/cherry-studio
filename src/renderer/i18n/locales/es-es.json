@@ -5185,7 +5185,6 @@
   "settings.memory.result": "Resultados por archivo",
   "settings.memory.retention": "Solo cambiarán los archivos indicados. Se conservan las copias de recuperación y no se sobrescriben las ediciones en conflicto.",
   "settings.memory.title": "Memoria compartida",
-  "settings.memory.use": "Usar memoria compartida",
   "settings.menuGroups.automation": "Eficiencia",
   "settings.menuGroups.builtinTools": "Herramientas integradas",
   "settings.menuGroups.capabilities": "Herramientas",
