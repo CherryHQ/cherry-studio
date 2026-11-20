@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Assistant } from '@renderer/types/assistant'
-import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { getEffectiveMcpMode, hasMcpToolSignals } from '@renderer/utils/mcpMode'
 
 describe('getEffectiveMcpMode', () => {
   it('returns mcpMode when explicitly set to auto', () => {
@@ -17,5 +17,24 @@ describe('getEffectiveMcpMode', () => {
   it('returns manual when mcpMode is explicitly manual', () => {
     const assistant = { settings: { mcpMode: 'manual' } } as Partial<Assistant> as Assistant
     expect(getEffectiveMcpMode(assistant)).toBe('manual')
+  })
+})
+
+describe('hasMcpToolSignals', () => {
+  const make = (mcpMode: string | undefined, mcpServerIds: string[]) =>
+    ({ settings: { mcpMode }, mcpServerIds }) as Partial<Assistant> as Assistant
+
+  it('treats manual mode with no linked servers as no tool signal', () => {
+    expect(hasMcpToolSignals(make('manual', []))).toBe(false)
+    expect(hasMcpToolSignals(make(undefined, []))).toBe(false)
+  })
+
+  it('counts auto mode and manual mode with linked servers', () => {
+    expect(hasMcpToolSignals(make('auto', []))).toBe(true)
+    expect(hasMcpToolSignals(make('manual', ['s1']))).toBe(true)
+  })
+
+  it('never counts disabled mode, even with linked servers', () => {
+    expect(hasMcpToolSignals(make('disabled', ['s1']))).toBe(false)
   })
 })

@@ -28,7 +28,7 @@ import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledg
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
-import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { hasMcpToolSignals } from '@renderer/utils/mcpMode'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -300,7 +300,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       extraSettings,
       clientSearchAvailable: clientSearchAvailableRef.current,
       // Include scoped KB tools as well as MCP when predicting the Gemini conflict.
-      hasFunctionToolSignals: getEffectiveMcpMode(currentAssistant) !== 'disabled' || scopedKnowledgeToolsRef.current
+      hasFunctionToolSignals: hasMcpToolSignals(currentAssistant) || scopedKnowledgeToolsRef.current
     })
     return patchAssistantRef.current(
       currentId,

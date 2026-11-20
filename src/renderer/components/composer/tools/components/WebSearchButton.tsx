@@ -18,7 +18,7 @@ import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledg
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { hasMcpToolSignals } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
@@ -99,7 +99,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientFetchAvailable,
           modelToolsPreferred,
           endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
-          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled' || scopedKnowledgeTools,
+          hasFunctionToolSignals: hasMcpToolSignals(assistant) || scopedKnowledgeTools,
           reasoningEffort: assistant.settings.reasoning_effort
         })
       : { webSearch: 'none' as const, reasons: undefined }
