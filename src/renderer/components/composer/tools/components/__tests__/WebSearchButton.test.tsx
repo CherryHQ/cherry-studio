@@ -384,7 +384,7 @@ describe('WebSearchButton', () => {
         apiModelId: 'deepseek-v4-pro',
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
         endpointTypes: ['openai-responses', 'openai-chat-completions']
-      } as Model
+      }
     })
 
     it('does not claim the built-in tool when the preset default routes through Chat Completions', () => {
