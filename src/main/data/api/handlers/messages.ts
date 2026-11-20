@@ -7,7 +7,7 @@
  * - Message CRUD operations
  */
 
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { messageService } from '@data/services/MessageService'
