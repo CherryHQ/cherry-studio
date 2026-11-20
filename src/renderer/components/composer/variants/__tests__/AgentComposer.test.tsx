@@ -3,10 +3,16 @@ import { basename } from 'node:path'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as ui from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
+import { Slider } from '@cherrystudio/ui/components/primitives/slider'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -37,6 +43,11 @@ import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
+
+type SpeedControlProps = ComponentProps<typeof ModelSpeedControlModule.ModelSpeedControl> &
+  Required<
+    Pick<ComponentProps<typeof ModelSpeedControlModule.ModelSpeedControl>, 'onServiceTierChange' | 'onFastModeChange'>
+  >
 
 const mocks = vi.hoisted(() => ({
   quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
@@ -107,17 +118,8 @@ const mocks = vi.hoisted(() => ({
         session?: { agentId?: string }
       }
     | undefined,
-  speedControlProps: undefined as
-    | {
-        model: Model
-        reasoningEffort: string
-        serviceTier: string
-        fastMode: boolean
-        onReasoningEffortChange: (effort: string) => void
-        onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
-        onFastModeChange: (enabled: boolean) => void
-      }
-    | undefined,
+  useRealSpeedControl: false,
+  speedControlProps: undefined as SpeedControlProps | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
@@ -285,7 +287,10 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useIsActiveTab: () => true
+}))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
@@ -506,16 +511,9 @@ vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
   const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ModelSpeedControl: (props: {
-      model: Model
-      reasoningEffort: string
-      serviceTier: string
-      fastMode: boolean
-      onReasoningEffortChange: (effort: string) => void
-      onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
-      onFastModeChange: (enabled: boolean) => void
-    }) => {
+    ModelSpeedControl: (props: SpeedControlProps) => {
       mocks.speedControlProps = props
+      if (mocks.useRealSpeedControl) return <actual.ModelSpeedControl {...props} />
       return <div data-testid="agent-speed-control" />
     }
   }
@@ -946,6 +944,7 @@ describe('AgentComposer', () => {
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
+    mocks.useRealSpeedControl = false
     mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
@@ -1239,6 +1238,71 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.text).toBe('queued B')
     expect(getQueueDock()).toBeUndefined()
+  })
+
+  it('lets a historical message edit submit the selected reasoning, service tier and Fast options', async () => {
+    const user = userEvent.setup()
+    const realControls = [
+      vi.spyOn(ui, 'Button').mockImplementation(Button),
+      vi.spyOn(ui, 'Popover').mockImplementation(Popover),
+      vi.spyOn(ui, 'PopoverContent').mockImplementation(PopoverContent),
+      vi.spyOn(ui, 'PopoverTrigger').mockImplementation(PopoverTrigger),
+      vi.spyOn(ui, 'RadioGroup').mockImplementation(RadioGroup),
+      vi.spyOn(ui, 'RadioGroupItem').mockImplementation(RadioGroupItem),
+      vi.spyOn(ui, 'Slider').mockImplementation(Slider)
+    ]
+    mocks.useRealSpeedControl = true
+    mocks.agentConfiguration = { reasoning_effort: 'low' }
+    mocks.modelResult = {
+      ...model,
+      supportsFastMode: true,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      },
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'flex'] } }
+    }
+    const props: TestComposerProps = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false,
+      canChangeModel: false,
+      launchOptions: {
+        initialDraft: { text: 'Original message', tokens: [] },
+        editing: { messageId: 'message-1', onCancel: vi.fn() }
+      }
+    }
+    const view = render(<AgentComposer {...props} />)
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'agent.speed.title' }))
+      screen.getByRole('slider', { name: 'agent.speed.effort' }).focus()
+      await user.keyboard('{End}')
+      await user.click(screen.getByRole('radio', { name: 'agent.speed.service_tier.flex' }))
+      // Publish the saved Agent configuration as the owning page would.
+      view.rerender(<AgentComposer {...props} />)
+      await user.click(screen.getByRole('button', { name: 'agent.speed.fast' }))
+      await user.click(screen.getByRole('button', { name: 'send' }))
+
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        {
+          body: expect.objectContaining({
+            agentId: 'agent-1',
+            sessionId: 'session-1',
+            reasoningEffort: 'high',
+            serviceTier: 'flex',
+            fastMode: true
+          })
+        }
+      )
+    } finally {
+      view.unmount()
+      realControls.forEach((control) => control.mockRestore())
+    }
   })
 
   it('captures Fast in the submitted Work Agent turn', async () => {
@@ -4827,6 +4891,31 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
+  // A dock item lives in window memory; Durable must receive the follow-up so it survives a crash.
+  it.each([
+    { steer: false, followUp: true },
+    { steer: true, followUp: undefined }
+  ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer })
+    })
+
+    expect(getQueueDock()).toBeFalsy()
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBe(followUp)
+  })
+
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
@@ -5184,6 +5273,43 @@ describe('AgentComposer', () => {
 
     expect(mocks.insertToken).toHaveBeenCalledWith(token)
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+  })
+
+  // Durable withdrew this message at Stop: resending must deliver it as it was, editing must not erase a draft.
+  it('resends or restores a message that Stop withdrew before sending', async () => {
+    const parts = [{ type: 'text' as const, text: 'Queued question' }]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const restore = (send: boolean) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+          topicId: 'agent-session:session-1',
+          messageId: 'unsent-1',
+          parts,
+          send
+        })
+      })
+
+    await restore(true)
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toEqual(parts)
+
+    mocks.getDraft.mockReturnValue({ text: 'Draft in progress', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.unsent_message.input_not_empty')
+
+    mocks.getDraft.mockReturnValue({ text: '', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Queued question', tokens: [] })
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 
   it('attaches a file or folder from the file pane once, and only in its own session', async () => {

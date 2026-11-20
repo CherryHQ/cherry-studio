@@ -962,7 +962,7 @@ export function useChatVirtualizerRuntime<T>({
   const onScrollEnd = useCallback(() => {
     if (bottomScrollAnimatingRef.current) {
       bottomScrollAnimatingRef.current = false
-      stickToEffectiveBottom('smooth')
+      stickToEffectiveBottom()
     }
     // virtua synthesizes scroll-end after a short quiet period. A user can
     // still be holding the native thumb while pausing to reverse direction.

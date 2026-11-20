@@ -261,3 +261,8 @@ it.each(['initial read', 'reload', 'save'] as const)('does not publish a late A 
     expect(new TextDecoder().decode(writes[0][1].data)).toBe('A pending edit')
   }
 })
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})

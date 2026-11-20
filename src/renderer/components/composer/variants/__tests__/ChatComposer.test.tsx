@@ -609,7 +609,8 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useIsActiveTab: () => true
 }))
 

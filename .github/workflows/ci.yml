@@ -134,7 +134,15 @@ jobs:
 
       - name: Check changeset release policy
         if: needs.changes.outputs.repository == 'true'
-        run: pnpm changeset:check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            pnpm changeset:check --base "origin/$BASE_REF"
+          else
+            pnpm changeset:check
+          fi
 
       - name: Check changesets
         if: needs.changes.outputs.repository == 'true' && github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'

@@ -79,6 +79,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -635,6 +636,7 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1287,7 +1289,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1311,7 +1313,8 @@ const AgentComposerInner = ({
               userMessageParts: [...payload.userMessageParts, ...fileParts],
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
-              ...(payload.fastMode ? { fastMode: true } : {})
+              ...(payload.fastMode ? { fastMode: true } : {}),
+              ...(followUp ? { followUp: true } : {})
             }
           }
         )
@@ -1450,6 +1453,34 @@ const AgentComposerInner = ({
     ]
   )
 
+  // A message the runtime withdrew before the agent received it: sent again as it was, or brought back to edit.
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, (payload) => {
+      const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
+      if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
+      if (data.send) {
+        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        return
+      }
+      if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {
+        toast.warning(t('agent.unsent_message.input_not_empty'))
+        return
+      }
+      const edited = createEditableMessageDraft(data.parts, data.messageId)
+      restoreFollowupDraft({
+        id: data.messageId,
+        draft: { text: edited.text, tokens: edited.draftTokens },
+        payload: {
+          text: edited.text,
+          userMessageParts: data.parts,
+          attachments: edited.files as unknown as Array<Record<string, unknown>>
+        }
+      })
+      actionsRef.current.focus('end')
+    })
+  }, [actionsRef, filesRef, isStreaming, layerActive, restoreFollowupDraft, sendQueuedPayload, sessionTopicId, t])
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
@@ -1468,7 +1499,9 @@ const AgentComposerInner = ({
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer && !steerWhileBusy) {
+      // A runtime with a durable native queue receives the follow-up at once so it survives a crash.
+      const followUp = isStreaming && !options?.steer && !steerWhileBusy
+      if (followUp && !nativeFollowUp) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1477,7 +1510,7 @@ const AgentComposerInner = ({
       directSendInFlightRef.current = true
       setIsDirectSending(true)
       try {
-        const sent = await sendQueuedPayload(payload)
+        const sent = await sendQueuedPayload(payload, followUp)
         if (sent) clearCurrentDraft()
       } finally {
         directSendInFlightRef.current = false
@@ -1490,6 +1523,7 @@ const AgentComposerInner = ({
       enqueueFollowup,
       isStreaming,
       model,
+      nativeFollowUp,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,
@@ -1623,7 +1657,7 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
-      {model && !launchOptions?.editing ? (
+      {model ? (
         <ModelSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
@@ -1648,6 +1682,7 @@ const AgentComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          focusOnTabActivation
           markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}

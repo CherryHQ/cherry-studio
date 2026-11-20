@@ -11,9 +11,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-import { _electron as electron } from '@playwright/test'
-
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { prepareStickyShell, stickyWindow, waitForStickyShell } from './utils/stickySmoke'
 import { uiLocator } from './utils/uiLocator'
 
@@ -55,7 +53,7 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
   electronApp: async ({ notesProfile }, use) => {
     const env = { ...process.env, CS_DEV_PROFILE_ROOT: notesProfile.profile, NODE_ENV: 'development' }
     Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-    const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+    const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
     try {
       await use(app)
     } finally {

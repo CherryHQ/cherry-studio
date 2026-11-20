@@ -576,7 +576,6 @@ export const ResourceGrid: FC<Props> = ({
             <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
           ) : resources.length === 0 ? (
             <EmptyState
-              preset={hasNoMatches ? 'no-result' : 'no-resource'}
               title={hasNoMatches ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
               description={
                 hasNoMatches ? t('library.empty_state.no_match_description') : t('library.empty_state.description')

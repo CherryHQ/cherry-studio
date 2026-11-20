@@ -13,6 +13,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { readOwnedRecord } from '../../../../scripts/e2e/regression/lifecycle'
+import { waitForExit } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
@@ -410,12 +411,14 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       await Promise.all([closed, acknowledged])
     }
     if (app.record.mode === 'branch') {
-      const { runnerPid: runner, platform } = app.record
+      const { runnerPid: runner, electronPid, platform } = app.record
+      expect(await waitForExit(electronPid, 30_000), 'Restore must close the original Electron process').toBe(true)
       const promotion = app.restart().then(
         () => undefined,
         (error: unknown) => error
       )
-      await expect.poll(() => readOwnedRecord(app.paths).runnerPid, { timeout: 30_000 }).not.toBe(runner)
+      // Wait for the previous process group to drain before looking for the promotion dialog.
+      await expect.poll(() => readOwnedRecord(app.paths).runnerPid, { timeout: 60_000 }).not.toBe(runner)
       await dismissNativeMessageBox(platform, app.paths, 'Manual Restart Required')
       const result = await promotion
       expect(result, 'Restore promotion exits before opening the main window').toBeInstanceOf(Error)
