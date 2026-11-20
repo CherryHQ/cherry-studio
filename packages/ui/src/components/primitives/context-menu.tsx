@@ -137,6 +137,7 @@ function ContextMenu({
 
 function ContextMenuTrigger({
   onContextMenu,
+  onKeyDown,
   disabled,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
@@ -146,8 +147,19 @@ function ContextMenuTrigger({
     <ContextMenuPrimitive.Trigger
       data-slot="context-menu-trigger"
       disabled={disabled}
+      onKeyDown={(event) => {
+        onKeyDown?.(event)
+        if (disabled || event.defaultPrevented || event.nativeEvent.isComposing) return
+        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+        event.preventDefault()
+        const anchor = event.target instanceof Element ? event.target : event.currentTarget
+        const rect = anchor.getBoundingClientRect()
+        event.currentTarget.dispatchEvent(
+          new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left, clientY: rect.bottom })
+        )
+      }}
       onContextMenu={(event) => {
-        if (!disabled) {
+        if (!disabled && (event.button === 2 || event.ctrlKey)) {
           pointerUpGuard?.markOpeningPointerUp()
         }
         onContextMenu?.(event)

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -29,11 +30,55 @@ afterEach(() => {
 // Helper: open the menu by firing a contextmenu event on the trigger.
 function openMenu(trigger: Element) {
   act(() => {
-    fireEvent.contextMenu(trigger)
+    fireEvent.contextMenu(trigger, { button: 2 })
   })
 }
 
 describe('ContextMenu primitive', () => {
+  it.each(['{Shift>}{F10}{/Shift}', '{ContextMenu}'])(
+    'opens with %s and accepts the first pointer selection',
+    async (keys) => {
+      const user = userEvent.setup()
+      const select = vi.fn()
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Options</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={select}>Run</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+      screen.getByRole('button', { name: 'Options' }).focus()
+      await user.keyboard(keys)
+      await user.click(screen.getByRole('menuitem', { name: 'Run' }))
+      expect(select).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(['disabled', 'prevented'])('does not open a %s keyboard trigger', async (mode) => {
+    const user = userEvent.setup()
+    render(
+      <ContextMenu>
+        <ContextMenuTrigger
+          asChild
+          disabled={mode === 'disabled'}
+          onKeyDown={(event) => {
+            if (mode === 'prevented') event.preventDefault()
+          }}>
+          <button type="button">Options</button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem>Run</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    )
+    screen.getByRole('button', { name: 'Options' }).focus()
+    await user.keyboard('{Shift>}{F10}{/Shift}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
   describe('asChild trigger preserves consumer handlers', () => {
     it('left-click fires the consumer onClick on an asChild button', () => {
       const handleClick = vi.fn()
