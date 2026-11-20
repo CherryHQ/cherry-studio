@@ -269,6 +269,24 @@ describe('AgentJobsService', () => {
     })
   })
 
+  it('keeps an agent-set workspaceRoot when a rename resubmits the unchanged file guard', () => {
+    const guard = { type: 'file_changed' as const, path: '/ws/report.json', workspaceRoot: '/ws' }
+    const task = service.createTask(AGENT_ID, { ...form, guard })
+
+    // The edit form rebuilds the guard from its displayed fields, so the root is missing.
+    const renamed = service.updateTask(AGENT_ID, task.id, {
+      name: 'renamed',
+      guard: { type: 'file_changed', path: '/ws/report.json' }
+    })
+
+    expect(renamed?.guard).toEqual(guard)
+    expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ guard })
+
+    // A path the user edits is the user's own authority: no root is carried over.
+    const edited = service.updateTask(AGENT_ID, task.id, { guard: { type: 'file_changed', path: '/other/x.json' } })
+    expect(edited?.guard).toEqual({ type: 'file_changed', path: '/other/x.json' })
+  })
+
   it('keeps an agent-persisted command guard pending until the user approves the exact command', () => {
     const command = 'check-something --flag'
     const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } })

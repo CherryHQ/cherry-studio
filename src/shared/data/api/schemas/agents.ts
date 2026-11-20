@@ -186,7 +186,15 @@ export const TaskGuardSchema = z.discriminatedUnion('type', [
     workspaceRoot: z.string().trim().min(1).optional()
   }),
   /** Proceed only when the shell command exits 0. */
-  z.strictObject({ type: z.literal('command'), command: z.string().trim().min(1) })
+  z.strictObject({
+    type: z.literal('command'),
+    // An embedded NUL makes Node throw synchronously at launch; reject it when the guard is saved.
+    command: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => !value.includes('\0'), 'Command must not contain a NUL character')
+  })
 ])
 export type TaskGuard = z.infer<typeof TaskGuardSchema>
 

@@ -81,6 +81,24 @@ function guardsEqual(a: TaskGuard, b: TaskGuard): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
+/**
+ * The edit form rebuilds a file guard from the fields it displays, so it drops the agent-set
+ * `workspaceRoot`. When the displayed path is unchanged, keep the stored root: a rename must not
+ * turn a confined agent guard into an unconfined one. A path the user edits is theirs (no root).
+ */
+function preserveGuardAuthority(next: TaskGuard | undefined, existing: TaskGuard): TaskGuard | undefined {
+  if (
+    next?.type === 'file_changed' &&
+    existing.type === 'file_changed' &&
+    next.workspaceRoot === undefined &&
+    existing.workspaceRoot !== undefined &&
+    next.path === existing.path
+  ) {
+    return { ...next, workspaceRoot: existing.workspaceRoot }
+  }
+  return next
+}
+
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
   if (a.type !== b.type) return false
   return a.type === AGENT_WORKSPACE_TYPE.USER ? a.workspaceId === (b as typeof a).workspaceId : true
@@ -344,7 +362,8 @@ export class AgentJobsService extends BaseService {
       schedulePatch.trigger = patch.trigger
     }
     const nextTimeoutMinutes = patch.timeoutMinutes === null ? 0 : (patch.timeoutMinutes ?? existing.timeoutMinutes)
-    const guardChanged = patch.guard !== undefined && !guardsEqual(patch.guard, existing.guard)
+    const patchGuard = preserveGuardAuthority(patch.guard, existing.guard)
+    const guardChanged = patchGuard !== undefined && !guardsEqual(patchGuard, existing.guard)
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
       (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
@@ -390,7 +409,7 @@ export class AgentJobsService extends BaseService {
         // write (the form is the approval surface); an agent-origin edit drops
         // the record and the new command stays pending until the user approves
         // it. Same merge discipline as the reuse write above.
-        const nextGuard = patch.guard ?? existing.guard
+        const nextGuard = patchGuard ?? existing.guard
         schedulePatch.metadata = writeTaskGuardApproval(
           schedulePatch.metadata ?? snapshot?.metadata,
           options?.guardApprovedByUser === true && nextGuard.type === 'command'
@@ -406,7 +425,7 @@ export class AgentJobsService extends BaseService {
           prompt: patch.prompt ?? existing.prompt,
           timeoutMinutes: nextTimeoutMinutes,
           workspace: patch.workspace ?? existing.workspace,
-          guard: patch.guard ?? existing.guard,
+          guard: patchGuard ?? existing.guard,
           reuseRevision
         }
       }

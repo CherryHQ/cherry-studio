@@ -294,6 +294,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         scheduleId && metadataBaseline === null ? findLastExecutedRunStart(scheduleId, ctx.jobId) : null
       const lastRunStartedAt = metadataBaseline ?? recoveredBaseline
       const outcome = await evaluateTaskGuard(ctx.input.guard, { lastRunStartedAt, signal: ctx.signal })
+      // Cancellation that lands while the lookup is pending wins over either result: a pass must not
+      // reach session creation and a failure must not settle as a completed skip.
+      ctx.signal.throwIfAborted()
       if (!outcome.proceed) {
         // A history-derived baseline disappears with the row when job GC
         // prunes it; persist it so the unchanged file stays skipped instead of

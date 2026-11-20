@@ -119,6 +119,7 @@ export async function evaluateTaskGuard(
         // part of the bounded-termination contract, so settling never clears it.
         let settled = false
         let stopping = false
+        const startedAt = performance.now()
         const signalTree = (force: boolean) => {
           if (!child.pid) return
           if (process.platform === 'win32') {
@@ -186,6 +187,11 @@ export async function evaluateTaskGuard(
           }
           // A timeout already settled the skip; nothing here may reopen it.
           if (settled) return
+          // A stalled main loop can deliver this callback before the overdue timer; the deadline binds anyway.
+          if (performance.now() - startedAt >= GUARD_COMMAND_TIMEOUT_MS) {
+            stopTree()
+            return settleOutcome({ proceed: false, reason: `command failed (timed out): ${guard.command}` })
+          }
           // A background child must not survive the predicate's normal shell exit either.
           signalTree(true)
           if (code === 0) return settleOutcome({ proceed: true })

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from '
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { evaluateTaskGuard, resolveAgentGuardPath } from '../taskGuard'
 
@@ -99,6 +99,19 @@ describe('evaluateTaskGuard', () => {
       const outcome = await evaluateTaskGuard({ type: 'command', command: bigOutput }, { lastRunStartedAt: null })
       expect(outcome).toMatchObject({ proceed: false })
       expect(outcome.proceed === false && outcome.reason).toContain('exit code 3')
+    })
+
+    it('skips a zero exit that is delivered after the deadline', async () => {
+      // The exit callback can run before the overdue timer when the main loop stalls.
+      const real = performance.now.bind(performance)
+      let calls = 0
+      const spy = vi.spyOn(performance, 'now').mockImplementation(() => (calls++ === 0 ? 0 : real() + 31_000))
+      try {
+        const outcome = await evaluateTaskGuard({ type: 'command', command: 'exit 0' }, { lastRunStartedAt: null })
+        expect(outcome).toEqual({ proceed: false, reason: 'command failed (timed out): exit 0' })
+      } finally {
+        spy.mockRestore()
+      }
     })
 
     // POSIX shells only: traps, SIGTERM/SIGKILL semantics and ps are not portable to win32.
