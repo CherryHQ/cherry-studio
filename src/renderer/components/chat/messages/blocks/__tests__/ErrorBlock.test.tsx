@@ -207,7 +207,7 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
   })
 
-  it.each(['Pi', 'Pi Durable'])('shows the %s output-limit counts and recovery detail on the card', (_runtime) => {
+  it.each(['Pi', 'Pi Durable'])('shows the %s output-limit counts and recovery detail on the card', () => {
     mocks.translations = new Map([
       ['error.output_token_limit_reached', 'Reached the limit.'],
       ['error.output_token_limit_detail', '{{detail}}']
