@@ -17,6 +17,7 @@ import type { FileEntryId } from '@shared/data/types/file'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
+import { makeModel } from '../../../__tests__/fixtures/model'
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
@@ -44,9 +45,7 @@ vi.mock('@application', async () => {
 
 vi.mock('../modelResolution', () => ({
   resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
-  resolveModels: vi.fn(() => [
-    { id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] }
-  ]),
+  resolveModels: vi.fn(() => [makeModel({ id: MODEL_ID, name: 'GPT-4o', apiModelId: 'gpt-4o' })]),
   resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 
@@ -478,13 +477,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     })
     vi.mocked(resolveAssistantModelId).mockClear()
     vi.mocked(resolveModels).mockReturnValueOnce([
-      {
+      makeModel({
         id: selectedModelId,
         name: 'Claude Sonnet 4.5',
         providerId: 'anthropic',
         apiModelId: 'claude-sonnet-4-5'
-      }
-    ] as ReturnType<typeof resolveModels>)
+      })
+    ])
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -610,9 +609,14 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       orderKey: bModelKey
     })
     vi.mocked(resolveModels).mockReturnValueOnce([
-      { id: MODEL_A, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' },
-      { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
-    ] as ReturnType<typeof resolveModels>)
+      makeModel({ id: MODEL_A, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }),
+      makeModel({
+        id: MODEL_B,
+        name: 'Claude Sonnet 4.5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-4-5'
+      })
+    ])
     vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42)
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
@@ -705,13 +709,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       }
     ])
     vi.mocked(resolveModels).mockReturnValueOnce([
-      {
+      makeModel({
         id: appendedModelId,
         name: 'Claude Sonnet 4.5',
         providerId: 'anthropic',
         apiModelId: 'claude-sonnet-4-5'
-      }
-    ] as ReturnType<typeof resolveModels>)
+      })
+    ])
     vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
     await dbh.db.insert(messageTable).values({
       id: 'a2',
@@ -999,8 +1003,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
     const beforeCount = messageService.getPathToNode('a1').length
     vi.mocked(resolveModels).mockReturnValueOnce([
-      { id: ANCHOR_MODEL_ID, name: 'GPT-4o mini', providerId: 'openai', apiModelId: 'gpt-4o-mini' }
-    ] as ReturnType<typeof resolveModels>)
+      makeModel({ id: ANCHOR_MODEL_ID, name: 'GPT-4o mini', providerId: 'openai', apiModelId: 'gpt-4o-mini' })
+    ])
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),

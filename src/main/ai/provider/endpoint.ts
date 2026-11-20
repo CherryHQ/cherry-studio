@@ -14,8 +14,8 @@ import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
 
-/** Whether endpoint resolution serves in-app chat or an image-generation transport. */
-export type ResolveEndpointIntent = 'chat' | 'image'
+/** Operation used to select from the model’s declared endpoints. */
+export type ResolveEndpointIntent = 'chat' | 'image' | 'image-edit' | 'declared'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -47,9 +47,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
  * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
  *
- * `intent` only reorders the model's own declarations — chat takes the first chat protocol, image the
- * first image-generation protocol — and falls back to the first declaration, so a model whose protocol
- * list has no chat entry cannot route to a chat URL.
+ * Chat selects the first chat protocol. Image generation and edit prefer their matching Images
+ * endpoints. Declared order is preserved for other operations and when no endpoint matches.
  *
  * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
  * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
@@ -72,13 +71,19 @@ export function resolveEffectiveEndpoint(
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
+  const imageOperationEndpoint =
+    intent === 'image-edit' ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+  const imageEndpoint =
+    model.endpointTypes?.find((endpointType) => endpointType === imageOperationEndpoint) ??
+    model.endpointTypes?.find(
+      (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
+    )
   const declaredEndpoint =
-    intent === 'image'
-      ? (model.endpointTypes?.find(
-          (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
-        ) ?? model.endpointTypes?.[0])
-      : (model.endpointTypes?.find((endpointType) => endpointImpliedCapability(endpointType) == null) ??
-        model.endpointTypes?.[0])
+    (intent === 'chat'
+      ? model.endpointTypes?.find((endpointType) => endpointImpliedCapability(endpointType) == null)
+      : intent === 'declared'
+        ? undefined
+        : imageEndpoint) ?? model.endpointTypes?.[0]
   const endpointType = preferred ?? declaredEndpoint ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined

@@ -28,7 +28,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -585,6 +585,27 @@ describe('ModelService.update', () => {
 
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
+
+  it('reloads both image-chat modalities for a discovered model without registry enrichment', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('openrouter', 'OpenRouter')).run()
+    const endpointTypes = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openrouter',
+          modelId: 'test/image-chat',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          endpointTypes,
+          outputModalities: ['text', 'image']
+        }
+      }
+    ])
+
+    expect(modelService.getByKey('openrouter', 'test/image-chat')).toMatchObject({
+      endpointTypes,
+      outputModalities: ['text', 'image']
+    })
+  })
 
   it('merges and clears a user default without losing inferred custom controls', () => {
     dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()

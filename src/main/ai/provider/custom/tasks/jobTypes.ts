@@ -1,6 +1,6 @@
 import type { MessageRef, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ImageGenerationMode, UniqueModelId } from '@shared/data/types/model'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
@@ -28,6 +28,7 @@ export interface ImageGenerationJobPayload {
   aspectRatio?: string
   seed?: number
   inputFileIds?: string[]
+  mode?: ImageGenerationMode
   maskFileId?: string
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so the handler reaches the right endpoint / response family without

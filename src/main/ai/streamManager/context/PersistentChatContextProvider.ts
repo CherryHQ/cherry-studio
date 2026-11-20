@@ -469,14 +469,20 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        imageMessages,
+        retainedContext
+      } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
         assistantId,
         contextSettingsOverride,
         toCompactionSink(
-          assistantPlaceholders.map(({ placeholder }) => placeholder.id),
+          assistantPlaceholders
+            .filter(({ model }) => !isImageGenerationOnlyModel(model))
+            .map(({ placeholder }) => placeholder.id),
           subscriber
         )
       )
@@ -487,7 +493,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           req.topicId,
           assistantId,
           model.id,
-          history,
+          isImageGenerationOnlyModel(model) ? (imageMessages ?? history) : history,
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
@@ -911,7 +917,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
-  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+  ): Promise<{ messages: CherryUIMessage[]; imageMessages?: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
@@ -949,13 +955,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
     }
 
+    const textModels = models.filter((model) => !isImageGenerationOnlyModel(model))
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
-      models[0],
+      textModels[0] ?? models[0],
       { id: topicId, topicId },
       assistantContextOverride
     )
-    const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    const imageMessages = textModels.length < models.length ? rows.map((row) => this.toServed(row)) : undefined
+    const serve = (rows_: typeof effective) => ({
+      messages: rows_.map((row) => this.toServed(row)),
+      imageMessages,
+      retainedContext
+    })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
@@ -964,25 +975,25 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
       return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
     }
-    if (!on) return serve(effective)
-    if (!compressionModel) return serve(effective)
+    if (!textModels.length && imageMessages) return { messages: imageMessages, retainedContext }
+    if (!contextSettings.enabled || !contextSettings.compress.enabled || !compressionModel) return serve(effective)
 
     // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI
     // rows can omit it). Without one there is no budget to compact against —
     // and an `as number` cast here made every derived budget `NaN`, which
     // silently disabled compaction instead of triggering it. Serve as-is; the
     // persist lane still bounds tool outputs by the character setting.
-    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    const minContextWindow = resolveMinContextWindow(textModels.map((m) => m.contextWindow))
     if (minContextWindow === null) {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
-    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, textModels))
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
-    const dialect = resolveRowDialect(models[0])
+    const dialect = resolveRowDialect(textModels[0])
     const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
     if (this.estimateContext(effective, dialect) <= trigger) {
       return serve(effective)

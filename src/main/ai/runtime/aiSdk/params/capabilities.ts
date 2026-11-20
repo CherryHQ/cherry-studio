@@ -74,6 +74,14 @@ function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | unde
   return undefined
 }
 
+export function hasNativeImageOutput(model: Model, providerOptionsKey: string): boolean {
+  return (
+    (providerOptionsKey === 'google' || providerOptionsKey === 'vertex') &&
+    isGenerateImageModel(model) &&
+    model.outputModalities?.includes(MODALITY.IMAGE) === true
+  )
+}
+
 export function resolveCapabilities(
   model: Model,
   provider: Provider,
@@ -93,10 +101,7 @@ export function resolveCapabilities(
     actualProviderId: provider.id,
     endpointType: resolveEffectiveEndpoint(provider, model).endpointType
   })
-  const enableGenerateImage =
-    isGenerateImageModel(model) &&
-    model.outputModalities?.includes(MODALITY.IMAGE) === true &&
-    (providerOptionsKey === 'google' || providerOptionsKey === 'vertex')
+  const enableGenerateImage = hasNativeImageOutput(model, providerOptionsKey)
 
   const isSupportedToolUse = isFunctionCallingModel(model)
 

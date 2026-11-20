@@ -56,9 +56,10 @@ import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
-import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
+import { isBase64ImageDataUrl } from '@shared/utils/dataUrl'
 import {
   getRawModelId,
   isEmbeddingModel,
@@ -1105,9 +1106,21 @@ export class AiService extends BaseService {
     signal: AbortSignal,
     assistant: Assistant | undefined
   ): Promise<AiStreamSource> {
-    const support = providerRegistryService.getImageGenerationSupport(provider.id, getRawModelId(model))
-    const input = collectImageTurnInput(request.messages, support)
-    if (input.inputImageIds.length && support && !supportsImageGenerationReference(model, support)) {
+    const support =
+      providerRegistryService.getImageGenerationSupport(provider.id, getRawModelId(model)) ?? model.imageGeneration
+    const hasGenerateEndpoint = model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+    const hasEditEndpoint = model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)
+    const declaredSupport: typeof support =
+      hasGenerateEndpoint || hasEditEndpoint
+        ? {
+            modes: {
+              ...(hasGenerateEndpoint && { generate: { supports: {} } }),
+              ...(hasEditEndpoint && { edit: { supports: {} } })
+            }
+          }
+        : undefined
+    const input = collectImageTurnInput(request.messages, support ?? declaredSupport)
+    if (input.imageReferences.length && !supportsImageGenerationReference(model, support)) {
       throw Object.assign(new Error('This image model does not accept reference images.'), {
         i18nKey: 'image_edit_unsupported'
       })
@@ -1119,8 +1132,15 @@ export class AiService extends BaseService {
         start: async (controller) => {
           controller.enqueue({ type: 'control', chunk: { type: 'start' } })
           try {
-            const inputImages =
-              input.inputImageIds.length > 0 ? await readImageInputDataUrls(input.inputImageIds, { signal }) : undefined
+            const inputImages = input.imageReferences.length
+              ? await Promise.all(
+                  input.imageReferences.map(async (reference) =>
+                    isBase64ImageDataUrl(reference)
+                      ? reference
+                      : (await readImageInputDataUrls([reference], { signal }))[0]
+                  )
+                )
+              : undefined
             const result = await this.generateImage({
               uniqueModelId: request.uniqueModelId ?? model.id,
               assistantId: request.assistantId,
@@ -1249,7 +1269,10 @@ export class AiService extends BaseService {
       )
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request, 'image')
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(
+      request,
+      inputImages?.length ? 'image-edit' : 'image'
+    )
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1424,6 +1447,7 @@ export class AiService extends BaseService {
         ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
+        ...(request.mode && { mode: request.mode }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
         ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
@@ -1720,7 +1744,7 @@ export class AiService extends BaseService {
           probe = (async () => {
             const { config, endpointType } = await resolveProviderAiSdkConfig(provider, model, {
               apiKeyOverride: request.apiKeyOverride,
-              intent: 'image'
+              intent: probeMode === 'edit' ? 'image-edit' : 'image'
             })
             const wireModelId = resolveWireModelId(model, endpointType)
             const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
@@ -1789,7 +1813,7 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: ResolveEndpointIntent = 'chat') {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: ResolveEndpointIntent = 'declared') {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,

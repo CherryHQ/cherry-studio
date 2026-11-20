@@ -47,13 +47,12 @@ variant suffix if the endpoint type has one, falls back to
 carried through `SdkConfig`; reasoning encoders consume the resolved namespace
 and never inspect provider or model ids themselves.
 
-The optional `intent` is `chat` (the default) or `image`. Chat intent selects the
-first declared chat protocol, preserving its order without inferring a dialect
-from the model name. Image intent selects a declared image-generation endpoint.
-When no endpoint matches the intent, the first declaration remains authoritative;
-text output alone does not make an image API a chat API. A model a provider
-publishes in both its chat and image catalogs declares both endpoints, so chat
-uses the chat protocol and the image workflow uses the image endpoint.
+The default `chat` intent selects the first declared chat protocol. The `image`
+and `image-edit` intents prefer their respective Images endpoints and fall
+back to the first declared image endpoint. Embedding and reranking use the
+`declared` intent to preserve configured order. If no endpoint matches the
+intent, the first declaration applies. OpenRouter models published in both
+catalogs can use Chat Completions in chat and Images in the image workflow.
 `preferredEndpointType` still wins when the model declares it and the provider
 configures its base URL.
 
@@ -113,7 +112,7 @@ function, which then calls `resolveAiSdkProviderId` and dispatches through an
 ordered `{ match, build }` table to build the provider-specific settings
 object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
 the option and let the function resolve the endpoint itself, optionally with an
-`intent` (`chat` | `image`) that `resolveEffectiveEndpoint` applies.
+`intent` that `resolveEffectiveEndpoint` applies.
 
 `resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
 model id and the `providerOptions` namespace. It is the modality-agnostic

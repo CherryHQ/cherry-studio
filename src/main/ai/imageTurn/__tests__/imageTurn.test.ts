@@ -44,7 +44,7 @@ describe('collectImageTurnInput', () => {
 
     expect(collectImageTurnInput(messages, support(2))).toEqual({
       prompt: 'Make the sky blue\nKeep the subject',
-      inputImageIds: ['a', 'b'],
+      imageReferences: ['a', 'b'],
       mode: 'edit'
     })
   })
@@ -57,7 +57,18 @@ describe('collectImageTurnInput', () => {
       message('user', [{ type: 'text', text: 'Make it warmer' }])
     ]
 
-    expect(collectImageTurnInput(messages, support())).toMatchObject({ mode: 'edit', inputImageIds: ['newer'] })
+    expect(collectImageTurnInput(messages, support())).toMatchObject({ mode: 'edit', imageReferences: ['newer'] })
+  })
+
+  it('selects the newest inline image over an older managed image', () => {
+    const url = 'data:image/png;base64,iVBORw0KGgo='
+    const messages = [
+      message('assistant', [filePart('older')]),
+      message('assistant', [{ type: 'file', mediaType: 'image/png', url }]),
+      message('user', [{ type: 'text', text: 'Make it warmer' }])
+    ]
+
+    expect(collectImageTurnInput(messages, support())).toMatchObject({ mode: 'edit', imageReferences: [url] })
   })
 
   it('generates without references when neither the user nor the branch has an image', () => {
@@ -69,7 +80,7 @@ describe('collectImageTurnInput', () => {
         ],
         support()
       )
-    ).toEqual({ prompt: 'A red fox', inputImageIds: [], mode: 'generate' })
+    ).toEqual({ prompt: 'A red fox', imageReferences: [], mode: 'generate' })
   })
 
   it('generates a new image on later turns for a generate-only model', () => {
@@ -80,7 +91,7 @@ describe('collectImageTurnInput', () => {
       )
     ).toEqual({
       prompt: 'Draw a cat',
-      inputImageIds: [],
+      imageReferences: [],
       mode: 'generate'
     })
   })
@@ -99,7 +110,7 @@ describe('collectImageTurnInput', () => {
 
     expect(collectImageTurnInput([user], { modes: { generate: { maxInputImages: 1, supports: {} } } })).toEqual({
       prompt: 'Match this palette',
-      inputImageIds: ['ref'],
+      imageReferences: ['ref'],
       mode: 'generate'
     })
   })
@@ -108,7 +119,7 @@ describe('collectImageTurnInput', () => {
     const user = message('user', [{ type: 'text', text: 'Match these' }, filePart('a'), filePart('b'), filePart('c')])
 
     expect(collectImageTurnInput([user], { modes: { generate: { maxInputImages: 2, supports: {} } } })).toMatchObject({
-      inputImageIds: ['a', 'b'],
+      imageReferences: ['a', 'b'],
       mode: 'generate'
     })
   })
