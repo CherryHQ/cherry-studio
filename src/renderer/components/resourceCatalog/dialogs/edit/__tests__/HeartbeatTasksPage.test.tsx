@@ -132,6 +132,22 @@ describe('HeartbeatTasksPage', () => {
     expect(screen.queryByText(/new_api_error|\{"error"/)).not.toBeInTheDocument()
   })
 
+  // Catches a 401-minute task timeout being read as HTTP 401 and diagnosed as an auth failure.
+  it('keeps the timeout diagnosis when the timeout duration looks like an HTTP status', async () => {
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        status: 'failed',
+        createdAt: '2026-11-19T02:44:54.000Z',
+        output: null,
+        error: { code: 'HANDLER_THREW', message: 'Task timed out after 401 minute(s)', retryable: false }
+      } as never
+    })
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByText(en['error.diagnosis.network'])).toBeVisible()
+    expect(screen.queryByText(en['error.diagnosis.auth'])).not.toBeInTheDocument()
+  })
+
   it('allows editing a disabled heartbeat but prevents execution', async () => {
     const user = userEvent.setup()
     render(<HeartbeatTasksPage agentId="a1" enabled={false} />)

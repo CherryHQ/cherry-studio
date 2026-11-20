@@ -37,11 +37,14 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
 
 /**
  * Recover an HTTP status from free text. Only for sources without a structured status
- * (CLI stderr); callers holding a real status field must pass that instead.
+ * (CLI stderr, stored job errors); callers holding a real status field must pass that instead.
+ * The number must sit in HTTP syntax (`HTTP 429`, `status 401`, `API Error: 403`,
+ * `error (401)`, or a leading `403:`), so durations such as `after 401 minute(s)` are ignored.
  */
 export function extractHttpStatus(text: string): number | undefined {
-  const match = /\b([45]\d\d)\b/.exec(text)
-  return match ? Number(match[1]) : undefined
+  const match =
+    /(?:\bhttp(?:\/[\d.]+)?|\bstatus(?:[ _]?code)?|\berror)["']?\s*[:=]?\s*\(?([45]\d\d)\b|^\s*([45]\d\d):/i.exec(text)
+  return match ? Number(match[1] ?? match[2]) : undefined
 }
 
 // Groq's entitlement response links to billing; the host confines this exception
