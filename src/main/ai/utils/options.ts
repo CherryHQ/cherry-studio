@@ -69,21 +69,21 @@ function shouldNormalizeOpenAICompatibleReasoning(
   )
 }
 
-export function extractAiSdkStandardParams(customParams: Record<string, any>): {
-  standardParams: Partial<Record<AiSdkParam, any>>
-  providerParams: Record<string, any>
+export function extractAiSdkStandardParams<T>(customParams: Record<string, T>): {
+  standardParams: Partial<Record<AiSdkParam, T>>
+  providerParams: Record<string, T>
 } {
-  const standardParams: Partial<Record<AiSdkParam, any>> = {}
-  const providerParams: Record<string, any> = {}
+  const standardParams: Partial<Record<AiSdkParam, T>> = {}
+  const providerEntries: [string, T][] = []
 
   for (const [key, value] of Object.entries(customParams)) {
     if (isAiSdkParam(key)) {
       standardParams[key] = value
     } else {
-      providerParams[key] = value
+      providerEntries.push([key, value])
     }
   }
-  return { standardParams, providerParams }
+  return { standardParams, providerParams: Object.fromEntries(providerEntries) }
 }
 
 export function buildCapabilityProviderOptions(
@@ -215,7 +215,7 @@ export function buildResolvedReasoningProviderOptions(context: {
 /** Whether a custom parameter key names a providerOptions namespace rather than a body field. */
 export function isCustomProviderNamespace(
   key: string,
-  providerOptions: Record<string, unknown>,
+  providerOptions: ProviderOptions,
   rawProviderId: string
 ): boolean {
   return Object.hasOwn(providerOptions, key) || key === rawProviderId
@@ -281,7 +281,7 @@ export function mergeCustomProviderParameters(
   return Object.fromEntries(result)
 }
 
-function normalizeOpenAICompatibleParams(params: Record<string, any>): Record<string, any> {
+function normalizeOpenAICompatibleParams<T>(params: Record<string, T>): Record<string, T> {
   if (!('reasoning_effort' in params)) return params
 
   const normalized = { ...params }

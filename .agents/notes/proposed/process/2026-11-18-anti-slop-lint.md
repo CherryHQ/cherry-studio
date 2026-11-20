@@ -20,6 +20,8 @@ Inventory findings by rule and file, then clean bounded modules while preserving
 
 The ai-core `AiPlugin.transformParams` contract changes from partial patches to complete parameters. Pass each returned value directly to the next plugin; the manager no longer implicitly merges or copies it. Migrate every repository plugin, document how external plugins preserve unchanged fields, and release the public API change as a breaking change. Plugins may return the received parameters unchanged. Omitted fields are removed rather than restored by a merge.
 
+Literal parameter names, including `__proto__`, must remain own data properties on ordinary objects during parameter routing. Data-property construction avoids invoking prototype setters; regression coverage protects this contract.
+
 ## Alternatives considered
 
 - Disable rules solely because existing code violates them: clear worthwhile rules before activation instead. Exclude `no-shape-in-symbol-names` for its low-value naming policy, not because of migration volume.

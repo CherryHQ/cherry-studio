@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/process/2026-11-18-anti-slop-lint.md
-2026-11-18-anti-slop-lint.md: 431a96251876c12480cf8cfa7e85c76e9b5c42b7
-2026-11-18-anti-slop-lint.zh.md: 837aa9ed3797a062521e43a3d2cb90fdaac58b7a
+2026-11-18-anti-slop-lint.md: a25942b3d9edcfc540a1ce3b3c0567222b01aebd
+2026-11-18-anti-slop-lint.zh.md: b07bd5850071322ef75632a98bd18533c4f3df02

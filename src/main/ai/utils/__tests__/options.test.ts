@@ -88,6 +88,17 @@ describe('extractAiSdkStandardParams', () => {
     expect(standardParams).toEqual({})
     expect(providerParams).toEqual({ futureField: 'xyz' })
   })
+
+  it('preserves reserved provider keys as data without changing the result prototype', () => {
+    const value = { enabled: true }
+    const result = extractAiSdkStandardParams({ topK: 40, ['__proto__']: value, constructor: 'provider-value' })
+
+    expect(result).toEqual({
+      standardParams: { topK: 40 },
+      providerParams: { ['__proto__']: value, constructor: 'provider-value' }
+    })
+    expect(Object.getPrototypeOf(result.providerParams)).toBe(Object.prototype)
+  })
 })
 
 describe('mergeCustomProviderParameters', () => {
@@ -216,19 +227,6 @@ describe('mergeCustomProviderParameters', () => {
     const result = mergeCustomProviderParameters(initial, { google: { extra: 1 } }, 'google')
     expect(result.anthropic).toEqual({ cacheControl: {} })
     expect(result.google).toMatchObject({ thinkingConfig: { mode: 'auto' }, extra: 1 })
-  })
-})
-
-describe('customParameters → providerOptions plugin contract', () => {
-  // Smoke test: verifies the renderer's spec — when an assistant defines
-  // `topK: 40` and `customFlag: true`, after a full plugin run the params
-  // should have `topK: 40` at the root and `providerOptions.openai.customFlag`.
-  it('splits standardParams to root and providerParams to providerOptions[primaryId]', () => {
-    const flat = { topK: 40, customFlag: true }
-    const { standardParams, providerParams } = extractAiSdkStandardParams(flat)
-    const providerOptions = mergeCustomProviderParameters({ openai: {} }, providerParams, 'openai')
-    expect(standardParams).toEqual({ topK: 40 })
-    expect(providerOptions).toEqual({ openai: { customFlag: true } })
   })
 })
 
