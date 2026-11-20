@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Nessuna risorsa MCP disponibile",
   "chat.input.mcp_resources.reader_unavailable": "Il modello attuale non può rileggere questa risorsa dopo che è stata allegata",
   "chat.input.mcp_resources.title": "Risorse MCP",
+  "chat.input.media_analyzing": "Analisi locale del file per un invio più rapido",
   "chat.input.new.context": "Cancella contesto",
   "chat.input.note_reference.description": "Allega una nota dalla sezione Note",
   "chat.input.note_reference.empty": "Nessuna nota trovata",

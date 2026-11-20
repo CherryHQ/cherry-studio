@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Keine MCP-Ressourcen verfügbar",
   "chat.input.mcp_resources.reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
   "chat.input.mcp_resources.title": "MCP-Ressourcen",
+  "chat.input.media_analyzing": "Datei wird lokal analysiert, damit das Senden schneller geht",
   "chat.input.new.context": "Kontext löschen",
   "chat.input.note_reference.description": "Eine Notiz aus Notizen anhängen",
   "chat.input.note_reference.empty": "Keine Notizen gefunden",

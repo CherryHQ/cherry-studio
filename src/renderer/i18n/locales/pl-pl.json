@@ -870,6 +870,7 @@
   "chat.input.mcp_resources.empty": "Brak dostępnych zasobów MCP",
   "chat.input.mcp_resources.reader_unavailable": "Bieżący model nie może odczytać tego zasobu po jego dołączeniu",
   "chat.input.mcp_resources.title": "Zasoby MCP",
+  "chat.input.media_analyzing": "Analizowanie pliku lokalnie, aby wysłać go szybciej",
   "chat.input.new.context": "Wyczyść kontekst",
   "chat.input.note_reference.description": "Załącz notatkę z Notatek",
   "chat.input.note_reference.empty": "Nie znaleziono notatek",

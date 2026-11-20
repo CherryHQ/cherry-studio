@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Kullanılabilir MCP kaynağı yok",
   "chat.input.mcp_resources.reader_unavailable": "Geçerli model, bu kaynak eklendikten sonra kaynağı geri okuyamaz",
   "chat.input.mcp_resources.title": "MCP Kaynakları",
+  "chat.input.media_analyzing": "Daha hızlı gönderilmesi için bu dosya yerel olarak analiz ediliyor",
   "chat.input.new.context": "Bağlamı Temizle",
   "chat.input.note_reference.description": "Notlar'dan bir not ekle",
   "chat.input.note_reference.empty": "Not bulunamadı",

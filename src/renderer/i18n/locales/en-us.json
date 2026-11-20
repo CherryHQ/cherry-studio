@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "No MCP resources available",
   "chat.input.mcp_resources.reader_unavailable": "The current model cannot read this resource back after it is attached",
   "chat.input.mcp_resources.title": "MCP Resources",
+  "chat.input.media_analyzing": "Analyzing this file locally so it sends faster",
   "chat.input.new.context": "Clear Context",
   "chat.input.note_reference.description": "Attach a note from Notes",
   "chat.input.note_reference.empty": "No notes found",

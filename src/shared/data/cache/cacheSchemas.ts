@@ -133,6 +133,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // An attached audio/video file's local pre-analysis is running, keyed by its composer token source.
+  'chat.composer.media_preparing.${fileTokenSourceId}': boolean
   // Per-topic composer draft. Renderer memory only; app restart discards it.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
@@ -228,6 +230,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer.media_preparing.${fileTokenSourceId}': false,
   'chat.composer_draft.${topicId}': {
     text: '',
     tokens: [],

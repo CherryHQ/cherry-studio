@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Нет доступных ресурсов MCP",
   "chat.input.mcp_resources.reader_unavailable": "Текущая модель не сможет прочитать этот ресурс после прикрепления",
   "chat.input.mcp_resources.title": "Ресурсы MCP",
+  "chat.input.media_analyzing": "Файл анализируется локально, чтобы отправка прошла быстрее",
   "chat.input.new.context": "Очистить контекст",
   "chat.input.note_reference.description": "Прикрепить заметку из Notes",
   "chat.input.note_reference.empty": "Заметок не найдено",

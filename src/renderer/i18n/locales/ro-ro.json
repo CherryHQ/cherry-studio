@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Nicio resursă MCP disponibilă",
   "chat.input.mcp_resources.reader_unavailable": "Modelul curent nu poate reciti această resursă după atașare",
   "chat.input.mcp_resources.title": "Resurse MCP",
+  "chat.input.media_analyzing": "Se analizează local acest fișier pentru o trimitere mai rapidă",
   "chat.input.new.context": "Șterge contextul",
   "chat.input.note_reference.description": "Atașați o notă din Notes",
   "chat.input.note_reference.empty": "Nicio notă găsită",

@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "ไม่มี MCP resources",
   "chat.input.mcp_resources.reader_unavailable": "โมเดลปัจจุบันอ่านรีซอร์สนี้ไม่ได้หลังจากแนบแล้ว",
   "chat.input.mcp_resources.title": "รีซอร์ส MCP",
+  "chat.input.media_analyzing": "กำลังวิเคราะห์ไฟล์นี้ในเครื่องเพื่อให้ส่งได้เร็วขึ้น",
   "chat.input.new.context": "ล้างคอนเท็กซ์",
   "chat.input.note_reference.description": "แนบบันทึกจากโน้ต",
   "chat.input.note_reference.empty": "ไม่พบโน้ต",

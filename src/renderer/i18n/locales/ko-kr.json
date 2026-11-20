@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "사용 가능한 MCP 리소스가 없습니다",
   "chat.input.mcp_resources.reader_unavailable": "현재 모델은 이 리소스를 첨부한 후 다시 읽을 수 없습니다",
   "chat.input.mcp_resources.title": "MCP 리소스",
+  "chat.input.media_analyzing": "더 빠르게 보낼 수 있도록 이 파일을 로컬에서 분석하는 중",
   "chat.input.new.context": "컨텍스트 지우기",
   "chat.input.note_reference.description": "노트에서 메모 첨부",
   "chat.input.note_reference.empty": "노트를 찾을 수 없습니다",

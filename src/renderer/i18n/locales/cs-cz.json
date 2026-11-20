@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Nejsou k dispozici žádné zdroje MCP",
   "chat.input.mcp_resources.reader_unavailable": "Aktuální model nedokáže zdroj po připojení znovu načíst",
   "chat.input.mcp_resources.title": "Zdroje MCP",
+  "chat.input.media_analyzing": "Soubor se analyzuje lokálně, aby se odeslal rychleji",
   "chat.input.new.context": "Vymazat kontext",
   "chat.input.note_reference.description": "Připojit poznámku z Poznámek",
   "chat.input.note_reference.empty": "Nebyly nalezeny žádné poznámky",

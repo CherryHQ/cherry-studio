@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Nenhum recurso MCP disponível",
   "chat.input.mcp_resources.reader_unavailable": "O modelo atual não consegue voltar a ler este recurso depois de o anexar",
   "chat.input.mcp_resources.title": "Recursos MCP",
+  "chat.input.media_analyzing": "A analisar este ficheiro localmente para enviar mais depressa",
   "chat.input.new.context": "Limpar contexto",
   "chat.input.note_reference.description": "Anexe uma nota do Notes",
   "chat.input.note_reference.empty": "Nenhuma nota encontrada",

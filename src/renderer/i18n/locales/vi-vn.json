@@ -856,6 +856,7 @@
   "chat.input.mcp_resources.empty": "Không có tài nguyên MCP nào",
   "chat.input.mcp_resources.reader_unavailable": "Mô hình hiện tại không thể đọc lại tài nguyên này sau khi đính kèm",
   "chat.input.mcp_resources.title": "Tài nguyên MCP",
+  "chat.input.media_analyzing": "Đang phân tích tệp này cục bộ để gửi nhanh hơn",
   "chat.input.new.context": "Xóa ngữ cảnh",
   "chat.input.note_reference.description": "Đính kèm một ghi chú từ Notes",
   "chat.input.note_reference.empty": "Không tìm thấy ghi chú nào",
