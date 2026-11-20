@@ -5201,7 +5201,6 @@
   "settings.memory.result": "ผลลัพธ์ของไฟล์",
   "settings.memory.retention": "จะเปลี่ยนเฉพาะไฟล์ที่แสดง ข้อมูลสำรองสำหรับกู้คืนจะถูกเก็บไว้ และจะไม่เขียนทับการแก้ไขที่ขัดแย้งกัน",
   "settings.memory.title": "หน่วยความจำที่ใช้ร่วมกัน",
-  "settings.memory.use": "ใช้หน่วยความจำร่วม",
   "settings.menuGroups.automation": "ประสิทธิภาพ",
   "settings.menuGroups.builtinTools": "เครื่องมือในตัว",
   "settings.menuGroups.capabilities": "เครื่องมือ",

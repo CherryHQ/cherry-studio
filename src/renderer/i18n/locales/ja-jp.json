@@ -5201,7 +5201,6 @@
   "settings.memory.result": "ファイル別の結果",
   "settings.memory.retention": "表示されたファイルのみ変更します。復元用バックアップを保持し、競合する編集は上書きしません。",
   "settings.memory.title": "共有メモリ",
-  "settings.memory.use": "共有メモリを使用",
   "settings.menuGroups.automation": "効率",
   "settings.menuGroups.builtinTools": "組み込みツール",
   "settings.menuGroups.capabilities": "ツール",

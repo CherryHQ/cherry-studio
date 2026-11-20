@@ -1,5 +1,17 @@
 import type { MemoryCandidate } from '@shared/types/memory'
 
+// Stored annotations follow the language of the evidence, independently of the app locale.
+const sourceLanguageFormats = {
+  zh: {
+    year: (value: number) => `${value}年`,
+    stated: (text: string, date: string) => `${text}（表述日期：${date}）`
+  },
+  en: {
+    year: String,
+    stated: (text: string, date: string) => `${text} (stated: ${date})`
+  }
+}
+
 export function memoryDate(at: number, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
 }
@@ -37,17 +49,17 @@ export function anchorMemoryTime(
     const dayAt = (offset: number) =>
       new Date(Date.parse(`${dates[0]}T00:00:00Z`) + offset * 86_400_000).toISOString().slice(0, 10)
     const replacements: Array<[RegExp, string]> = [
-      [/明年/g, `${year + 1}年`],
-      [/今年/g, `${year}年`],
-      [/去年/g, `${year - 1}年`],
+      [/明年/g, sourceLanguageFormats.zh.year(year + 1)],
+      [/今年/g, sourceLanguageFormats.zh.year(year)],
+      [/去年/g, sourceLanguageFormats.zh.year(year - 1)],
       [/上个月/g, monthAt(-1)],
       [/下个月/g, monthAt(1)],
       [/今天/g, dates[0]],
       [/明天/g, dayAt(1)],
       [/昨天/g, dayAt(-1)],
-      [/\bnext year\b/gi, String(year + 1)],
-      [/\bthis year\b/gi, String(year)],
-      [/\blast year\b/gi, String(year - 1)],
+      [/\bnext year\b/gi, sourceLanguageFormats.en.year(year + 1)],
+      [/\bthis year\b/gi, sourceLanguageFormats.en.year(year)],
+      [/\blast year\b/gi, sourceLanguageFormats.en.year(year - 1)],
       [/\bnext month\b/gi, monthAt(1)],
       [/\blast month\b/gi, monthAt(-1)],
       [/\btoday\b/gi, dates[0]],
@@ -56,6 +68,6 @@ export function anchorMemoryTime(
     ]
     for (const [pattern, value] of replacements) text = text.replace(pattern, value)
   }
-  const anchor = dates.join(', ')
-  return /\p{Script=Han}/u.test(text) ? `${text}（表述日期：${anchor}）` : `${text} (stated: ${anchor})`
+  const language = /\p{Script=Han}/u.test(text) ? 'zh' : 'en'
+  return sourceLanguageFormats[language].stated(text, dates.join(', '))
 }
