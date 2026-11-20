@@ -436,6 +436,23 @@ const formToGuard = (type: TaskGuard['type'], value: string): TaskGuard => {
   return { type: 'always' }
 }
 
+/**
+ * The guard to send in an update, or `undefined` when the visible guard fields still match the opening
+ * values. Compared by what the form shows (type and path/command), not the stored object: that carries
+ * server-owned fields (a file guard's `workspaceRoot`) the form cannot rebuild, and a stale editor must
+ * not send them back over a newer stored guard.
+ */
+export const guardUpdateFromForm = (
+  initialGuard: TaskGuard,
+  type: TaskGuard['type'],
+  value: string
+): TaskGuard | undefined => {
+  const guard = formToGuard(type, value)
+  const unchanged =
+    guard.type === initialGuard.type && guardToFormValue(guard) === guardToFormValue(initialGuard).trim()
+  return unchanged ? undefined : guard
+}
+
 const TaskGuardField: FC<{
   type: TaskGuard['type']
   value: string
@@ -604,7 +621,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
-        if (JSON.stringify(guard) !== JSON.stringify(initialDraft.guard)) updates.guard = guard
+        const guardUpdate = guardUpdateFromForm(initialDraft.guard, guardType, guardValue)
+        if (guardUpdate) updates.guard = guardUpdate
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
