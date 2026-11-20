@@ -111,8 +111,9 @@ export function writeRisk(write: DoctorAgentWrite): 'auto' | 'confirm' {
 export interface DataApiQuery {
   readonly method: 'GET' | 'PATCH'
   readonly path: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each allowlisted GET route validates its own query fields; this bridge does not interpret them.
   readonly query?: Record<string, unknown>
-  readonly body?: Record<string, unknown>
+  readonly body?: Extract<DoctorAgentWrite, { kind: 'data_api_patch' }>['body']
 }
 
 interface DataApiResult {
@@ -143,7 +144,7 @@ export async function queryDataApi(input: DataApiQuery): Promise<DataApiResult> 
 }
 
 /** Refuses a PATCH body that names a credential field at any depth, whatever the handler would do with it. */
-export function assertNoSecretFields(body: Record<string, unknown>): void {
+export function assertNoSecretFields(body: Extract<DoctorAgentWrite, { kind: 'data_api_patch' }>['body']): void {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Proposed PATCH bodies contain arbitrary nested values; reject credential keys and credential-bearing strings before the handler validates field shapes.
   const walk = (value: unknown, trail: string[]): void => {
     if (typeof value === 'string') {
@@ -178,11 +179,14 @@ export interface AppliedWrite {
   readonly fix?: DoctorFixResult
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Route-specific entities have different field types; undo snapshots must preserve their original values.
 async function readEntity(path: string): Promise<Record<string, unknown>> {
   const current = await fetchDataApi({ method: 'GET', path })
   if (current.error || typeof current.data !== 'object' || current.data === null) {
     throw new Error(`Cannot read ${path}: ${current.error?.message ?? 'no data'}`)
   }
+  // SAFETY: The checked response is used only as an opaque field container, without assuming an entity schema.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Selected snapshot values are inspected for secrets before they enter the ledger.
   return current.data as Record<string, unknown>
 }
 
@@ -191,6 +195,7 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
     case 'data_api_patch': {
       assertNoSecretFields(write.body)
       const raw = await readEntity(write.path)
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Secret-free prior fields retain their native values for exact undo; they are not model-bound JSON.
       const before: Record<string, unknown> = {}
       for (const key of Object.keys(write.body)) {
         // A field whose stored value changes under redaction carries a credential; the snapshot
@@ -231,6 +236,8 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
   switch (write.kind) {
     case 'data_api_patch': {
       const raw = await readEntity(write.path)
+      // SAFETY: PATCH after-snapshots are field maps created by applyWrite and retrieved from the current-run ledger.
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve each original value for the concurrent-edit comparison.
       for (const [key, written] of Object.entries(after as Record<string, unknown>)) {
         if (!isDeepStrictEqual(raw[key] ?? null, written ?? null)) {
           throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
@@ -239,6 +246,8 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
       const result = await fetchDataApi({
         method: 'PATCH',
         path: write.path,
+        // SAFETY: The matching PATCH before-snapshot was created by applyWrite; the handler validates restored values.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Undo restores the original field map without coercing its values.
         body: { ...(before as Record<string, unknown>) }
       })
       if (result.error) throw new Error(result.error.message)
