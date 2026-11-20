@@ -1,4 +1,5 @@
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { mockMemoryDreamingService } from '@test-mocks/main/MemoryDreamingService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -350,6 +351,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('restores the composer-selected knowledge bases when regenerating a response', async () => {
+    const assistant = assistantDataService.create({ name: 'Author', modelId: MODEL_ID })
+    dbh.db.update(topicTable).set({ assistantId: assistant.id }).where(eq(topicTable.id, 'topic-1')).run()
+    const record = vi.fn()
+    mockMemoryDreamingService.authorizeSubmission.mockClear().mockReturnValueOnce(record)
     const knowledgeBaseIds = ['kb-selected-this-turn']
     const submitted = await provider.prepareDispatch(
       makeSubscriber(),
@@ -381,6 +386,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+    expect(mockMemoryDreamingService.authorizeSubmission).toHaveBeenCalledExactlyOnceWith(
+      'assistant',
+      'topic-1',
+      assistant.id
+    )
+    expect(record).toHaveBeenCalledExactlyOnceWith(userMessageId, messageService.getById(userMessageId).data.parts)
   })
 
   it('steer-continuation: opens an assistant turn under the steer user row and preserves its content', async () => {

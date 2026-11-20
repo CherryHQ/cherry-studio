@@ -12,6 +12,7 @@ import type { JobContext } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { MemoryExtractionRange, MemoryScope } from '@shared/types/memory'
 
+import { agentMemoryAuthority, assistantMemoryAuthority } from './memoryAuthority'
 import type { MemoryMutationSource } from './memoryBackups'
 import { memoryDreamingJobHandler } from './memoryDreamingJobHandler'
 import { DreamingError, fitDreamingInputs, generateDreamingPlan, resolveDreamingModel } from './memoryDreamingModel'
@@ -42,6 +43,7 @@ import {
   extractionBoundary,
   invalidateExtractions,
   readExtractionState,
+  recordExtractionSubmission,
   readyExtraction,
   reconcileExtractionInvalidations,
   skipExtractionTurn,
@@ -131,7 +133,7 @@ export class MemoryDreamingService extends BaseService {
           const session = agentSessionService.getConversationById(sessionId)
           const key = `memory:extraction:agent/${sessionId}`
           const state = readExtractionState(key)
-          if (state?.pending.length && state.entityKey !== `agent/${session.agentId}`) this.resetExtraction(key)
+          if (state && state.entityKey !== `agent/${session.agentId}`) this.resetExtraction(key)
         } catch {
           this.resetExtraction(`memory:extraction:agent/${sessionId}`)
         }
@@ -471,6 +473,42 @@ export class MemoryDreamingService extends BaseService {
       this.active?.controller.abort('source-invalidated')
   }
 
+  authorizeSubmission(kind: 'assistant' | 'agent', conversationId: string, ownerId: string) {
+    const submittedAt = Date.now()
+    const entityKey = `${kind}/${ownerId}`
+    const key = `memory:extraction:${kind}/${conversationId}`
+    try {
+      if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
+      const turn = { assertActive: (): undefined => undefined, isHeadless: () => false }
+      const authority =
+        kind === 'assistant'
+          ? assistantMemoryAuthority({ kind: 'conversation', topicId: conversationId, assistantId: ownerId }, turn)
+          : agentMemoryAuthority(conversationId, 'shared', turn)
+      return (messageId: string, parts: readonly unknown[]) => {
+        try {
+          if (
+            this.stopped ||
+            !application.get('PreferenceService').get(GENERATION_KEY) ||
+            submittedAt <= Math.max(this.extractionBoundary, extractionBoundary(key), extractionBoundary(entityKey))
+          )
+            return
+          authority.assertAuthorized()
+          recordExtractionSubmission(
+            key,
+            entityKey,
+            messageId,
+            memoryHash(Buffer.from(JSON.stringify(parts))),
+            this.extractionBoundary
+          )
+        } catch (error) {
+          logger.debug('Memory submission was not admitted', { error })
+        }
+      }
+    } catch {
+      return undefined
+    }
+  }
+
   private captureExtraction(input: ExtractionInput): void {
     if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
     try {
@@ -481,6 +519,7 @@ export class MemoryDreamingService extends BaseService {
         key: resolved.key,
         messageId: resolved.messageId,
         createdAt: resolved.createdAt,
+        inputHash: resolved.inputHash,
         hash: resolved.hash
       }
       if (
@@ -505,7 +544,9 @@ export class MemoryDreamingService extends BaseService {
     if (end < 0) throw new DreamingError('conflict')
     const ticket = state.pending[end]
     const admissions = new Map(
-      [...state.recent, ...state.pending.slice(0, end + 1)].map((item) => [item.input.responseId, item])
+      [...state.recent, ...state.pending.slice(0, end + 1)]
+        .filter((item) => item.inputHash)
+        .map((item) => [item.input.responseId, item])
     )
     const source = readExtractionRange(
       { source: ticket.input, fromMessageId: '' },
@@ -539,7 +580,7 @@ export class MemoryDreamingService extends BaseService {
       const selected = extractionBranch(first.input, first.messageId, false)
       const invalid: string[] = []
       for (const ticket of tickets) {
-        if (!selected.has(ticket.input.responseId)) {
+        if (!ticket.inputHash || !selected.has(ticket.input.responseId)) {
           invalid.push(ticket.messageId)
           continue
         }
@@ -641,6 +682,10 @@ export class MemoryDreamingService extends BaseService {
       writeDreamingState(start)
       const prepared = pending.state.prepared
       const unfinished = new Set<string>()
+      const appliedFiles =
+        prepared?.files?.filter(
+          (item) => item.before !== item.after && files.find((file) => file.path === item.path)?.hash === item.after
+        ) ?? []
       if (prepared) {
         const sameSource = prepared.sourceHash === source.hash && prepared.end === ticket.messageId
         const expected = prepared.files ?? [{ path: MEMORY_ENTRY, before: prepared.before, after: prepared.after }]
@@ -739,11 +784,8 @@ export class MemoryDreamingService extends BaseService {
           planned.push({ file, mutation: { kind: 'write', receipt: file.receipt, content } })
       }
       if (
-        prepared?.files &&
-        prepared.files.some(
-          (item) => item.after !== item.before && files.find((file) => file.path === item.path)?.hash === item.after
-        ) &&
-        [...unfinished].some((target) => !planned.some(({ file }) => file.path === target))
+        appliedFiles.length &&
+        (planned.length !== unfinished.size || planned.some(({ file }) => !unfinished.has(file.path)))
       )
         throw new DreamingError('output')
       await session.validateModelReads()
@@ -761,7 +803,7 @@ export class MemoryDreamingService extends BaseService {
         after: memoryHash(
           Buffer.from(planned.find(({ file }) => file.path === MEMORY_ENTRY)?.mutation.content ?? original)
         ),
-        files: fileVersions,
+        files: [...appliedFiles, ...fileVersions],
         through: prepared?.through
       }
       writeExtractionState(ticket.key, progress)
@@ -772,7 +814,7 @@ export class MemoryDreamingService extends BaseService {
           current.prepared?.end === ticket.messageId &&
           current.prepared.sourceHash === source.hash
         ) {
-          current.prepared = undefined
+          current.prepared = appliedFiles.length ? prepared : undefined
           writeExtractionState(ticket.key, current)
         }
       }

@@ -352,13 +352,17 @@ describe('memory organization lifecycle and commit fences', () => {
       })
       .returning()
       .all()
+    dreaming.authorizeSubmission('assistant', topicId, assistantId)?.(user.id, user.data.parts ?? [])
     const emit = () =>
       chats.fire({ topicId, turnId: response.id, completedAt: Date.now(), memoryResponseIds: [response.id] })
     return { assistantId, topicId, user, response, emit }
   }
 
-  function previewFixture() {
-    const chat = conversation(true, '这台 Windows 机器缺少 ATL，系统语音组件编译不了。')
+  function previewFixture(
+    first = '这台 Windows 机器缺少 ATL，系统语音组件编译不了。',
+    next = '以后本机默认跳过这个组件的编译，其他构建照常。'
+  ) {
+    const chat = conversation(true, first)
     const [user] = dbh.db
       .insert(messageTable)
       .values({
@@ -366,7 +370,7 @@ describe('memory organization lifecycle and commit fences', () => {
         parentId: chat.response.id,
         role: 'user',
         status: 'success',
-        data: { parts: [{ type: 'text', text: '以后本机默认跳过这个组件的编译，其他构建照常。' }] }
+        data: { parts: [{ type: 'text', text: next }] }
       })
       .returning()
       .all()
@@ -382,6 +386,7 @@ describe('memory organization lifecycle and commit fences', () => {
       })
       .returning()
       .all()
+    dreaming.authorizeSubmission('assistant', chat.topicId, chat.assistantId)?.(user.id, user.data.parts ?? [])
     return {
       chat,
       range: {
@@ -483,6 +488,7 @@ describe('memory organization lifecycle and commit fences', () => {
         users.push(user.id)
         parentId = response.id
         dbh.db.update(topicTable).set({ activeNodeId: parentId }).where(eq(topicTable.id, chat.topicId)).run()
+        dreaming.authorizeSubmission('assistant', chat.topicId, chat.assistantId)?.(user.id, user.data.parts ?? [])
         chats.fire({ topicId: chat.topicId, turnId: parentId, completedAt: Date.now(), memoryResponseIds: [parentId] })
       }
     }
@@ -546,14 +552,15 @@ describe('memory organization lifecycle and commit fences', () => {
       return { text: JSON.stringify(reply), finishReason: 'stop' }
     })
     const open = memory.open.bind(memory)
-    let interrupt = true
+    let attempt = 0
     vi.spyOn(memory, 'open').mockImplementation((...args) => {
       const opened = open(...args)
       if (args[1] === 'extraction') {
         const commit = opened.commit.bind(opened)
         opened.commit = async (mutations, ...rest) => {
-          if (!interrupt) return commit(mutations, ...rest)
-          interrupt = false
+          attempt++
+          if (attempt === 2) throw new DOMException('Preempted before the second write', 'AbortError')
+          if (attempt > 2) return commit(mutations, ...rest)
           const result = await commit(mutations.slice(0, 1), ...rest)
           return {
             ...result,
@@ -577,11 +584,70 @@ describe('memory organization lifecycle and commit fences', () => {
     dreaming = new MemoryDreamingService()
     await dreaming._doInit()
     vi.spyOn(Date, 'now').mockReturnValue(pending.retryAt)
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+    const interrupted = readExtractionState(batch.key)!
+    expect(interrupted.prepared).toEqual(pending.prepared)
+    await dreaming._doStop()
+    BaseService.resetInstances()
+    dreaming = new MemoryDreamingService()
+    await dreaming._doInit()
+    vi.spyOn(Date, 'now').mockReturnValue(interrupted.retryAt)
+    generate.mockResolvedValueOnce({ text: automaticReply([]), finishReason: 'stop' })
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
+    const retry = readExtractionState(batch.key)!
+    expect(retry.prepared).toEqual(pending.prepared)
+    vi.spyOn(Date, 'now').mockReturnValue(retry.retryAt)
     expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
     expect(readExtractionState(batch.key)?.pending).toEqual([])
     expect((await session.read('.memories/address.md')).content).toContain('Lives in Suzhou.')
     expect(await session.revisions()).toHaveLength(2)
   })
+
+  it('keeps both facts when one raw list row is another decoded fact', async () => {
+    const raw = '- "Old address"'
+    const original = raw + '\n- ' + JSON.stringify(raw) + '\n'
+    await save(original)
+    batchConversation(8, 'I now live in Suzhou.')
+    generate.mockImplementation(async () => {
+      const reply = JSON.parse(automaticReply([{ kind: 'personal_fact', quote: 'I now live in Suzhou.' }]))
+      Object.assign(reply.candidates[0], {
+        action: 'correct',
+        correction: 'changed',
+        existing: [{ path: 'MEMORY.md', quote: raw }]
+      })
+      return { text: JSON.stringify(reply), finishReason: 'stop' }
+    })
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 0, outcomes: ['conflict'] })
+    expect((await session.read('MEMORY.md')).content).toBe(original)
+  })
+
+  it.each(['sharing', 'generation'] as const)(
+    'requires %s permission when the original input was submitted',
+    async (setting) => {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      if (setting === 'generation')
+        await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+      const chat = conversation(setting !== 'sharing')
+      if (setting === 'sharing')
+        assistantDataService.update(chat.assistantId, { settings: { enableSharedMemory: true } })
+      else await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
+      const [retry] = dbh.db
+        .insert(messageTable)
+        .values({
+          topicId: chat.topicId,
+          parentId: chat.user.id,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          messageSnapshot: chat.response.messageSnapshot
+        })
+        .returning()
+        .all()
+      chats.fire({ topicId: chat.topicId, turnId: retry.id, completedAt: Date.now(), memoryResponseIds: [retry.id] })
+      expect(await flushExtraction()).toMatchObject({ idle: true })
+      expect(generate).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps an explicit goal with uncertain details and binds next year to its source date', async () => {
     const sourceDate = new Date(Date.now() + 1000)
@@ -842,13 +908,13 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(nextExtractionDaily(Date.now())).toBe(new Date(2030, 0, 2, 21).getTime())
   })
 
-  it('replaces a legacy admission cursor with pending work instead of claiming it is complete', async () => {
+  it('does not authorize a regenerated input from a legacy cursor alone', async () => {
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     const chat = conversation()
     const key = `memory:extraction:assistant/${chat.topicId}`
     dbh.db
-      .insert(appStateTable)
-      .values({
-        key,
+      .update(appStateTable)
+      .set({
         value: {
           createdAt: chat.user.createdAt,
           messageId: chat.user.id,
@@ -856,13 +922,12 @@ describe('memory organization lifecycle and commit fences', () => {
           outcome: 'admitted'
         }
       })
+      .where(eq(appStateTable.key, key))
       .run()
-    expect(readExtractionState(key)).toBeUndefined()
     chat.emit()
-    expect(readExtractionState(key)?.pending.map((item) => item.messageId)).toEqual([chat.user.id])
-    expect(readExtractionState(key)?.completed).toBeUndefined()
-    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
-    expect(await flushExtraction()).toMatchObject({ saved: 1 })
+    expect(readExtractionState(key)).toBeUndefined()
+    expect(await flushExtraction()).toMatchObject({ idle: true })
+    expect(generate).not.toHaveBeenCalled()
   })
 
   it('retries twice ten minutes apart and then waits for the next daily deadline', async () => {
@@ -1509,22 +1574,7 @@ describe('memory organization lifecycle and commit fences', () => {
   it.each(['save', 'edit-context', 'topic-change', 'conflict', 'exists', 'capacity'] as const)(
     'runs continuous-context extraction through the real queue and store: %s',
     async (scenario) => {
-      const { chat, range } = previewFixture()
-      const lastUserId = dbh.db
-        .select()
-        .from(messageTable)
-        .where(eq(messageTable.id, range.source.responseId))
-        .get()!.parentId!
-      dbh.db
-        .update(messageTable)
-        .set({ data: { parts: [{ type: 'text', text: '我每周三晚上游泳。' }] } })
-        .where(eq(messageTable.id, chat.user.id))
-        .run()
-      dbh.db
-        .update(messageTable)
-        .set({ data: { parts: [{ type: 'text', text: '这个安排从三月开始，出差时暂停。' }] } })
-        .where(eq(messageTable.id, lastUserId))
-        .run()
+      const { chat, range } = previewFixture('我每周三晚上游泳。', '这个安排从三月开始，出差时暂停。')
       chat.emit()
       dbh.db
         .update(topicTable)
@@ -2029,6 +2079,7 @@ describe('memory organization lifecycle and commit fences', () => {
         finishReason: 'stop'
       }
     })
+    if (kind !== 'headless') dreaming.authorizeSubmission('agent', sessionId, agentId)?.(user.id, user.data.parts ?? [])
     agentTurns.fire({
       sessionId,
       assistantMessageId: response.id,

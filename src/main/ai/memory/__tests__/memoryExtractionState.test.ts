@@ -13,6 +13,7 @@ import {
   extractionBoundary,
   invalidateExtractions,
   readExtractionState,
+  recordExtractionSubmission,
   readyExtraction,
   skipExtractionTurn,
   skipExtractionTurns,
@@ -23,14 +24,18 @@ describe('durable extraction scheduling', () => {
   setupTestDatabase()
   const key = 'memory:extraction:assistant/topic'
   let now: number
-  const ticket = (id: string, createdAt = now): ExtractionTicket => ({
-    input: { kind: 'assistant', topicId: 'topic', responseId: `reply-${id}` },
-    entityKey: 'assistant/owner',
-    key,
-    messageId: id,
-    createdAt,
-    hash: `version-${id}`
-  })
+  const ticket = (id: string, createdAt = now): ExtractionTicket => {
+    recordExtractionSubmission(key, 'assistant/owner', id, id, 0)
+    return {
+      inputHash: id,
+      input: { kind: 'assistant', topicId: 'topic', responseId: `reply-${id}` },
+      entityKey: 'assistant/owner',
+      key,
+      messageId: id,
+      createdAt,
+      hash: `version-${id}`
+    }
+  }
   beforeEach(() => {
     now = new Date(2030, 0, 1, 10).getTime()
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -50,7 +55,7 @@ describe('durable extraction scheduling', () => {
     const source = ticket('old')
     now += 100
     invalidateExtractions(key)
-    expect(readExtractionState(key)).toBeUndefined()
+    expect(readExtractionState(key)?.submitted).toEqual({})
     expect(extractionBoundary(key)).toBe(now)
     expect(enqueueExtraction(source, 0, new Set(['old']))).toBe(false)
     now += 100

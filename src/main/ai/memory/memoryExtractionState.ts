@@ -23,6 +23,7 @@ const ticketSchema = z.object({
   messageId: z.string(),
   createdAt: z.number(),
   hash: z.string(),
+  inputHash: z.string().optional(),
   receivedAt: z.number()
 })
 const positionSchema = z.object({ createdAt: z.number(), messageIds: z.array(z.string()) })
@@ -31,6 +32,7 @@ const stateSchema = z.object({
   entityKey: z.string(),
   boundary: z.number(),
   pending: z.array(ticketSchema),
+  submitted: z.record(z.string(), z.string()).default({}),
   settled: z.array(z.string()),
   settledAt: z.number().default(0),
   batchEnd: z.string().optional(),
@@ -164,25 +166,39 @@ export function nextExtractionDaily(at: number): number {
   return date.getTime()
 }
 
-export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, ancestors: Set<string>): boolean {
-  let state: ExtractionState =
-    readExtractionState(ticket.key) ??
-    ({
+export function recordExtractionSubmission(
+  key: string,
+  entityKey: string,
+  messageId: string,
+  inputHash: string,
+  boundary: number
+): void {
+  const state =
+    readExtractionState(key) ??
+    stateSchema.parse({
       version: 2,
-      entityKey: ticket.entityKey,
+      entityKey,
       boundary,
       pending: [],
       settled: [],
-      recent: [],
-      generation: 0,
-      settledAt: 0,
       retryAt: 0,
-      attempts: 0,
-      skippedBudget: 0,
-      skippedSource: 0,
-      skippedConflict: 0,
       outcome: 'pending'
-    } satisfies ExtractionState)
+    })
+  state.entityKey = entityKey
+  state.submitted[messageId] ??= inputHash
+  writeExtractionState(key, state)
+}
+
+export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, ancestors: Set<string>): boolean {
+  let state = readExtractionState(ticket.key)
+  if (
+    !state ||
+    !ticket.inputHash ||
+    state.entityKey !== ticket.entityKey ||
+    (state.submitted[ticket.messageId] !== ticket.inputHash &&
+      !state.pending.some((item) => item.messageId === ticket.messageId && item.inputHash === ticket.inputHash))
+  )
+    return false
   if (
     ticket.createdAt <=
       Math.max(boundary, state.boundary, extractionBoundary(ticket.key), extractionBoundary(ticket.entityKey)) ||
@@ -219,6 +235,7 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
     }
     state.pending.push({ ...ticket, receivedAt: Date.now() })
   }
+  delete state.submitted[ticket.messageId]
   state.entityKey = ticket.entityKey
   state.outcome = 'pending'
   writeExtractionState(ticket.key, state)
@@ -364,6 +381,7 @@ export function invalidateExtractions(sourceKey?: string): number {
   for (const { key, state } of extractionStates()) {
     if (sourceKey && key !== sourceKey && state.entityKey !== sourceKey) continue
     settle(state, state.pending)
+    state.submitted = {}
     state.pending = []
     state.recent = []
     state.generation++
