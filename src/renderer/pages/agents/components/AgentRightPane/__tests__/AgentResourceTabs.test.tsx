@@ -18,6 +18,7 @@ import {
   TerminalResourcesProvider,
   useTerminalResources
 } from '@renderer/components/terminal/TerminalResourcesProvider'
+import { toast } from '@renderer/services/toast'
 import type { InputFor } from '@shared/ipc/types'
 import type { TerminalResourceView } from '@shared/types/terminal'
 
@@ -47,6 +48,7 @@ const original: TerminalResourceView = {
 let resources: TerminalResourceView[]
 let requests: string[]
 let recovered: boolean
+let rejectCreation: boolean
 const record = {
   id: '33333333-3333-4333-8333-333333333333',
   sessionId: 'purged-conversation',
@@ -58,6 +60,7 @@ beforeEach(() => {
   resources = [structuredClone(original)]
   requests = []
   recovered = false
+  rejectCreation = false
   window.api.ipcApi.request = vi.fn(async (route, payload) => {
     requests.push(route)
     if (route === 'terminal.list') return { ok: true, data: { resources, truncated: false } }
@@ -69,6 +72,8 @@ beforeEach(() => {
       return { ok: true, data: { status: 'unavailable' } }
     }
     if (route === 'terminal.shells') return { ok: true, data: ['bash'] }
+    if (route === 'terminal.create' && rejectCreation)
+      return { ok: true, data: { kind: 'rejected', reason: 'capacity_exceeded' } }
     if (route === 'terminal.promote') {
       const input = payload as InputFor<'terminal.promote'>
       const resource = resources.find((item) => item.id === input.ref.id)
@@ -164,6 +169,17 @@ it('closes and reopens a terminal view without starting or stopping its process'
   expect(requests.filter((route) => ['terminal.create', 'terminal.stop', 'terminal.action'].includes(route))).toEqual(
     []
   )
+})
+
+it('reports a rejected terminal creation while a file is selected', async () => {
+  rejectCreation = true
+  const user = userEvent.setup()
+  mount()
+  await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
+  await user.click(screen.getByRole('menuitem', { name: t('terminal.new_terminal') }))
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('capacity_exceeded')))
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByLabelText('Selected terminal')).toBeEmptyDOMElement()
 })
 
 it('promotes a pending Bash call without opening a tab or re-executing the command', async () => {

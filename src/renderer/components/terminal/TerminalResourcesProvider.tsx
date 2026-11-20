@@ -4,6 +4,7 @@ import useSWR from 'swr'
 
 import { useCache } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { TerminalResourceState, TerminalResourceView } from '@shared/types/terminal'
 import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
@@ -147,7 +148,10 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
       }
       if (currentSession.current === sessionId) setError(null)
     } catch (cause) {
-      if (currentSession.current === sessionId) setError(String(cause))
+      if (currentSession.current === sessionId) {
+        setError(String(cause))
+        toast.error(String(cause))
+      }
     } finally {
       if (currentSession.current === sessionId) setCreating(false)
     }
@@ -164,9 +168,12 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
           t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
         )
       update(receipt.resource)
-      setError(null)
+      if (currentSession.current === sessionId) setError(null)
     } catch (cause) {
-      setError(String(cause))
+      if (currentSession.current === sessionId) {
+        setError(String(cause))
+        toast.error(String(cause))
+      }
     }
   }
   const openCleanup = (record: WorkspaceUsageRecord) => {
