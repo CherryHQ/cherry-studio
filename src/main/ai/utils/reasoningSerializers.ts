@@ -5,6 +5,8 @@
  * This module only consumes the resulting closed profile plus the canonical
  * user selection, then emits a closed list of target/value operations.
  */
+import type { JSONObject } from '@ai-sdk/provider'
+
 import type {
   ReasoningEffort,
   ReasoningWireMode,
@@ -243,8 +245,8 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   }
 }
 
-function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
+function encodeEmissions(invocation: ResolvedReasoningInvocation): JSONObject {
+  const result: JSONObject = {}
 
   for (const emission of invocation.emissions) {
     const path = emission.target.split('.')
@@ -252,7 +254,8 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string
     for (let index = 0; index < path.length - 1; index += 1) {
       const key = path[index]
       cursor[key] ??= {}
-      cursor = cursor[key] as Record<string, unknown>
+      // SAFETY: Closed wire targets never use a leaf as another target's prefix; all prefixes are created above.
+      cursor = cursor[key] as JSONObject
     }
     cursor[path[path.length - 1]] = emission.value
   }
@@ -261,6 +264,6 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string
 }
 
 /** Materialize the profile's closed emission operations into a provider-options object. */
-export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): JSONObject {
   return encodeEmissions(invocation)
 }

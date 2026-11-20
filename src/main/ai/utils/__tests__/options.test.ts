@@ -1,5 +1,4 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -321,7 +320,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
     await generateText({
       model: openai.responses('deepseek-v4-flash'),
       prompt: 'ping',
-      providerOptions: providerOptions as ProviderOptions
+      providerOptions
     })
 
     const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)

@@ -1,3 +1,5 @@
+import type { JSONObject } from '@ai-sdk/provider'
+
 import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -39,7 +41,7 @@ export interface CherryWebSearchConfig {
 const qwencloudResponsesOnlySearch =
   /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|deepseek-v4[.-]1-flash(?:-1017)?|glm-5[.-]2|kimi-k3)$/
 
-export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
+export function getWebSearchParams(model: Model, provider: Provider | undefined): JSONObject {
   if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
     // reach — transformZhipuRequestBody moves this marker into `tools`
