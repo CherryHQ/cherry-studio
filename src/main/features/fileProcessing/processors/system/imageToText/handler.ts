@@ -16,6 +16,8 @@ const logger = loggerService.withContext('FileProcessing:SystemImageToTextHandle
 
 // Windows OCR rejects images beyond its MaxImageDimension (10000px) with 0x80070057.
 const SYSTEM_OCR_MAX_IMAGE_EDGE = 8000
+// The macOS binding rejects an image without text instead of returning an empty result.
+const NO_TEXT_RECOGNIZED = 'No text recognized'
 
 // Load the native OCR binding lazily so a missing or broken binding only fails this
 // feature when it's actually used, instead of throwing at module load and crashing the
@@ -63,7 +65,10 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
           OcrAccuracy.Accurate,
           isWin ? context.langs : undefined,
           executionContext.signal
-        )
+        ).catch((error: unknown) => {
+          if (error instanceof Error && error.message === NO_TEXT_RECOGNIZED) return { text: '' }
+          throw error
+        })
 
         return {
           kind: 'text',

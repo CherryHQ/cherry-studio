@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 
@@ -156,6 +156,36 @@ describe('systemImageToTextHandler', () => {
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('systemImageToTextHandler results', () => {
+  let tempDir: string
+  let blankImage: FileInfo
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
+    const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    const imagePath = path.join(tempDir, 'blank.png')
+    await fs.writeFile(imagePath, bytes)
+    blankImage = FileInfoSchema.parse({ ...imageFile, path: imagePath, size: bytes.length })
+  })
+
+  afterEach(() => fs.rm(tempDir, { recursive: true, force: true }))
+
+  it('reads an image without text as empty text rather than an OCR failure', async () => {
+    vi.mocked(recognize).mockRejectedValue(Object.assign(new Error('No text recognized'), { code: 'GenericFailure' }))
+
+    await expect(runHandler(blankImage)).resolves.toEqual({ kind: 'text', text: '' })
+  })
+
+  it('still reports a real OCR failure', async () => {
+    vi.mocked(recognize).mockRejectedValue(new Error('Unknown Vision error'))
+
+    await expect(runHandler(blankImage)).rejects.toThrow('Unknown Vision error')
   })
 })
 
