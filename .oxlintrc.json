@@ -103,6 +103,7 @@
     {
       "files": ["**/__tests__/**", "**/tests/**", "**/*.{test,spec}.{ts,tsx}"],
       "rules": {
+        "anti-slop/no-chained-type-assertions": "off",
         "anti-slop/no-unknown-parameters": "off"
       }
     },
@@ -133,6 +134,7 @@
     "anti-slop/no-unknown-returns": "error",
     "anti-slop/no-unknown-parameters": "error",
     "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/no-chained-type-assertions": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
     "no-eval": "error",
