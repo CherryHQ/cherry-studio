@@ -29,18 +29,18 @@ required service tier.`,
       { name: 'Error', stack: null, message: 'Input exceeds the context limit by 500 tokens' },
       'openai::gpt-5'
     )
-    expect(failure.failure.context.statusCode).toBeUndefined()
+    expect(failure.failure.context?.statusCode).toBeUndefined()
     expect(failure.failure.reasonCode).not.toBe('provider_unavailable')
   })
 
   it('still reads an explicit status stated in the text', () => {
     expect(
       toExecutionFailure({ name: 'Error', stack: null, message: '429 null' }, 'openai::gpt-5').failure.context
-        .statusCode
+        ?.statusCode
     ).toBe(429)
     expect(
       toExecutionFailure({ name: 'Error', stack: null, message: 'HTTP 503 from upstream' }, 'openai::gpt-5').failure
-        .context.statusCode
+        .context?.statusCode
     ).toBe(503)
   })
 
