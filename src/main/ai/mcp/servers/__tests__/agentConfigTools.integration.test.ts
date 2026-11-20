@@ -20,7 +20,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { assistantDataService } from '@data/services/AssistantService'
-import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
+import { previewAgentConfigChange, refuseOutdatedAgentConfigApproval } from '@main/ai/agents/agentConfigTool'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -550,6 +550,30 @@ describe('Agent create and configure tools', () => {
           pendingApproval('mcp__assistant__update_agent', { agentId: 'target', permissionMode: 'bypassPermissions' })
         )
       ).toEqual({ ok: false })
+    })
+
+    // Catches an Allow on a card that showed only the description, while approving would now also rewrite the mode.
+    it('refuses an Allow once the Agent changed after its card was previewed', () => {
+      seedAgent('target', { configuration: { avatar: '🦊', permission_mode: 'auto' } })
+      const input = { agentId: 'target', description: 'New description', permissionMode: 'auto' }
+      const outdated = pendingApproval('mcp__assistant__update_agent', input)
+      const current = pendingApproval('mcp__assistant__update_agent', input)
+      expect(previewAgentConfigChange(outdated)).toEqual({
+        ok: true,
+        summary: ['Description: Original description → New description']
+      })
+
+      agentService.updateAgent('target', { configuration: { permission_mode: 'default' } })
+      previewAgentConfigChange(current)
+
+      expect(refuseOutdatedAgentConfigApproval({ approvalId: outdated, approved: true })).toMatchObject({
+        approved: false,
+        reason: expect.stringContaining('Call the tool again')
+      })
+      expect(refuseOutdatedAgentConfigApproval({ approvalId: current, approved: true })).toEqual({
+        approvalId: current,
+        approved: true
+      })
     })
 
     it('shows a schedule-only heartbeat change while the heartbeat is off', () => {

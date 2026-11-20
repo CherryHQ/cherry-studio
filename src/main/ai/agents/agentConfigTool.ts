@@ -778,6 +778,35 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
  * preview always matches what approving runs.
  */
 export function previewAgentConfigChange(approvalId: string): AgentConfigChangePreview {
+  const preview = buildAgentConfigChangePreview(approvalId)
+  for (const id of shownUpdatePreviews.keys()) if (!toolApprovalRegistry.peek(id)) shownUpdatePreviews.delete(id)
+  if (preview.ok && preview.summary) shownUpdatePreviews.set(approvalId, JSON.stringify(preview))
+  return preview
+}
+
+/** What each settings-change card showed, keyed by approval, so Allow can be checked against it. */
+const shownUpdatePreviews = new Map<string, string>()
+
+/**
+ * Turns an Allow into a refusal when the Agent changed after its card was previewed, so the card no longer shows
+ * what approving would write; the model is told to ask again with a fresh card.
+ */
+export function refuseOutdatedAgentConfigApproval<T extends { approvalId: string; approved: boolean; reason?: string }>(
+  response: T
+): T {
+  const shown = shownUpdatePreviews.get(response.approvalId)
+  shownUpdatePreviews.delete(response.approvalId)
+  if (!response.approved || shown === undefined) return response
+  if (JSON.stringify(buildAgentConfigChangePreview(response.approvalId)) === shown) return response
+  return {
+    ...response,
+    approved: false,
+    reason:
+      'Not applied: the Agent changed after this change was shown for approval. Call the tool again so the user can approve the current change.'
+  }
+}
+
+function buildAgentConfigChangePreview(approvalId: string): AgentConfigChangePreview {
   const call = toolApprovalRegistry.peekCall(approvalId)
   const name = call && parseFunctionCallToolName(call.toolName)
   const kind = name ? getAgentConfigToolKind(name.serverPart, name.toolPart) : undefined
