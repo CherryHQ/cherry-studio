@@ -618,7 +618,11 @@ export class MemoryStore {
         if (batch.recoveryOf) {
           const original = await latestMemoryBackup(await this.checkedBackupRoot(), batch.recoveryOf)
           if (original?.status === 'partial') {
-            const completedManifest = { ...structuredClone(original), status: 'completed' as const }
+            const completedManifest = {
+              ...original,
+              steps: original.steps.map((step) => ({ ...step })),
+              status: 'completed' as const
+            }
             const confirmed: MemoryFileChange[] = []
             const root = await this.checkedBackupRoot()
             if (!resume) {
