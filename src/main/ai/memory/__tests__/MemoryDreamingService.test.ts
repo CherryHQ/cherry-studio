@@ -39,6 +39,7 @@ import { MemoryDreamingService } from '../MemoryDreamingService'
 import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } from '../memoryDreamingState'
 import { parseMemoryEntries, serializeMemoryEntries } from '../memoryEntries'
 import { extractContextCandidates, readExtractionRange } from '../memoryExtraction'
+import * as extractionState from '../memoryExtractionState'
 import { readExtractionState, nextExtractionDaily, writeExtractionState } from '../memoryExtractionState'
 import * as memoryFiles from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
@@ -654,6 +655,49 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(dbh.db.select().from(appStateTable).all()).toEqual(stateBeforeStaging)
     hold.dispose()
   })
+
+  it.each(['clear', 'recovery', 'unchanged'] as const)(
+    'reconciles a lost %s notification before dispatch on restart',
+    async (action) => {
+      await save('Before')
+      await save('Withdrawn')
+      const batch = batchConversation(8)
+      // Stop at the exact boundary after file writes and before the SQLite acknowledgement.
+      vi.spyOn(extractionState, 'finishExtractionInvalidation').mockImplementationOnce(() => {
+        throw new Error('simulated process exit')
+      })
+      if (action === 'unchanged') {
+        const write = memoryFiles.writeMemoryBytes
+        vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+          if (args[0] === application.getPath('feature.memory.data')) throw new Error('disk full')
+          return write(...args)
+        })
+      }
+      const operation =
+        action === 'recovery'
+          ? session.recover((await session.previewRecovery())!.token, approve)
+          : session.clear((await session.previewClear()).token, approve)
+      await expect(operation).rejects.toThrow('simulated process exit')
+      expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+      const file = await session.read('MEMORY.md')
+      if (action === 'recovery') expect(file.content).toBe('Before')
+      else if (action === 'clear') expect(file.content).not.toContain('Withdrawn')
+      else expect(file.content).toBe('Withdrawn')
+      await dreaming._doStop()
+      await memory._doStop()
+      BaseService.resetInstances()
+      memory = new MemoryService()
+      dreaming = new MemoryDreamingService()
+      MockApplicationUtils.setService('MemoryService', memory)
+      await memory._doInit()
+      await dreaming._doInit()
+      expect(readExtractionState(batch.key)?.pending).toHaveLength(action === 'unchanged' ? 8 : 0)
+      if (action !== 'unchanged') {
+        await dreaming.execute(job())
+        expect(generate).not.toHaveBeenCalled()
+      }
+    }
+  )
 
   it('continues a due batch when its final response becomes ineligible', async () => {
     const batch = batchConversation(8)

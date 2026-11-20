@@ -43,6 +43,7 @@ import {
   invalidateExtractions,
   readExtractionState,
   readyExtraction,
+  reconcileExtractionInvalidations,
   skipExtractionTurn,
   skipExtractionTurns,
   writeExtractionState,
@@ -83,7 +84,8 @@ export class MemoryDreamingService extends BaseService {
     application.get('JobManager').registerHandler('memory.dreaming', memoryDreamingJobHandler)
   }
 
-  protected override onReady(): void {
+  protected override async onReady(): Promise<void> {
+    await reconcileExtractionInvalidations()
     this.stopped = false
     this.extractionBoundary = extractionBoundary()
     if (!application.get('PreferenceService').get(GENERATION_KEY)) this.resetExtraction()
@@ -435,13 +437,9 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private recordChanges(scope: MemoryScope, source: MemoryMutationSource, result: MemoryCommitResult): void {
-    if (
-      scope.kind === 'shared' &&
-      (source === 'clear' || source === 'recovery') &&
-      ((source === 'clear' && !result.error) ||
-        result.files.some((file) => file.outcome === 'applied' || file.outcome === 'pending'))
-    )
-      this.resetExtraction()
+    if (scope.kind === 'shared' && (source === 'clear' || source === 'recovery')) {
+      this.extractionBoundary = extractionBoundary()
+    }
     if (source === 'dreaming') return
     const state = readDreamingState(scope)
     for (const file of result.files) {

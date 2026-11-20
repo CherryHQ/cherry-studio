@@ -4,9 +4,12 @@ import * as z from 'zod'
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 
+import type { MemoryFileChange } from './memoryBackups'
 import type { ExtractionTicket } from './memoryExtraction'
+import { assertMemoryTarget, memoryHash, readMemoryBytes } from './memoryFiles'
 
 const PREFIX = 'memory:extraction:'
+const INVALIDATION = 'memory:extraction-invalidation:'
 const BOUNDARY = 'memory:extraction-boundary'
 export const EXTRACTION_TURNS = 8
 
@@ -71,6 +74,51 @@ function write(key: string, value: unknown) {
       set: { value, updatedAt: Date.now() }
     })
     .run()
+}
+
+// Persist the file versions before the first write. A process exit may prevent the normal completion notification.
+export function stageExtractionInvalidation(batchId: string, changes: readonly MemoryFileChange[]): void {
+  const db = application.get('DbService').getDb()
+  db.insert(appStateTable)
+    .values({
+      key: INVALIDATION + batchId,
+      value: changes.map(({ path, before }) => ({ path, beforeHash: memoryHash(before) }))
+    })
+    .run()
+}
+
+export function finishExtractionInvalidation(batchId: string | null, changed: boolean): void {
+  const db = application.get('DbService').getDb()
+  db.transaction((tx) => {
+    if (changed) invalidateExtractions()
+    if (batchId)
+      tx.delete(appStateTable)
+        .where(eq(appStateTable.key, INVALIDATION + batchId))
+        .run()
+  })
+}
+
+export async function reconcileExtractionInvalidations(): Promise<void> {
+  const intents = application
+    .get('DbService')
+    .getDb()
+    .select()
+    .from(appStateTable)
+    .where(like(appStateTable.key, INVALIDATION + '%'))
+    .all()
+  for (const intent of intents) {
+    const files = z.array(z.object({ path: z.string(), beforeHash: z.string().nullable() })).parse(intent.value)
+    let changed = false
+    for (const file of files) {
+      assertMemoryTarget(file.path)
+      const bytes = await readMemoryBytes(application.getPath('feature.memory.data'), file.path)
+      if (memoryHash(bytes) !== file.beforeHash) {
+        changed = true
+        break
+      }
+    }
+    finishExtractionInvalidation(intent.key.slice(INVALIDATION.length), changed)
+  }
 }
 
 export function extractionBoundary(sourceKey?: string): number {

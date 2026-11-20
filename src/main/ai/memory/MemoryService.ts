@@ -9,6 +9,7 @@ import type { MemoryScope } from '@shared/types/memory'
 import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
 import type { MemoryEntry, MemoryRevision, MemoryUse } from './memoryEntries'
+import { finishExtractionInvalidation, stageExtractionInvalidation } from './memoryExtractionState'
 import { memoryEntryPreview, memoryHash } from './memoryFiles'
 import {
   type MemoryAccess,
@@ -139,6 +140,12 @@ export class MemoryService extends BaseService {
         })()
       )
     const notify = (source: MemoryMutationSource, result: MemoryCommitResult) => {
+      if (scope.kind === 'shared' && (source === 'clear' || source === 'recovery')) {
+        const changed =
+          (source === 'clear' && !result.error) ||
+          result.files.some((file) => file.outcome === 'applied' || file.outcome === 'pending')
+        finishExtractionInvalidation(result.batchId, changed)
+      }
       if (result.batchId || source === 'clear') this.changed.fire({ scope, source, result })
       return result
     }
@@ -259,8 +266,12 @@ export class MemoryService extends BaseService {
     let pending = this.stores.get(key)
     if (!pending) {
       const backups = application.getPath('feature.memory.backups')
-      const store = new MemoryStore(root, path.join(backups, key), path.dirname(backups), () =>
-        this.invalidated.fire(scope)
+      const store = new MemoryStore(
+        root,
+        path.join(backups, key),
+        path.dirname(backups),
+        () => this.invalidated.fire(scope),
+        scope.kind === 'shared' ? stageExtractionInvalidation : undefined
       )
       pending = store.initialize().then(() => store)
       this.stores.set(key, pending)

@@ -122,7 +122,8 @@ export class MemoryStore {
     private readonly root: string,
     private readonly backupRoot: string,
     private readonly backupDataRoot = path.dirname(backupRoot),
-    private readonly onInvalidate?: () => void
+    private readonly onInvalidate?: () => void,
+    private readonly beforeHistoryWrite?: (batchId: string, changes: readonly MemoryFileChange[]) => void
   ) {
     const relative = path.relative(path.resolve(root), path.resolve(backupRoot))
     if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))) {
@@ -567,6 +568,7 @@ export class MemoryStore {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))
     }
+    if (source === 'clear' || source === 'recovery') this.beforeHistoryWrite?.(batch.id, changes)
     for (const [index, change] of changes.entries()) {
       const step = steps.get(change.path)!
       try {
