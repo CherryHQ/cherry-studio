@@ -144,6 +144,7 @@ export async function createMemoryBackup(
     recoveryOf?: string
     activeRoot?: string
     transferTargets?: MemoryBatch['transferTargets']
+    preview?: boolean
     confirmed?: readonly MemoryFileChange[]
   } = {}
 ): Promise<MemoryBatch> {
@@ -237,7 +238,7 @@ export async function createMemoryBackup(
       item !== latest &&
       item !== reverse &&
       item.batch.id !== recoveryOf &&
-      !(parent && hasOrderedRecovery(parent) && item.batch.id === parent.recoveryOf)
+      item.batch.id !== parent?.recoveryOf
   )
   const prune: StoredBatch[] = []
   for (const item of removable) {
@@ -252,6 +253,7 @@ export async function createMemoryBackup(
       'Protected recovery data and the required backup exceed the memory backup limit'
     )
   }
+  if (options.preview) return batch
   for (const item of prune) await unlink(await assertMemoryPath(root, item.filename))
   await saveMemoryBackup(root, batch)
   return batch
