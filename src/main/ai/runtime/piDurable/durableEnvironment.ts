@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { Context } from '@earendil-works/chord/context'
 import type { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
 
-import { memoryTarget } from '@main/ai/memory/memoryTarget'
+import { assertNotMemoryHardLink, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { canonicalizePathForContainment } from '@main/utils/file'
 
 /** Check the actual file used by native read, write and edit, after Pi selects its filename variant. */
@@ -22,11 +22,6 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
       const canonical = noFollow && resolvedPath ? path.join(resolvedPath, path.basename(target)) : resolvedPath
       if (!canonical || (await memoryTarget(target, canonical)))
         throw new Error('Use the memory editor for managed memory files')
-      try {
-        if ((await stat(canonical)).nlink > 1) throw new Error('A native file tool cannot verify a hard-linked file')
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      }
       return canonical
     }
 
@@ -42,5 +37,15 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
       return super.writeFile(await this.filePath(file, context), content, context)
     }
   }
-  return new DesktopEnvironment(options)
+  return new DesktopEnvironment({
+    ...options,
+    async authorizeOpenedFile(file, opened) {
+      if (!opened.isFile() || (await memoryTarget(file)))
+        throw new Error('Use the memory editor for managed memory files')
+      await assertNotMemoryHardLink(opened)
+      const current = await stat(file, { bigint: true })
+      if (current.dev !== opened.dev || current.ino !== opened.ino || current.ctimeNs !== opened.ctimeNs)
+        throw new Error('The file changed during authorization; retry the operation')
+    }
+  })
 }
