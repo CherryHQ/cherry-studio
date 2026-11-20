@@ -743,12 +743,42 @@ describe('limits, access, and recovery', () => {
     expect((await store.read(caller, target)).content).toBe('Fact')
     expect((await store.read(caller, source)).content).toBe('Fact')
     await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+    const abandoned = await store.previewRecovery(caller)
+    expect(abandoned!.files.some((file) => file.path === 'MEMORY.md')).toBe(false)
+    await writeFile(path.join(root, 'MEMORY.md'), 'Source link')
+    const openAgain = await store.previewRecovery(caller)
+    expect(openAgain!.files).toContainEqual(expect.objectContaining({ path: 'MEMORY.md', conflict: false }))
+    await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
     await recover()
     expect((await store.read(caller, source)).content).toBeNull()
     await recover()
     expect((await store.read(caller, source)).content).toBe('Fact')
     expect((await store.read(caller, 'MEMORY.md')).content).toBe('Source link')
     expect((await store.read(caller, target)).content).toBeNull()
+  })
+
+  it('undoes a manually completed multi-file rewrite with no deleted files', async () => {
+    const title = '.memories/title.md'
+    await save(title, 'Old title')
+    await save('MEMORY.md', 'Old anchor')
+    const reads = await Promise.all([title, 'MEMORY.md'].map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: reads[0].receipt, content: 'New title' },
+        { kind: 'write', receipt: reads[1].receipt, content: 'New anchor' }
+      ],
+      'dreaming',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'New anchor')
+    await recover()
+    expect((await store.read(caller, title)).content).toBe('Old title')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Old anchor')
   })
 
   it('keeps the restored source when an unchanged transfer destination loses its content', async () => {

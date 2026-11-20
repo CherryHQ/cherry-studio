@@ -36,7 +36,8 @@ export interface MemorySession extends Disposable {
     approve: MemoryApproval,
     readReceipts?: readonly string[],
     legacy?: MemoryLegacyOriginal,
-    managedTargets?: readonly string[]
+    managedTargets?: readonly string[],
+    onWriteStart?: () => void
   ): ReturnType<MemoryStore['commit']>
   previewClear(): ReturnType<MemoryStore['previewClear']>
   clear(token: string, approve: MemoryApproval): ReturnType<MemoryStore['clear']>
@@ -178,13 +179,14 @@ export class MemoryService extends BaseService {
         }),
       validateModelReads,
       assertRuntimeSafe: (assertHistory) => run((store) => store.assertRuntimeSafe(access, assertHistory), 'inspect'),
-      commit: (mutations, approve, readReceipts, legacy, managedTargets) =>
+      commit: (mutations, approve, readReceipts, legacy, managedTargets, onWriteStart) =>
         run(async (store) =>
           notify(
             source,
             await store.commit(access, mutations, source, approve, {
               readReceipts,
               legacy,
+              onWriteStart,
               clearTargets: managedTargets
             })
           )
