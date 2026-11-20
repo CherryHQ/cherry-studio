@@ -34,9 +34,9 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
 const APP_ICON_FRAME_CLASS =
-  'relative flex size-full shrink-0 items-center justify-center overflow-hidden rounded-[inherit] [corner-shape:inherit] [color-scheme:light] dark:[color-scheme:dark] select-none'
+  'relative flex size-full shrink-0 items-center justify-center overflow-hidden rounded-[inherit] [color-scheme:light] dark:[color-scheme:dark] select-none'
 const APP_ICON_CLASS = 'size-full object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
