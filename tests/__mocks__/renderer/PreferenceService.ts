@@ -64,6 +64,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'feature.agent.file_pane.show_whitespace': false,
   'feature.agent.file_pane.scroll_past_end': false,
   'feature.agent.file_pane.tab_size': 2,
+  'chat.topics.sort': getDefaultValue('chat.topics.sort'),
+  'agent.session.sort': getDefaultValue('agent.session.sort'),
   'agent.details.sections': getDefaultValue('agent.details.sections')
 
   // Add more defaults as needed

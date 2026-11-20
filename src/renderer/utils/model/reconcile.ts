@@ -19,13 +19,12 @@ import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import {
   isBuiltinWebSearchAvailable,
   isBuiltinWebSearchEffortUnsupported,
   isBuiltinWebSearchFunctionToolConflicted
 } from '@shared/utils/provider'
-
-import { isFunctionCallingModel } from './tooluse'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: ReasoningEffortOption

@@ -12,6 +12,8 @@ import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
+export type { ConversationListSort } from '../types/conversationList'
+
 /** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
@@ -119,6 +121,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'ko-KR'
   | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
@@ -314,7 +317,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
-export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls', 'searchImages'] as const
 
 export type WebSearchCapability = SharedWebSearchCapability
 

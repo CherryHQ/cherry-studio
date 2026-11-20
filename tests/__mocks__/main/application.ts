@@ -123,6 +123,11 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
