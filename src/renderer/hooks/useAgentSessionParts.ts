@@ -25,7 +25,7 @@ import {
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { AGENT_SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
@@ -157,16 +157,22 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       resolve()
     }
   }, [isRefreshing, sessionId])
-  useDataChange(
-    '/agent-sessions/:sessionId/messages',
-    (effects) => {
-      if (!enabled) return
+  const reconcileHistory = useCallback(
+    (effects: DataApiDataChangeEffect[], requireLoaded = false) => {
+      if (!enabled) return Promise.resolve()
       const isCurrent = () => refreshState.current === refreshScope
       const refresh = async () => {
         if (historyRevalidation.current) await historyRevalidation.current
         if (!isCurrent()) return
         const cached = readSessionPages()
-        if (!cached?.length || effects.some((effect) => !effect.entityIds?.length || effect.kind === 'order')) {
+        if (
+          !cached?.length ||
+          effects.some((effect) => !effect.entityIds?.length || effect.kind === 'order') ||
+          (requireLoaded &&
+            effects.some((effect) =>
+              effect.entityIds?.some((id) => !cached.some((page) => page.items.some((row) => row.id === id)))
+            ))
+        ) {
           await mutate()
           return
         }
@@ -229,18 +235,30 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           })
         )
       }
-      void refreshScope.queue
-        .queue(async () => {
-          try {
-            await refresh()
-          } catch (error) {
-            logger.warn('Agent message refresh failed', error as Error)
-            if (isCurrent()) await mutate()
-          }
-        })
-        .catch((error) => logger.warn('Agent history refresh failed', error as Error))
+      return refreshScope.queue.queue(async () => {
+        try {
+          await refresh()
+        } catch (error) {
+          logger.warn('Agent message refresh failed', error as Error)
+          if (isCurrent()) await mutate()
+        }
+      })
     },
+    [enabled, listPath, mutate, readSessionPages, refreshScope, writeSessionMessagesCache]
+  )
+  useDataChange(
+    '/agent-sessions/:sessionId/messages',
+    (effects) =>
+      void reconcileHistory(effects).catch((error) => logger.warn('Agent history refresh failed', error as Error)),
     { routeParams: { sessionId } }
+  )
+  const refreshStreamMessages = useCallback(
+    (messageIds: readonly string[]) =>
+      reconcileHistory(
+        [{ endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: messageIds }],
+        true
+      ),
+    [reconcileHistory]
   )
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
@@ -450,6 +468,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     loadOlder: loadNext,
     selectAllPagination,
     refresh: refreshMessages,
+    refreshStreamMessages,
     seedReservedMessages,
     replaceMessageTail,
     deleteMessage

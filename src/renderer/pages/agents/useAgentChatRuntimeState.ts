@@ -273,6 +273,7 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     refresh,
+    refreshStreamMessages,
     seedReservedMessages,
     replaceMessageTail,
     deleteMessage: deleteSessionMessage
@@ -288,7 +289,7 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refreshStreamMessages)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -400,7 +401,11 @@ export function useAgentChatRuntimeState({
   >({})
 
   // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
+  useTopicOverlayHandoffOnTerminal(
+    sessionTopicId,
+    (messageIds) => createOverlayRefreshHandoff(() => refreshStreamMessages(messageIds), resetOverlay)(),
+    liveAssistants
+  )
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
@@ -493,9 +498,9 @@ export function useAgentChatRuntimeState({
         await refresh()
         return
       }
-      await refresh()
+      await refreshStreamMessages([match.messageId])
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
+    [refresh, refreshStreamMessages, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     topicId: sessionTopicId,

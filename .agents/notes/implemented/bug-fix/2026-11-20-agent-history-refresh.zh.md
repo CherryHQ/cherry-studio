@@ -14,6 +14,8 @@ Status: implemented
 
 追加成员的 ID 已知时，读取首页直到原有游标边界。确认原首页仍构成新首页的末尾、且下一页游标相同后，复用较旧的页。通知缺少 ID，或首页无法证明后续分支保持一致时，刷新游标链。
 
+智能体页面在收尾或刷新审批卡时，先对齐受影响的助手消息。流式回合缺少已知锚点，或必需的消息未出现在已加载历史中时，重新验证缓存的分支。
+
 ## Alternatives considered
 
 - 重新读取变更所在的页，仍会反序列化同页其他消息的正文。
@@ -28,3 +30,4 @@ Status: implemented
 - Regression — `useAgentSessionParts.revalidation.test.ts` 使用真实 SWR 缓存，验证单条请求、追加时复用旧页、并发分页和选中分支替换。
 - Regression — `agentSessionMessages.test.ts` 和 `AgentSessionMessageService.test.ts` 覆盖带投影的单条读取、工具输出延迟加载和编辑资格失效通知。
 - Regression — Electron 开发版预置 180 条历史消息，使用本地模拟模型。三轮 Pi Durable 对话各完成一次子智能体和主智能体的流式回复。列表读取从 36 次降到 3 次，`listSessionMessages` 路径的采样分配从 479 MiB 降到 45 MiB。另一组测试六次更新同一条已加载消息，用六次单条读取取代了 24 次列表读取。
+- Regression — 在 macOS Electron 的完整智能体页面预置 180 条历史消息，使用本地模拟视觉模型。每轮由四个并发 Pi Durable 子智能体各读取五张约 1 MiB 的 PNG，共跑六轮。与初版修复相比，列表读取从 30 次降到 6 次，列表路径的采样分配从 402 MiB 降到 89 MiB。

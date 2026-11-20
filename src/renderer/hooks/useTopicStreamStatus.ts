@@ -67,7 +67,10 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
 // Fire `refresh` once when a live turn pauses for approval. The final
 // done/error/aborted handoff is owned by the page-level overlay handoff so it
 // can refresh before dropping live overlay parts.
-export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
+export function useTopicDbRefreshOnAwaitingApproval(
+  topicId: string,
+  refresh: (messageIds: readonly string[]) => Promise<unknown>
+): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)
@@ -78,11 +81,11 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
     const prev = previous?.topicId === topicId ? previous.status : undefined
     prevRef.current = { status, topicId }
     if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
-      void refreshRef.current().catch(() => {
+      void refreshRef.current(getExecutionMessageIds(entry?.awaitingApprovalAnchors)).catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
       })
     }
-  }, [status, topicId])
+  }, [entry?.awaitingApprovalAnchors, status, topicId])
 }
 
 /**
@@ -91,25 +94,32 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
  */
 export function useTopicOverlayHandoffOnTerminal(
   topicId: string,
-  onHandoff: () => Promise<void> | void,
+  onHandoff: (messageIds: readonly string[]) => Promise<void> | void,
   liveAssistants: readonly CherryUIMessage[] = []
 ): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
   onHandoffRef.current = onHandoff
-  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
+  const prevRef = useRef<
+    { status: typeof status; topicId: string; executions: ActiveExecution[] | undefined } | undefined
+  >(undefined)
   useEffect(() => {
     const previous = prevRef.current
     const prev = previous?.topicId === topicId ? previous.status : undefined
-    prevRef.current = { status, topicId }
+    prevRef.current = { status, topicId, executions: entry?.activeExecutions }
     const next = classifyTurn(status)
     if ((classifyTurn(prev).isStreamLive || liveAssistants.length > 0) && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {
-        await onHandoffRef.current()
+        const anchorIds = getExecutionMessageIds(previous?.topicId === topicId ? previous.executions : undefined)
+        await onHandoffRef.current([...new Set([...anchorIds, ...liveAssistants.map((message) => message.id)])])
       })().catch((error) => {
         logger.warn('Topic overlay handoff failed', error as Error, { topicId })
       })
     }
-  }, [liveAssistants, status, topicId])
+  }, [entry?.activeExecutions, liveAssistants, status, topicId])
+}
+
+function getExecutionMessageIds(executions: readonly ActiveExecution[] | undefined): string[] {
+  return executions?.flatMap(({ anchorMessageId }) => (anchorMessageId ? [anchorMessageId] : [])) ?? []
 }

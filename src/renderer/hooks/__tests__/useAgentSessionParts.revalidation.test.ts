@@ -71,6 +71,31 @@ it('refreshes a changed message without requesting any loaded history page', asy
   expect(requestedPaths).toEqual([`${listPath}/older`])
 })
 
+it('reads the persisted terminal reply by ID before resolving the stream handoff', async () => {
+  const pending = { ...message('reply'), status: 'pending' as const }
+  const older = message('older')
+  const saved = message('reply', 'persisted final answer', '2026-01-01T00:00:01.000Z')
+  const get = vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
+    if (path === `${listPath}/reply`) return saved as never
+    return (
+      (options?.query as { cursor?: string })?.cursor
+        ? { items: [older] }
+        : { items: [pending], nextCursor: 'older-page' }
+    ) as never
+  })
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(() => useAgentSessionParts('session-1'), { wrapper: Wrapper })
+  await waitFor(() => expect(result.current.messages.map((row) => row.id)).toEqual(['reply']))
+  act(() => result.current.loadOlder())
+  await waitFor(() => expect(result.current.messages.map((row) => row.id)).toEqual(['older', 'reply']))
+  get.mockClear()
+
+  await act(async () => result.current.refreshStreamMessages(['reply']))
+
+  expect(result.current.messages[1].parts).toEqual(saved.data.parts)
+  expect(get.mock.calls.map(([path]) => path)).toEqual([`${listPath}/reply`])
+})
+
 it('keeps older pages cached when new messages only extend the head of the selected branch', async () => {
   const newest = message('newest')
   const older = message('older')

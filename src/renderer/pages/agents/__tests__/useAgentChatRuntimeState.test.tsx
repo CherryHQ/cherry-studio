@@ -34,6 +34,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
+  refreshStreamMessages: vi.fn(async () => {}),
   seedReservedMessages: vi.fn(),
   replaceMessageTail: vi.fn(),
   deleteSessionMessage: vi.fn(),
@@ -651,6 +652,7 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
+      refreshStreamMessages: mocks.refreshStreamMessages,
       seedReservedMessages: mocks.seedReservedMessages,
       replaceMessageTail: mocks.replaceMessageTail,
       deleteMessage: mocks.deleteSessionMessage
@@ -1260,6 +1262,7 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
+      refreshStreamMessages: mocks.refreshStreamMessages,
       seedReservedMessages: mocks.seedReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })
@@ -1563,6 +1566,7 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
+      refreshStreamMessages: mocks.refreshStreamMessages,
       seedReservedMessages: mocks.seedReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })
@@ -1607,6 +1611,7 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
+      refreshStreamMessages: mocks.refreshStreamMessages,
       seedReservedMessages: mocks.seedReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })

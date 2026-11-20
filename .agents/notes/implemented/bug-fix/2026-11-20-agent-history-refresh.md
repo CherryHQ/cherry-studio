@@ -14,6 +14,8 @@ Publish membership after committing stream reservations. For a projection with I
 
 For a known append, fetch the head page through its previous cursor boundary. Reuse older pages after verifying the existing head is an unchanged suffix and the cursor still matches. Refresh the cursor chain when a notification lacks IDs or the head cannot prove that the rest of the branch is unchanged.
 
+The Agent page reconciles the affected assistant rows before completing the stream overlay handoff or refreshing an approval card. The cached branch is revalidated when the stream has no known anchor or a required message is missing from the loaded history.
+
 ## Alternatives considered
 
 - Revalidating the page containing a change still deserializes the other message bodies on that page.
@@ -28,3 +30,4 @@ A keyed content change leaves loaded page boundaries intact. Appends can grow th
 - Regression — `useAgentSessionParts.revalidation.test.ts` checks single-row requests, append reuse, concurrent pagination, and selected-branch replacement with the real SWR cache.
 - Regression — `agentSessionMessages.test.ts` and `AgentSessionMessageService.test.ts` cover projected detail reads, deferred output, and edit eligibility invalidation.
 - Regression — Electron development build with 180 seeded messages and a loopback model. Three Pi Durable turns each completed a streamed child and root reply. List reads fell from 36 to 3 and sampled allocation under `listSessionMessages` fell from 479 MiB to 45 MiB. In a separate run, six updates to one loaded row replaced 24 list reads with six detail reads.
+- Regression — Full Agent page on macOS Electron with 180 seeded messages and a loopback vision model. In each of six rounds, four concurrent Pi Durable subagents read five 1 MiB PNGs each. Compared with the initial fix, list reads fell from 30 to 6 and sampled list allocation from 402 MiB to 89 MiB.
