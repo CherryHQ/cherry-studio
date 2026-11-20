@@ -49,7 +49,7 @@ driver internals behind the same host contract.
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
-| `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
+| `AgentLifecycleService` | Coordinates archive, restore, purge, default-workspace changes, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, original input contexts across connection replacement, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |

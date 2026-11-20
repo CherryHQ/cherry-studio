@@ -1,10 +1,13 @@
 import { execFileSync } from 'node:child_process'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { AgentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { BaseService } from '@main/core/lifecycle'
 import * as shellEnv from '@main/utils/shellEnv'
 
@@ -35,9 +38,12 @@ const launch = (script: string): TerminalLaunch => ({
   stdin: ''
 })
 let service: InstanceType<typeof TerminalService>
+let storage: AgentWorkspaceStorageService
+let storageRoot: string
 let created: TerminalHost[]
 let starting: Promise<void> | undefined
 let stopping: Promise<void> | undefined
+let rejectNextAdmissionBarrier: boolean
 let stopRequests: number
 let faults: Map<string, () => void>
 
@@ -47,17 +53,25 @@ beforeAll(() => {
 beforeEach(async () => {
   BaseService.resetInstances()
   MockApplicationUtils.resetServices()
+  storageRoot = await mkdtemp(path.join(tmpdir(), 'terminal-workspace-usage-'))
+  storage = new AgentWorkspaceStorageService()
+  MockApplicationUtils.setService('AgentWorkspaceStorageService', storage)
   created = []
   starting = undefined
   stopping = undefined
+  rejectNextAdmissionBarrier = false
   stopRequests = 0
   faults = new Map()
-  vi.mocked(application.getPath).mockImplementation((key: string) =>
-    key.endsWith('ghostty')
-      ? path.join(root, 'resources/terminal/ghostty')
-      : key.endsWith('integration')
-        ? path.join(root, 'resources/terminal/shellIntegration')
-        : path.join(root, 'resources/binaries', `${process.platform}-${process.arch}`, 'terminal-scope')
+  vi.mocked(application.getPath).mockImplementation((key, filename) =>
+    key === 'feature.agents.data'
+      ? filename
+        ? path.join(storageRoot, filename)
+        : storageRoot
+      : key.endsWith('ghostty')
+        ? path.join(root, 'resources/terminal/ghostty')
+        : key.endsWith('integration')
+          ? path.join(root, 'resources/terminal/shellIntegration')
+          : path.join(root, 'resources/binaries', `${process.platform}-${process.arch}`, 'terminal-scope')
   )
   MockApplicationUtils.setService('UtilityProcessManager', {
     register() {},
@@ -92,6 +106,14 @@ beforeEach(async () => {
             case 'release': {
               const value = input as TerminalHostContract['methods']['release']['input']
               return host.release(value.host, value.id)
+            }
+            case 'advanceAdmission': {
+              if (rejectNextAdmissionBarrier) {
+                rejectNextAdmissionBarrier = false
+                throw new Error('Injected admission transport failure')
+              }
+              const value = input as TerminalHostContract['methods']['advanceAdmission']['input']
+              return host.advanceAdmission(value.host, value.admissionRevision)
             }
             case 'seal': {
               const value = input as TerminalHostContract['methods']['seal']['input']
@@ -157,9 +179,119 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await service._doStop()
+  await storage._doStop()
+  await rm(storageRoot, { recursive: true, force: true })
 })
 
 describe.skipIf(process.platform === 'win32')('TerminalService with real Host kernels', () => {
+  it('fences an old launch after a workspace change without stopping retained work', async () => {
+    const lease = await service.attachRuntime({ conversationId: 'workspace', contextId: 'agent', bindingId: 'binding' })
+    const running = await service.start({
+      lease,
+      replayKey: 'retained',
+      turnId: 'turn',
+      background: true,
+      launch: launch('sleep 60')
+    })
+    if (running.kind !== 'resource') throw new Error('No retained execution')
+    const host = running.resource.host
+    await service.changeWorkspace('workspace', () => 'new-workspace')
+    expect(service.list(terminalConversationId.parse('workspace'))[0]).toMatchObject({
+      id: running.resource.id,
+      host,
+      retention: { kind: 'session' },
+      process: { kind: 'running' }
+    })
+    await expect(
+      service.start({ lease, replayKey: 'stale', turnId: 'turn', launch: launch('printf STALE') })
+    ).resolves.toEqual({ kind: 'rejected', reason: 'stale_context' })
+    const fresh = await service.attachRuntime({
+      conversationId: 'workspace',
+      contextId: 'fresh',
+      bindingId: 'new-binding'
+    })
+    const next = await service.start({
+      lease: fresh,
+      replayKey: 'fresh',
+      turnId: 'next',
+      launch: launch('printf FRESH')
+    })
+    if (next.kind !== 'resource') throw new Error('No new execution')
+    expect(next.resource.host).toEqual(host)
+    await service.wait({ host, id: next.resource.id }, {})
+    expect(service.readText({ host, id: next.resource.id }).output).toBe('FRESH')
+    expect(
+      service.list(terminalConversationId.parse('workspace')).find((item) => item.id === running.resource.id)?.process
+        .kind
+    ).toBe('running')
+  })
+
+  it('keeps the original workspace admission usable after a failed binding transaction', async () => {
+    const lease = await service.attachRuntime({ conversationId: 'rollback', contextId: 'agent', bindingId: 'binding' })
+    const first = await service.start({ lease, replayKey: 'before', turnId: 'turn', launch: launch('printf BEFORE') })
+    if (first.kind !== 'resource') throw new Error('No execution')
+    await expect(
+      service.changeWorkspace('rollback', () => {
+        throw new Error('database rollback')
+      })
+    ).rejects.toThrow('database rollback')
+    const next = await service.start({ lease, replayKey: 'after', turnId: 'turn', launch: launch('printf AFTER') })
+    if (next.kind !== 'resource') throw new Error('Original admission was lost')
+    await service.wait({ host: next.resource.host, id: next.resource.id }, {})
+    expect(service.readText({ host: next.resource.host, id: next.resource.id }).output).toBe('AFTER')
+  })
+
+  it('resynchronizes admission after a workspace barrier transport failure', async () => {
+    const lease = await service.attachRuntime({
+      conversationId: 'barrier-failure',
+      contextId: 'agent',
+      bindingId: 'binding'
+    })
+    const retained = await service.start({
+      lease,
+      replayKey: 'retained',
+      turnId: 'turn',
+      background: true,
+      launch: launch('sleep 60')
+    })
+    if (retained.kind !== 'resource') throw new Error('No retained execution')
+    rejectNextAdmissionBarrier = true
+    await expect(service.changeWorkspace('barrier-failure', () => 'B')).rejects.toThrow('transport failure')
+    const next = await service.start({
+      lease,
+      replayKey: 'after-failure',
+      turnId: 'turn',
+      launch: launch('printf ORIGINAL')
+    })
+    if (next.kind !== 'resource') throw new Error('Original admission was not restored')
+    await service.wait({ host: next.resource.host, id: next.resource.id }, {})
+    expect(service.readText({ host: next.resource.host, id: next.resource.id }).output).toBe('ORIGINAL')
+    expect(service.list(lease.conversationId).find((item) => item.id === retained.resource.id)?.process.kind).toBe(
+      'running'
+    )
+  })
+
+  it('waits for admitted filesystem preparation before confirming conversation cleanup', async () => {
+    const entered = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    const pending = service.createUserTerminal('preparing', root, 'bash', 'preparing', 0, async () => {
+      entered.resolve()
+      await finish.promise
+    })
+    await entered.promise
+    let closed = false
+    const closing = service.closeConversation(terminalConversationId.parse('preparing')).then(() => {
+      closed = true
+    })
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    finish.resolve()
+    await expect(pending).resolves.toEqual({ kind: 'rejected', reason: 'closing' })
+    await closing
+    expect(service.hasActiveResources('preparing')).toBe(false)
+    expect(created).toEqual([])
+  })
+
   it('starts the configured default shell rather than forcing Bash', async () => {
     const environment = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue({
       PATH: '/usr/bin:/bin',
@@ -167,7 +299,14 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
       SHELL: '/bin/zsh'
     })
     try {
-      const receipt = await service.createUserTerminal('user-default', root, 'default', 'user-default-shell')
+      const receipt = await service.createUserTerminal(
+        'user-default',
+        root,
+        'default',
+        'user-default-shell',
+        0,
+        async () => {}
+      )
       if (receipt.kind !== 'resource') throw new Error('No user terminal')
       expect(receipt.resource.shell).toBe('zsh')
       const ref = { host: receipt.resource.host, id: receipt.resource.id }

@@ -21,7 +21,7 @@ renderer-side transport that connects to them.
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi and Pi Durable drivers |
 | [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
-| [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
+| [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, workspace changes, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
 | [Remote Agent API Design](./remote-agent-access.md) | Target network and package APIs: device-level authorization, complete incremental events, receipts, and weak-network recovery |
 | [Remote Agent Sequences and Modules](./remote-agent-sequences.md) | Target module map, connection states, and thirteen normal/failure sequence diagrams |
 | [Remote Protocol and Desktop Implementation Design](./remote-agent-implementation.md) | Proposed package/Desktop files, function contracts, atomic admission, recovery, and lifecycle ownership |

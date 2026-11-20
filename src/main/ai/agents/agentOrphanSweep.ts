@@ -12,7 +12,6 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
 import { WORKSPACE_STORAGE_SUFFIXES } from './agentWorkspaceStorage'
-import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -109,14 +108,16 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
     for (const workspace of candidates) {
       signal?.throwIfAborted()
       try {
-        const artifacts = await agentWorkspaceStorageService.reclaimOrphanWorkspace(workspace, options)
+        const artifacts = await application
+          .get('AgentWorkspaceStorageService')
+          .reclaimOrphanWorkspace(workspace, options)
         removed.push(...artifacts)
         if (artifacts.length) workspaceDirs++
       } catch (error) {
         logger.warn('Workspace orphan cleanup retained for retry', { workspace, error })
       }
     }
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
+    const release = application.get('AgentWorkspaceStorageService').reserveWorkspaceStorage([dateDir])
     if (release) {
       try {
         await removeIfEmpty(dateDir, removed)

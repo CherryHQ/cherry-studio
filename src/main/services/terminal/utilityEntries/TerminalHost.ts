@@ -772,6 +772,11 @@ export class TerminalHost {
     return true
   }
 
+  advanceAdmission(host: TerminalHostIdentity, admissionRevision: number): void {
+    if (!this.matches(host) || this.sealed) throw new Error('Terminal admission is unavailable')
+    this.admissionRevision = Math.max(this.admissionRevision, admissionRevision)
+  }
+
   async seal(host: TerminalHostIdentity, admissionRevision: number): Promise<TerminalResourceState[]> {
     if (!this.matches(host)) throw new Error('Stale terminal generation')
     this.sealed = true

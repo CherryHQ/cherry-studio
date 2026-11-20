@@ -93,15 +93,6 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
     error instanceof Error && error.name === 'AgentSessionWorkspaceError'
 }))
 
-vi.mock('@main/ai/agents/AgentWorkspaceStorageService', () => ({
-  agentWorkspaceStorageService: {
-    archiveWorkspace: vi.fn(),
-    restoreWorkspaces: (_workspaces: unknown[], activate: () => unknown) => activate(),
-    reconcileWorkspace: vi.fn(),
-    purgeWorkspace: mocks.purgeSystemWorkspace
-  }
-}))
-
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     reuseOrCreatePlaceholderWithImpact: mocks.reuseOrCreate,
@@ -152,6 +143,7 @@ const runtime = {
   isSessionBusy: mocks.runtimeBusy,
   isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
+  closeSessionForArchive: mocks.closeSession,
   prepareBranch: mocks.prepareBranch,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
@@ -181,6 +173,16 @@ vi.mock('@application', () => ({
   application: {
     getPath: mocks.getPath,
     get: (name: string) => {
+      if (name === 'TerminalService') return { closeConversation: async () => [], reopenConversation: async () => {} }
+      if (name === 'AgentWorkspaceStorageService')
+        return {
+          reserveWorkspaceStorage: () => () => {},
+          workspaceStoragePaths: (path: string) => [path],
+          archiveWorkspace: async () => {},
+          restoreWorkspaces: (_workspaces: unknown[], activate: () => unknown) => activate(),
+          reconcileWorkspace: async () => {},
+          purgeWorkspace: mocks.purgeSystemWorkspace
+        }
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
       if (name === 'DbService') return dbService
@@ -808,7 +810,9 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
-    expect(order).toEqual(['forks-cancelled', 'runtime-closed', 'workspace-removed'])
+    expect(order.at(-1)).toBe('workspace-removed')
+    expect(order.indexOf('forks-cancelled')).toBeLessThan(order.indexOf('workspace-removed'))
+    expect(order.indexOf('runtime-closed')).toBeLessThan(order.indexOf('workspace-removed'))
   })
 
   it('keeps a committed archive successful when fork cleanup fails', async () => {

@@ -17,6 +17,7 @@ serveUtilityProcess<TerminalHostContract, TerminalHostInit>({
     link: (input) => host.link(input),
     detachView: ({ host: identity, id, viewId }) => host.detachView(identity, id, viewId),
     release: ({ host: identity, id }) => host.release(identity, id),
+    advanceAdmission: ({ host: identity, admissionRevision }) => host.advanceAdmission(identity, admissionRevision),
     seal: ({ host: identity, admissionRevision }) => host.seal(identity, admissionRevision)
   },
   streams: { observe: (identity, context) => host.observe(identity, context) },

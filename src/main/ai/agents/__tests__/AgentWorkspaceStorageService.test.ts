@@ -4,24 +4,17 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { create } from 'tar'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import * as storage from '../agentWorkspaceStorage'
-import { agentWorkspaceStorageService as service } from '../AgentWorkspaceStorageService'
+import { AgentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
 
-const mocks = vi.hoisted(() => ({ close: vi.fn().mockResolvedValue(undefined) }))
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    AgentSessionRuntimeService: {
-      cancelSessionForks: async () => {},
-      closeSessionForArchive: mocks.close
-    }
-  } as Parameters<typeof mockApplicationFactory>[0])
-})
+let service: AgentWorkspaceStorageService
 
 describe(`workspace storage protocol (${process.platform})`, () => {
   setupTestDatabase()
@@ -33,11 +26,89 @@ describe(`workspace storage protocol (${process.platform})`, () => {
   const record = () => readFile(`${workspace.path}.storage.json`, 'utf8').then(JSON.parse)
   const output = (suffix = '') => readFile(path.join(`${workspace.path}${suffix}`, 'result.txt'), 'utf8')
 
+  it('defers reclaim for a resource launched elsewhere, then reclaims only after cleanup', async () => {
+    const id = await service.acquireUsage({
+      sessionId: 'session',
+      cwd: root,
+      owner: { kind: 'runtime', contextId: 'retained-in-user-workspace' }
+    })
+    const sweep = () => service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    expect(await sweep()).toEqual([])
+    expect(await output()).toBe('recoverable output')
+    await service.releaseUsage(id)
+    expect(await sweep()).toContain(workspace.path)
+    expect(existsSync(workspace.path)).toBe(false)
+  })
+
+  it('keeps orphan protection after restart and refuses release without the original cleanup owner', async () => {
+    const id = await service.acquireUsage({
+      sessionId: workspace.id,
+      cwd: workspace.path,
+      owner: { kind: 'terminal', resourceId: crypto.randomUUID(), generation: crypto.randomUUID() }
+    })
+    BaseService.resetInstances()
+    const restarted = new AgentWorkspaceStorageService()
+    const recovered = await restarted.listUnconfirmedUsage(workspace.id)
+    expect(recovered).toMatchObject([{ id, cwd: workspace.path }])
+    await restarted.releaseUsage(id)
+    expect(
+      await restarted.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    ).toEqual([])
+    expect(await output()).toBe('recoverable output')
+  })
+
+  it('disables admission and reclaim when recovery records are unreadable', async () => {
+    await writeFile(path.join(root, 'workspace-usage.json'), '{truncated')
+    await expect(
+      service.acquireUsage({ sessionId: workspace.id, cwd: root, owner: { kind: 'runtime', contextId: 'new' } })
+    ).rejects.toThrow('recovery requires verification')
+    expect(
+      await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    ).toEqual([])
+    expect(await output()).toBe('recoverable output')
+  })
+
+  it('refuses new storage use while destructive reclaim is underway', async () => {
+    const entered = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    const remove = storage.removeWorkspaceArtifact
+    const deletion = vi.spyOn(storage, 'removeWorkspaceArtifact').mockImplementation(async (...args) => {
+      entered.resolve()
+      await finish.promise
+      return remove(...args)
+    })
+    const sweep = service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    await entered.promise
+    try {
+      await expect(
+        service.acquireUsage({ sessionId: workspace.id, cwd: root, owner: { kind: 'runtime', contextId: 'new' } })
+      ).rejects.toThrow('reclaim is in progress')
+    } finally {
+      finish.resolve()
+    }
+    await sweep
+    deletion.mockRestore()
+    expect(existsSync(workspace.path)).toBe(false)
+  })
+
+  it('retains exclusion when persistence cannot confirm directory durability', async () => {
+    vi.spyOn(storage, 'syncWorkspaceStorageDirectory').mockRejectedValueOnce(new Error('storage unavailable'))
+    await expect(
+      service.acquireUsage({ sessionId: workspace.id, cwd: root, owner: { kind: 'runtime', contextId: 'new' } })
+    ).rejects.toThrow('storage unavailable')
+    expect(
+      await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    ).toEqual([])
+    expect(await output()).toBe('recoverable output')
+  })
+
   beforeEach(async () => {
+    BaseService.resetInstances()
+    service = new AgentWorkspaceStorageService()
+    MockApplicationUtils.setService('AgentWorkspaceStorageService', service)
     root = await mkdtemp(path.join(os.tmpdir(), 'workspace-protocol-'))
     workspace = { id: 'session', path: path.join(root, '2026-10-14', 'session') }
-    vi.spyOn(application, 'getPath').mockReturnValue(root)
-    mocks.close.mockResolvedValue(undefined)
+    vi.spyOn(application, 'getPath').mockImplementation((_key, file) => (file ? path.join(root, file) : root))
     await mkdir(path.join(workspace.path, 'empty'), { recursive: true })
     await writeFile(path.join(workspace.path, 'result.txt'), 'recoverable output')
     await writeFile(path.join(workspace.path, '.hidden'), Buffer.from([0, 1, 255]))
@@ -71,7 +142,7 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     await expect(archive()).rejects.toThrow('interrupted')
     expect((await record()).operation).toBe('archive')
     vi.restoreAllMocks()
-    vi.spyOn(application, 'getPath').mockReturnValue(root)
+    vi.spyOn(application, 'getPath').mockImplementation((_key, file) => (file ? path.join(root, file) : root))
     await reconcile()
     expect(existsSync(workspace.path)).toBe(false)
     await restore()
@@ -298,11 +369,12 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     expect(existsSync(`${workspace.path}.storage.json`)).toBe(false)
   })
 
-  it('retains purge intent when native shutdown fails and sweeps it as a group', async () => {
+  it('retains purge intent when storage deletion fails and sweeps it as a group', async () => {
     await archive()
     await writeFile(path.join(root, 'keep.txt'), 'keep')
-    mocks.close.mockRejectedValueOnce(new Error('native still open'))
-    await expect(service.purgeWorkspace(workspace)).rejects.toThrow('native still open')
+    const remove = vi.spyOn(storage, 'removeWorkspaceArtifact').mockRejectedValueOnce(new Error('storage busy'))
+    await expect(service.purgeWorkspace(workspace)).rejects.toThrow('storage busy')
+    remove.mockRestore()
     expect((await record()).operation).toBe('purge')
     expect(existsSync(`${workspace.path}.tar.gz`)).toBe(true)
     await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })

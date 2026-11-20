@@ -13,6 +13,8 @@ import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { terminalConversationId } from '@main/services/terminal/contracts'
 import type { IpcContext } from '@shared/ipc/types'
 import { GHOSTTY_KEY_CODES } from '@shared/types/terminal'
@@ -33,6 +35,10 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
       return file ? path.join(dir, file) : dir
     })
     service = await createTestTerminalService()
+    MockApplicationUtils.setService('AiStreamManager', { isWriteQuiesced: false })
+    MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', { close: async () => {} })
+    MockApplicationUtils.setService('AgentSessionRuntimeService', new AgentSessionRuntimeService())
+    MockApplicationUtils.setService('AgentLifecycleService', new AgentLifecycleService())
     const window = Object.assign(new EventEmitter(), { isDestroyed: () => false })
     MockApplicationUtils.setService('WindowManager', { getWindow: () => window })
     dbh.db
@@ -43,6 +49,7 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
   })
   afterEach(async () => {
     await service._doStop()
+    await application.get('AgentWorkspaceStorageService')._doStop()
     vi.restoreAllMocks()
     rmSync(root, { recursive: true, force: true })
   })
@@ -54,7 +61,7 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
     if (receipt.kind !== 'resource') throw new Error('Terminal failed to open')
     return receipt.resource
   }
-  it('materializes a deferred workspace, protects it while live, and allows changing it after cleanup', async () => {
+  it('switches workspace while preserving the old terminal and protecting both resource scopes', async () => {
     expect(existsSync(session.workspace.path)).toBe(false)
     const terminal = await open()
     expect(existsSync(session.workspace.path)).toBe(true)
@@ -67,8 +74,31 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
         params: { sessionId: session.id },
         body: { type: 'user', workspaceId: other.id }
       })
-    await expect(change()).rejects.toThrow('close active terminal resources')
-    expect(agentSessionService.getById(session.id).workspaceId).toBe(session.workspaceId)
+    await vi.waitFor(() =>
+      expect(service.list(terminalConversationId.parse(session.id))[0]?.shellFacts?.kind).toBe('prompt')
+    )
+    await change()
+    expect(agentSessionService.getById(session.id).workspaceId).toBe(other.id)
+    const retained = service.list(terminalConversationId.parse(session.id))[0]
+    expect(retained).toMatchObject({
+      id: terminal.id,
+      host: terminal.host,
+      process: { kind: 'running' },
+      control: { kind: 'user' },
+      shellFacts: { kind: 'prompt', cwd: session.workspace.path }
+    })
+    const second = await open()
+    expect(second.host).toEqual(terminal.host)
+    await vi.waitFor(() =>
+      expect(
+        service.list(terminalConversationId.parse(session.id)).find((item) => item.id === second.id)?.shellFacts
+      ).toMatchObject({ kind: 'prompt', cwd: other.path })
+    )
+    const storage = application.get('AgentWorkspaceStorageService')
+    expect(
+      await storage.reclaimOrphanWorkspace(session.workspace.path, { now: Date.now() + 600_000, freshnessGateMs: 0 })
+    ).toEqual([])
+    expect(existsSync(session.workspace.path)).toBe(true)
     await terminalHandlers['terminal.stop'](
       {
         ref: { host: terminal.host, id: terminal.id },
@@ -78,9 +108,25 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
       },
       owner
     )
+    expect(
+      service.list(terminalConversationId.parse(session.id)).find((item) => item.id === second.id)?.process.kind
+    ).toBe('running')
+    await terminalHandlers['terminal.stop'](
+      {
+        ref: { host: second.host, id: second.id },
+        operationId: crypto.randomUUID(),
+        controlRevision: second.controlRevision,
+        cancelRevision: second.cancelRevision
+      },
+      owner
+    )
     await vi.waitFor(() => expect(service.hasActiveResources(session.id)).toBe(false))
-    await change()
-    expect(agentSessionService.getById(session.id).workspaceId).toBe(other.id)
+    await vi.waitFor(async () =>
+      expect(
+        await storage.reclaimOrphanWorkspace(session.workspace.path, { now: Date.now() + 600_000, freshnessGateMs: 0 })
+      ).toContain(session.workspace.path)
+    )
+    expect(existsSync(other.path)).toBe(true)
   })
   it('grants input and resize to the controlling view only, and keeps the process after both views detach', async () => {
     const terminal = await open()
@@ -145,7 +191,14 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
     expect(service.list(terminalConversationId.parse(session.id))[0]?.process.kind).toBe('running')
   })
   it('seals an admitted workspace preparation before it can launch after conversation close', async () => {
-    const pending = service.createUserTerminal(session.id, session.workspace.path, 'bash', 'pending')
+    const pending = service.createUserTerminal(
+      session.id,
+      session.workspace.path,
+      'bash',
+      'pending',
+      service.workspaceRevision(session.id),
+      async () => {}
+    )
     expect(service.hasActiveResources(session.id)).toBe(true)
     await service.closeConversation(terminalConversationId.parse(session.id))
     await expect(pending).resolves.toEqual({ kind: 'rejected', reason: 'closing' })

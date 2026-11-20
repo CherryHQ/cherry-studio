@@ -7,6 +7,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import * as workspaceStorage from '@main/ai/agents/agentWorkspaceStorage'
-import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
+import { AgentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { assertAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { runForkWorker } from '@main/ai/runtime/fork'
 import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
@@ -29,9 +30,12 @@ import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile
 import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
 import { registerRuntimeDrivers } from '@main/ai/runtime/registerDrivers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
+
+let agentWorkspaceStorageService: AgentWorkspaceStorageService
 
 const workerMocks = vi.hoisted(() => ({
   source: undefined as string | undefined,
@@ -77,6 +81,9 @@ describe('system workspace relocation', () => {
   let root: string
 
   beforeEach(async () => {
+    BaseService.resetInstances()
+    agentWorkspaceStorageService = new AgentWorkspaceStorageService()
+    MockApplicationUtils.setService('AgentWorkspaceStorageService', agentWorkspaceStorageService)
     registerRuntimeDrivers()
     workerMocks.source = undefined
     workerMocks.keys = undefined

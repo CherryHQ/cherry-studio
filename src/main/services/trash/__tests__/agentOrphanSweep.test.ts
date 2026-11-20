@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -11,9 +12,11 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { AgentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
+import { BaseService } from '@main/core/lifecycle'
 
 const { restoreJournalMock, closeSessionForArchive } = vi.hoisted(() => ({
   restoreJournalMock: { hasPendingRestore: vi.fn(() => false) },
@@ -43,10 +46,14 @@ describe('sweepAgentOrphans', () => {
   const applicationGet = application.get as Mock
   const originalApplicationGet = applicationGet.getMockImplementation()!
   const runtimeClaimedResumeTokens = new Set<string>()
+  let storage: AgentWorkspaceStorageService
   let root: string
   let workspacesRoot: string
 
   beforeEach(() => {
+    BaseService.resetInstances()
+    storage = new AgentWorkspaceStorageService()
+    MockApplicationUtils.setService('AgentWorkspaceStorageService', storage)
     restoreJournalMock.hasPendingRestore.mockReturnValue(false)
     runtimeClaimedResumeTokens.clear()
     closeSessionForArchive.mockResolvedValue(undefined)
@@ -63,8 +70,8 @@ describe('sweepAgentOrphans', () => {
     // Mirrors pathRegistry: system workspaces live *inside* the agents data root.
     root = mkdtempSync(path.join(tmpdir(), 'cs-agent-sweep-'))
     workspacesRoot = path.join(root, 'system')
-    ;(application.getPath as Mock).mockImplementation((key: string) => {
-      if (key === 'feature.agents.data') return root
+    ;(application.getPath as Mock).mockImplementation((key: string, file?: string) => {
+      if (key === 'feature.agents.data') return file ? path.join(root, file) : root
       if (key === 'feature.agents.system_workspaces') return workspacesRoot
       return `/mock/${key}`
     })
@@ -185,16 +192,21 @@ describe('sweepAgentOrphans', () => {
     expect(existsSync(dateDir)).toBe(false)
   })
 
-  it('retains orphan files and deletion intent until native shutdown succeeds', async () => {
+  it('defers reclaim for retained work without closing the conversation by its old directory name', async () => {
     const orphan = path.join(workspacesRoot, '2026-08-19', 'session-purged')
     mkdirSync(orphan, { recursive: true })
     writeFileSync(path.join(orphan, 'output.txt'), 'recoverable output')
     makeStale(orphan)
-    closeSessionForArchive.mockRejectedValueOnce(new Error('native process still open'))
+    const usageId = await storage.acquireUsage({
+      sessionId: 'session-purged',
+      cwd: root,
+      owner: { kind: 'runtime', contextId: 'retained' }
+    })
+    closeSessionForArchive.mockRejectedValue(new Error('GC must not close a conversation'))
     await sweepAgentOrphans()
     expect(existsSync(path.join(orphan, 'output.txt'))).toBe(true)
-    expect(existsSync(`${orphan}.storage.json`)).toBe(true)
-    makeStale(`${orphan}.storage.json`)
+    expect(closeSessionForArchive).not.toHaveBeenCalled()
+    await storage.releaseUsage(usageId)
     await sweepAgentOrphans()
     expect(existsSync(orphan)).toBe(false)
     expect(existsSync(`${orphan}.storage.json`)).toBe(false)

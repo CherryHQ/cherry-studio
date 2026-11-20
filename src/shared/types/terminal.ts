@@ -64,6 +64,7 @@ export type TerminalRejection =
   | 'stale_control'
   | 'closing'
   | 'capacity_exceeded'
+  | 'admission_unavailable'
   | 'identity_conflict'
   | 'outcome_unknown'
   | 'unsupported'

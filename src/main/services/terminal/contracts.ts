@@ -243,6 +243,7 @@ export type TerminalHostContract = {
       string | null
     >
     release: UtilityProcessMethod<{ host: TerminalHostIdentity; id: TerminalResourceId }, boolean>
+    advanceAdmission: UtilityProcessMethod<{ host: TerminalHostIdentity; admissionRevision: number }, void>
     seal: UtilityProcessMethod<{ host: TerminalHostIdentity; admissionRevision: number }, TerminalResourceState[]>
   }
   streams: { observe: UtilityProcessStreamMethod<TerminalHostIdentity, never, UtilityProcessStreamFrame, void> }
