@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
-import { AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
+import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -228,24 +228,29 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
  * persisted configuration inside the write transaction. Nested values such as
- * `env_vars` still replace as a whole. An explicitly present `undefined` value
- * removes that configuration key; omission preserves it.
+ * `env_vars` still replace as a whole, except `prompt_overrides`, which merges
+ * block by block. An explicitly present `undefined` value removes that
+ * configuration key; omission preserves it.
  */
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  // Nullable overrides of the picked columns: `null` clears the tier so the
-  // runtime falls back to the main model (unset is the default state).
-  planModel: UniqueModelIdSchema.nullable().optional(),
-  smallModel: UniqueModelIdSchema.nullable().optional(),
-  configuration: AgentConfigurationSchema.partial().optional(),
-  /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
-  reasoningValidationModelId: UniqueModelIdSchema.optional(),
-  /**
-   * Per-skill enablement changes for this agent. Omitted means "leave skills
-   * unchanged"; an empty array is a no-op. The server applies each update
-   * without replacing unrelated skill rows.
-   */
-  skillUpdates: AgentSkillUpdateListSchema.optional()
-})
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    // Nullable overrides of the picked columns: `null` clears the tier so the
+    // runtime falls back to the main model (unset is the default state).
+    planModel: UniqueModelIdSchema.nullable().optional(),
+    smallModel: UniqueModelIdSchema.nullable().optional(),
+    configuration: AgentConfigurationSchema.partial()
+      .extend({ prompt_overrides: AgentPromptOverridesPatchSchema.optional() })
+      .optional(),
+    /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
+    reasoningValidationModelId: UniqueModelIdSchema.optional(),
+    /**
+     * Per-skill enablement changes for this agent. Omitted means "leave skills
+     * unchanged"; an empty array is a no-op. The server applies each update
+     * without replacing unrelated skill rows.
+     */
+    skillUpdates: AgentSkillUpdateListSchema.optional()
+  })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // Agent creation and task command schemas live on IpcApi (`ai.agent.*` in

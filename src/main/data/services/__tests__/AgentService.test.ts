@@ -855,6 +855,28 @@ describe('AgentService', () => {
 
       expect(updated?.configuration).toEqual({ avatar: '🤖' })
     })
+
+    // Catches two settings windows saving different prompt blocks, where the second save dropped the first.
+    it('applies prompt overrides block by block, with null restoring a block', async () => {
+      const created = await insertAgent({ configuration: { avatar: '🤖' } })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: 'My skills.' } } })
+      agentService.updateAgent(created.id, {
+        configuration: { prompt_overrides: { workspace_system: 'My workspace.' } }
+      })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        skills: 'My skills.',
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: null } } })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { workspace_system: null } } })
+      expect(agentService.getAgent(created.id)?.configuration).toEqual({ avatar: '🤖' })
+    })
   })
 
   describe('builtin_role write protection', () => {

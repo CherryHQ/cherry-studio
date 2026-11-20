@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { AgentConfigurationSchema, type AgentEntity } from '@shared/data/api/schemas/agents'
 
 import {
   type AgentFormState,
@@ -161,7 +161,9 @@ describe('diffAgentUpdate', () => {
     const next = applyAgentFormPatch(baseline, { heartbeatTimeoutMinutes: 10 })
     const update = diffAgentUpdate(baseline, next)
     expect(update?.dto).toEqual({ configuration: { heartbeat_timeout_minutes: 10 } })
-    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    const saved = buildInitialAgentFormState(
+      createAgent({ configuration: AgentConfigurationSchema.parse(update?.dto.configuration) })
+    )
     expect(saved.heartbeatTimeoutMinutes).toBe(10)
   })
 
@@ -171,20 +173,26 @@ describe('diffAgentUpdate', () => {
     expect(diffAgentUpdate(baseline, baseline)).toBeNull()
   })
 
-  // Restoring a block must reach the runtime too, so the remaining map replaces the stored one.
-  it('saves the whole prompt override map when a block is edited or restored', () => {
+  // Catches a save that sends the whole map, which would drop a block another window saved meanwhile.
+  it('saves only the prompt override blocks that were edited or restored', () => {
     const baseline = buildInitialAgentFormState(
-      createAgent({ type: 'pi-durable', configuration: { prompt_overrides: { citations: 'Cite briefly.' } } })
+      createAgent({
+        type: 'pi-durable',
+        configuration: { prompt_overrides: { citations: 'Cite briefly.', skills: 'Mine.' } }
+      })
     )
-    expect(baseline.promptOverrides).toEqual({ citations: 'Cite briefly.' })
 
-    const edited = applyAgentFormPatch(baseline, { promptOverrides: { citations: 'Cite briefly.', memories: 'Mine.' } })
-    const restored = applyAgentFormPatch(baseline, { promptOverrides: {} })
+    const edited = applyAgentFormPatch(baseline, {
+      promptOverrides: { citations: 'Cite briefly.', skills: 'Mine.', memories: 'Remember.' }
+    })
+    const restored = applyAgentFormPatch(baseline, { promptOverrides: { skills: 'Mine.' } })
 
     expect(diffAgentUpdate(baseline, edited)?.dto).toEqual({
-      configuration: { prompt_overrides: { citations: 'Cite briefly.', memories: 'Mine.' } }
+      configuration: { prompt_overrides: { memories: 'Remember.' } }
     })
-    expect(diffAgentUpdate(baseline, restored)?.dto).toEqual({ configuration: { prompt_overrides: {} } })
+    expect(diffAgentUpdate(baseline, restored)?.dto).toEqual({
+      configuration: { prompt_overrides: { citations: null } }
+    })
   })
 
   it('includes only changed top-level keys in the PATCH payload', () => {

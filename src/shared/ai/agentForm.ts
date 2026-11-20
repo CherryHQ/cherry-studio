@@ -4,9 +4,14 @@ import {
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
 import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
-import type { AgentPromptOverrides } from '@shared/ai/agentPromptSections'
+import type { AgentPromptOverrides, AgentPromptOverridesPatch } from '@shared/ai/agentPromptSections'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
-import type { AgentEntity, AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import {
+  type AgentEntity,
+  AgentConfigurationSchema,
+  type AgentSkillUpdateDto,
+  type UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -163,6 +168,18 @@ export interface AgentDiffResult {
  * `configuration` contains only the keys edited by this form. Main merges those
  * keys into the latest persisted configuration inside the write transaction.
  */
+/** The blocks edited or restored since `before`, so a save leaves blocks another window changed alone. */
+function diffPromptOverrides(
+  before: AgentPromptOverrides,
+  after: AgentPromptOverrides
+): AgentPromptOverridesPatch | null {
+  const patch: AgentPromptOverridesPatch = {}
+  for (const block of new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof AgentPromptOverrides>) {
+    if (before[block] !== after[block]) patch[block] = after[block] ?? null
+  }
+  return Object.keys(patch).length ? patch : null
+}
+
 export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
   let dirty = false
@@ -211,7 +228,7 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     dirty = true
   }
 
-  const cfgPatch: AgentConfiguration = {}
+  const cfgPatch: NonNullable<UpdateAgentDto['configuration']> = {}
   let cfgDirty = false
 
   if (baseline.avatar !== next.avatar) {
@@ -241,8 +258,9 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
     cfgDirty = true
   }
-  if (JSON.stringify(baseline.promptOverrides) !== JSON.stringify(next.promptOverrides)) {
-    cfgPatch.prompt_overrides = next.promptOverrides
+  const overridesPatch = diffPromptOverrides(baseline.promptOverrides, next.promptOverrides)
+  if (overridesPatch) {
+    cfgPatch.prompt_overrides = overridesPatch
     cfgDirty = true
   }
   const languagePatch = diffLanguageUpdate(baseline, next)
@@ -278,7 +296,8 @@ export type AgentCreateSettings = Pick<
  */
 export function buildAgentSettingsConfiguration(settings: AgentCreateSettings): AgentConfiguration {
   const blank = buildInitialAgentFormState()
-  return diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {}
+  // A blank Agent has no prompt block to restore, so the patch parses as a stored configuration.
+  return AgentConfigurationSchema.parse(diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {})
 }
 
 export function normalizeAgentLanguageInput(raw: unknown): string | null {

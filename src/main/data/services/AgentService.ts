@@ -159,13 +159,14 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
 /**
  * Apply the public first-level configuration PATCH to the persisted JSON.
  *
- * Object-valued keys (for example `env_vars`) remain whole-value replacements.
- * `builtin_role` is deliberately skipped because it is owned by Main; callers
- * are validated separately before this helper runs.
+ * Object-valued keys (for example `env_vars`) remain whole-value replacements,
+ * except `prompt_overrides`, merged per block so two windows editing different
+ * blocks both keep their change. `builtin_role` is deliberately skipped because
+ * it is owned by Main; callers are validated separately before this helper runs.
  */
 function applyAgentConfigurationPatch(
   persisted: unknown,
-  patch: AgentConfiguration | undefined
+  patch: UpdateAgentDto['configuration']
 ): Record<string, unknown> {
   const next =
     persisted && typeof persisted === 'object' && !Array.isArray(persisted)
@@ -174,7 +175,15 @@ function applyAgentConfigurationPatch(
 
   for (const [key, value] of Object.entries(patch ?? {})) {
     if (key === 'builtin_role') continue
-    if (value === undefined) {
+    if (key === 'prompt_overrides' && value !== undefined) {
+      const overrides = { ...(next.prompt_overrides as Record<string, string> | undefined) }
+      for (const [block, text] of Object.entries(value as Record<string, string | null>)) {
+        if (text === null) delete overrides[block]
+        else overrides[block] = text
+      }
+      if (Object.keys(overrides).length) next.prompt_overrides = overrides
+      else delete next.prompt_overrides
+    } else if (value === undefined) {
       delete next[key]
     } else {
       next[key] = value

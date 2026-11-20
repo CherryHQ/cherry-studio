@@ -65,7 +65,9 @@ follow data or settings (workspace instructions, skills, MCP instructions,
 workspace `system.md`, reply language). `buildAgentRuntimePrompt` and
 `buildDurablePrompt` substitute an override only for a block the current
 settings generate, and a replaced live block no longer follows its data until
-the override is removed. Claude Code and Pi ignore overrides. Identity is edited
+the override is removed. An update patches overrides block by block (text
+replaces a block, `null` removes its override, an omitted block stays), so two
+windows saving different blocks keep both. Claude Code and Pi ignore overrides. Identity is edited
 through the `SOUL.md`, `USER.md`, and `FACT.md` files themselves.
 
 ## Persona and onboarding

@@ -23,6 +23,9 @@ export type EditablePromptSection = (typeof EDITABLE_PROMPT_SECTIONS)[number]
 /** Per-Agent replacement text, keyed by block; a missing key keeps the generated text. */
 export const AgentPromptOverridesSchema = z.partialRecord(z.enum(EDITABLE_PROMPT_SECTIONS), z.string())
 export type AgentPromptOverrides = z.infer<typeof AgentPromptOverridesSchema>
+/** An update to some blocks only: text replaces a block, `null` restores it, a missing key leaves it alone. */
+export const AgentPromptOverridesPatchSchema = z.partialRecord(z.enum(EDITABLE_PROMPT_SECTIONS), z.string().nullable())
+export type AgentPromptOverridesPatch = z.infer<typeof AgentPromptOverridesPatchSchema>
 
 export function isEditablePromptSection(key: string): key is EditablePromptSection {
   return (EDITABLE_PROMPT_SECTIONS as readonly string[]).includes(key)
