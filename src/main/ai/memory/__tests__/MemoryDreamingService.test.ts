@@ -761,7 +761,13 @@ describe('memory organization lifecycle and commit fences', () => {
       dreaming = new MemoryDreamingService()
       MockApplicationUtils.setService('MemoryService', memory)
       await memory._doInit()
+      if (action === 'clear')
+        vi.spyOn(memoryFiles, 'readMemoryBytes').mockRejectedValueOnce(new Error('unreadable shared file'))
       await dreaming._doInit()
+      if (action === 'clear') {
+        expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+        await dreaming.execute(job())
+      }
       expect(readExtractionState(batch.key)?.pending).toHaveLength(action === 'unchanged' ? 8 : 0)
       if (action !== 'unchanged') {
         await dreaming.execute(job())
