@@ -50,12 +50,14 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  */
 export function useAssistantsApi(options: { enabled?: boolean } = {}) {
   const enabled = options.enabled ?? true
+  const invalidate = useInvalidateCache()
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/assistants', {
     enabled,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
-  // Assistants created in main (e.g. by an Agent's create tool) announce themselves here.
-  useDataChange(enabled ? '/assistants' : [], () => void refetch())
+  // Assistants created in main (e.g. by an Agent's create tool) announce themselves here;
+  // refresh every list variant so a searched or grouped library picks them up too.
+  useDataChange(enabled ? '/assistants' : [], () => void invalidate('/assistants'))
 
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
