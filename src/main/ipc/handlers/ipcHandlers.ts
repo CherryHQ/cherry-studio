@@ -46,6 +46,7 @@ import { selectionHandlers } from './selection'
 import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
+import { themeHandlers } from './theme'
 import { toolResultHandlers } from './toolResult'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
@@ -108,6 +109,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...screenshotChatHandlers,
   ...selectionHandlers,
   ...skillHandlers,
+  ...themeHandlers,
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,

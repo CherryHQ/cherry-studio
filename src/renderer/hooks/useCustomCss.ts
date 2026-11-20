@@ -1,9 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 
 const CUSTOM_CSS_ELEMENT_ID = 'user-defined-custom-css'
+
+const previewEvents = new EventTarget()
+
+export function previewCustomCss(css: string | null) {
+  previewEvents.dispatchEvent(new CustomEvent('preview', { detail: css }))
+}
 
 /**
  * Sync a `<style id="user-defined-custom-css">` element in `<head>` with the given
@@ -42,5 +48,11 @@ export function useCustomCssInjection(cssText: string | undefined): void {
  */
 export function useCustomCss(): void {
   const [customCss] = usePreference('ui.custom_css')
-  useCustomCssInjection(customCss)
+  const [preview, setPreview] = useState<string | null>(null)
+  useEffect(() => {
+    const update = (event: Event) => setPreview((event as CustomEvent<string | null>).detail)
+    previewEvents.addEventListener('preview', update)
+    return () => previewEvents.removeEventListener('preview', update)
+  }, [])
+  useCustomCssInjection(preview ?? customCss)
 }

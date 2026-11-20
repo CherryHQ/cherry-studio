@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Bot, Layers, Settings2, Sparkles } from 'lucide-react'
+import { Bot, Layers, Palette, Settings2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +18,7 @@ import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
 import { MarketplaceTemplates } from './MarketplaceTemplates'
+import { MarketplaceThemes, useMarketplaceThemes } from './MarketplaceThemes'
 import { RegistrySkillsCatalog } from './RegistrySkillsCatalog'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
@@ -26,9 +27,10 @@ const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
   { id: 'agent', label: 'marketplace.type.agent', icon: Bot },
-  { id: 'mcp', label: 'marketplace.type.mcp', icon: McpLogo }
+  { id: 'mcp', label: 'marketplace.type.mcp', icon: McpLogo },
+  { id: 'theme', label: 'settings.theme.title', icon: Palette }
 ] as const
-const OVERVIEW_TYPES = ['skill', 'agent', 'mcp'] as const
+const OVERVIEW_TYPES = ['skill', 'agent', 'mcp', 'theme'] as const
 const marketplaceRoute = getRouteApi('/app/marketplace')
 
 export default function MarketplacePage() {
@@ -42,6 +44,7 @@ export default function MarketplacePage() {
     all: '',
     skill: '',
     agent: '',
+    theme: '',
     mcp: ''
   })
   const [templateCategory, setTemplateCategory] = useState('')
@@ -56,6 +59,7 @@ export default function MarketplacePage() {
     })
   }
   const query = queries[resourceType]
+  const themes = useMarketplaceThemes(query, resourceType === 'theme' || resourceType === 'all')
   const skillSourceId = resourceType === 'skill' ? sourceId : null
   const registrySource = skillSourceId === 'skills.sh' || skillSourceId === 'claude-plugins.dev' ? skillSourceId : null
   const skills = useMarketplace(
@@ -91,9 +95,10 @@ export default function MarketplacePage() {
     skill: registrySource ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
     agent: agents.isLoading || agents.error || assistants.isLoading || assistants.error ? null : templates.length,
     mcp: mcp.presets.length,
+    theme: themes.data?.[0]?.total ?? null,
     all: null
   }
-  const curatedCounts = [skills.curatedCount, counts.agent, counts.mcp]
+  const curatedCounts = [skills.curatedCount, counts.agent, counts.mcp, counts.theme]
   if (curatedCounts.every((count) => count !== null))
     counts.all = curatedCounts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
   const browse = (type: MarketplaceResourceType) => {
@@ -103,6 +108,7 @@ export default function MarketplacePage() {
     selectResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
+    if (type === 'theme') return <MarketplaceThemes catalog={themes} preview={preview} />
     if (type === 'skill' && !preview && registrySource)
       return <RegistrySkillsCatalog source={registrySource} query={query} active />
     if (type === 'skill')
@@ -236,7 +242,9 @@ export default function MarketplacePage() {
               {OVERVIEW_TYPES.map((type) => (
                 <section key={type} data-testid={'marketplace-section-' + type}>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-medium">{t('marketplace.type.' + type)}</h2>
+                    <h2 className="text-sm font-medium">
+                      {t(type === 'theme' ? 'settings.theme.title' : 'marketplace.type.' + type)}
+                    </h2>
                     <Button variant="ghost" size="sm" onClick={() => browse(type)}>
                       {t('marketplace.view_all')}
                     </Button>
