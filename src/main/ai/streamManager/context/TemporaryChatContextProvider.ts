@@ -11,7 +11,6 @@ import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
-import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -87,7 +86,13 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const messageSnapshot = assistant
-      ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
+      ? {
+          id: assistant.id,
+          name: assistant.name,
+          emoji: assistant.emoji,
+          ...(assistant.avatarFileId ? { avatarFileId: assistant.avatarFileId } : {}),
+          model: modelSnap
+        }
       : undefined
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
@@ -98,19 +103,19 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       modelId: model.id
     })
 
-    const prior = temporaryChatService.listMessages(req.topicId)
-    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: toContentRole(m.role),
-      parts: m.data.parts ?? []
-    }))
     // Same scope rule as the persistent provider, and likewise independent of
     // the `enabled` kill-switch, which owns the overflow policy instead.
     const contextSettings = resolveContextSettings({
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
-    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
+    const history: CherryUIMessage[] = temporaryChatService
+      .listMessages(req.topicId, contextSettings.maxMessages)
+      .map((m) => ({
+        id: m.id,
+        role: toContentRole(m.role),
+        parts: m.data.parts ?? []
+      }))
 
     const messageId = uuidv7()
     const listeners: StreamListener[] = [
@@ -137,6 +142,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
+    temporaryChatService.retainAvatar(req.topicId, messageSnapshot?.avatarFileId)
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],

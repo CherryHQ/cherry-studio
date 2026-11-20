@@ -28,6 +28,42 @@ function run(chunks: readonly UIMessageChunk[]): GeminiGenerateContentResponse[]
 }
 
 describe('AiSdkToGeminiSse (streaming)', () => {
+  it('retains generated media separately from following text in the complete response', () => {
+    const adapter = new AiSdkToGeminiSse({ model: 'gemini' })
+    adapter.transformChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AQID',
+      providerMetadata: { google: { thoughtSignature: 'signature' } }
+    })
+    adapter.transformChunk(textDelta('caption'))
+    expect(adapter.buildNonStreamingResponse().candidates[0].content.parts).toEqual([
+      { inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'signature' },
+      { text: 'caption' }
+    ])
+  })
+
+  it.each(['BLOCKLIST', 'MALFORMED_FUNCTION_CALL', 'CONTINUATION'])(
+    'retains native %s instead of reconstructing it from a unified finish reason',
+    (rawFinishReason) => {
+      const adapter = new AiSdkToGeminiSse({ model: 'gemini' })
+      adapter.transformChunk({
+        type: 'message-metadata',
+        messageMetadata: {
+          rawFinishReason,
+          providerMetadata: { vertex: { finishMessage: 'Native outcome', continuationToken: 'resume' } }
+        }
+      })
+      adapter.transformChunk(finish('other'))
+      expect(adapter.finalizeEvents().at(-1)?.candidates[0]).toMatchObject({
+        finishReason: rawFinishReason,
+        finishMessage: 'Native outcome',
+        continuationToken: 'resume'
+      })
+      expect(adapter.buildNonStreamingResponse().candidates[0].finishReason).toBe(rawFinishReason)
+    }
+  )
+
   it.each([{ chunks: [] }, { chunks: [textDelta('Answer')] }])(
     'retains the billing response identity in both final responses: %j',
     ({ chunks }) => {
@@ -236,3 +272,56 @@ it.each([null, undefined, [], true, 42, 'invalid json'])(
     ).toThrow('Invalid tool arguments')
   }
 )
+
+it('completes an other finish reason as OTHER in streaming and non-streaming responses', async () => {
+  const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(controller) {
+      controller.enqueue({ type: 'finish', finishReason: 'other' })
+      controller.close()
+    }
+  })
+  const frames: GeminiGenerateContentResponse[] = []
+  for await (const frame of adapter.transform(stream)) frames.push(frame)
+  expect(frames.at(-1)?.candidates[0].finishReason).toBe('OTHER')
+  expect(adapter.buildNonStreamingResponse().candidates[0].finishReason).toBe('OTHER')
+})
+
+describe('terminal failure reasons', () => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+        controller.enqueue({ type: 'finish', finishReason: reason })
+        controller.close()
+      }
+    })
+    const read = async () => {
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
+    }
+    await expect(read()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+    for (const withTool of [false, true]) {
+      const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
+        expect.objectContaining({ statusCode: 502 })
+      )
+    }
+  })
+})
+
+it.each([
+  ['stop', 'STOP'],
+  ['tool-calls', 'STOP'],
+  ['length', 'MAX_TOKENS'],
+  ['content-filter', 'SAFETY']
+] as const)('maps %s to %s', (reason, expected) => {
+  expect(run([finish(reason)]).at(-1)?.candidates[0].finishReason).toBe(expected)
+})

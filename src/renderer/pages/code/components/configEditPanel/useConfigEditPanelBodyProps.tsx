@@ -17,6 +17,7 @@ import type { ConfigEditPanelProps } from './types'
 import { useConfigDraftController } from './useConfigDraftController'
 
 export function useConfigEditPanelBodyProps({
+  open = true,
   onClose,
   cliTool,
   provider,
@@ -86,6 +87,7 @@ export function useConfigEditPanelBodyProps({
       {unknownCliConfigModelHint && <div className="h-2" />}
       <ModelSelector
         showSubscriptionOffers={false}
+        includeAgentOnlyModels
         multiple={false}
         selectionType="id"
         value={draft.modelId}
@@ -151,7 +153,7 @@ export function useConfigEditPanelBodyProps({
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return {
-    open: true,
+    open,
     onClose,
     provider,
     providerName,

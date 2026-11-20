@@ -3,6 +3,7 @@ import type { buildSessionContext, SessionEntry } from '@earendil-works/pi-codin
 
 import {
   type CallKey,
+  ENTRY_KINDS,
   callKeyOf,
   decodeEntry,
   type HistoryEntry,
@@ -17,7 +18,7 @@ export type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][
 type AssistantStop = Extract<HistoryEntry, { kind: 'assistant' }>['stop']
 type ToolCallPart = Extract<AssistantMessage['content'][number], { type: 'toolCall' }>
 
-/** How a blocked call's result reads, as Durable stores it (README "History projection"). */
+/** How a blocked call's result reads (README "History projection"); the projection reads `blocked` back from it. */
 export const BLOCKED_PREFIX = 'Tool call blocked: '
 export const ZERO_USAGE: UsageFact = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 const STOPS: ReadonlySet<string> = new Set<AssistantStop>(['stop', 'length', 'toolUse', 'error', 'aborted'])
@@ -42,6 +43,51 @@ export const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
   totalTokens: a.totalTokens + b.totalTokens,
   costUsd: a.costUsd + b.costUsd
 })
+
+export function restoredRunUsage(entries: readonly SessionEntry[], thread: ThreadId): UsageFact[] {
+  const totals: UsageFact[] = []
+  let run: number | undefined
+  for (const entry of entries) {
+    if (entry.type === 'custom' && entry.customType === 'cherry.native-run') {
+      const data = entry.data
+      run =
+        data &&
+        typeof data === 'object' &&
+        'thread' in data &&
+        data.thread === thread &&
+        'run' in data &&
+        typeof data.run === 'number' &&
+        Number.isSafeInteger(data.run) &&
+        data.run > 0
+          ? data.run
+          : undefined
+      if (run !== undefined) while (totals.length < run) totals.push(ZERO_USAGE)
+    } else if (run && entry.type === 'message' && entry.message.role === 'assistant') {
+      totals[run - 1] = addUsage(totals[run - 1], usageFact(entry.message.usage))
+    } else if (entry.type === 'custom' && entry.customType === ENTRY_KINDS.summaryUsage) {
+      const data = entry.data
+      const ownerRun =
+        data &&
+        typeof data === 'object' &&
+        'nativeThread' in data &&
+        data.nativeThread === thread &&
+        'nativeRun' in data
+          ? data.nativeRun
+          : undefined
+      if (typeof ownerRun === 'number' && Number.isSafeInteger(ownerRun) && ownerRun > 0) {
+        const accounting = decodeEntry({
+          id: runtimeId(entry.id),
+          kind: entry.customType,
+          data: entry.data as JsonValue
+        })
+        if (accounting?.kind !== 'record' || accounting.record.type !== 'summary-usage') continue
+        while (totals.length < ownerRun) totals.push(ZERO_USAGE)
+        totals[ownerRun - 1] = addUsage(totals[ownerRun - 1], accounting.record.value.usage)
+      }
+    }
+  }
+  return totals
+}
 
 /** Content as the package reads its text (HistoryEntry): an image as `[image]` in place, no thinking or calls. */
 export function textOf(content: string | readonly { readonly type: string }[]): string {
@@ -105,7 +151,10 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
       }
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }
     }
-    case 'toolResult':
+    case 'toolResult': {
+      const text = textOf(message.content)
+      // The extension wrote this prefix when the gate blocked the call; coding-agent keeps no other record of it.
+      const blocked = message.isError && text.startsWith(BLOCKED_PREFIX) ? text.slice(BLOCKED_PREFIX.length) : undefined
       return {
         kind: 'tool-result',
         id,
@@ -113,9 +162,11 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         callKey: callKeyFor(thread, message.toolCallId),
         tool: message.toolName,
         isError: message.isError,
-        text: textOf(message.content),
-        ...(message.details === undefined ? {} : { details: message.details })
+        text,
+        ...(message.details === undefined ? {} : { details: message.details }),
+        ...(blocked === undefined ? {} : { blocked })
       }
+    }
     default:
       return undefined
   }

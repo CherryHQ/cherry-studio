@@ -26,7 +26,6 @@ import type { CallInputs } from '../hostFacts'
 import { armSeq, idleDriverGeneration, type Key, keys, withdrawGeneration } from '../keys'
 import { budgetStops } from '../subagents/subagentDecisions'
 import {
-  awaitingApproval,
   type PendingResult,
   pendingResults,
   readSubagents,
@@ -66,7 +65,7 @@ function runEndStop(facts: Facts, inputs: CallInputs, goal: GoalSnapshot): StopR
   const round = lastRound(facts.history, goal)
   if (!round) return undefined
   return (
-    roundStopRequest(round, facts.thread, inputs.approvals) ??
+    roundStopRequest(round) ??
     (inputs.settings.autonomy === 'confirm-each-round' ? { code: 'paused_each_round' } : undefined)
   )
 }
@@ -146,7 +145,7 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
       ? statusMessage(
           runningBackground(facts)
             .filter(({ child }) => before.has(child))
-            .map(({ child, latest }) => ({ record: latest, awaiting: awaitingApproval(inputs.approvals, child) })),
+            .map(({ latest }) => latest),
           pending.filter(({ sessionId }) => before.has(sessionId))
         )
       : undefined

@@ -1,6 +1,8 @@
 name: E2E Regression Test
 
 on:
+  schedule:
+    - cron: "45 19 * * *" # 03:45 BJ Time — daily full regression on main
   workflow_dispatch:
     inputs:
       ref:
@@ -8,68 +10,19 @@ on:
         required: true
         default: "main"
         type: string
-      task:
-        description: "Test task (all = full regression)"
-        required: true
-        default: "all"
+      suite:
+        description: "Test suite to run (standalone smoke requires a branch)"
         type: choice
+        default: all
         options:
           - all
-          - startup-smoke
-          - mini-app
-          - notes
-          - marketplace
-          - settings
-          - assistants
-          - error-recovery
-          - chat-core
-          - translation
-          - system-integration
-          - knowledge
-          - mcp-skills
-          - code-tools
-          - paintings
-          - agents
-          - scheduled-tasks
-          - topics
-          - files
-          - data-backup
-          - browser
-          - mini-app-smoke
-          - notes-smoke
-          - mini-app-pinning
-          - marketplace-smoke
-          - custom-provider-chat
-          - provider-model-scroll
-          - custom-assistant
-          - chat-stream-failure
-          - clear-chat-messages
-          - chat-error-recovery
-          - translation-smoke
-          - quick-assistant
-          - knowledge-smoke
-          - everything-mcp
-          - skill-import
-          - code-cli
-          - openclaw
-          - cherryin-chat
-          - image-generation
-          - agent-basic-task
-          - claude-agent-runtime
-          - pi-runtime
-          - translation-settings
-          - native-settings
-          - native-notifications
-          - native-recovery
-      provider_mode:
-        description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
+          - regression
+          - smoke
+      task:
+        description: "Desktop regression modules or focused tasks (all = full regression)"
         required: true
-        default: "real"
-        type: choice
-        options:
-          - real
-          - mock
-
+        default: "all"
+        type: string
 permissions:
   contents: read
 
@@ -79,32 +32,40 @@ concurrency:
 
 jobs:
   resolve:
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
+    if: (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch') || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.ref.outputs.mode }}
       name: ${{ steps.ref.outputs.name }}
       ref: ${{ steps.ref.outputs.ref }}
       sha: ${{ steps.ref.outputs.sha }}
-      task: ${{ steps.ref.outputs.task }}
+      task: ${{ steps.suite.outputs.task }}
+      regression: ${{ steps.suite.outputs.regression }}
+      prepare_mcp: ${{ steps.suite.outputs.prepare_mcp }}
+      smoke: ${{ steps.suite.outputs.smoke }}
     steps:
-      - name: Checkout workflow controller
+      - &checkout-controller
+        name: Checkout workflow controller
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Set up pnpm
+      - &setup-pnpm
+        name: Set up pnpm
         uses: pnpm/action-setup@v5
 
-      - name: Set up Node.js
+      - &setup-node
+        name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
 
-      - name: Install controller dependencies
+      - &install-controller
+        name: Install controller dependencies
+        id: controller-dependencies
         shell: bash
         run: |
           for attempt in 1 2 3; do
@@ -117,17 +78,25 @@ jobs:
         id: ref
         shell: bash
         env:
-          REQUESTED_REF: ${{ inputs.ref }}
-          REQUESTED_TASK: ${{ inputs.task }}
+          REQUESTED_REF: ${{ inputs.ref || 'main' }}
         run: |
           pnpm exec tsx scripts/e2e/regression/cli.ts resolve-ref \
             --requested "$REQUESTED_REF" \
             --repository "${{ github.repository }}"
-          echo "task=$REQUESTED_TASK" >> "$GITHUB_OUTPUT"
 
-  test:
+      - name: Select test suites and tasks
+        id: suite
+        shell: bash
+        env:
+          REQUESTED_INPUTS: ${{ toJSON(inputs) }}
+          REF_MODE: ${{ steps.ref.outputs.mode }}
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts select-tasks --mode "$REF_MODE" --inputs-json "$REQUESTED_INPUTS"
+
+  build:
+    name: Build E2E application (${{ matrix.platform }})
     needs: resolve
-    strategy:
+    if: needs.resolve.outputs.mode == 'branch'
+    strategy: &desktop-strategy
       fail-fast: false
       max-parallel: 2
       matrix:
@@ -136,6 +105,67 @@ jobs:
             platform: macos
           - runner: windows-2022
             platform: windows
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - *checkout-controller
+
+      - &checkout-application
+        name: Checkout application under test
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+          path: target-app
+          fetch-depth: 1
+
+      - *setup-pnpm
+
+      - *setup-node
+
+      - &install-application
+        name: Install application dependencies
+        id: app-dependencies
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app install --frozen-lockfile
+
+      - name: Download application binary dependencies
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app download:binaries
+
+      - name: Build application and utility processes
+        shell: bash
+        working-directory: target-app
+        run: |
+          pnpm run build:utility-process
+          pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+
+      - name: Archive platform build
+        shell: bash
+        working-directory: target-app
+        run: |
+          tar -cf ../application.tar out resources/binaries
+          node -p 'JSON.stringify({
+            sha: require("node:child_process").execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+            platform: process.platform, arch: process.arch, node: process.version,
+            electron: require("electron/package.json").version
+          })' > ../application.json
+
+      - name: Upload platform build
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-build-${{ matrix.platform }}-${{ needs.resolve.outputs.sha }}
+          path: |
+            application.tar
+            application.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+  test:
+    name: Desktop regression (${{ matrix.platform }})
+    needs: [resolve, build]
+    if: "!cancelled() && needs.resolve.result == 'success' && needs.resolve.outputs.regression == 'true' && (needs.resolve.outputs.mode == 'tag' || needs.build.result == 'success')"
+    strategy: *desktop-strategy
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     permissions:
@@ -146,45 +176,23 @@ jobs:
       MCP_TIMEOUT: "30000"
       MCP_TOOL_TIMEOUT: "240000"
     steps:
-      - name: Checkout workflow controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
+      - *checkout-controller
 
-      - name: Checkout application under test
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve.outputs.sha }}
-          persist-credentials: false
-          path: target-app
-          fetch-depth: 1
+      - *checkout-application
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
+      - *setup-pnpm
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
+      - *setup-node
 
-      - name: Export pinned Node.js version
+      - &export-node-version
+        name: Export pinned Node.js version
         shell: bash
         run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
 
-      - name: Install controller dependencies
-        id: controller-dependencies
-        shell: bash
-        run: |
-          for attempt in 1 2 3; do
-            pnpm install --frozen-lockfile && exit 0
-            [[ "$attempt" == "3" ]] && exit 1
-            sleep $((attempt * 15))
-          done
+      - *install-controller
 
-      - name: Define isolated test directory
+      - &define-run-dir
+        name: Define isolated test directory
         shell: bash
         run: |
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
@@ -207,7 +215,6 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
-          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Prepare Notification Center on the disposable macOS runner
         if: matrix.platform == 'macos'
@@ -247,30 +254,53 @@ jobs:
           sleep 1
           kill -0 "$(cat "$RUN_DIR/state/ci-native-permissions.pid")"
 
-      - name: Cache code tool downloads
+      - &cache-code-tools
+        name: Cache code tool downloads
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/cherry-code-tools-npm/_cacache
           key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/e2e-regression-test.yml') }}
 
-      - name: Install code tools under test
+      - &install-code-tools
+        name: Install code tools under test
         shell: bash
         env:
           npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
         run: |
-          npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
+          npm install --global @anthropic-ai/claude-code@2.1.325 @openai/codex@0.169.0 openclaw@2026.11.3
           claude --version
           codex --version
           openclaw --version
 
+      - name: Verify OpenClaw on the Windows system PATH
+        if: matrix.platform == 'windows' && (needs.resolve.outputs.task == 'all' || contains(format(',{0},', needs.resolve.outputs.task), ',code-tools,') || contains(format(',{0},', needs.resolve.outputs.task), ',openclaw,'))
+        shell: pwsh
+        run: |
+          # Cherry Studio refreshes the Windows PATH from the registry before launching system CLIs.
+          $nodeDirectory = Split-Path -Parent (Get-Command node.exe -ErrorAction Stop).Source
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          [Environment]::SetEnvironmentVariable('Path', "$nodeDirectory;$machinePath", 'Machine')
+          $env:Path = [Environment]::ExpandEnvironmentVariables((@(
+            [Environment]::GetEnvironmentVariable('Path', 'Machine')
+            [Environment]::GetEnvironmentVariable('Path', 'User')
+          ) -join ';'))
+          $actual = & node.exe -p process.versions.node
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $env:NODE_VERSION) {
+            throw "OpenClaw's system PATH resolved Node.js $actual instead of $env:NODE_VERSION."
+          }
+          Write-Host "OpenClaw system PATH resolves Node.js $actual"
+          & openclaw.cmd config schema | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Prepare Everything MCP package
-        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mcp-skills' || needs.resolve.outputs.task == 'everything-mcp'
+        if: needs.resolve.outputs.prepare_mcp == 'true'
         shell: bash
         env:
           npm_config_cache: ${{ env.RUN_DIR }}/private/npm-cache
         run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
 
-      - name: Suppress browser first-run UI on the disposable Windows runner
+      - &suppress-browser-first-run
+        name: Suppress browser first-run UI on the disposable Windows runner
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -280,7 +310,6 @@ jobs:
 
       - name: Start in-job mock provider
         id: mock
-        if: inputs.provider_mode == 'mock'
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
@@ -288,42 +317,42 @@ jobs:
 
       - name: Validate test configuration
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ steps.mock.outputs.embedding_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
-          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
-          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
         run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
 
-      - name: Install application dependencies
-        id: app-dependencies
-        if: needs.resolve.outputs.mode == 'branch'
-        run: pnpm --dir target-app install --frozen-lockfile
+      - *install-application
 
-      - name: Download application binary dependencies
+      - &download-platform-build
+        name: Download platform build
         if: needs.resolve.outputs.mode == 'branch'
-        run: pnpm --dir target-app download:binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: e2e-build-${{ matrix.platform }}-${{ needs.resolve.outputs.sha }}
+          path: e2e-build
 
-      - name: Prepare application runtime once
-        if: needs.resolve.outputs.mode == 'branch'
-        shell: bash
-        run: |
-          pnpm --dir target-app rebuild:electron
-          pnpm --dir target-app run build:utility-process
-
-      - name: Build application once
-        id: app-build
+      - &restore-platform-build
+        name: Verify and restore platform build
         if: needs.resolve.outputs.mode == 'branch'
         shell: bash
         working-directory: target-app
-        run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+        env:
+          TEST_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict')
+          const { execFileSync } = require('node:child_process')
+          const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+          assert.equal(sha, process.env.TEST_SHA, 'Wrong application checkout')
+          assert.deepEqual(require('../e2e-build/application.json'), {
+            sha, platform: process.platform, arch: process.arch, node: process.version,
+            electron: require('electron/package.json').version
+          }, 'Application build identity mismatch')
+          NODE
+          tar -xf ../e2e-build/application.tar
+
+      - &rebuild-native-module
+        name: Rebuild the application native module
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app rebuild:electron
 
       - name: Sign isolated macOS notification runtime
         if: matrix.platform == 'macos'
@@ -365,38 +394,6 @@ jobs:
           --target-root "$TARGET_DIR"
           --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
 
-      - name: Prepare end-to-end test configuration
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ steps.mock.outputs.embedding_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
-          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
-          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
-            CHERRY_TEST_CHERRYIN_CHAT_MODEL
-            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
-            CHERRY_TEST_CHERRYIN_ACCOUNT
-            CHERRY_TEST_CHERRYIN_PASSWORD
-          )
-          for name in "${names[@]}"; do
-            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
-          done
-
       - name: Phase - Startup
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -405,6 +402,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase startup
+
       - name: Phase - Basic Features
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -413,6 +411,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase basicFeatures
+
       - name: Phase - Models And Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -421,6 +420,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase modelsAndAssistants
+
       - name: Phase - Translation Smoke
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -429,6 +429,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase translationSmoke
+
       - name: Phase - Desktop Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -437,6 +438,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase desktopAssistants
+
       - name: Phase - Knowledge
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -445,6 +447,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase knowledge
+
       - name: Phase - Integrations
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -453,6 +456,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase integrations
+
       - name: Phase - Code Tools
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -461,14 +465,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase codeTools
-      - name: Phase - CherryIN
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase cherryIn
+
       - name: Phase - Images
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -477,6 +474,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase images
+
       - name: Phase - Agent Runtimes
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -485,6 +483,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase agentRuntimes
+
       - name: Phase - Topics
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -493,6 +492,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase topics
+
       - name: Phase - Chat Core
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -501,6 +501,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase chatCore
+
       - name: Phase - Notes
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -509,6 +510,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase notes
+
       - name: Phase - Translation
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -517,6 +519,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase translation
+
       - name: Phase - Settings
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 40
@@ -525,6 +528,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase settings
+
       - name: Phase - Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -533,6 +537,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase assistants
+
       - name: Phase - Files
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -541,6 +546,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase files
+
       - name: Phase - Data Management
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -549,6 +555,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase dataManagement
+
       - name: Phase - Browser
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -557,6 +564,7 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase browser
+
       - name: Phase - System
         if: "!cancelled() && steps.launch.outcome == 'success'"
         timeout-minutes: 25
@@ -566,26 +574,22 @@ jobs:
           --run-dir "$RUN_DIR"
           --phase system
 
-      - name: Clear end-to-end test configuration
-        if: always()
+      - name: Install Chromium for CherryIN authorization
+        id: cherryin_browser
+        if: "!cancelled() && steps.launch.outcome == 'success' && (needs.resolve.outputs.task == 'all' || contains(format(',{0},', needs.resolve.outputs.task), ',cherryin-chat,'))"
+        run: pnpm exec playwright install --only-shell chromium
+
+      - name: Phase - CherryIN
+        if: "!cancelled() && steps.cherryin_browser.outcome == 'success'"
+        timeout-minutes: 15
         shell: bash
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
-            CHERRY_TEST_CHERRYIN_CHAT_MODEL
-            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
-            CHERRY_TEST_CHERRYIN_ACCOUNT
-            CHERRY_TEST_CHERRYIN_PASSWORD
-          )
-          for name in "${names[@]}"; do
-            echo "$name=" >> "$GITHUB_ENV"
-          done
+        env:
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase cherryIn
 
       - name: Stop disposable macOS permission observer
         if: always() && matrix.platform == 'macos'
@@ -628,7 +632,6 @@ jobs:
           NODE
 
       - name: Stop controlled application
-        id: stop-app
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         run: pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$RUN_DIR"
@@ -643,64 +646,10 @@ jobs:
           if ($remaining.Count) { throw 'Run-owned notification shortcuts remain after cleanup' }
           Write-Output 'Owned notification shortcuts remaining: 0'
 
-      - name: Verify standalone smoke application
-        id: smoke-build
-        if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-build.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"
-        shell: bash
-        working-directory: target-app
-        run: node -e "require('node:fs').accessSync('out/main/main.js'); require('node:fs').accessSync('out/renderer/windows/main/index.html')"
-
-      - name: Generate regression checkpoint
-        id: regression_checkpoint
-        if: "!cancelled() && steps['smoke-build'].outcome == 'success'"
-        continue-on-error: true
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
-
-      - name: Upload regression checkpoint
-        if: "!cancelled() && steps.regression_checkpoint.outcome == 'success'"
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-evidence-${{ matrix.platform }}
-          overwrite: true
-          if-no-files-found: warn
-          retention-days: 30
-          path: |
-            ${{ runner.temp }}/cherry-regression/report
-            ${{ runner.temp }}/cherry-regression/evidence
-            ${{ runner.temp }}/cherry-regression/agent-workspace
-            ${{ runner.temp }}/cherry-regression/fixtures
-            ${{ runner.temp }}/cherry-regression/release/installation.json
-
-      - name: Run standalone smoke suite
-        if: always() && steps.smoke-build.outcome == 'success'
-        timeout-minutes: 60
-        shell: bash
-        working-directory: target-app
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
-          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
-          PLAYWRIGHT_HTML_OPEN: never
-        run: |
-          export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
-          node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
-            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
-
       - name: Generate platform report
         id: platform_report
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
         run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
       - name: Upload platform report and evidence
@@ -709,7 +658,7 @@ jobs:
         with:
           name: test-evidence-${{ matrix.platform }}
           overwrite: true
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
           path: |
             ${{ runner.temp }}/cherry-regression/report
@@ -723,38 +672,82 @@ jobs:
         shell: bash
         run: pnpm exec tsx scripts/e2e/regression/cli.ts gate --run-dir "$RUN_DIR"
 
+  smoke:
+    name: Standalone smoke (${{ matrix.platform }})
+    needs: [resolve, build]
+    if: needs.resolve.outputs.smoke == 'all' && needs.build.result == 'success'
+    strategy: *desktop-strategy
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - *checkout-controller
+
+      - *checkout-application
+
+      - *setup-pnpm
+
+      - *setup-node
+
+      - *export-node-version
+
+      - *install-controller
+
+      - *define-run-dir
+
+      - *cache-code-tools
+
+      - *install-code-tools
+
+      - *suppress-browser-first-run
+
+      - *install-application
+
+      - *download-platform-build
+
+      - *restore-platform-build
+
+      - *rebuild-native-module
+
+      - name: Run standalone smoke suite
+        id: smoke
+        timeout-minutes: 60
+        shell: bash
+        working-directory: target-app
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
+          node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
+            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
+
+      - name: Upload standalone smoke report and evidence
+        if: always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-evidence-${{ matrix.platform }}
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/cherry-regression/report
+            ${{ runner.temp }}/cherry-regression/evidence
+
   aggregate:
-    needs: [resolve, test]
-    if: always() && needs.resolve.result == 'success' && needs.test.result != 'skipped'
+    needs: [resolve, test, smoke]
+    if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: write
     steps:
-      - name: Checkout workflow controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
+      - *checkout-controller
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
+      - *setup-pnpm
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
+      - *setup-node
 
-      - name: Install controller dependencies
-        shell: bash
-        run: |
-          for attempt in 1 2 3; do
-            pnpm install --frozen-lockfile && exit 0
-            [[ "$attempt" == "3" ]] && exit 1
-            sleep $((attempt * 15))
-          done
+      - *install-controller
 
       - name: Download platform reports
         id: download-reports
@@ -762,37 +755,44 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: downloaded-reports
-          pattern: test-*
+          pattern: "{test,smoke}-evidence-*"
           merge-multiple: false
 
       - name: Collect platform evidence
         env:
-          TEST_RESULT: ${{ needs.test.result }}
+          RUN_REGRESSION: ${{ needs.resolve.outputs.regression }}
+          RUN_SMOKE: ${{ needs.resolve.outputs.smoke }}
         run: |
           mkdir -p platform-reports
           for platform in macos windows; do
-            source="downloaded-reports/test-evidence-$platform"
-            if [[ ! -d "$source" && "$TEST_RESULT" == "success" ]]; then
-              source="downloaded-reports/test-report/evidence/$platform"
-            fi
-            if [[ -d "$source" ]]; then
-              cp -a "$source" "platform-reports/$platform"
-            fi
+            destination="platform-reports/$platform"
+            for suite in test smoke; do
+              if [[ "$suite" == 'test' ]]; then
+                [[ "$RUN_REGRESSION" == 'true' ]] || continue
+              else
+                [[ "$RUN_SMOKE" == 'all' ]] || continue
+              fi
+              source="downloaded-reports/$suite-evidence-$platform"
+              if [[ -d "$source" ]]; then
+                mkdir -p "$destination"
+                cp -a "$source/." "$destination/"
+              fi
+            done
           done
 
       - name: Generate aggregate report
+        if: needs.resolve.outputs.regression == 'true'
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts aggregate
           --input platform-reports
           --output combined-report
-          --mode "${{ needs.resolve.outputs.mode }}"
-          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Summarize standalone smoke results
-        if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
+        if: needs.resolve.outputs.smoke == 'all'
         run: |
           node <<'NODE'
           const fs = require('node:fs')
+          fs.mkdirSync('combined-report', { recursive: true })
           const rows = ['\n## Standalone smoke suite\n', '| Platform | Passed | Failed | Flaky | Skipped |', '| --- | ---: | ---: | ---: | ---: |']
           for (const platform of ['macos', 'windows']) {
             const path = `platform-reports/${platform}/report/smoke-results.json`
@@ -806,6 +806,7 @@ jobs:
           NODE
 
       - name: Merge detailed Playwright reports
+        if: needs.resolve.outputs.regression == 'true'
         env:
           CHERRY_TEST_RUN_DIR: ${{ github.workspace }}/combined-report
           PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/merged-html
@@ -817,10 +818,32 @@ jobs:
 
       - name: Assemble complete report
         id: assemble-report
+        env:
+          RUN_REGRESSION: ${{ needs.resolve.outputs.regression }}
+          SMOKE_SCOPE: ${{ needs.resolve.outputs.smoke }}
         run: |
-          test -f platform-reports/macos/report/results.json
-          test -f platform-reports/windows/report/results.json
-          cp -a merged-html/. combined-report/
+          for platform in macos windows; do
+            report="platform-reports/$platform/report"
+            if [[ "$RUN_REGRESSION" == 'true' ]]; then test -f "$report/results.json"; fi
+            if [[ "$SMOKE_SCOPE" == 'all' ]]; then
+              test -s "$report/smoke-results.json"
+              test -s "$report/smoke/index.html"
+            fi
+          done
+          if [[ "$RUN_REGRESSION" == 'true' ]]; then
+            cp -a merged-html/. combined-report/
+          else
+            cat > combined-report/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en"><meta charset="utf-8"><title>Standalone smoke reports</title>
+          <h1>Standalone smoke reports</h1>
+          <ul>
+            <li><a href="evidence/macos/report/smoke/index.html">macOS report</a></li>
+            <li><a href="evidence/windows/report/smoke/index.html">Windows report</a></li>
+          </ul>
+          </html>
+          HTML
+          fi
           cp -a platform-reports combined-report/evidence
           mv combined-report/combined-report.md combined-report/summary.md
           test -f combined-report/index.html
@@ -835,22 +858,18 @@ jobs:
           path: combined-report
           retention-days: 30
 
-      - name: Remove temporary platform artifacts
-        if: success() && steps.download-reports.outcome == 'success' && steps.upload-report.outputs.artifact-id != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
-            --jq '.artifacts[] | select(.name == "test-evidence-macos" or .name == "test-evidence-windows") | .id' \
-            > temporary-artifact-ids.txt
-          while read -r artifact_id; do
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
-          done < temporary-artifact-ids.txt
-
       - name: Validate aggregate result
         if: always()
         env:
+          RUN_REGRESSION: ${{ needs.resolve.outputs.regression }}
+          RUN_SMOKE: ${{ needs.resolve.outputs.smoke }}
           TEST_RESULT: ${{ needs.test.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
         run: |
-          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate --report combined-report/combined-results.json
-          test "$TEST_RESULT" = "success"
+          if [[ "$RUN_REGRESSION" == 'true' ]]; then
+            test "$TEST_RESULT" = "success"
+            pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate --report combined-report/combined-results.json
+          fi
+          if [[ "$RUN_SMOKE" == 'all' ]]; then
+            test "$SMOKE_RESULT" = "success"
+          fi

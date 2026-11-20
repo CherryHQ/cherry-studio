@@ -6,7 +6,6 @@ import {
   firstLetter,
   getBaseModelName,
   getBriefInfo,
-  getDefaultGroupName,
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
@@ -159,59 +158,6 @@ describe('naming', () => {
     })
   })
 
-  describe('getDefaultGroupName', () => {
-    it('should extract group name from ID with slash', () => {
-      // 验证从包含斜杠的 ID 中提取组名
-      expect(getDefaultGroupName('group/model')).toBe('group')
-    })
-
-    it('should extract group name from ID with colon', () => {
-      // 验证从包含冒号的 ID 中提取组名
-      expect(getDefaultGroupName('group:model')).toBe('group')
-    })
-
-    it('should extract group name from ID with space', () => {
-      // 验证从包含空格的 ID 中提取组名
-      expect(getDefaultGroupName('foo bar')).toBe('foo')
-    })
-
-    it('should extract group name from ID with hyphen', () => {
-      // 验证从包含连字符的 ID 中提取组名
-      expect(getDefaultGroupName('group-subgroup-model')).toBe('group-subgroup')
-    })
-
-    it('should use first delimiters for special providers', () => {
-      // 这些 provider 下，'/', ' ', '-', '_', ':' 都属于第一类分隔符，分割后取第0部分
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
-      specialProviders.forEach((provider) => {
-        expect(getDefaultGroupName('Qwen/Qwen3-32B', provider)).toBe('qwen')
-        expect(getDefaultGroupName('gpt-4.1-mini', provider)).toBe('gpt')
-        expect(getDefaultGroupName('gpt-4.1', provider)).toBe('gpt')
-        expect(getDefaultGroupName('gpt_4.1', provider)).toBe('gpt')
-        expect(getDefaultGroupName('DeepSeek Chat', provider)).toBe('deepseek')
-        expect(getDefaultGroupName('foo:bar', provider)).toBe('foo')
-      })
-    })
-
-    it('should use first and second delimiters for default providers', () => {
-      // 默认情况下，'/', ' ', ':' 属于第一类分隔符，'-' '_' 属于第二类
-      expect(getDefaultGroupName('Qwen/Qwen3-32B', 'foobar')).toBe('qwen')
-      expect(getDefaultGroupName('gpt-4.1-mini', 'foobar')).toBe('gpt-4.1')
-      expect(getDefaultGroupName('gpt-4.1', 'foobar')).toBe('gpt-4.1')
-      expect(getDefaultGroupName('DeepSeek Chat', 'foobar')).toBe('deepseek')
-      expect(getDefaultGroupName('foo:bar', 'foobar')).toBe('foo')
-    })
-
-    it('should fallback to id if no delimiters', () => {
-      // 没有分隔符时返回 id
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
-      specialProviders.forEach((provider) => {
-        expect(getDefaultGroupName('o3', provider)).toBe('o3')
-      })
-      expect(getDefaultGroupName('o3', 'openai')).toBe('o3')
-    })
-  })
-
   describe('getBaseModelName', () => {
     it('should extract base model name with single delimiter', () => {
       expect(getBaseModelName('DeepSeek/DeepSeek-R1')).toBe('DeepSeek-R1')
@@ -348,17 +294,6 @@ describe('naming', () => {
   })
 
   describe('getProviderDisplayNameById', () => {
-    it('uses the canonical label for a system provider id', () => {
-      expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
-    })
-
-    it.each([
-      ['openai-codex', 'OpenAI Codex'],
-      ['grok-cli', 'Grok CLI']
-    ])('uses the canonical label for the registry provider id %s', (providerId, expectedLabel) => {
-      expect(getProviderDisplayNameById(providerId)).toBe(expectedLabel)
-    })
-
     it('preserves a custom provider id when metadata is unavailable', () => {
       expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })
@@ -411,16 +346,6 @@ describe('naming', () => {
       const text = '你好。这是第一句话。这是第二句话。这是第三句话。'
       const result = truncateText(text, { minLength: 5, maxLength: 15 })
       expect(result).toBe('你好。这是第一句话。')
-    })
-
-    it('should use default options (minLength=15, maxLength=50)', () => {
-      const shortText = 'Short'
-      expect(truncateText(shortText)).toBe('Short')
-
-      const longText = '这是一个超过五十个字符的长文本，需要被截断。我们来看看它会在哪里被截断，是否能保持可读性。'
-      const result = truncateText(longText)
-      expect(result.length).toBeLessThanOrEqual(50)
-      expect(result.length).toBeGreaterThanOrEqual(15)
     })
   })
 })

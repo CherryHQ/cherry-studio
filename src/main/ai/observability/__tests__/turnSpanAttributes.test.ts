@@ -1,3 +1,7 @@
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
+
 import type { Span } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
@@ -7,6 +11,42 @@ import {
   MAX_TURN_INPUT_CHARS,
   MAX_TURN_OUTPUT_CHARS
 } from '../turnSpanAttributes'
+
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+
+async function retainedHeap(): Promise<number> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
+
+it.each(['inputs', 'outputs'] as const)('does not retain full turn text behind bounded %s previews', async (field) => {
+  const previews: unknown[] = []
+  const before = await retainedHeap()
+  for (let index = 0; index < 20; index++) {
+    const { span, attributes } = fakeSpan()
+    const text = `${'漢'.repeat(2 * 1024 * 1024)}${index}`
+    if (field === 'inputs') {
+      applyTurnInputAttributes(span, {
+        modelId: 'openai::gpt-4',
+        topicId: 'topic-1',
+        operation: 'chat',
+        messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text }] }]
+      })
+    } else {
+      applyTurnOutputAttributes(span, { id: 'assistant', role: 'assistant', parts: [{ type: 'text', text }] })
+    }
+    previews.push(attributes[field])
+  }
+
+  const retained = (await retainedHeap()) - before
+  expect(previews).toHaveLength(20)
+  expect(previews.every((preview) => typeof preview === 'string' && preview.length < 513 * 1024)).toBe(true)
+  expect(retained).toBeLessThan(32 * 1024 * 1024)
+})
 
 function fakeSpan() {
   const attributes: Record<string, unknown> = {}

@@ -64,11 +64,43 @@ describe('CherryCloudQuotaNotice', () => {
       <CherryCloudQuotaNotice exhaustion={{ reason: 'sign_in_required', isFreeModel: false, isSubscribed: false }} />
     )
 
-    expect(screen.getByText('登录后才能使用 CherryAI 订阅模型')).toBeInTheDocument()
+    expect(screen.getByText('登录 CherryAI 后才能使用此模型')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
 
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
     expect(tracked()).toEqual([])
+    expect(startCherryCloudSubscription).not.toHaveBeenCalled()
+  })
+
+  it('offers only a model switch for a delisted model', async () => {
+    render(
+      <CherryCloudQuotaNotice exhaustion={{ reason: 'model_delisted', isFreeModel: false, isSubscribed: false }} />
+    )
+
+    expect(screen.getByText('该模型已下架，请切换模型')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '去订阅' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '切换模型' }))
+    expect(execute).toHaveBeenCalledWith('chat.model.select')
+  })
+
+  it('sends an unauthorized AMD model to the AMD entry, never to a subscription', async () => {
+    render(
+      <CherryCloudQuotaNotice
+        exhaustion={{
+          reason: 'amd_activation_required',
+          cloudModelId: 'amd/qwen',
+          isFreeModel: true,
+          isSubscribed: false
+        }}
+      />
+    )
+
+    expect(screen.getByText('登录 AMD 授权后即可免费使用')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'AMD 授权' }))
+
+    expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', { modelId: 'amd/qwen' })
+    expect(tracked()).toContainEqual(expect.objectContaining({ event: 'amd_entry_clicked', modelId: 'amd/qwen' }))
     expect(startCherryCloudSubscription).not.toHaveBeenCalled()
   })
 

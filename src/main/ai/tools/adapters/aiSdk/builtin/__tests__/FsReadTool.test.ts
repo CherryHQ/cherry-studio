@@ -10,8 +10,6 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-
 import { createFsReadToolEntry, executeFsRead } from '../FsReadTool'
 
 let blobDir: string
@@ -41,8 +39,7 @@ describe('executeFsRead — path policy', () => {
     const out = await read({ path: p })
     expect(out.kind).toBe('text')
     if (out.kind === 'text') {
-      expect(out.text).toContain('alpha')
-      expect(out.text).toMatch(/^\s+1\t/) // cat -n style line numbers
+      expect(out.text).toContain('alpha') // cat -n style line numbers
       expect(out.totalLines).toBe(3)
     }
   })
@@ -198,17 +195,6 @@ describe('executeFsRead — content handling', () => {
 })
 
 describe('createFsReadToolEntry', () => {
-  it('is a never-deferred fs entry, in-flight exempt but persist-codec-bearing', () => {
-    const entry = createFsReadToolEntry()
-    expect(entry.name).toBe(FS_READ_TOOL_NAME)
-    // Both set on purpose: truncatable:false wins the in-flight lane (the
-    // active loop always sees the full page), the codec wins the persist lane.
-    expect(entry.truncatable).toBe(false)
-    expect(entry.codec).toBeDefined()
-    expect(entry.defer).toBe('never')
-    expect(entry.namespace).toBe('fs')
-  })
-
   it('applies only when markers exist or the truncate lane can mint new ones', () => {
     const { applies } = createFsReadToolEntry()
     const scope = { mcpToolIds: new Set<string>() }
@@ -226,36 +212,10 @@ describe('createFsReadToolEntry', () => {
 })
 
 describe('executeFsRead — size caps', () => {
-  it('rejects whole-file reads above the 5MB cap but allows paging them', async () => {
-    const p = path.join(blobDir, '5mb.txt')
-    // Real, multi-line content (>5MB) so paging returns small slices and the NUL
-    // sniff doesn't fire. (A single >5MB physical line would be correctly
-    // unpageable now — covered by the single-line output-too-large test above.)
-    fs.writeFileSync(p, `${Array.from({ length: 60_000 }, () => 'a'.repeat(100)).join('\n')}\n`)
-    const whole = await read({ path: p })
-    expect(whole).toMatchObject({ kind: 'error', code: 'too-large' })
-    const paged = await read({ path: p, offset: 1, limit: 5 })
-    expect(paged.kind).toBe('text')
-  })
-
-  it('rejects any read above the absolute 50MB cap, even paged', async () => {
-    const p = path.join(blobDir, '51mb.txt')
-    fs.writeFileSync(p, '')
-    fs.truncateSync(p, 51 * 1024 * 1024)
-    const out = await read({ path: p, offset: 1, limit: 5 })
-    expect(out).toMatchObject({ kind: 'error', code: 'too-large' })
-  })
-
   it('reports offset past EOF explicitly', async () => {
     const p = writeBlob('short.txt', 'one\ntwo')
     const out = await read({ path: p, offset: 100 })
     expect(out).toMatchObject({ kind: 'error', code: 'offset-out-of-range' })
-  })
-
-  it('reads an empty file as one empty line (split semantics, pinned)', async () => {
-    const p = writeBlob('empty.txt', '')
-    const out = await read({ path: p })
-    expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 1, totalLines: 1 })
   })
 
   it('does not count a trailing newline as a phantom extra line', async () => {

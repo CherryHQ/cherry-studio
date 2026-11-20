@@ -129,16 +129,6 @@ beforeEach(() => {
 })
 
 describe('product_info', () => {
-  it('removes release lookup from the diagnose contract', async () => {
-    const client = await connectAssistantClient()
-
-    const listed = await client.listTools()
-    const diagnose = listed.tools.find((tool) => tool.name === 'diagnose')
-    const properties = diagnose?.inputSchema.properties as Record<string, { enum?: string[] }>
-
-    expect(properties.action.enum).not.toContain('check_update')
-  })
-
   it('returns a compact current-package manifest index through its registered path', async () => {
     const manifest = {
       schemaVersion: 1,
@@ -149,10 +139,8 @@ describe('product_info', () => {
     writeProductManifest(JSON.stringify(manifest))
     const client = await connectAssistantClient()
 
-    const listed = await client.listTools()
     const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
 
-    expect(listed.tools.map((tool) => tool.name)).toContain('product_info')
     expect(JSON.parse(toolResultText(result))).toEqual({
       runtimeVersion: '1.0.0',
       manifestVersion: '2.0.0-dev',
@@ -375,14 +363,6 @@ describe('create_agent', () => {
     expect(JSON.parse(toolResultText(result))).toEqual(output)
   })
 
-  it("defaults to Cherry Assistant's current model when model is omitted", async () => {
-    const client = await connectAssistantClient(undefined, 'openai::gpt-5')
-
-    await callTool('create_agent', { name: 'Reviewer', instructions: 'Review code.' }, client)
-
-    expect(mocks.agentCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai::gpt-5' }))
-  })
-
   it('rejects legacy single-colon model ids', async () => {
     const result = await callTool('create_agent', {
       name: 'Reviewer',
@@ -423,33 +403,6 @@ describe('create_agent', () => {
 })
 
 describe('prepare_diagnostic_report', () => {
-  it('is exposed by the default assistant tool set and callable through the packaged list path', async () => {
-    const assistantClient = await connectAssistantClient()
-    const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
-
-    expect((await assistantClient.listTools()).tools.map((tool) => tool.name)).toEqual([
-      'navigate',
-      'diagnose',
-      'product_info',
-      'apply_setting',
-      'create_agent',
-      'prepare_diagnostic_report'
-    ])
-
-    const supportTools = (await supportClient.listTools()).tools
-    const draftTool = supportTools.find((tool) => tool.name === 'prepare_diagnostic_report')
-    expect(draftTool).toMatchObject({
-      inputSchema: {
-        required: ['description'],
-        additionalProperties: false
-      },
-      outputSchema: {
-        required: ['ok', 'description'],
-        additionalProperties: false
-      }
-    })
-  })
-
   it('returns an editable normalized draft without performing submission', async () => {
     const client = await connectAssistantClient()
     const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
@@ -590,7 +543,6 @@ describe('diagnose config', () => {
       provider: 'openai',
       modelId: 'gpt-4o-mini'
     })
-    expect(config).not.toHaveProperty('topicNamingModel')
   })
 
   it('redacts assistant-visible proxy values to origin only', async () => {

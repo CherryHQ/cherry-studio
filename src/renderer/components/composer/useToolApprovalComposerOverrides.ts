@@ -1,5 +1,5 @@
 import { getToolName, isToolUIPart } from 'ai'
-import { useEffect, useMemo } from 'react'
+import { type ComponentType, useEffect, useMemo } from 'react'
 
 import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
@@ -9,23 +9,34 @@ import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
 import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
-import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
+import { useComputerUseApproval } from './variants/ComputerUseApprovalComposer'
+import {
+  createPermissionRequestComposerOverride,
+  type PermissionRequestComposerProps
+} from './variants/PermissionRequestComposer'
 import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
+  topicId?: string
   partsByMessageId: Record<string, CherryMessagePart[]>
   /** Database message parts, before live overlays or optimistic projections. */
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
+  agentName?: string
 }
 
 export function useToolApprovalComposerOverrides({
+  topicId,
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
-  onRespond
+  onRespond,
+  permissionRequestComponent,
+  agentName
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
+  const computerUseApproval = useComputerUseApproval(topicId)
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
       for (const part of parts) {
@@ -72,14 +83,17 @@ export function useToolApprovalComposerOverrides({
   )
   const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
   const historyPermissionRequest = useMemo(
-    () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts) : null),
-    [settledHistoryParts]
+    () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts, partsByMessageId) : null),
+    [settledHistoryParts, partsByMessageId]
   )
-  const currentPermissionRequest = useMemo(() => findNextPendingPermissionRequest(currentParts), [currentParts])
+  const currentPermissionRequest = useMemo(
+    () => findNextPendingPermissionRequest(currentParts, partsByMessageId),
+    [currentParts, partsByMessageId]
+  )
   const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
 
   return useMemo(() => {
-    const overrides: ComposerOverride[] = []
+    const overrides: ComposerOverride[] = computerUseApproval ? [computerUseApproval] : []
 
     if (askUserQuestionRequest) {
       overrides.push(
@@ -94,11 +108,13 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond
+          onRespond,
+          component: permissionRequestComponent,
+          agentName
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, permissionRequestComponent, agentName, computerUseApproval])
 }

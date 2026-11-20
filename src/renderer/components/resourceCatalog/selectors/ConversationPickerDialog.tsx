@@ -232,7 +232,8 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
             {toolbar ? <div className="flex shrink-0 items-center">{toolbar}</div> : null}
           </div>
           <ScrollArea
-            viewportProps={{ ref: scrollRef, onScroll: handleScroll, className: 'px-2.5 py-3 pt-2' }}
+            contentProps={{ className: 'px-2.5 py-3 pt-2' }}
+            viewportProps={{ ref: scrollRef, onScroll: handleScroll }}
             className="min-h-0 flex-1">
             {/* Scrollbar is the scroll viewport; the cmdk list itself must not scroll so keyboard
                 navigation's scroll-into-view bubbles up to the styled Scrollbar instead. */}

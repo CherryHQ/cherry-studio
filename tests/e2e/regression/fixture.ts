@@ -4,6 +4,7 @@ import { expect, test as base } from '@playwright/test'
 import { getCase, missingCapabilities, supportsPlatform } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { setOwnedMainWindowFocus } from '../../../scripts/e2e/regression/debugBridge'
+import { EMBEDDING_DATA_SOURCE, startEmbeddingMock } from '../../../scripts/e2e/regression/embeddingMock'
 import { cleanupExternalResources } from '../../../scripts/e2e/regression/externalResources'
 import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -42,10 +43,24 @@ async function bounded<T>(work: () => Promise<T>, label: string, timeoutMs = TEA
   }
 }
 
-export const test = base.extend<RegressionFixtures & RegressionOptions>({
+export const test = base.extend<
+  RegressionFixtures & RegressionOptions,
+  { embedding: Awaited<ReturnType<typeof startEmbeddingMock>> }
+>({
+  embedding: [
+    async ({}, provideFixture) => {
+      const embedding = await startEmbeddingMock()
+      try {
+        await provideFixture(embedding)
+      } finally {
+        await embedding.close()
+      }
+    },
+    { scope: 'worker' }
+  ],
   profile: ['authenticated', { option: true }],
 
-  app: async ({}, provideFixture, testInfo) => {
+  app: async ({ embedding }, provideFixture, testInfo) => {
     const runDirectory = process.env.CHERRY_TEST_RUN_DIR
     if (!runDirectory) throw new Error('CHERRY_TEST_RUN_DIR is required')
     const id = testInfo.annotations.find(({ type }) => type === 'regression-case')?.description
@@ -54,7 +69,9 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     base.skip(!supportsPlatform(testCase.id, run.metadata.platform), `Not supported on ${run.metadata.platform}`)
     const missing = missingCapabilities(testCase.id, run.capabilities)
     base.skip(missing.length > 0, `Missing capabilities: ${missing.join(', ')}`)
-    const app = new RegressionApp(runDirectory, testCase.id)
+    const app = new RegressionApp(runDirectory, testCase.id, embedding)
+    if (['K-01', 'MP-60', 'MP-66'].includes(testCase.id))
+      testInfo.annotations.push({ type: 'data-source', description: EMBEDDING_DATA_SOURCE })
     const watchdog = createApplicationWatchdog(() => app.record)
     watchdog.start()
     try {
@@ -103,6 +120,10 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
           'capture failure screenshot'
         ).catch(() => undefined)
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
+        const pause = currentPage
+          .locator('[data-ui~="chat.composer"]:visible')
+          .getByRole('button', { name: 'Pause', exact: true })
+        if (await pause.isVisible().catch(() => false)) await pause.click()
       }
 
       await bounded(() => app.cleanupTransientUi(currentPage), 'clean up transient UI')

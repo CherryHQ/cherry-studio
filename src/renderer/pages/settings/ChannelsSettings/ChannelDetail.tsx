@@ -597,7 +597,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {channelList.length === 0 && (
               <EmptyState
                 compact
-                preset="no-resource"
                 description={t('agent.channels.noInstances', { type: channelDef.name })}
                 className="py-8"
               />

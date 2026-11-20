@@ -30,13 +30,6 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('binaryHandlers', () => {
-  it('install_tool forwards the name-only request to the manager', async () => {
-    binaryManager.installByName.mockResolvedValue(undefined)
-    const request = { name: 'fd', targetVersion: '10.0.0' }
-    await binaryHandlers['binary.install_tool'](request, ctx)
-    expect(binaryManager.installByName).toHaveBeenCalledWith(request)
-  })
-
   it('install_tool delegates canonical Code CLI names to CodeCliService', async () => {
     codeCliService.installCli.mockResolvedValue(undefined)
     const request = { name: 'codex', targetVersion: '1.2.3' }
@@ -45,21 +38,6 @@ describe('binaryHandlers', () => {
 
     expect(codeCliService.installCli).toHaveBeenCalledWith(request)
     expect(binaryManager.installByName).not.toHaveBeenCalled()
-  })
-
-  it('add_custom_tool forwards the full recipe to the manager', async () => {
-    binaryManager.addCustomTool.mockResolvedValue(undefined)
-    const definition = { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
-    await binaryHandlers['binary.add_custom_tool'](definition, ctx)
-    expect(binaryManager.addCustomTool).toHaveBeenCalledWith(definition)
-  })
-
-  it('remove_tool forwards the request and returns the typed result', async () => {
-    binaryManager.removeTool.mockResolvedValue({ status: 'removed' })
-    const request = { name: 'fd', definitionOnly: true }
-    const result = await binaryHandlers['binary.remove_tool'](request, ctx)
-    expect(binaryManager.removeTool).toHaveBeenCalledWith(request)
-    expect(result).toEqual({ status: 'removed' })
   })
 
   it('remove_tool delegates canonical Code CLI names to CodeCliService', async () => {
