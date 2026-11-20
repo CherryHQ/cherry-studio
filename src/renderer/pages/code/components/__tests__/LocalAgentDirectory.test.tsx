@@ -880,4 +880,11 @@ describe('local agent settings navigation', () => {
       '环境变量必须是 JSON 对象，变量名须有效，值须为字符串。'
     )
   })
+
+  it('shows the Beta feedback banner with a link to issue #24976 in the agent detail panel', async () => {
+    render(<LocalAgentSettingsPage />)
+    const link = await screen.findByRole('link', { name: 'FAQ 与反馈' })
+    expect(link).toHaveAttribute('href', 'https://github.com/CherryHQ/cherry-studio/issues/24976')
+    expect(screen.getByText('智能体服务当前处于 Beta 测试阶段，遇到问题可查看 FAQ 或提交反馈。')).toBeVisible()
+  })
 })

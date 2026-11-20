@@ -1,9 +1,11 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   CheckCircle2,
-  Download,
-  GripVertical,
   CircleAlert,
+  Download,
+  ExternalLink,
+  GripVertical,
+  Info,
   Loader2,
   MessageSquare,
   Plus,
@@ -121,6 +123,8 @@ const DEFAULT_AGENT_ORDER = new Map(
     'glm-acp-agent'
   ].map((id, index) => [id, index])
 )
+
+const LOCAL_AGENTS_FEEDBACK_ISSUE_URL = 'https://github.com/CherryHQ/cherry-studio/issues/24976'
 
 const logger = loggerService.withContext('LocalAgentDirectory')
 
@@ -879,7 +883,21 @@ export function LocalAgentDetails({
       )}
       <div className={cn('flex min-h-0 flex-1 flex-col', modelSavingClass)}>
         <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3 [scrollbar-color:transparent_transparent] [scrollbar-gutter:stable]">
-          <div className="mx-auto w-full max-w-3xl">
+          <div className="mx-auto w-full max-w-3xl space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info-border bg-info-subtle px-3.5 py-2 text-xs text-info-subtle-foreground">
+              <div className="flex min-w-0 items-center gap-2">
+                <Info className="lucide-custom size-3.5 shrink-0 text-info" aria-hidden />
+                <span className="min-w-0">{t('local_agents.beta_banner')}</span>
+              </div>
+              <a
+                href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
+                {t('local_agents.beta_banner_link')}
+                <ExternalLink className="lucide-custom size-3" aria-hidden />
+              </a>
+            </div>
             <AgentServiceCard
               title={
                 preset ? (

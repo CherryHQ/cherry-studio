@@ -51,6 +51,10 @@ export interface SettingsMenuEntry {
   /** i18n key of the menu title — always searchable as the section baseline */
   titleKey: string
   icon: ReactNode
+  /** Optional badge label i18n key rendered on the right of the menu item */
+  badgeKey?: string
+  /** Optional tooltip i18n key for the menu item's badge */
+  badgeTooltipKey?: string
   /** Group title key (`settings.menuGroups.*`); omitted for the ungrouped head section */
   groupKey?: string
 }
@@ -66,7 +70,13 @@ export const BUILTIN_TOOLS_GROUP_KEY = 'settings.menuGroups.builtinTools'
 export const settingsMenu: readonly SettingsMenuEntry[] = [
   { route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) },
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
-  { route: '/settings/local-agents', titleKey: 'local_agents.title', icon: createElement(Bot) },
+  {
+    route: '/settings/local-agents',
+    titleKey: 'local_agents.title',
+    icon: createElement(Bot),
+    badgeKey: 'local_agents.beta_badge',
+    badgeTooltipKey: 'local_agents.beta_tooltip'
+  },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
   {
     route: '/settings/local-models',

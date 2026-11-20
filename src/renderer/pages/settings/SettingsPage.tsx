@@ -4,7 +4,7 @@ import type { CSSProperties, FC, MouseEvent } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
+import { Badge, MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { BUILTIN_TOOLS_GROUP_KEY, settingsMenu } from '@renderer/components/settingsMenu'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
@@ -122,6 +122,18 @@ const SettingsPage: FC = () => {
                         labelClassName={settingsSubmenuItemLabelClassName}
                         icon={item.icon}
                         label={t(item.titleKey)}
+                        aria-label={item.badgeKey ? t(item.titleKey) : undefined}
+                        suffix={
+                          item.badgeKey ? (
+                            <Tooltip content={item.badgeTooltipKey ? t(item.badgeTooltipKey) : undefined} asChild>
+                              <Badge
+                                variant="secondary"
+                                className="px-1.5 py-0 font-normal text-[10px] leading-4 text-muted-foreground">
+                                {t(item.badgeKey)}
+                              </Badge>
+                            </Tooltip>
+                          ) : undefined
+                        }
                         active={isActive(item.route)}
                         onClick={() => go(item.route)}
                       />
