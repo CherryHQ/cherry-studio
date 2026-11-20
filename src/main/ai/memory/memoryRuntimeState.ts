@@ -6,6 +6,7 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { appStateTable } from '@data/db/schemas/appState'
 import { messageTable } from '@data/db/schemas/message'
+import { topicMemoryKey, UNEXPOSED_TOPIC, UNVERIFIED_COPY } from '@data/services/utils/topicMemoryState'
 import type { MemoryScope } from '@shared/types/memory'
 
 import { MemoryError } from './memoryFiles'
@@ -64,21 +65,20 @@ function hasHistory(owner: MemoryRuntimeOwner): boolean {
 
 function stateKey(owner: MemoryRuntimeOwner, scope: MemoryScope): string {
   // Topic history survives Assistant reassignment. Its isolation boundary must follow that same history.
+  if ('topicId' in owner && scope.kind === 'shared') return topicMemoryKey(owner.topicId)
   const identity = 'agentSessionId' in owner ? ['agent', owner.agentSessionId] : ['topic', owner.topicId]
   return `memory:runtime:${JSON.stringify([...identity, scope.kind, scope.kind === 'private' ? scope.agentId : ''])}`
 }
-
-const unexposed = 'never-exposed'
 
 /** Only a fresh conversation can establish that none of its history used shared memory. */
 export function hasUnexposedAssistantHistory(owner: { topicId: string; assistantId: string }): boolean {
   const db = application.get('DbService').getDb()
   const key = stateKey(owner, { kind: 'shared' })
   const row = db.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
-  if (row) return row.value === unexposed
+  if (row) return row.value === UNEXPOSED_TOPIC
   if (hasHistory(owner)) return false
   db.insert(appStateTable)
-    .values({ key, value: unexposed, description: 'Conversation has never used shared memory' })
+    .values({ key, value: UNEXPOSED_TOPIC, description: 'Conversation has never used shared memory' })
     .run()
   return true
 }
@@ -92,7 +92,7 @@ export function assertMemoryRuntimeState(
   const db = application.get('DbService').getDb()
   const key = stateKey(owner, scope)
   const row = db.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
-  if (row?.value === unexposed) {
+  if (row?.value === UNEXPOSED_TOPIC || (row?.value === UNVERIFIED_COPY && protection === null)) {
     db.update(appStateTable)
       .set({
         value: { version: 1, protection },

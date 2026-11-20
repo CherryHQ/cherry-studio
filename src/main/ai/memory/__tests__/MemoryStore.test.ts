@@ -667,6 +667,105 @@ describe('limits, access, and recovery', () => {
     expect((await store.read(caller, 'MEMORY.md')).content).toBe('Entry')
   })
 
+  it('restores a merged source before reversing its index and destination', async () => {
+    const target = '.memories/combined.md'
+    const source = '.memories/source.md'
+    await save(source, 'Full source')
+    const changes = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: changes[0].receipt, content: 'Full source' },
+        { kind: 'write', receipt: changes[1].receipt, content: 'Combined link' },
+        { kind: 'delete', receipt: changes[2].receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    await writeFile(path.join(root, source), 'External version')
+    const blocked = await store.previewRecovery(caller)
+    expect(blocked!.files.every((file) => file.conflict)).toBe(true)
+    await store.recover(caller, blocked!.token, approve)
+    expect((await store.read(caller, target)).content).toBe('Full source')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Combined link')
+    await unlink(path.join(root, source))
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files.map((file) => file.path)).toEqual([source, 'MEMORY.md', target])
+    const writes: string[] = []
+    const write = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === root) writes.push(args[1])
+      return write(...args)
+    })
+    await store.recover(caller, preview!.token, approve)
+    expect(writes).toEqual([source, 'MEMORY.md', target])
+  })
+
+  it('extends the same reverse backup after an external conflict clears', async () => {
+    const topics = ['.memories/a.md', '.memories/b.md']
+    const reads = await Promise.all(topics.map((target) => store.read(caller, target)))
+    const saved = await store.commit(
+      caller,
+      reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Fact' })),
+      'controlled',
+      approve
+    )
+    await writeFile(path.join(root, topics[1]), 'External')
+    const first = await store.previewRecovery(caller)
+    const partial = await store.recover(caller, first!.token, approve)
+    await writeFile(path.join(root, topics[1]), 'Fact')
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const remaining = await store.previewRecovery(caller)
+    expect(remaining!.batchId).toBe(saved.batchId)
+    const complete = await store.recover(caller, remaining!.token, approve)
+    expect(complete.batchId).toBe(partial.batchId)
+    expect((await readdir(backups)).length).toBe(2)
+    const redo = await store.previewRecovery(caller)
+    expect(redo!.files.map((file) => file.path)).toEqual(topics)
+  })
+
+  it.each(['restart', 'admission'])(
+    'releases the restored parent after its last manifest save failed (%s)',
+    async (action) => {
+      const original = await save('MEMORY.md', 'For recovery')
+      const preview = await store.previewRecovery(caller)
+      const write = memoryFiles.writeMemoryBytes
+      const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (
+          args[0] === backups &&
+          args[1].endsWith(original.batchId + '.json') &&
+          JSON.parse(args[2]!.toString()).status === 'completed'
+        )
+          throw new Error('Final save failed')
+        return write(...args)
+      })
+      expect((await store.recover(caller, preview!.token, approve)).error).toBe('Final save failed')
+      fail.mockRestore()
+      if (action === 'restart') await new MemoryStore(root, backups).initialize()
+      else await save('.memories/another.md', 'Independent edit')
+      expect((await memoryBackups.latestMemoryBackup(backups, original.batchId!))?.status).toBe('completed')
+    }
+  )
+
+  it('undoes an extraction append while preserving earlier facts and clear markers', async () => {
+    await save('MEMORY.md', 'Forgotten fact')
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const tombstone = (await store.read(caller, 'MEMORY.md')).content!
+    const first = tombstone + '\n- "New fact one"\n'
+    const second = first + '- "New fact two"\n'
+    await writeFile(path.join(root, 'MEMORY.md'), second)
+    await createMemoryBackup(
+      backups,
+      [{ path: 'MEMORY.md', before: Buffer.from(first), after: Buffer.from(second) }],
+      'extraction'
+    )
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files[0].conflict).toBe(false)
+    await store.recover(caller, preview!.token, approve)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe(first)
+  })
+
   it('recovers a confirmed disk write after its manifest update failed and the owner restarted', async () => {
     const originalWrite = memoryFiles.writeMemoryBytes
     let manifestWrites = 0
