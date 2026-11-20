@@ -208,7 +208,16 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
   if (window === null) return null
 
   const dialect = resolveModelTokenDialect(input.provider, input.model)
-  const tokenizer = await getTextTokenizer(dialect)
+  const estimated = await getTextTokenizer(dialect)
+  // The dispatch guard prices a memory-capped Ollama window by UTF-8 bytes. Price the existing prompt
+  // the same way, or the pool is overstated and a send that would fit by inlining less is rejected.
+  const capped = input.model.contextWindow != null && window < input.model.contextWindow
+  const tokenizer: TextTokenizer = capped
+    ? {
+        id: 'conservative-utf8',
+        count: (text) => Math.max(estimated.count(text), Buffer.byteLength(text, 'utf8'))
+      }
+    : estimated
 
   let spent: number
   try {

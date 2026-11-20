@@ -705,3 +705,34 @@ describe('primary Ollama capacity guard', () => {
     ).resolves.toBeUndefined()
   })
 })
+
+describe('resolveAttachmentBudget pricing of the existing prompt', () => {
+  const price = (requestContextWindow: number) =>
+    resolveAttachmentBudget({
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 32_768
+      } satisfies Model,
+      requestContextWindow,
+      system: 'é'.repeat(100),
+      tools: undefined,
+      maxOutputTokens: undefined,
+      messages: [],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    })
+
+  it('prices the prompt by UTF-8 bytes when the window is memory-capped, like the dispatch guard', async () => {
+    const uncapped = await price(32_768)
+    const capped = await price(4_096)
+    // 100 two-byte characters: 100 tokens by the estimator, 200 by bytes.
+    expect(Math.floor(32_768 * 0.9) - uncapped!.tokens).toBe(100)
+    expect(Math.floor(4_096 * 0.9) - capped!.tokens).toBe(200)
+  })
+})
