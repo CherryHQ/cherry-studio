@@ -60,7 +60,7 @@ it('offers terminal-only CLI access without requiring a Code Mate provider or an
   expect(await screen.findByText('/usr/local/bin/kilo')).toBeVisible()
   expect(screen.getByRole('switch')).not.toBeChecked()
   expect(screen.getByRole('tab', { name: '智能体模型' })).toBeEnabled()
-  expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
+  expect(screen.getByRole('tab', { name: '统一网关' })).toBeDisabled()
   await userEvent.click(screen.getByRole('button', { name: '在终端打开命令行' }))
   await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
   await userEvent.click(screen.getByRole('button', { name: '启动' }))
@@ -85,9 +85,9 @@ it('offers installation before terminal actions for an absent agent', async () =
   expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
   expect(screen.getByRole('tab', { name: '智能体模型' })).toBeEnabled()
-  expect(screen.getByRole('button', { name: '跟随 CLI' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '官方订阅' })).toBeEnabled()
   expect(screen.getByRole('button', { name: '刷新' })).toBeDisabled()
-  expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
+  expect(screen.getByRole('tab', { name: '统一网关' })).toBeDisabled()
 })
 
 it.each([
