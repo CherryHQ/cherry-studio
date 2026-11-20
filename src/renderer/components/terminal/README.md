@@ -2,6 +2,8 @@
 
 The Agent right pane presents files, browser pages and individual terminals in one `RightPaneTabs` strip. `TerminalResourcesProvider` reads Main's bounded resource projection through SWR; renderer memory retains only tab order, names, selection and explicitly hidden views. Each domain keeps ownership of its content and lifetime. `TerminalPane` renders the selected resource without a nested header or tab list. Closing its tab or the whole pane leaves the process running; the open/create menu reopens it in observation mode. New user terminals explicitly acquire input control, start the user's configured shell and load its existing configuration; colors and input highlighting come from the shell and programs.
 
+The file-browser shortcut and the plus menu's Files item open the same in-app view. When no file is selected, a Files tab represents that browser; choosing a file shows its tab instead. Its directory tree belongs only to file views.
+
 Native pipe tool cards can open output or promote a running Bash call while its result is still pending. Promotion uses the existing resource and never reruns the command; pipe output stays read-only. Takeover lives in the terminal footer, alongside its own menu for copying, interrupting, closing and cursor settings. No terminal control appears in the shared resource header.
 
 The open/create menu and the terminal opener retain a warning while profile-wide cleanup is unconfirmed. This includes detached user terminals and records recovered after restart or conversation purge. Selecting a record shows its retained directory and retry action. Retry without a verified original scope leaves the warning and directory protection in place.

@@ -1838,7 +1838,6 @@ const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
             dirty={files.fileSession.isDirty}
             activateFile={actions.activateFileTab}
             closeFile={actions.closeFileTab}
-            openFile={actions.openFileFromPreview}
           />
         )}
         <div className="min-h-0 flex-1">

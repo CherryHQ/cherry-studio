@@ -9,6 +9,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ArtifactPaneFileSelection } from '@renderer/components/chat/panes/ArtifactPane'
 import {
   RightPanelProvider,
+  RightPanelShortcut,
   useRightPanelActions,
   type RightPanelCapability
 } from '@renderer/components/chat/panes/Shell'
@@ -61,6 +62,7 @@ beforeEach(() => {
   requests = []
   recovered = false
   rejectCreation = false
+  window.api.file.select = vi.fn().mockResolvedValue(null)
   window.api.ipcApi.request = vi.fn(async (route, payload) => {
     requests.push(route)
     if (route === 'terminal.list') return { ok: true, data: { resources, truncated: false } }
@@ -99,26 +101,31 @@ const capabilities: RightPanelCapability<null>[] = ['files', 'browser', 'termina
   component: () => null,
   resolve: () => ({ id, instanceKey: id, title: id, readiness: 'ready' })
 }))
-function Content({ attachment = false }: { attachment?: boolean }) {
+function Content({ attachment = false, emptyFiles = false }: { attachment?: boolean; emptyFiles?: boolean }) {
   const terminal = useTerminalResources()
   const panel = useRightPanelActions()
-  const [files, setFiles] = useState<ArtifactPaneFileSelection[]>([
-    { workspacePath: '/workspace', filePath: 'README.md' },
-    ...(attachment
-      ? [
-          {
-            workspacePath: '/workspace',
-            filePath: 'README.md',
-            previewType: 'file' as const,
-            readOnly: true as const,
-            displayName: 'Attachment.md'
-          }
+  const [files, setFiles] = useState<ArtifactPaneFileSelection[]>(
+    emptyFiles
+      ? []
+      : [
+          { workspacePath: '/workspace', filePath: 'README.md' },
+          ...(attachment
+            ? [
+                {
+                  workspacePath: '/workspace',
+                  filePath: 'README.md',
+                  previewType: 'file' as const,
+                  readOnly: true as const,
+                  displayName: 'Attachment.md'
+                }
+              ]
+            : [])
         ]
-      : [])
-  ])
-  const [selectedFile, setSelectedFile] = useState<ArtifactPaneFileSelection | null>(files[0])
+  )
+  const [selectedFile, setSelectedFile] = useState<ArtifactPaneFileSelection | null>(files[0] ?? null)
   return (
     <>
+      <RightPanelShortcut tab="files" label={t('agent.right_pane.tabs.files')} icon={null} />
       <AgentResourceTabs
         files={files}
         selectedFile={selectedFile}
@@ -128,7 +135,6 @@ function Content({ attachment = false }: { attachment?: boolean }) {
           panel.requestOpen('files')
         }}
         closeFile={(file) => setFiles((current) => current.filter((item) => item !== file))}
-        openFile={() => {}}
       />
       <ShellExecutionActions toolCallId="pending-bash" />
       <output aria-label="Selected terminal">{terminal.tabs.selectedTerminalId}</output>
@@ -137,13 +143,13 @@ function Content({ attachment = false }: { attachment?: boolean }) {
     </>
   )
 }
-function mount(attachment = false) {
+function mount({ attachment = false, emptyFiles = false }: { attachment?: boolean; emptyFiles?: boolean } = {}) {
   return render(
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, errorRetryCount: 0 }}>
       <RightPanelProvider capabilities={capabilities} scope={null} defaultPanelId="files" defaultOpen>
         <TerminalResourcesProvider sessionId="resource-tabs-test" active>
           <AgentResourceHeaderProvider>
-            <Content attachment={attachment} />
+            <Content attachment={attachment} emptyFiles={emptyFiles} />
           </AgentResourceHeaderProvider>
         </TerminalResourcesProvider>
       </RightPanelProvider>
@@ -153,11 +159,68 @@ function mount(attachment = false) {
 
 it('distinguishes a read-only attachment from an editable file at the same physical path', async () => {
   const user = userEvent.setup()
-  mount(true)
+  mount({ attachment: true })
   await user.click(screen.getByRole('tab', { name: 'Attachment.md' }))
   expect(screen.getByLabelText('Selected file mode')).toHaveTextContent('file')
   await user.click(screen.getByRole('tab', { name: 'README.md' }))
   expect(screen.getByLabelText('Selected file mode')).toHaveTextContent('artifact')
+})
+
+it('opens and reopens the file browser from both entries without invoking the system file picker', async () => {
+  const user = userEvent.setup()
+  mount({ emptyFiles: true })
+  const files = await screen.findByRole('tab', { name: t('agent.right_pane.tabs.files') })
+  expect(files).toHaveAttribute('aria-selected', 'true')
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  expect(files).toHaveAttribute('aria-selected', 'false')
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} ${t('agent.right_pane.tabs.files')}` }))
+  expect(screen.queryByRole('tab', { name: t('agent.right_pane.tabs.files') })).not.toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+  await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
+  await user.click(screen.getByRole('menuitem', { name: t('agent.right_pane.tabs.files') }))
+  expect(await screen.findByRole('tab', { name: t('agent.right_pane.tabs.files') })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} ${t('agent.right_pane.tabs.files')}` }))
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true'))
+  await user.click(screen.getByRole('button', { name: t('agent.right_pane.tabs.files') }))
+  expect(await screen.findByRole('tab', { name: t('agent.right_pane.tabs.files') })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(window.api.file.select).not.toHaveBeenCalled()
+  expect(requests).not.toContain('terminal.create')
+  expect(requests).not.toContain('terminal.stop')
+})
+
+it('keeps the last file-browser tab closed until explicitly reopened', async () => {
+  resources = []
+  const user = userEvent.setup()
+  mount({ emptyFiles: true })
+  await screen.findByRole('tab', { name: t('agent.right_pane.tabs.files') })
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} ${t('agent.right_pane.tabs.files')}` }))
+  expect(screen.queryByRole('tab', { name: t('agent.right_pane.tabs.files') })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: t('agent.right_pane.tabs.files') })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
+  await user.click(screen.getByRole('button', { name: t('agent.right_pane.tabs.files') }))
+  expect(await screen.findByRole('tab', { name: t('agent.right_pane.tabs.files') })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+})
+
+it('returns to the selected file through the Files menu without opening another browser', async () => {
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
+  await user.click(screen.getByRole('menuitem', { name: t('agent.right_pane.tabs.files') }))
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.queryByRole('tab', { name: t('agent.right_pane.tabs.files') })).not.toBeInTheDocument()
+  expect(window.api.file.select).not.toHaveBeenCalled()
 })
 
 it('closes and reopens a terminal view without starting or stopping its process', async () => {

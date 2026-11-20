@@ -140,6 +140,7 @@ export type UseCacheSchema = {
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
   'agent.resource_tabs.${sessionId}': {
     order: string[]
+    fileBrowserOpen: boolean
     terminals: { id: string; title: string }[]
     hiddenTerminalIds: string[]
     selectedTerminalId: string | null
@@ -243,7 +244,13 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.scroll_anchor.${topicId}': null,
-  'agent.resource_tabs.${sessionId}': { order: [], terminals: [], hiddenTerminalIds: [], selectedTerminalId: null },
+  'agent.resource_tabs.${sessionId}': {
+    order: [],
+    fileBrowserOpen: false,
+    terminals: [],
+    hiddenTerminalIds: [],
+    selectedTerminalId: null
+  },
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,

@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react'
-import { Bot, Globe, LoaderCircle, Plus, TerminalSquare, TriangleAlert } from 'lucide-react'
+import { Bot, FolderOpen, Globe, LoaderCircle, Plus, TerminalSquare, TriangleAlert } from 'lucide-react'
 import {
   createContext,
   use,
@@ -39,7 +39,6 @@ import { useTerminalResources } from '@renderer/components/terminal/TerminalReso
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { agentBrowserRuntimeService as browser } from '@renderer/services/AgentBrowserRuntimeService'
-import { toast } from '@renderer/services/toast'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
@@ -58,6 +57,7 @@ export function AgentResourceFileControls({ children }: { children: ReactNode })
 
 type ResourceTab = RightPaneTab &
   (
+    | { kind: 'file-browser' }
     | { kind: 'file'; file: ArtifactPaneFileSelection }
     | { kind: 'browser'; id: string }
     | { kind: 'terminal'; id: string }
@@ -71,15 +71,13 @@ export function AgentResourceTabs({
   selectedFile,
   dirty,
   activateFile,
-  closeFile,
-  openFile
+  closeFile
 }: {
   files: ArtifactPaneFileSelection[]
   selectedFile: ArtifactPaneFileSelection | null
   dirty: boolean
   activateFile: (file: ArtifactPaneFileSelection) => void
   closeFile: (file: ArtifactPaneFileSelection) => void
-  openFile: (path: string) => void
 }) {
   const { t } = useTranslation()
   const terminal = useTerminalResources()
@@ -94,7 +92,24 @@ export function AgentResourceTabs({
   const page = useSyncExternalStore(browser.subscribe, () => browser.get(terminal.sessionId))
   const cleanup = useSWR(menuOpen ? 'terminal-cleanup-list' : null, () => ipcApi.request('terminal.cleanup.list', {}))
   const warning = (terminal.cleanup.data?.count ?? 0) > 0 || terminal.cleanup.data?.recoveryFailed
+  const setTabs = terminal.setTabs
+  const filesActive = panel.activePanelId === 'files' && panel.presentationOpen
+  useEffect(() => {
+    if (!filesActive || files.length) return
+    setTabs((current) => (current.fileBrowserOpen ? current : { ...current, fileBrowserOpen: true }))
+  }, [filesActive, files.length, terminal.sessionId, setTabs])
   const all: ResourceTab[] = [
+    ...(!files.length && terminal.tabs.fileBrowserOpen
+      ? [
+          {
+            kind: 'file-browser',
+            key: 'files',
+            title: t('agent.right_pane.tabs.files'),
+            path: t('agent.right_pane.tabs.files'),
+            icon: <FolderOpen className="size-3.5 shrink-0" aria-hidden />
+          } satisfies ResourceTab
+        ]
+      : []),
     ...files.map(
       (file): ResourceTab => ({
         kind: 'file',
@@ -169,7 +184,6 @@ export function AgentResourceTabs({
     return (left < 0 ? Infinity : left) - (right < 0 ? Infinity : right)
   })
   const keys = tabs.map((tab) => tab.key)
-  const setTabs = terminal.setTabs
   useEffect(() => {
     setTabs((current) =>
       current.order.length === keys.length && current.order.every((key, index) => key === keys[index])
@@ -181,7 +195,7 @@ export function AgentResourceTabs({
     panel.activePanelId === 'files'
       ? selectedFile
         ? fileKey(selectedFile)
-        : null
+        : 'files'
       : panel.activePanelId === 'browser'
         ? page
           ? `browser:${page.pageId}`
@@ -196,7 +210,8 @@ export function AgentResourceTabs({
       setPendingClose(null)
       const tab = tabs.find((item) => item.key === key)
       if (!tab) return
-      if (tab.kind === 'file') activateFile(tab.file)
+      if (tab.kind === 'file-browser') actions.requestOpen('files', { userInitiated: true })
+      else if (tab.kind === 'file') activateFile(tab.file)
       else if (tab.kind === 'browser') {
         browser.activate(terminal.sessionId, tab.id)
         actions.requestOpen('browser', { userInitiated: true })
@@ -221,18 +236,13 @@ export function AgentResourceTabs({
     if (!tab) return
     if (key === activeKey)
       setPendingClose({ key, next: tabs[index + 1]?.key ?? tabs[index - 1]?.key ?? null, keyboard })
-    if (tab.kind === 'file') closeFile(tab.file)
+    if (tab.kind === 'file-browser') {
+      setTabs((current) => ({ ...current, fileBrowserOpen: false }))
+      if (key === activeKey && tabs.length === 1) actions.close()
+    } else if (tab.kind === 'file') closeFile(tab.file)
     else if (tab.kind === 'browser') browser.closePages(terminal.sessionId, [tab.id])
     else if (tab.kind === 'terminal') terminal.close(tab.id)
     else terminal.closeCleanup(tab.record.id)
-  }
-  const pickFile = async () => {
-    try {
-      const files = await window.api.file.select({ properties: ['openFile'] })
-      if (files?.[0]) openFile(files[0].path)
-    } catch {
-      toast.error(t('chat.input.tools.open_file_error', { path: '' }))
-    }
   }
   return (
     <div
@@ -290,9 +300,11 @@ export function AgentResourceTabs({
               {t('webview.tabs.new')}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => void pickFile()}>
-            <Icon icon={getFileIconName('file.txt')} className="size-4" />
-            {t('chat.input.tools.open_file')}
+          <DropdownMenuItem
+            disabled={!actions.canOpen('files')}
+            onSelect={() => actions.requestOpen('files', { userInitiated: true })}>
+            <FolderOpen className="size-4" />
+            {t('agent.right_pane.tabs.files')}
           </DropdownMenuItem>
           {!!terminal.resources.length && (
             <>
