@@ -2204,6 +2204,28 @@ describe('edit dialogs', () => {
     expect(toolCount().total).toBeLessThan(withKnowledge.total)
   })
 
+  // Catches a request queued in this window, which a detached window's main-window composer never receives.
+  it('hands Create with Agent to the conversation through main, with the request as its draft', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.agent.session.reuse_or_create'
+        ? { session: { id: 'session-1', name: 'Session' }, deletedDuplicateSessionIds: [] }
+        : undefined
+    )
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tasks" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create with Agent' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith(
+        'navigation.focus_or_open_conversation',
+        expect.objectContaining({
+          target: { conversationType: 'agent', conversationId: 'session-1' },
+          draft: expect.objectContaining({ text: 'chat.profile_pane.tasks.new_prompt' })
+        })
+      )
+    )
+  })
+
   // AC4: an emptied Agent name says it is required and is never sent.
   it('never saves an empty agent name and marks it required', async () => {
     const user = userEvent.setup()

@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
@@ -22,11 +21,9 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
-import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AgentFormState,
@@ -511,7 +508,8 @@ function AgentEditDialogContent({
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
   const closeConversationTabs = useCloseConversationTabs()
   const invalidateCache = useInvalidateCache()
-  // Opens an empty conversation with this Agent and leaves the request in its composer, unsent.
+  // Opens an empty conversation with this Agent and leaves the request in its composer, unsent. Main hands the
+  // draft over, so it also lands when this dialog runs in a detached window.
   const createTaskWithAgent = () =>
     closeBeforeAction(() => {
       void ipcApi
@@ -522,8 +520,11 @@ function AgentEditDialogContent({
         .then(({ session, deletedDuplicateSessionIds }) => {
           closeConversationTabs('agents', deletedDuplicateSessionIds)
           void invalidateCache(['/agent-sessions', `/agent-sessions/${session.id}`])
-          requestComposerPrefill(buildAgentSessionTopicId(session.id), t('chat.profile_pane.tasks.new_prompt'))
-          openRoute('/app/agents', { sessionId: session.id })
+          return ipcApi.request('navigation.focus_or_open_conversation', {
+            target: { conversationType: 'agent', conversationId: session.id },
+            title: session.name || resource.name,
+            draft: { text: t('chat.profile_pane.tasks.new_prompt'), tokens: [], files: [], knowledgeBaseIds: [] }
+          })
         })
         .catch((error) => {
           logger.error('Failed to open a conversation to create a task', error as Error)
