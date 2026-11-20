@@ -192,6 +192,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
     try {
       const cache = application.get('CacheService')
+      cache.setShared('feature.api_gateway.endpoint', host && endpoint ? { host, port: endpoint.port } : null)
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
     } catch (error) {

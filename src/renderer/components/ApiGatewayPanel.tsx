@@ -42,6 +42,7 @@ const ApiGatewayPanel: FC = () => {
   const {
     apiGatewayConfig,
     apiGatewayRunning,
+    apiGatewayEndpoint,
     apiGatewayLoading,
     startApiGateway,
     stopApiGateway,
@@ -51,9 +52,10 @@ const ApiGatewayPanel: FC = () => {
 
   // 0.0.0.0 is a bind address, not a reachable one — render the loopback URL instead
   // (LAN URLs live in Device Connections settings).
-  const configuredHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
-  const serverHost = configuredHost === '0.0.0.0' ? API_SERVER_DEFAULTS.HOST : configuredHost
-  const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
+  const serverHost =
+    (apiGatewayRunning && apiGatewayEndpoint?.host) || apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
+  const serverPort =
+    (apiGatewayRunning && apiGatewayEndpoint?.port) || apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
   const serverUrl = gatewayClientOrigin(serverHost, serverPort)
   const apiKey = apiGatewayConfig.apiKey || ''
   const apiKeyVisible = visibility.key === apiKey && visibility.visible

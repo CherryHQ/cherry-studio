@@ -197,6 +197,18 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await page.reload()
   await waitForShell(page)
   await openLaunchpad(page)
+  const tiles = uiLocator(page, 'app.content').locator('button[data-dnd-row-control]')
+  const boxes = await Promise.all((await tiles.all()).map((tile) => tile.boundingBox()))
+  expect(boxes.length).toBeGreaterThan(1)
+  for (let i = 0; i < boxes.length; i++) {
+    expect(boxes[i]).not.toBeNull()
+    for (let j = i + 1; j < boxes.length; j++) {
+      expect(boxes[j]).not.toBeNull()
+      const a = boxes[i]!
+      const b = boxes[j]!
+      expect(a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height).toBe(false)
+    }
+  }
   await gatewayTile(page).click()
   await expect(uiLocator(page, 'api-gateway.panel').filter({ visible: true })).toBeVisible()
   await expect(page.locator('body')).toHaveClass(/dark/)
