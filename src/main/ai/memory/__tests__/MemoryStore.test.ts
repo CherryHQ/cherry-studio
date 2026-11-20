@@ -720,6 +720,37 @@ describe('limits, access, and recovery', () => {
     }
   )
 
+  it('undoes a partially redone transfer after its index was completed manually', async () => {
+    const source = '.memories/source.md'
+    const target = '.memories/combined.md'
+    await save(source, 'Fact')
+    await save('MEMORY.md', 'Source link')
+    const reads = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: reads[0].receipt, content: 'Fact', transferTarget: true },
+        { kind: 'write', receipt: reads[1].receipt, content: 'Combined link' },
+        { kind: 'delete', receipt: reads[2].receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'Conflict')
+    await recover()
+    expect((await store.read(caller, target)).content).toBe('Fact')
+    expect((await store.read(caller, source)).content).toBe('Fact')
+    await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+    await recover()
+    expect((await store.read(caller, source)).content).toBeNull()
+    await recover()
+    expect((await store.read(caller, source)).content).toBe('Fact')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Source link')
+    expect((await store.read(caller, target)).content).toBeNull()
+  })
+
   it('keeps the restored source when an unchanged transfer destination loses its content', async () => {
     const source = '.memories/source.md'
     const target = '.memories/target.md'
