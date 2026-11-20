@@ -488,10 +488,10 @@ export class TopicService {
       return { group, topic: rowToTopic(row) }
     })
 
-    notifyDataApiDataChange([
-      ...(created ? [{ endpoint: '/groups', kind: 'membership' as const, entityIds: [result.group.id] }] : []),
-      ...this.readModelEffects([id], 'projection')
-    ])
+    const effects: DataApiDataChangeEffect[] = []
+    if (created) effects.push({ endpoint: '/groups', kind: 'membership', entityIds: [result.group.id] })
+    effects.push(...this.readModelEffects([id], 'projection'))
+    notifyDataApiDataChange(effects)
     logger.info('Created topic group and assigned topic', { id, groupId: result.group.id, replay: !created })
     return result
   }
