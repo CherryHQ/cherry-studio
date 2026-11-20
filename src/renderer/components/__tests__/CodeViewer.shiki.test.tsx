@@ -42,7 +42,7 @@ function specificity(selector: string): number[] {
   let token: RegExpExecArray | null
   while ((token = tokens.exec(selector))) {
     const part = token[0]
-    if (/^:(is|not|where)$/.test(part) && selector[tokens.lastIndex] === '(') {
+    if (/^:[^:]/.test(part) && selector[tokens.lastIndex] === '(') {
       const start = ++tokens.lastIndex
       let depth = 1
       while (depth && tokens.lastIndex < selector.length) {
@@ -50,8 +50,15 @@ function specificity(selector: string): number[] {
         if (char === '(') depth++
         if (char === ')') depth--
       }
-      if (part !== ':where') {
-        const argumentsScores = postcss.list.comma(selector.slice(start, tokens.lastIndex - 1)).map(specificity)
+      const argument = selector.slice(start, tokens.lastIndex - 1)
+      const selectors = /^:(is|not|has)$/.test(part)
+        ? argument
+        : /^:nth-(child|last-child)$/.test(part)
+          ? argument.match(/\s+of\s+([\s\S]+)/i)?.[1]
+          : undefined
+      if (!/^:(is|not|has|where)$/.test(part)) score[1]++
+      if (selectors) {
+        const argumentsScores = postcss.list.comma(selectors).map(specificity)
         const max = argumentsScores.reduce((a, b) => (compare(a, b) >= 0 ? a : b))
         max.forEach((value, i) => (score[i] += value))
       }
@@ -93,11 +100,14 @@ it('resolves cascade priority for matched selectors', () => {
   const element = document.createElement('div')
   element.id = 'target'
   element.className = 'a b c'
+  document.createElement('div').append(element)
   element.setAttribute('data-test', '')
   const styles = postcss.parse(`
     #target { --important: high; --specific: high; }
     .a { --important: important !important; --specific: low; --equal: first; }
     .b { --equal: later; }
+    .a:nth-child(odd) { --positional: none !important; }
+    .b.a { --positional: normal !important; }
     :is(.a, .b.c) { --is: maximum; }
     .a { --is: lower; --where: higher; --list: matched; }
     :where(.a) { --where: zero; }
@@ -105,10 +115,12 @@ it('resolves cascade priority for matched selectors', () => {
     [data-test]:not(.missing) { --attribute: higher; }
     .a { --attribute: lower; }
   `)
+  expect(specificity(':nth-child(2n + 1 of .a, #target)')).toEqual([1, 1, 0])
   for (const [property, value] of Object.entries({
     important: 'important',
     specific: 'high',
     equal: 'later',
+    positional: 'normal',
     is: 'maximum',
     where: 'higher',
     list: 'matched',
