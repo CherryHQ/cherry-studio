@@ -334,4 +334,11 @@ describe('serializeError', () => {
       expect(result.availableTools).toEqual(['alpha', 'beta'])
     })
   })
+
+  it('keeps the status and category of a plain 429 object whose text is only "429 null"', () => {
+    const serialized = serializeError({ message: '429 null', code: 'rate_limit_exceeded' })
+    expect(serialized.statusCode).toBe(429)
+    expect(serialized.providerErrorCategory).toBe('rate_limit')
+    expect(serialized.message).toBeNull()
+  })
 })

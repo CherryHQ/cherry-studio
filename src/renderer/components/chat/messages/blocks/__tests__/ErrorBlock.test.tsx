@@ -185,6 +185,7 @@ required service tier.`
 
   it.each([
     [400, '400 null', 'null', 'bad_request'],
+    [400, 'API Error: 400 null (request id: 20251128abc)', 'null', 'bad_request'],
     [403, '[object Object]', '<html>error</html>', 'permission'],
     [429, '429 null', 'null', 'rate_limit']
   ])(

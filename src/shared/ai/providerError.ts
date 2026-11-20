@@ -10,7 +10,9 @@ const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
 const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
-const STATUS_ONLY_PROVIDER_TEXT = /^[45]\d{2}\s+(?:null|undefined|\[object object\])$/i
+// Also the documented wrapper shape `API Error: 400 null (request id: …)`; the status survives separately.
+const STATUS_ONLY_PROVIDER_TEXT =
+  /^(?:API Error:\s*)?[45]\d{2}\s+(?:null|undefined|\[object object\])(?:\s*\(request id:[^)\n]*\))?$/i
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
 const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+(?:\s*,\s*\d+)*\s*\])[^\]]*(?:\]|$)/i
 

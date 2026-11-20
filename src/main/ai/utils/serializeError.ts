@@ -3,7 +3,7 @@ import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'a
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { isErrorCategory } from '@shared/utils/errorCategory'
+import { classifyErrorCategory, extractHttpStatus, isErrorCategory } from '@shared/utils/errorCategory'
 import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 /** Lenient JSON serialization with circular-reference safety.
@@ -113,6 +113,30 @@ export function serializeError(error: unknown): SerializedError {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null,
+    ...plainErrorFacts(error),
     ...ownership
+  }
+}
+
+/**
+ * A plain error object carries its HTTP status only in text the display filter drops (e.g. `429 null`).
+ * Keep the allowlisted status and category so the failure still classifies as a provider rate limit.
+ */
+function plainErrorFacts(error: unknown): Pick<SerializedError, 'statusCode' | 'providerErrorCategory'> {
+  if (typeof error !== 'object' || error === null || Array.isArray(error)) return {}
+  const record = error as Record<string, unknown>
+  const nested =
+    typeof record.error === 'object' && record.error !== null ? (record.error as Record<string, unknown>) : undefined
+  const texts = [record.message, nested?.message, record.code, nested?.code, record.type, nested?.type].filter(
+    (value): value is string => typeof value === 'string' && value.length <= 500
+  )
+  const numeric = [record.statusCode, record.status, nested?.statusCode, nested?.status].find(
+    (value): value is number => typeof value === 'number' && value >= 400 && value <= 599
+  )
+  const status = numeric ?? texts.map(extractHttpStatus).find((value) => value !== undefined)
+  const category = classifyErrorCategory({ text: texts.join('\n'), status })
+  return {
+    ...(status === undefined ? {} : { statusCode: status }),
+    ...(category === 'unknown' ? {} : { providerErrorCategory: category })
   }
 }
