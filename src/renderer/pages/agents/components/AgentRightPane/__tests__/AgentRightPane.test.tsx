@@ -33,7 +33,13 @@ import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDirRoot } from '@shared/utils/file'
 
+import type * as ResourceTabsModule from '../AgentResourceTabs'
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
+
+vi.mock('../AgentResourceTabs', async (importActual) => ({
+  ...(await importActual<typeof ResourceTabsModule>()),
+  AgentResourceTabs: () => null
+}))
 
 const {
   desktopState,
@@ -245,7 +251,14 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('@renderer/ipc', async (importActual) => ({
   ...(await importActual<typeof RendererIpc>()),
-  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
+  ipcApi: {
+    ...(await importActual<typeof RendererIpc>()).ipcApi,
+    request: (route: string, ...args: unknown[]) => {
+      if (route === 'terminal.list') return Promise.resolve({ resources: [], truncated: false })
+      if (route === 'terminal.cleanup.status') return Promise.resolve({ count: 0, recoveryFailed: false })
+      return ipcRequestMock(route, ...args)
+    }
+  }
 }))
 
 vi.mock('@renderer/services/toast', () => ({

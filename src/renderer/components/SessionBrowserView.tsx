@@ -38,6 +38,7 @@ export interface SessionBrowserViewProps {
   isHostActive: boolean
   reloadKey?: number | string
   toolbarActions?: ReactNode
+  header?: ReactNode
   onEmpty?: () => void
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
@@ -169,58 +170,62 @@ export function SessionBrowserView({
   const executing = pages.find((page) => page.executing)
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-2 border-border-subtle border-b bg-card px-2">
-        <RightPaneTabs
-          tabs={pages.map((page) => ({
-            key: page.pageId,
-            title: title(page),
-            path: `${title(page)} ${page.url}`,
-            icon: page.loading ? (
-              <LoaderCircle aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
-            ) : (
-              <Avatar className="size-3.5 shrink-0 rounded-none">
-                <AvatarImage src={page.favicon} alt="" referrerPolicy="no-referrer" />
-                <AvatarFallback className="rounded-none bg-transparent">
-                  {page.securityProfile === WebviewSecurityProfile.AgentHtmlArtifact ? (
-                    <FileCode aria-hidden className="size-3.5" />
-                  ) : (
-                    <Globe aria-hidden className="size-3.5" />
-                  )}
-                </AvatarFallback>
-              </Avatar>
-            ),
-            status: page.executing ? (
-              <span
-                role="status"
-                aria-label={t('webview.tabs.agent_active', { title: title(page) })}
-                className="size-1.5 shrink-0 rounded-full bg-primary"
-              />
-            ) : undefined
-          }))}
-          activeKey={active?.pageId ?? null}
-          label={t('webview.tabs.label')}
-          closeLabel={(tab) => t('webview.tabs.close', { title: tab.title })}
-          overflowLabel={t('webview.tabs.all')}
-          tabIdPrefix={tabPrefix}
-          panelId={`${tabPrefix}-content`}
-          onActivate={(pageId) => browserRuntime.activate(sessionId, pageId)}
-          onClose={close}
-          getMenuItems={getMenuItems}
-        />
-        <Tooltip content={t('webview.tabs.new')}>
-          <Button
-            id={`${tabPrefix}-add`}
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground"
-            aria-label={t('webview.tabs.new')}
-            onClick={add}>
-            <Plus className="size-3.5" />
-          </Button>
-        </Tooltip>
-        {toolbarActions}
-      </div>
+      {props.header === undefined ? (
+        <div className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-2 border-border-subtle border-b bg-card px-2">
+          <RightPaneTabs
+            tabs={pages.map((page) => ({
+              key: page.pageId,
+              title: title(page),
+              path: `${title(page)} ${page.url}`,
+              icon: page.loading ? (
+                <LoaderCircle aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
+              ) : (
+                <Avatar className="size-3.5 shrink-0 rounded-none">
+                  <AvatarImage src={page.favicon} alt="" referrerPolicy="no-referrer" />
+                  <AvatarFallback className="rounded-none bg-transparent">
+                    {page.securityProfile === WebviewSecurityProfile.AgentHtmlArtifact ? (
+                      <FileCode aria-hidden className="size-3.5" />
+                    ) : (
+                      <Globe aria-hidden className="size-3.5" />
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+              ),
+              status: page.executing ? (
+                <span
+                  role="status"
+                  aria-label={t('webview.tabs.agent_active', { title: title(page) })}
+                  className="size-1.5 shrink-0 rounded-full bg-primary"
+                />
+              ) : undefined
+            }))}
+            activeKey={active?.pageId ?? null}
+            label={t('webview.tabs.label')}
+            closeLabel={(tab) => t('webview.tabs.close', { title: tab.title })}
+            overflowLabel={t('webview.tabs.all')}
+            tabIdPrefix={tabPrefix}
+            panelId={`${tabPrefix}-content`}
+            onActivate={(pageId) => browserRuntime.activate(sessionId, pageId)}
+            onClose={close}
+            getMenuItems={getMenuItems}
+          />
+          <Tooltip content={t('webview.tabs.new')}>
+            <Button
+              id={`${tabPrefix}-add`}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground"
+              aria-label={t('webview.tabs.new')}
+              onClick={add}>
+              <Plus className="size-3.5" />
+            </Button>
+          </Tooltip>
+          {toolbarActions}
+        </div>
+      ) : (
+        props.header
+      )}
       {executing && (
         <div
           role="status"

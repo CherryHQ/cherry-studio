@@ -269,6 +269,7 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
 interface ArtifactPaneViewProps {
   paneTitle: ReactNode
   paneActions: ReactNode
+  renderHeader?: (controls: ReactNode) => ReactNode
   workspacePath?: string
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose: () => void
@@ -820,7 +821,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     ) : null
   // The toggle follows the tree to the right; a narrow pane covers the file instead, so it stays left.
   const treeToggleOnRight = isWide && paneSettings.treePosition === 'right'
-  const paneHeader = (
+  const paneHeader = props.renderHeader ? (
+    props.renderHeader(
+      <>
+        {treeToggle}
+        <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
+      </>
+    )
+  ) : (
     <div
       data-testid="artifact-pane-header"
       className="flex min-h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">

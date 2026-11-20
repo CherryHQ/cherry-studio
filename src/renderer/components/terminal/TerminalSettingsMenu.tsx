@@ -1,4 +1,5 @@
 import { MoreHorizontal } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -9,6 +10,7 @@ import {
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -32,7 +34,7 @@ export function useTerminalSettings() {
   return useMultiplePreferences(SETTING_KEYS)
 }
 
-export function TerminalSettingsMenu() {
+export function TerminalSettingsMenu({ children }: { children?: ReactNode }) {
   const { t } = useTranslation()
   const [settings, setSettings] = useTerminalSettings()
 
@@ -46,6 +48,12 @@ export function TerminalSettingsMenu() {
         </DropdownMenuTrigger>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-56">
+        {children && (
+          <>
+            {children}
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             {t('terminal.settings.cursor_style')}

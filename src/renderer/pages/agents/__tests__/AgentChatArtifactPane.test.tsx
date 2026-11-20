@@ -13,12 +13,25 @@ import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import AgentChat from '../AgentChat'
+import type * as ResourceTabsModule from '../components/AgentRightPane/AgentResourceTabs'
+
+vi.mock('../components/AgentRightPane/AgentResourceTabs', async (importActual) => ({
+  ...(await importActual<typeof ResourceTabsModule>()),
+  AgentResourceTabs: () => null
+}))
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const showDoctorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
+  ipcApi: {
+    on: vi.fn(() => vi.fn()),
+    request: (route: string, ...args: unknown[]) => {
+      if (route === 'terminal.list') return Promise.resolve({ resources: [], truncated: false })
+      if (route === 'terminal.cleanup.status') return Promise.resolve({ count: 0, recoveryFailed: false })
+      return ipcRequestMock(route, ...args)
+    }
+  },
   useIpcOn: vi.fn()
 }))
 
