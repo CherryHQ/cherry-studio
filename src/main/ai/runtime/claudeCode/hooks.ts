@@ -21,7 +21,7 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+import { evaluateToolGuards, type ToolGuardContext } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -48,7 +48,7 @@ const sessionState = () => application.get('ClaudeCodeSessionStateService')
 export function surfaceExitPlanModeInput(
   sessionId: string,
   toolName: string,
-  input: Record<string, unknown> | undefined,
+  input: ToolGuardContext['input'],
   toolCallId: string | undefined
 ): void {
   if (toolName !== EXIT_PLAN_MODE_TOOL_NAME || !toolCallId || typeof input?.plan !== 'string' || !input.plan.trim()) {
@@ -80,7 +80,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = input.tool_name
     if (!toolName) return {}
-    const toolInput = input.tool_input as Record<string, unknown> | undefined
+    // SAFETY: The shared guard contract retains opaque values; the selected guards check each field they consume.
+    const toolInput = input.tool_input as ToolGuardContext['input']
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -145,7 +146,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     if (input.tool_name !== SKILL_TOOL_NAME) return {}
-    const skillName = (input.tool_input as Record<string, unknown> | undefined)?.skill
+    // SAFETY: Only the skill field is consumed from the shared input contract and it is checked below.
+    const skillName = (input.tool_input as ToolGuardContext['input'])?.skill
     if (typeof skillName !== 'string' || !skillName) return {}
 
     const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
@@ -158,7 +160,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = input.tool_name
     if (toolName !== 'Bash') return {}
-    const toolInput = input.tool_input as Record<string, unknown> | undefined
+    // SAFETY: The shared input contract keeps argument values opaque; the command is checked before rewriting.
+    const toolInput = input.tool_input as ToolGuardContext['input']
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 

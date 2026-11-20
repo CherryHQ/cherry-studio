@@ -30,7 +30,8 @@ export interface RuntimeWorkspaceRelocation {
 
 /** Cache native records only for one relocation, preserving the source bytes. */
 export function createRelocationHistoryReader(root: string) {
-  const entriesByFile = new Map<string, Array<Record<string, unknown>>>()
+  const historySchema = z.array(z.record(z.string(), z.unknown()))
+  const entriesByFile = new Map<string, z.infer<typeof historySchema>>()
   return async (file: string) => {
     const cached = entriesByFile.get(file)
     if (cached) return cached
@@ -45,7 +46,7 @@ export function createRelocationHistoryReader(root: string) {
         if (!(error instanceof SyntaxError)) throw error
       }
     }
-    const entries = z.array(z.record(z.string(), z.unknown())).parse(parsed)
+    const entries = historySchema.parse(parsed)
     entriesByFile.set(file, entries)
     return entries
   }

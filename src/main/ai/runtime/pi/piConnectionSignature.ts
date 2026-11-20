@@ -25,10 +25,12 @@ import type { Provider } from '@shared/data/types/provider'
 
 import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Signature inputs include native configuration values; this check establishes only recursive object/array traversal.
 function isSignatureContainer(value: unknown): value is Record<string, unknown> | unknown[] {
   return value !== null && typeof value === 'object'
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Signature sorting does not validate configuration leaves; preserve their existing serialization behavior.
 function sortSignatureFields(value: Record<string, unknown> | unknown[]): Record<string, unknown> | unknown[] {
   if (Array.isArray(value)) {
     return value.map((entry) => (isSignatureContainer(entry) ? sortSignatureFields(entry) : entry))
