@@ -644,7 +644,11 @@ export class MemoryStore {
     const files: MemoryRecoveryPreview['files'] = []
     const restoringMerge = hasOrderedRecovery(batch)
     const steps = restoringMerge ? batch.steps.toReversed() : batch.steps
-    let prerequisiteConflict = false
+    let prerequisiteConflict =
+      batch.dependencies?.some(
+        (dep) =>
+          !batch.steps.some((step) => step.path === dep.path) && memoryHash(scope.get(dep.path) ?? null) !== dep.hash
+      ) ?? false
     for (const step of steps) {
       const before = scope.get(step.path) ?? null
       const currentHash = memoryHash(before)
