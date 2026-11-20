@@ -10,15 +10,16 @@ Status: implemented
 
 ## Decision
 
-以下条件全部满足时，`ErrorBlock` 会在「详情」链接旁加一个不显眼的「改用订阅模型」入口：
+只有 `useHasCurrentPaidPlan` 为真时，首页聊天适配层才提供 `renderSubscriptionModelPicker`。这个 hook 要求套餐数据是最新的（`isPlansReady`），有生效中的付费权益（`activePaid`），并且权益如果记录了 `expires_at`，这个时间还没到。组件挂载期间，hook 会在这个到期时间重新检查一次：不自动续费的套餐到期后，即使没有收到新的账户数据，开着的卡片也会隐藏入口。适配层每个消息列表只读一次套餐，图片截图用的列表（`imageActionConsumer: 'capture'`）永远拿不到这个能力。
 
-- 当前页面提供了 `renderRegenerateModelPicker`。目前只有首页聊天的适配层提供；智能体、历史记录等只读页面不显示入口。
+以下条件全部满足时，`ErrorBlock` 会在「详情」链接旁显示一个不显眼的「改用订阅模型」入口：
+
+- 当前页面提供了 `renderSubscriptionModelPicker`。智能体、历史记录等只读页面不提供。
 - 失败消息的服务商不是 `cherryai-subscription`。
 - 这条消息不在生成中。
 - 错误类型是换服务商能解决的：`auth`、`permission`、`region`、`model`、`quota`、`rate_limit`、`server`、`deprecated`，或本地找不到模型。
-- `useCherryCloudPlans` 的套餐数据是最新的（`isPlansReady`），并且有生效中的付费权益（`activePaid`）。
 
-这个入口就是现有「换模型重新生成」选择器的触发按钮。`MessageModelPickerRenderOptions.providerId` 把选择器限制为 `cherryai-subscription` 的模型，选中后用这个订阅模型重新生成这条回复。卡片原来的主操作（去设置或重试）不变。
+入口打开的是「换模型重新生成」选择器，只列 `cherryai-subscription` 的模型，并关闭推荐行（`showSubscriptionOffers={false}`）。所以选中任何一项都会重新生成这条回复；需要授权的 AMD 模型、需要登录的模型和订阅推荐这些会触发别的流程的行，都不会出现。卡片原来的主操作（去设置或重试）不变。入口带有 `data-image-capture-excluded` 属性，所有图片导出都会去掉它，所以复制或保存的消息、话题图片不会透露导出账户的付费状态。
 
 ## Alternatives considered
 
@@ -29,12 +30,13 @@ Status: implemented
 
 ## Consequences
 
-- 只有页面、服务商和错误类型都满足条件的卡片才会去查套餐。查询共用 SWR 缓存，主窗口的订阅提醒已经预热过这份缓存。
-- 没有「换模型重新生成」选择器的页面保持不变，等它们的适配层提供后才会出现入口。
+- 报错卡片自己不注册任何 IPC 监听。每个消息列表只有一份套餐订阅，供所有卡片共用。
+- 没有订阅模型选择器的页面保持不变，等它们的适配层提供后才会出现入口。
 
 ## Verification
 
-- AC1 — `src/renderer/components/chat/messages/blocks/__tests__/ErrorBlock.test.tsx`：订阅用户的 OpenAI 回复被限流时，入口提供只含 `cherryai-subscription` 模型的选择器，点击入口不会打开错误详情；没有付费套餐、套餐数据未确认、失败的模型本身是订阅模型、413 请求体过大、页面没有选择器时，都不显示入口。
-- AC2 — `src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx`：传入 `providerId` 后，选择器的过滤会排除其他服务商的模型。
-- AC3 — `pnpm check --base SiinXu/global-errors-7-tools --group checks` 通过：格式、docs、lint、`typecheck:web`，以及 i18n 的 catalog、unused、hardcoded 三项检查。新文案已在渲染进程的全部 18 种语言中翻译。
-- 未做 Electron 和打包版本的验证。
+- AC1 — `src/renderer/components/chat/messages/blocks/__tests__/ErrorBlock.test.tsx`：入口位于「去设置」旁，带有截图排除标记，点击不会打开错误详情。失败模型本身是订阅模型、413 请求体过大、没有订阅选择器时，都不显示入口。同时挂载符合和不符合条件的卡片，都不会注册 IPC 监听。
+- AC2 — `src/renderer/hooks/cherryCloud/__tests__/useHasCurrentPaidPlan.test.ts` 覆盖套餐数据过期、未付费、已到期、禁用这几种情况，以及挂载期间到期、但没有收到新账户数据的情况。`src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx` 证明：有生效中的付费套餐时提供这个能力，只列 `cherryai-subscription` 模型，并关闭推荐行；没有付费套餐时，以及在截图列表里，都不提供。
+- AC3 — `src/renderer/components/cherryCloud/__tests__/CherryCloudModelSelector.test.tsx`：已登录、关闭推荐行的选择器不显示需要授权的 AMD 聊天模型。`src/renderer/utils/__tests__/image.test.ts`：图片截图会过滤掉带 `data-image-capture-excluded` 的子树。
+- AC4 — `pnpm check --base SiinXu/global-errors-7-tools --group checks` 通过：格式、docs、lint、`typecheck:web`，以及 i18n 的 catalog、unused、hardcoded 三项检查。新文案已在渲染进程的全部 18 种语言中翻译。
+- Electron CN 版：未登录时，无效 OpenAI 密钥产生的 401 卡片不显示入口。开发版没有配置 `MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET`，登录失败，所以已订阅的情况没有在 Electron 里实测。未做打包版本的验证。
