@@ -1,3 +1,4 @@
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Declaration generation inspects raw schema keywords without asserting that a whole dialect was validated.
 type JsonSchema = Record<string, unknown>
 
 const MAX_NESTING_DEPTH = 5
@@ -27,6 +28,7 @@ export function jsonSchemaToTypeScript(schema: unknown, depth = 0): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested keywords and local JSON pointers can resolve to arbitrary schema values; check each container and bound recursion before rendering.
 function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resolvingRefs: ReadonlySet<string>): string {
   if (!schema || typeof schema !== 'object' || depth >= MAX_NESTING_DEPTH) return 'unknown'
+  // SAFETY: The container is an object; each rendering branch checks its own supported keywords.
   const value = schema as JsonSchema
 
   if (typeof value.$ref === 'string') {
@@ -37,6 +39,7 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
     for (const segment of ref.slice(2).split('/')) {
       const key = segment.replaceAll('~1', '/').replaceAll('~0', '~')
       if (!resolved || typeof resolved !== 'object' || !(key in resolved)) return 'unknown'
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- A JSON pointer may resolve to any value; the recursive walker validates the next container.
       resolved = (resolved as Record<string, unknown>)[key]
     }
     return schemaToTypeScript(resolved, root, depth + 1, new Set([...resolvingRefs, ref]))
@@ -82,6 +85,7 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
           : 'Record<string, unknown>'
       }
       const required = new Set(Array.isArray(value.required) ? (value.required as string[]) : [])
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Property values remain unvalidated schemas and re-enter the bounded recursive walker.
       const fields = Object.entries(properties as Record<string, unknown>)
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([name, property]) => {

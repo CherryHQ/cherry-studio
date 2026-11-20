@@ -1,5 +1,7 @@
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Foreign schema keywords stay opaque until their individual fields are checked below.
 type PropertySchema = Record<string, unknown>
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This container check does not establish a schema dialect or validate child values.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -51,6 +53,7 @@ const MAX_NESTING_DEPTH = 5
 
 function appendPropertyParams(
   lines: string[],
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Property entries may be boolean schemas or malformed; inspect each before emitting documentation.
   properties: Record<string, unknown>,
   required: Set<string>,
   prefix: string,

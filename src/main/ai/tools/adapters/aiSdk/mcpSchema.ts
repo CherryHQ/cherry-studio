@@ -32,7 +32,9 @@ function normalizeMcpInputSchema(schema: JSONSchema7): JSONSchema7 {
 
 export function createMcpInputSchema(schema: JSONSchema7) {
   const normalized = normalizeMcpInputSchema(schema)
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Server-selected schemas define argument values dynamically; the validator below owns their runtime contract.
   return jsonSchema<Record<string, unknown>>(normalized, {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Validation does not provide a static TypeScript value type for arbitrary server-defined properties.
     validate: createMcpJsonSchemaValidator<Record<string, unknown>>(normalized)
   })
 }
