@@ -274,6 +274,12 @@
   animation: animation-breathe 2.4s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animation-breathe {
+    animation: none;
+  }
+}
+
 /* Reveal 动画 */
 @keyframes animation-reveal {
   from {

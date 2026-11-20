@@ -45,7 +45,7 @@ function ResultAvatar({
   const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <div className={working ? 'animation-breathe motion-reduce:animate-none' : undefined}>
+      <div className={working ? 'animation-breathe' : undefined}>
         <AssistantAvatarImage
           src={imageSrc}
           alt={t('common.avatar')}
