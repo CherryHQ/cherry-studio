@@ -36,48 +36,94 @@ afterEach(() => {
 
 const stylesheet = postcss.parse(readFileSync('src/renderer/assets/styles/markdown.css', 'utf8'))
 
-function resolveStyle(element: Element, property: string): string | null {
+function specificity(selector: string): number[] {
+  const score = [0, 0, 0]
+  const tokens = /#[\w-]+|\.[\w-]+|\[[^\]]+\]|::[\w-]+|:[\w-]+|[a-zA-Z_][\w-]*|[(),]/g
+  let token: RegExpExecArray | null
+  while ((token = tokens.exec(selector))) {
+    const part = token[0]
+    if (/^:(is|not|where)$/.test(part) && selector[tokens.lastIndex] === '(') {
+      const start = ++tokens.lastIndex
+      let depth = 1
+      while (depth && tokens.lastIndex < selector.length) {
+        const char = selector[tokens.lastIndex++]
+        if (char === '(') depth++
+        if (char === ')') depth--
+      }
+      if (part !== ':where') {
+        const argumentsScores = postcss.list.comma(selector.slice(start, tokens.lastIndex - 1)).map(specificity)
+        const max = argumentsScores.reduce((a, b) => (compare(a, b) >= 0 ? a : b))
+        max.forEach((value, i) => (score[i] += value))
+      }
+    } else if (part.startsWith('#')) score[0]++
+    else if (part.startsWith('::')) score[2]++
+    else if (/^[.[:]/.test(part)) score[1]++
+    else if (/^[a-zA-Z_]/.test(part)) score[2]++
+  }
+  return score
+}
+
+function compare(a: number[], b: number[]): number {
+  const index = a.findIndex((part, i) => part !== b[i])
+  return index < 0 ? 0 : a[index] - b[index]
+}
+
+function resolveStyle(element: Element, property: string, styles = stylesheet): string | null {
   let winner: { value: string; priority: number[] } | null = null
-  stylesheet.walkRules((rule) => {
+  styles.walkRules((rule) => {
     for (const selector of rule.selectors) {
       try {
         if (!element.matches(selector)) continue
       } catch {
         continue
       }
-      const unwrapped = selector.replace(/:is\(([^()]*)\)/g, '$1')
-      const ids = unwrapped.match(/#[\w-]+/g)?.length ?? 0
-      const classes = unwrapped.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g)?.length ?? 0
-      const types =
-        unwrapped
-          .replace(/#[\w-]+|\.[\w-]+|\[[^\]]+\]|:{1,2}[\w-]+(?:\([^)]*\))?/g, '')
-          .match(/(?:^|[\s>+~])([a-zA-Z][\w-]*)/g)?.length ?? 0
       rule.walkDecls(property, (declaration) => {
-        const priority = [Number(declaration.important), ids, classes, types]
-        if (
-          !winner ||
-          priority.some(
-            (part, i) => part > winner!.priority[i] && priority.slice(0, i).every((v, j) => v === winner!.priority[j])
-          ) ||
-          priority.every((part, i) => part === winner!.priority[i])
-        ) {
+        const priority = [declaration.important ? 1 : 0, ...specificity(selector)]
+        if (!winner || compare(priority, winner.priority) >= 0) {
           winner = { value: declaration.value, priority }
         }
       })
     }
   })
   const result = winner as { value: string } | null
-  return result?.value ?? (element.parentElement ? resolveStyle(element.parentElement, property) : null)
+  return result?.value ?? (element.parentElement ? resolveStyle(element.parentElement, property, styles) : null)
 }
 
+it('resolves cascade priority for matched selectors', () => {
+  const element = document.createElement('div')
+  element.id = 'target'
+  element.className = 'a b c'
+  element.setAttribute('data-test', '')
+  const styles = postcss.parse(`
+    #target { --important: high; --specific: high; }
+    .a { --important: important !important; --specific: low; --equal: first; }
+    .b { --equal: later; }
+    :is(.a, .b.c) { --is: maximum; }
+    .a { --is: lower; --where: higher; --list: matched; }
+    :where(.a) { --where: zero; }
+    #missing, div { --list: lower; }
+    [data-test]:not(.missing) { --attribute: higher; }
+    .a { --attribute: lower; }
+  `)
+  for (const [property, value] of Object.entries({
+    important: 'important',
+    specific: 'high',
+    equal: 'later',
+    is: 'maximum',
+    where: 'higher',
+    list: 'matched',
+    attribute: 'higher'
+  })) {
+    expect(resolveStyle(element, `--${property}`, styles)).toBe(value)
+  }
+})
+
 it('resolves ligature suppression on the elements that render code', () => {
-  const { container } = render(<CodeViewer value={'x =~ 42\ny <= 10 -> z'} language="text" expanded={false} />)
-  const root = container.querySelector('.shiki')!
-  const textElement =
-    container.querySelector('.shiki .line-content') ??
-    Array.from(root.querySelectorAll('*'))
-      .reverse()
-      .find((element) => element.textContent?.includes('<='))!
+  const { container } = render(<CodeViewer value={'x =~ 42\n<='} language="text" expanded={false} />)
+  const textElement = Array.from(container.querySelectorAll('.shiki .line-content > span')).find(
+    (element) => element.textContent?.trim() === '<='
+  )!
+  expect(textElement).toBeDefined()
 
   // The contract is that .markdown code matches inline code, regardless of its producer.
   const inline = render(
