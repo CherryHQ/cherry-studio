@@ -1,5 +1,5 @@
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
-import { parse as parseToml } from 'smol-toml'
+import { parse as parseToml, type TomlTableWithoutBigInt } from 'smol-toml'
 import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } from 'yaml'
 
 import { ipcApi } from '@renderer/ipc'
@@ -57,15 +57,15 @@ export function readValidatedTomlOrNull(
   target: CliConfigTarget,
   files: CliConfigReadFiles,
   label: string
-): Record<string, any> | null {
+): TomlTableWithoutBigInt | null {
   const { path, content } = requireReadFile(target, files)
   return content === null ? null : parseOrThrow(content, label, path, parseTomlOrThrow)
 }
 
-export function parseTomlOrThrow(content: string): Record<string, any> {
+export function parseTomlOrThrow(content: string): TomlTableWithoutBigInt {
   if (!content) return {}
   try {
-    return parseToml(content) as Record<string, any>
+    return parseToml(content)
   } catch (err) {
     // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
     // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
