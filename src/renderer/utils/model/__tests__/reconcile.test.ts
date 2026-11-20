@@ -86,6 +86,23 @@ describe('reconcile web search', () => {
     })
   })
 
+  it('keeps enabled web search on a function-calling model that only has a ready client fetch provider', () => {
+    const nextModel = createModel([MODEL_CAPABILITY.FUNCTION_CALL])
+
+    expect(
+      reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined, {
+        clientSearchAvailable: false,
+        clientFetchAvailable: true
+      })
+    ).toBeNull()
+    expect(
+      reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined, {
+        clientSearchAvailable: false,
+        clientFetchAvailable: false
+      })
+    ).toEqual({ enableWebSearch: false })
+  })
+
   it('applies a no-backend model switch with search off while the saved preference stays readable', () => {
     const next: Model = { ...createModel([MODEL_CAPABILITY.FUNCTION_CALL]), id: 'p::fc' }
     const remembered = { enableWebSearch: true }

@@ -248,7 +248,11 @@ function AssistantEditDialogContent({
   // restoration once the record arrives.
   const { models: selectableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { providers: enabledProviders } = useProviders({ enabled: true })
-  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const {
+    providers: webSearchProviders,
+    defaultSearchKeywordsProvider,
+    defaultFetchUrlsProvider
+  } = useWebSearchProviders()
   const switchTargetModel = useMemo(
     () => selectableModels.find((model) => model.id === values.modelId),
     [selectableModels, values.modelId]
@@ -258,6 +262,9 @@ function AssistantEditDialogContent({
     : undefined
   const clientSearchAvailable = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
+  const clientFetchAvailable = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultFetchUrlsProvider, 'fetchUrls')
   )
   const [chatModelSettings] = usePreference('chat.model_settings')
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
@@ -345,7 +352,13 @@ function AssistantEditDialogContent({
         currentSettings: { ...resource.settings, ...pending.payload.settings },
         remembered: chatModelSettings?.[pending.payload.modelId],
         clientSearchAvailable,
-        hasFunctionToolSignals: hasMcpToolSignals(resource) || scopedKnowledgeTools
+        clientFetchAvailable,
+        // MCP signals come from the submitted form: this same PATCH can change the mode or linked servers.
+        hasFunctionToolSignals:
+          hasMcpToolSignals({
+            settings: { ...resource.settings, mcpMode: submittedValues.mcpMode },
+            mcpServerIds: submittedValues.mcpServerIds
+          }) || scopedKnowledgeTools
       })
       if (switched) {
         pending.payload.settings = {

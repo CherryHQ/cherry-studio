@@ -228,7 +228,11 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
   const [modelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
-  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const {
+    providers: webSearchProviders,
+    defaultSearchKeywordsProvider,
+    defaultFetchUrlsProvider
+  } = useWebSearchProviders()
   const scopedKnowledgeTools = useScopedKnowledgeToolSignals(assistant?.knowledgeBaseIds)
   const scopedKnowledgeToolsRef = useRef(scopedKnowledgeTools)
   scopedKnowledgeToolsRef.current = scopedKnowledgeTools
@@ -248,6 +252,10 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const clientSearchAvailableRef = useRef(false)
   clientSearchAvailableRef.current = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
+  const clientFetchAvailableRef = useRef(false)
+  clientFetchAvailableRef.current = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultFetchUrlsProvider, 'fetchUrls')
   )
 
   const modelId =
@@ -306,6 +314,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       remembered: modelSettingsRef.current?.[next.id],
       extraSettings,
       clientSearchAvailable: clientSearchAvailableRef.current,
+      clientFetchAvailable: clientFetchAvailableRef.current,
       // Include scoped KB tools as well as MCP when predicting the Gemini conflict.
       hasFunctionToolSignals: hasMcpToolSignals(currentAssistant) || scopedKnowledgeToolsRef.current
     })

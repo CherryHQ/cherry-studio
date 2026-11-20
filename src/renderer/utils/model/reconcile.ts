@@ -59,6 +59,8 @@ export function reconcileWebSearchForModel(
   options?: {
     /** A ready client (function-tool) search provider is configured. */
     clientSearchAvailable?: boolean
+    /** A ready client (function-tool) URL-fetch provider is configured; it keeps the flag serving fetch. */
+    clientFetchAvailable?: boolean
     /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive. */
     hasFunctionToolSignals?: boolean
   }
@@ -69,7 +71,11 @@ export function reconcileWebSearchForModel(
   // route and without a ready client search provider the request resolves to
   // 'none' ('no-backend'), so restoring the flag would leave the toggle on
   // with nothing serving it. The saved per-model preference is untouched.
-  if (!hasModelBuiltinWebSearch(nextModel, provider) && !options?.clientSearchAvailable) {
+  if (
+    !hasModelBuiltinWebSearch(nextModel, provider) &&
+    !options?.clientSearchAvailable &&
+    !(options?.clientFetchAvailable && isFunctionCallingModel(nextModel))
+  ) {
     return { enableWebSearch: false }
   }
   // `resolveWebToolRoutes` withdraws the builtin search route when the request
@@ -124,6 +130,8 @@ export function resolveModelSwitchSettings(args: {
   extraSettings?: Partial<AssistantSettings>
   /** A ready client (function-tool) search provider is configured. */
   clientSearchAvailable?: boolean
+  /** A ready client (function-tool) URL-fetch provider is configured. */
+  clientFetchAvailable?: boolean
   /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive. */
   hasFunctionToolSignals?: boolean
 }): Partial<AssistantSettings> | undefined {
@@ -135,6 +143,7 @@ export function resolveModelSwitchSettings(args: {
     remembered,
     extraSettings,
     clientSearchAvailable,
+    clientFetchAvailable,
     hasFunctionToolSignals
   } = args
   const switching = next.id !== currentModelId
@@ -165,7 +174,7 @@ export function resolveModelSwitchSettings(args: {
     next,
     { enableWebSearch: baseSettings.enableWebSearch, reasoning_effort: effectiveEffort },
     nextProvider,
-    { clientSearchAvailable, hasFunctionToolSignals }
+    { clientSearchAvailable, clientFetchAvailable, hasFunctionToolSignals }
   )
   return appliedExtraSettings || reasoning || webSearch || switching
     ? { ...baseSettings, ...reasoning, ...webSearch, ...appliedExtraSettings }
