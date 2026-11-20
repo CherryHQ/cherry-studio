@@ -308,7 +308,7 @@ class AgentWorkspaceStorageService {
       return true
     }
     if (!record) {
-      if (!state.directory && !state.pending) return
+      if (!state.directory && !state.pending) return false
       if (state.archive || (state.directory && state.pending))
         throw new Error('Workspace storage has unverified copies')
       record = {
