@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   i18nKeys: new Set<string>(),
   language: 'en',
   translations: new Map<string, string>(),
-  showErrorDetailPopup: vi.fn()
+  showErrorDetailPopup: vi.fn(),
+  plans: { isPlansReady: false, activePaid: undefined as { id: string } | undefined }
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
@@ -35,6 +36,10 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderById: (providerId?: string) => ({
     provider: providerId === CUSTOM_PROVIDER.id ? CUSTOM_PROVIDER : undefined
   })
+}))
+
+vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
+  useCherryCloudPlans: (enabled = true) => (enabled ? mocks.plans : { isPlansReady: false, activePaid: undefined })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -102,6 +107,7 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
+    mocks.plans = { isPlansReady: false, activePaid: undefined }
     vi.clearAllMocks()
   })
 
@@ -1030,5 +1036,76 @@ required service tier.`
 
     await user.click(screen.getByRole('button', { name: enUS['common.retry'] }))
     expect(regenerateMessage).toHaveBeenCalledWith('message-1')
+  })
+  describe('subscription model entry', () => {
+    const SWITCH_LABEL = enUS['error.notice.switch_to_subscription_model']
+    const rateLimit = { name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }
+    const renderRegenerateModelPicker: NonNullable<MessageListActions['renderRegenerateModelPicker']> = ({
+      trigger,
+      providerId
+    }) => (
+      <div data-testid="model-picker" data-provider-id={providerId}>
+        {trigger}
+      </div>
+    )
+
+    beforeEach(() => {
+      mocks.translations = new Map(Object.entries(enUS))
+      mocks.plans = { isPlansReady: true, activePaid: { id: 'pro' } }
+    })
+
+    it('offers subscription models when another provider fails a subscriber, without opening the detail', async () => {
+      const user = userEvent.setup()
+      const openErrorDetail = vi.fn()
+      mocks.actions = { navigateErrorTarget: vi.fn(), openErrorDetail, renderRegenerateModelPicker }
+
+      render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
+
+      expect(screen.getByTestId('model-picker')).toHaveAttribute('data-provider-id', 'cherryai-subscription')
+      expect(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: SWITCH_LABEL }))
+      expect(openErrorDetail).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      {
+        case: 'the user has no paid plan',
+        plans: { isPlansReady: true, activePaid: undefined },
+        error: rateLimit,
+        model: message.model
+      },
+      {
+        case: 'the plans are not confirmed yet',
+        plans: { isPlansReady: false, activePaid: { id: 'pro' } },
+        error: rateLimit,
+        model: message.model
+      },
+      {
+        case: 'the failing model is already a subscription model',
+        plans: { isPlansReady: true, activePaid: { id: 'pro' } },
+        error: rateLimit,
+        model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+      },
+      {
+        case: 'the request itself is too large',
+        plans: { isPlansReady: true, activePaid: { id: 'pro' } },
+        error: { name: 'APICallError', message: '413 Request Entity Too Large', stack: null, statusCode: 413 },
+        model: message.model
+      }
+    ])('does not offer subscription models when $case', ({ plans, error, model }) => {
+      mocks.plans = plans
+      mocks.actions = { renderRegenerateModelPicker }
+
+      render(<ErrorBlock partId="message-1-part-0" error={error} message={{ ...message, model }} />)
+
+      expect(screen.queryByRole('button', { name: SWITCH_LABEL })).toBeNull()
+    })
+
+    it('does not offer subscription models where the surface cannot regenerate with another model', () => {
+      render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
+
+      expect(screen.getByText(enUS['error.notice.rate_limit.title'])).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: SWITCH_LABEL })).toBeNull()
+    })
   })
 })

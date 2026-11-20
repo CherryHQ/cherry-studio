@@ -750,7 +750,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
-    ({ message, messageParts, trigger, onOpenChange }) => {
+    ({ message, messageParts, trigger, onOpenChange, providerId }) => {
       const messageModel = getMessageListItemModel(message)
       const currentMentionModel = messageModel
         ? ({
@@ -762,6 +762,7 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
+        if (providerId && model.providerId !== providerId) return false
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
