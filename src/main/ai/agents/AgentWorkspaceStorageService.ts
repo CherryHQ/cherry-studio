@@ -20,6 +20,10 @@ import {
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import {
+  workspaceUsageRecordSchema as usageRecord,
+  type WorkspaceUsageRecord as UsageRecord
+} from '@shared/types/workspaceUsage'
 import { KeyedMutex } from '@shared/utils/async'
 
 import * as storage from './agentWorkspaceStorage'
@@ -28,19 +32,6 @@ const logger = loggerService.withContext('AgentWorkspaceStorageService')
 type Workspace = { id: string; path: string }
 type ArchiveRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'archive' }>
 type RestoreRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'restore' }>
-const usageOwner = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('preparation'), operationId: z.string().min(1).max(512) }),
-  z.strictObject({ kind: z.literal('runtime'), contextId: z.string().min(1).max(512) }),
-  z.strictObject({ kind: z.literal('terminal'), resourceId: z.uuid(), generation: z.uuid() })
-])
-const usageRecord = z.strictObject({
-  id: z.uuid(),
-  sessionId: z.string().min(1).max(512),
-  cwd: AbsoluteFilePathSchema,
-  owner: usageOwner,
-  createdAt: z.number().int().nonnegative()
-})
-type UsageRecord = z.infer<typeof usageRecord>
 export type WorkspaceUsage = Pick<UsageRecord, 'sessionId' | 'owner'> & { cwd: string }
 
 function probeNameBehavior(directory: string): PathNameBehavior {
@@ -74,7 +65,9 @@ export class AgentWorkspaceStorageService extends BaseService {
   private readonly uncertainUsage = new Set<string>()
   private readonly journalWrites = new KeyedMutex()
   private journalReady?: Promise<void>
-  private journalFailure?: unknown
+  private journalFailure: 'recovery' | 'write' | null = null
+  private readonly failedAdmissions = new Set<string>()
+  private readonly usageReleases = new Map<string, Promise<void>>()
   private pendingUsage = 0
   private reclaiming = false
 
@@ -103,7 +96,7 @@ export class AgentWorkspaceStorageService extends BaseService {
         }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          this.journalFailure = error
+          this.journalFailure = 'recovery'
           logger.error('Workspace usage recovery failed; automatic reclaim disabled', { error })
         }
       }
@@ -112,13 +105,19 @@ export class AgentWorkspaceStorageService extends BaseService {
 
   private async persistUsage(): Promise<void> {
     await this.journalWrites.runExclusive('usage', async () => {
-      const file = application.getPath('feature.agents.data', 'workspace-usage.json')
-      const content = JSON.stringify([...this.usage.values()])
-      if (Buffer.byteLength(content) > 16 * 1024 * 1024) throw new Error('Workspace usage journal exceeds capacity')
-      await atomicWriteFile(AbsoluteFilePathSchema.parse(file), content, {
-        mode: 0o600
-      })
-      await storage.syncWorkspaceStorageDirectory(path.dirname(file))
+      try {
+        const file = application.getPath('feature.agents.data', 'workspace-usage.json')
+        const content = JSON.stringify([...this.usage.values()])
+        if (Buffer.byteLength(content) > 16 * 1024 * 1024) throw new Error('Workspace usage journal exceeds capacity')
+        await atomicWriteFile(AbsoluteFilePathSchema.parse(file), content, {
+          mode: 0o600
+        })
+        await storage.syncWorkspaceStorageDirectory(path.dirname(file))
+        if (this.journalFailure === 'write') this.journalFailure = null
+      } catch (error) {
+        if (this.journalFailure !== 'recovery') this.journalFailure = 'write'
+        throw error
+      }
     })
   }
 
@@ -135,7 +134,7 @@ export class AgentWorkspaceStorageService extends BaseService {
         await this.persistUsage()
       } catch (error) {
         this.uncertainUsage.add(record.id)
-        this.journalFailure = error
+        this.failedAdmissions.add(record.id)
         throw error
       }
       return record.id
@@ -144,19 +143,39 @@ export class AgentWorkspaceStorageService extends BaseService {
     }
   }
 
-  async releaseUsage(id: string): Promise<void> {
+  releaseUsage(id: string): Promise<void> {
+    const pending = this.usageReleases.get(id)
+    if (pending) return pending
+    const release = (async () => {
+      await this.loadUsageJournal()
+      const record = this.usage.get(id)
+      if (!record || this.recoveredUsage.has(id)) return
+      this.usage.delete(id)
+      this.uncertainUsage.delete(id)
+      try {
+        await this.persistUsage()
+        this.failedAdmissions.delete(id)
+      } catch (error) {
+        this.usage.set(id, record)
+        this.uncertainUsage.add(id)
+        throw error
+      }
+    })().finally(() => this.usageReleases.delete(id))
+    this.usageReleases.set(id, release)
+    return release
+  }
+
+  async discardFailedAdmission(id: string): Promise<boolean> {
+    if (!this.failedAdmissions.has(id)) return false
+    await this.releaseUsage(id)
+    return true
+  }
+
+  async cleanupStatus(): Promise<{ count: number; recoveryFailed: boolean }> {
     await this.loadUsageJournal()
-    const record = this.usage.get(id)
-    if (!record || this.recoveredUsage.has(id)) return
-    this.usage.delete(id)
-    this.uncertainUsage.delete(id)
-    try {
-      await this.persistUsage()
-    } catch (error) {
-      this.usage.set(id, record)
-      this.uncertainUsage.add(id)
-      this.journalFailure = error
-      throw error
+    return {
+      count: new Set([...this.recoveredUsage, ...this.uncertainUsage]).size,
+      recoveryFailed: this.journalFailure !== null
     }
   }
 
@@ -164,11 +183,11 @@ export class AgentWorkspaceStorageService extends BaseService {
     if (this.usage.has(id)) this.uncertainUsage.add(id)
   }
 
-  async listUnconfirmedUsage(sessionId: string): Promise<UsageRecord[]> {
+  async listUnconfirmedUsage(sessionId?: string): Promise<UsageRecord[]> {
     await this.loadUsageJournal()
     return [...new Set([...this.recoveredUsage, ...this.uncertainUsage])].flatMap((id) => {
       const record = this.usage.get(id)
-      return record?.sessionId === sessionId ? [structuredClone(record)] : []
+      return record && (sessionId === undefined || record.sessionId === sessionId) ? [structuredClone(record)] : []
     })
   }
 

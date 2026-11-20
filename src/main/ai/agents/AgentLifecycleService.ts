@@ -165,6 +165,44 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  async retryWorkspaceCleanup(id: string): Promise<{ status: 'confirmed' | 'unconfirmed' | 'unavailable' }> {
+    const storage = application.get('AgentWorkspaceStorageService')
+    if (await storage.discardFailedAdmission(id)) return { status: 'confirmed' }
+    const record = (await storage.listUnconfirmedUsage()).find((item) => item.id === id)
+    if (!record) {
+      await storage.releaseUsage(id)
+      return { status: (await storage.cleanupStatus()).recoveryFailed ? 'unavailable' : 'confirmed' }
+    }
+    const owner = record.owner
+    if (owner.kind === 'terminal') {
+      const terminal = application.get('TerminalService')
+      const resource = terminal
+        .list(terminalConversationId.parse(record.sessionId))
+        .find((item) => item.id === owner.resourceId && item.host.generation === owner.generation)
+      if (!resource) return { status: 'unavailable' }
+      const receipt = await terminal.mutate(
+        { host: resource.host, id: resource.id },
+        {
+          kind: 'stop',
+          id: resource.id,
+          actor: { kind: 'user' },
+          controlRevision: resource.controlRevision,
+          cancelRevision: resource.cancelRevision,
+          reason: 'user'
+        },
+        crypto.randomUUID()
+      )
+      if (receipt.kind !== 'resource' || receipt.resource.cleanup !== 'confirmed') return { status: 'unconfirmed' }
+      await storage.releaseUsage(id)
+      return { status: 'confirmed' }
+    }
+    if (owner.kind === 'runtime' && (await application.get('AgentSessionRuntimeService').retryWorkspaceCleanup(id))) {
+      await storage.releaseUsage(id)
+      return { status: 'confirmed' }
+    }
+    return { status: 'unavailable' }
+  }
+
   createUserTerminal(input: { sessionId: string; shell: 'default' | 'bash' | 'powershell'; operationId: string }) {
     return this.runOperation('create-user-terminal:' + input.sessionId, async () => {
       const session = agentSessionService.getById(input.sessionId)
