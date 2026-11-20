@@ -71,3 +71,15 @@ it('reports a recorded host summary failure as failed, not aborted', () => {
     aborted: true
   })
 })
+
+it('keeps an empty-message host summary failure a failure with a fallback diagnostic', () => {
+  const events: AgentRuntimeEvent[] = []
+  const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))
+
+  observer.handle({ type: 'compaction_start', reason: 'threshold' })
+  observer.summaryFailure = ''
+  observer.handle({ type: 'compaction_end', reason: 'threshold', result: undefined, aborted: true, willRetry: false })
+  const [end] = events.filter((event) => event.type === 'compaction-end')
+  expect(end).toMatchObject({ type: 'compaction-end', aborted: false })
+  expect((end as { error?: string }).error).toBeTruthy()
+})

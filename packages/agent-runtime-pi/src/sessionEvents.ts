@@ -18,6 +18,8 @@ export type AgentRuntimeEvent =
   | { type: 'turn-complete'; headEntryId: string | undefined }
 
 /** Observes native entries; the session manager remains the only persistence writer. */
+const EMPTY_SUMMARY_FAILURE = 'The compaction summary failed without a message'
+
 export class SessionEvents {
   private cursor: number
   private baseTools: Set<string> | undefined
@@ -54,7 +56,11 @@ export class SessionEvents {
         break
       case 'compaction_end': {
         const summaryFailure = this.summaryFailure
-        const error = event.errorMessage ?? summaryFailure
+        // A recorded failure whose text is empty (`new Error('')`) must still read as a failure, so give it a
+        // non-empty diagnostic: the desktop treats an event with no error as a completed compaction.
+        const error =
+          event.errorMessage ??
+          (summaryFailure === undefined ? undefined : summaryFailure.trim() || EMPTY_SUMMARY_FAILURE)
         this.summaryFailure = undefined
         // A host summary rejection cancels Pi's native fallback, which Pi reports as aborted. The
         // extension only records a failure when the signal was NOT aborted, so a recorded failure
