@@ -15,6 +15,13 @@ this upstream copy. Its generic entry point can be typechecked separately
 with TypeScript import extensions enabled. Effect-specific sources are omitted
 because this repository does not use Effect.
 
+`no-shape-in-symbol-names` is deliberately disabled, not pending cleanup. Its
+substring ban rejects legitimate geometry, schema and persisted contract names;
+restricting only bare `Shape` declarations would still enforce a naming preference
+without establishing a better type contract. Keep the upstream implementation
+available without a local fork. The enforcement target is the other 17 generic
+rules and the native companion.
+
 Unconfigured rules are pending migration, not proof that their source is clean.
 Each rule-specific stack layer clears that rule's findings, verifies affected
 contracts, and enables it as an error. Do not weaken an activated rule, exempt owned
