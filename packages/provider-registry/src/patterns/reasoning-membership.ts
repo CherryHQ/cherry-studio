@@ -25,7 +25,7 @@ import type { ReasoningFamilyRule } from '../schemas/model'
  * `pangu-pro-moe` is an unattributed residue — Huawei has no creator entry
  * to carry it; move it there if one ever exists.
  */
-const GENERIC_REASONING_SHAPES: readonly string[] = [
+const GENERIC_REASONING_PATTERNS: readonly string[] = [
   '\\b(?:reasoning|reasoner|thinking|think)\\b',
   '-r\\d+',
   'pangu-pro-moe'
@@ -67,6 +67,6 @@ export function matchReasoningMembership(rawModelId: string, rules: readonly Rea
   if (NON_REASONING_GUARD.test(id)) return false
   return (
     rules.some((rule) => rule.template !== true && membershipRegex(rule.pattern).test(id)) ||
-    GENERIC_REASONING_SHAPES.some((pattern) => membershipRegex(pattern).test(id))
+    GENERIC_REASONING_PATTERNS.some((pattern) => membershipRegex(pattern).test(id))
   )
 }

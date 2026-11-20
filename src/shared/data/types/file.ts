@@ -426,7 +426,7 @@ export const refCommonFields = Object.freeze({
  * the base shape stays honest about the variance instead of type-eroding
  * down to `z.ZodString`.
  */
-export type BusinessRefShape = {
+export type BusinessRefDefinition = {
   /** Which business domain owns this reference (e.g. 'chat', 'knowledge', 'painting') */
   sourceType: z.ZodLiteral<string>
   /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */
@@ -443,10 +443,12 @@ export type BusinessRefShape = {
  * Each sourceType variant should call this once. See the `chatMessage` section
  * below for a working example.
  */
-export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
+export const createRefSchema = <T extends BusinessRefDefinition>(
+  businessFields: T
+): z.ZodObject<typeof refCommonFields & T> =>
   z.object({
     ...refCommonFields,
-    ...shape
+    ...businessFields
   })
 
 // ─── chat_message variant ───

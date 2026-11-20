@@ -56,19 +56,19 @@ export function buildParamsSchema(
   // rather than ride RAW through `.loose()` into the strict IPC-boundary schema
   // (`imageParamsSchema`, no `.catch`), which would reject the whole submit. The
   // supported branch below overlays per-model constraints on this base.
-  const shape: Record<string, z.ZodTypeAny> = {}
+  const paramSchemas: Record<string, z.ZodTypeAny> = {}
   for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
-    shape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
+    paramSchemas[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
   }
 
   const supports = resolveModeSupports(support, mode)
-  if (!supports) return z.object(shape).loose()
+  if (!supports) return z.object(paramSchemas).loose()
 
   // Overlay this model's per-param constraints (options / range) on the base.
   for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {
     const entry = IMAGE_PARAM_CATALOG[key]
     if (!entry) continue
-    shape[key] = applyConstraints(entry.schema as z.ZodTypeAny, spec).catch(undefined)
+    paramSchemas[key] = applyConstraints(entry.schema as z.ZodTypeAny, spec).catch(undefined)
 
     // The `customSize` widget stores typed width/height under synthetic
     // `<key>_width` / `<key>_height` keys (not canonical), bounded by the spec.
@@ -77,9 +77,9 @@ export function buildParamsSchema(
         normalizeImageParamNumber,
         z.number().finite().min(spec.minSide).max(spec.maxSide).optional()
       )
-      shape[`${key}_width`] = side.catch(undefined)
-      shape[`${key}_height`] = side.catch(undefined)
+      paramSchemas[`${key}_width`] = side.catch(undefined)
+      paramSchemas[`${key}_height`] = side.catch(undefined)
     }
   }
-  return z.object(shape).loose()
+  return z.object(paramSchemas).loose()
 }
