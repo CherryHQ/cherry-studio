@@ -1997,6 +1997,8 @@ export class AiStreamManager extends BaseService {
     } finally {
       this.launchingSteers.delete(topicId)
     }
+    // The first subscriber went through dispatch; the remaining windows catch up via replay.
+    for (const listener of carried.slice(1)) this.addListener(topicId, listener)
   }
 
   /**
