@@ -99,3 +99,30 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Copy')
   })
 })
+
+// Catches a count falling back to English where i18next asks for a `_few` / `_many` form the locale lacks.
+describe('renderer i18n plural forms', () => {
+  afterAll(async () => {
+    await i18n.changeLanguage('zh-CN')
+  })
+
+  it.each([
+    ['ru-RU', 2],
+    ['ru-RU', 5],
+    ['ro-RO', 2],
+    ['ro-RO', 25]
+  ])('counts in %s at %i without the English fallback', async (language, count) => {
+    await initI18n()
+    await i18n.changeLanguage(language)
+
+    for (const key of [
+      'message.tools.identity_card.changes',
+      'chat.profile_pane.outputs.count',
+      'chat.profile_pane.recent_topics.messages'
+    ]) {
+      const text = i18n.t(key, { count })
+      expect(text).toContain(String(count))
+      expect(text).not.toBe(i18n.t(key, { count, lng: 'en-US' }))
+    }
+  })
+})
