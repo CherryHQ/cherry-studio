@@ -2010,6 +2010,9 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: model.id, supportsFastMode: true })
     ])
+    // The restored effort belongs to the queued item's model, not the model selected when Edit was clicked.
+    const effortCalls = mocks.updateAssistantSettings.mock.calls.filter(([settings]) => 'reasoning_effort' in settings)
+    expect(effortCalls.at(-1)).toEqual([{ reasoning_effort: 'high' }, model.id])
   })
 
   it('consumes queued items without swapping the edited message into the queue', async () => {

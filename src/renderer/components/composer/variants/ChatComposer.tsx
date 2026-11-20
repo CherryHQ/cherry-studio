@@ -815,13 +815,16 @@ const ChatComposerInner = ({
   }, [speedControlModel?.supportsFastMode])
 
   const handleReasoningEffortChange = useCallback(
-    (option: ReasoningEffortOption) => {
+    // `owner` names the model whose preference this edit belongs to when the caller has just changed the
+    // selection and this render's `effectiveSubmittedModel` is still the previous one (queued-draft restore).
+    (option: ReasoningEffortOption, owner?: { model?: Model }) => {
       if (!selectedAssistantId) return
+      const ownerModel = owner ? owner.model : effectiveSubmittedModel
       if (
         option === 'minimal' &&
-        effectiveSubmittedModel &&
-        isOpenAIWebSearchModel(effectiveSubmittedModel) &&
-        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        ownerModel &&
+        isOpenAIWebSearchModel(ownerModel) &&
+        isGPT5SeriesReasoningModel(ownerModel) &&
         assistant?.settings.enableWebSearch
       ) {
         toast.warning(t('chat.web_search.warning.openai'))
@@ -833,7 +836,7 @@ const ChatComposerInner = ({
         value: option,
         version
       })
-      void updateAssistantSettings({ reasoning_effort: option }, effectiveSubmittedModel?.id)
+      void updateAssistantSettings({ reasoning_effort: option }, ownerModel?.id)
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })
@@ -1542,7 +1545,10 @@ const ChatComposerInner = ({
       } else {
         restoreMentionedModelSelector()
       }
-      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      // The selection just changed above; this render still holds the previous model, so name the owner.
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default', {
+        model: queuedModels.length === 1 ? queuedModels[0] : undefined
+      })
       handleServiceTierChange(item.payload.serviceTier ?? 'standard')
       setFastMode(item.payload.fastMode === true)
     },
@@ -1858,7 +1864,7 @@ const ChatComposerInner = ({
           reasoningSummary={assistant?.settings.reasoning_summary}
           serviceTier={serviceTier}
           fastMode={fastMode}
-          onReasoningEffortChange={handleReasoningEffortChange}
+          onReasoningEffortChange={(option) => handleReasoningEffortChange(option)}
           onReasoningSummaryChange={handleReasoningSummaryChange}
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
