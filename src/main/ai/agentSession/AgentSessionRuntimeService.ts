@@ -284,6 +284,7 @@ type PendingAgentSessionTurn = {
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
+  localWorkingDirectory?: string
   modelId: ExecutionId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -348,6 +349,7 @@ type AgentSessionRuntimeEntry = {
     }
   >
   lastResumeToken?: string
+  localWorkingDirectory?: string
   branchHead?: string
   usageAttribution?: AgentSessionUsageAttribution
   rootProjections?: Map<string, RootMessageProjection>
@@ -2286,6 +2288,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // one agent and already has the updated entity.
     agent: AgentEntity | null = agentService.getAgent(entry.agentId)
   ): AgentSessionConnectionTarget {
+    const localWorkingDirectory =
+      entry.agentType === 'local' ? agentSessionService.getById(entry.sessionId).workspace.path : undefined
     const turn = this.currentTurn(entry)
     const live =
       turn &&
@@ -2294,6 +2298,7 @@ export class AgentSessionRuntimeService extends BaseService {
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
     return live
       ? {
+          localWorkingDirectory,
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
@@ -2303,6 +2308,7 @@ export class AgentSessionRuntimeService extends BaseService {
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
+          localWorkingDirectory,
           modelId: entry.modelId,
           reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
@@ -2317,6 +2323,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const current = this.connectionTarget(entry, agent)
     const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
+      current.localWorkingDirectory === target.localWorkingDirectory &&
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
       current.serviceTier === target.serviceTier &&
@@ -2343,6 +2350,8 @@ export class AgentSessionRuntimeService extends BaseService {
           !entry.lastResumeToken &&
           closing.resumeToken &&
           closing.branchHead &&
+          (entry.agentType !== 'local' ||
+            closing.entry?.localWorkingDirectory === this.connectionTarget(entry).localWorkingDirectory) &&
           agentSessionMessageService.sharesBranch(entry.sessionId, entry.branchHead, closing.branchHead)
         ) {
           entry.lastResumeToken = closing.resumeToken
@@ -2374,7 +2383,10 @@ export class AgentSessionRuntimeService extends BaseService {
         // closed like the push path: the suspect connection is replaced by a fresh one.
         let verdict: AgentRuntimeReconcileResult
         try {
-          verdict = await connection.reconcile(target)
+          verdict =
+            entry.localWorkingDirectory !== target.localWorkingDirectory
+              ? 'rebuild'
+              : await connection.reconcile(target)
         } catch (error) {
           logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
           verdict = 'failed'
@@ -2397,6 +2409,7 @@ export class AgentSessionRuntimeService extends BaseService {
         switch (verdict) {
           case 'current':
           case 'patched':
+            if (!this.connectionTargetEquals(entry, target)) continue
             return true
           case 'rebuild': {
             // Background work may keep the old connection alive, but it cannot make a spawn-frozen
@@ -2470,6 +2483,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
+    // A prewarmed native session belongs to its original directory, even before the first input.
+    if (entry.localWorkingDirectory && entry.localWorkingDirectory !== target.localWorkingDirectory) {
+      entry.lastResumeToken = undefined
+    }
+    entry.localWorkingDirectory = target.localWorkingDirectory
 
     const connection = await driver.connect({
       sessionId: entry.sessionId,

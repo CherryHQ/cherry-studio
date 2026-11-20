@@ -17,6 +17,8 @@ sources:
 
 # Local Agent Runtime
 
+An empty session may change workspace after its CLI has prewarmed. The host treats the local working directory as connection identity: it replaces an old-directory connection before reuse, rejects connects that finish after a directory change, and does not resume the previous directory's native session. An unchanged directory retains connection reuse; sessions with messages still cannot change workspace.
+
 Local Code Mate tasks use `agent_list` and `agent_delegate`. The bundled
 `code-mate-claude-code`, `code-mate-codex` and `code-mate-opencode` shell wrappers
 are retired. Startup removes only matching app-owned builtin copies; user-owned

@@ -503,6 +503,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
+    if (scenario === 'workspace') {
+      if (protocol === 'codex') reply(id, { turn: { id: 'turn' } })
+      text(process.cwd())
+      finish()
+      return
+    }
     if (scenario.startsWith('pi-startup')) {
       if (scenario !== 'pi-startup-early') text(piBanner)
       text('OK')
