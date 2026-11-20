@@ -49,14 +49,18 @@ native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, create-tool, and language guidance is appended independently of the
 base. The create-tool guidance (`configToolsGuidance.ts`) names only the Agent
-and Assistant create and settings tools the session mounts, so a channel-linked
-Cherry Assistant session gets none. It also lists each tool's argument names
-from its input schema, with optional ones marked, because Pi Durable's
-`codemode` shows no tool signatures and models otherwise guess the names. The artifact guidance and the create-tool
-guidance both name tools in the call form each runtime adapter passes: Claude Code calls `mcp__cherry-tools__…` directly, Pi loads
-`mcp__cherry_tools__…` with `tool_search`, and Pi Durable calls
-`tools.mcp__cherry_tools__…()` inside `codemode`, because it registers MCP tools
-for scripts only and its `tool_search` loads model tools.
+and Assistant create and settings tools the session mounts and has not disabled,
+so a channel-linked Cherry Assistant session gets none. It also lists each tool's
+argument names from its input schema, with optional ones marked, because
+`codemode` shows no tool signatures and models otherwise guess the names. The
+artifact, citation and create-tool guidance name tools in the call form each
+runtime adapter passes. Claude Code calls `mcp__cherry-tools__…` directly. Pi and
+Pi Durable take theirs from `resolvePiToolCallForm`, which follows the session's
+actual exposure: `tools.mcp__cherry_tools__…()` inside `codemode` while codemode
+is enabled; otherwise, on Pi Durable only, a direct call after `tool_search`
+loads the tool, because Durable defers MCP tools while Pi exposes them to
+codemode only and leaves `tool_search` inactive. With no path left, the
+guidance that names those tools is omitted.
 
 A Pi Durable Agent may replace any block of its System Prompt except identity
 with its own text, stored in `configuration.prompt_overrides` and keyed by

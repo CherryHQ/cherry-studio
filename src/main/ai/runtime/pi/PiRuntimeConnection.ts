@@ -33,11 +33,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  buildConfigToolsGuidance,
-  buildReportArtifactsGuidance,
-  type ToolCallForm
-} from '@main/ai/runtime/configToolsGuidance'
+import { buildConfigToolsGuidance, buildReportArtifactsGuidance } from '@main/ai/runtime/configToolsGuidance'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -49,6 +45,7 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
@@ -89,12 +86,8 @@ import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
 import { withPiShellTimeout } from './piShellTimeout'
+import { resolvePiToolCallForm } from './piToolCallForm'
 import { PiTurnUsage } from './PiTurnUsage'
-
-const PI_TOOL_CALL_FORM: ToolCallForm = {
-  ref: (server, name) => `\`${buildPiMcpToolName(server, name)}\``,
-  hint: ' If these tools are not in your tool list yet, load them with `tool_search` first.'
-}
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -183,23 +176,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
     const isToolEnabled = (serverName: string, toolName: string) =>
       !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
-    const citationsGuidance = buildCitationsGuidance({
-      web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
-      kb:
-        (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
-        (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME)),
-      ref: PI_TOOL_CALL_FORM.ref
-    })
+    // Pi exposes MCP tools to codemode scripts only; its tool_search stays inactive.
+    const callForm = resolvePiToolCallForm(this.disabledTools, { toolSearchLoadsMcp: false })
+    const citationsGuidance =
+      callForm &&
+      buildCitationsGuidance({
+        web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
+        kb:
+          (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
+          (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME)),
+        ref: callForm.ref
+      })
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,
       agentDataPath,
       agent,
       citationsGuidance,
-      reportArtifactsGuidance: buildReportArtifactsGuidance(PI_TOOL_CALL_FORM),
-      configToolsGuidance: buildConfigToolsGuidance(agent, {
-        channelLinked: linkedChannel !== null,
-        callForm: PI_TOOL_CALL_FORM
-      }),
+      reportArtifactsGuidance:
+        callForm && isToolEnabled('cherry-tools', REPORT_ARTIFACTS_TOOL_NAME)
+          ? buildReportArtifactsGuidance(callForm)
+          : undefined,
+      configToolsGuidance:
+        callForm && buildConfigToolsGuidance(agent, { channelLinked: linkedChannel !== null, callForm, isToolEnabled }),
       effectiveLanguage: initialSnapshot.effectiveLanguage,
       modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
     })

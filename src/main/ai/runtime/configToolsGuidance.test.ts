@@ -55,6 +55,31 @@ describe('buildConfigToolsGuidance', () => {
     expect(prompt).toContain('<cherry-tools/cron>')
   })
 
+  // Catches guidance naming a tool the Agent disabled, which the runtime refuses when the model calls it.
+  it.each([
+    ['config_update', 'cherry-tools/config_update', ['<cherry-tools/agent_create>', '<cherry-tools/assistant_create>']],
+    ['agent_create', 'cherry-tools/agent_create', ['<cherry-tools/assistant_create>', '<cherry-tools/config_update>']],
+    ['cron', 'cherry-tools/cron', ['<cherry-tools/agent_create>']]
+  ])('leaves out a disabled %s and keeps the tools still available', (_tool, disabled, kept) => {
+    const prompt =
+      buildConfigToolsGuidance(
+        { type: 'pi-durable', configuration: {} },
+        { channelLinked: false, callForm, isToolEnabled: (server, name) => `${server}/${name}` !== disabled }
+      ) ?? ''
+
+    expect(prompt).not.toContain(`<${disabled}>`)
+    for (const tool of kept) expect(prompt).toContain(tool)
+  })
+
+  it('gives no guidance when every create and settings tool is disabled', () => {
+    expect(
+      buildConfigToolsGuidance(
+        { type: 'pi-durable', configuration: {} },
+        { channelLinked: false, callForm, isToolEnabled: (server) => server !== 'cherry-tools' }
+      )
+    ).toBeUndefined()
+  })
+
   // Catches cron attached to every non-create request, which can persist a job for work meant to run now.
   it('asks for cron only for a scheduled or recurring request', () => {
     const prompt = buildConfigToolsGuidance({ type: 'pi', configuration: {} }, { channelLinked: false, callForm }) ?? ''

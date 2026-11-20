@@ -31,8 +31,8 @@ const RESOURCE_KINDS =
 
 // Kimi K2.6 answered "创建一个定时任务" with agent_create: the word "create" alone pulled it to the create tools.
 const RECURRING_TASK_EXAMPLE = '每周五下午 5 点整理周报'
-const CREATE_ONLY_WHEN_ASKED = (ref: ToolCallForm['ref']) =>
-  `Create one only when the user explicitly asks for a new Agent or Assistant. Any other request is your own work: do it yourself. When the user asks for a scheduled or recurring task such as "${RECURRING_TASK_EXAMPLE}", that is your own work too: schedule it with ${ref('cherry-tools', CRON_TOOL_NAME)}.`
+const CREATE_ONLY_WHEN_ASKED = (ref: ToolCallForm['ref'], cron: boolean) =>
+  `Create one only when the user explicitly asks for a new Agent or Assistant. Any other request is your own work: do it yourself.${cron ? ` When the user asks for a scheduled or recurring task such as "${RECURRING_TASK_EXAMPLE}", that is your own work too: schedule it with ${ref('cherry-tools', CRON_TOOL_NAME)}.` : ''}`
 
 // Kimi K2.6 rewrote its own settings via config_update when asked for a new Agent.
 const CONFIG_UPDATE_IS_SELF =
@@ -46,33 +46,78 @@ const args = (schema: z.ZodObject) =>
 
 const ARGS_NOTE = 'Use these exact argument names; `?` marks an optional one.'
 
+/** Whether the session can call a Cherry MCP tool; a tool it refuses must not be named. */
+type ToolEnabled = (server: string, name: string) => boolean
+
 /** The host prompt names all three, so it is only given to a session that mounts all three. */
 const HOST_CONFIG_TOOLS = ['create_agent', 'create_assistant', 'update_agent'] as const
 
+/** The create sentence for the create tools the session can call; empty when it can call none. */
+function createSentence(
+  { ref }: ToolCallForm,
+  enabled: ToolEnabled,
+  [agentTool, assistantTool]: readonly [{ server: string; name: string }, { server: string; name: string }]
+): string {
+  const calls = [
+    enabled(agentTool.server, agentTool.name) &&
+      `${ref(agentTool.server, agentTool.name)} with ${args(CreateAgentToolInputSchema)}`,
+    enabled(assistantTool.server, assistantTool.name) &&
+      `${ref(assistantTool.server, assistantTool.name)} with ${args(CreateAssistantToolInputSchema)}`
+  ].filter(Boolean)
+  if (!calls.length) return ''
+  return `When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${calls.join(' or ')} instead of describing UI steps or writing files. ${CREATE_ONLY_WHEN_ASKED(ref, enabled('cherry-tools', CRON_TOOL_NAME))} ${RESOURCE_KINDS}`
+}
+
 /** Without this the model describes UI steps or writes files instead of calling the tools it has. */
-const hostConfigToolsPrompt = ({ ref, hint }: ToolCallForm) => `## Creating Agents and Assistants
+function hostConfigToolsPrompt(callForm: ToolCallForm, enabled: ToolEnabled): string | undefined {
+  const { ref, hint } = callForm
+  const create = createSentence(callForm, enabled, [
+    { server: 'assistant', name: 'create_agent' },
+    { server: 'assistant', name: 'create_assistant' }
+  ])
+  const update =
+    enabled('cherry-tools', 'agent_list') && enabled('assistant', 'update_agent')
+      ? `To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')} with ${args(UpdateAgentToolInputSchema)}.`
+      : ''
+  if (!create && !update) return undefined
+  return `## ${create ? 'Creating Agents and Assistants' : 'Changing Agents'}\n\n${[create, update].filter(Boolean).join(' ')} ${ARGS_NOTE}${hint} The user approves every call.`
+}
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} with ${args(CreateAgentToolInputSchema)} or ${ref('assistant', 'create_assistant')} with ${args(CreateAssistantToolInputSchema)} instead of describing UI steps or writing files. ${CREATE_ONLY_WHEN_ASKED(ref)} ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')} with ${args(UpdateAgentToolInputSchema)}. ${ARGS_NOTE}${hint} The user approves every call.`
+function selfConfigToolsPrompt(callForm: ToolCallForm, enabled: ToolEnabled): string | undefined {
+  const { ref, hint } = callForm
+  const create = createSentence(callForm, enabled, [
+    { server: 'cherry-tools', name: AGENT_CREATE_TOOL_NAME },
+    { server: 'cherry-tools', name: ASSISTANT_CREATE_TOOL_NAME }
+  ])
+  const update = enabled('cherry-tools', CONFIG_UPDATE_TOOL_NAME)
+    ? `When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change from ${args(SelfUpdateToolInputSchema)}.${create ? ` ${CONFIG_UPDATE_IS_SELF}` : ''}`
+    : ''
+  if (!create && !update) return undefined
+  const title = [
+    create && 'Creating Agents and Assistants',
+    update && (create ? 'and changing your own settings' : 'Changing your own settings')
+  ]
+    .filter(Boolean)
+    .join(', ')
+  return `## ${title}\n\n${[create, update].filter(Boolean).join(' ')} ${ARGS_NOTE}${hint} The user approves every call.`
+}
 
-const selfConfigToolsPrompt = ({
-  ref,
-  hint
-}: ToolCallForm) => `## Creating Agents and Assistants, and changing your own settings
-
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} with ${args(CreateAgentToolInputSchema)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} with ${args(CreateAssistantToolInputSchema)} instead of describing UI steps or writing files. ${CREATE_ONLY_WHEN_ASKED(ref)} ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change from ${args(SelfUpdateToolInputSchema)}. ${CONFIG_UPDATE_IS_SELF} ${ARGS_NOTE}${hint} The user approves every call.`
-
-/** Create-tool guidance for the tools this session actually mounts; none when it mounts none. */
+/** Create-tool guidance for the tools this session actually mounts and can call; none when it can call none. */
 export function buildConfigToolsGuidance(
   agent: Pick<AgentEntity, 'configuration' | 'type'>,
-  { channelLinked, callForm }: { channelLinked: boolean; callForm: ToolCallForm }
+  {
+    channelLinked,
+    callForm,
+    isToolEnabled = () => true
+  }: { channelLinked: boolean; callForm: ToolCallForm; isToolEnabled?: ToolEnabled }
 ): string | undefined {
   const hostTools = resolveHostTools(agent, { channelLinked })
   if (hostTools) {
     const tools = hostTools.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES
     const mountsAll = HOST_CONFIG_TOOLS.every((tool) => tools.includes(tool))
-    return mountsAll ? hostConfigToolsPrompt(callForm) : undefined
+    return mountsAll ? hostConfigToolsPrompt(callForm, isToolEnabled) : undefined
   }
-  return resolveAgentCapabilities(agent).createResources ? selfConfigToolsPrompt(callForm) : undefined
+  return resolveAgentCapabilities(agent).createResources ? selfConfigToolsPrompt(callForm, isToolEnabled) : undefined
 }
 
 /** Without the runtime's real call form the model never finds the tool, and the Agent's Outputs stay empty. */

@@ -7,6 +7,7 @@ import { isEditablePromptSection } from '@shared/ai/agentPromptSections'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
@@ -14,17 +15,12 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { type AgentPromptBlock, buildAgentRuntimePrompt } from '../agentPrompt'
 import { buildCitationsGuidance } from '../citationsGuidance'
-import { buildConfigToolsGuidance, buildReportArtifactsGuidance, type ToolCallForm } from '../configToolsGuidance'
+import { buildConfigToolsGuidance, buildReportArtifactsGuidance } from '../configToolsGuidance'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import type { loadPiSdk } from '../pi/piSdk'
+import { resolvePiToolCallForm } from '../pi/piToolCallForm'
 
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
-
-// Durable registers MCP tools for scripts only, so `tool_search` (which loads model tools) never finds them.
-const DURABLE_TOOL_CALL_FORM: ToolCallForm = {
-  ref: (server, name) => `\`await tools.${buildPiMcpToolName(server, name)}({ ... })\``,
-  hint: " These are not separate tools and `tool_search` cannot find them: run them inside a `codemode` script. If the `codemode` section does not list one, read its parameters first with `return await describeTool('<tool name>')`, a script global rather than a member of `tools`."
-}
 
 /** A Cherry-owned section; it needs no harness input, so a preview can render it directly. */
 export type DurablePromptSection = Pick<PromptSection, 'key'> & {
@@ -60,7 +56,10 @@ export interface DurablePrompt {
 export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOptions): Promise<DurablePrompt> {
   const { agent, cwd, agentDataPath } = options
   const overrides = agent.configuration?.prompt_overrides
-  const enabled = (name: string) => !options.disabledTools.has(buildPiMcpToolName('cherry-tools', name))
+  const isToolEnabled = (server: string, name: string) => !options.disabledTools.has(buildPiMcpToolName(server, name))
+  const enabled = (name: string) => isToolEnabled('cherry-tools', name)
+  // Durable defers MCP tools, so both a codemode script and tool_search reach them.
+  const callForm = resolvePiToolCallForm(options.disabledTools, { toolSearchLoadsMcp: true })
   const prompt = await buildAgentRuntimePrompt({
     agent,
     workspacePath: cwd,
@@ -69,18 +68,19 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
     overrides,
-    reportArtifactsGuidance: buildReportArtifactsGuidance(DURABLE_TOOL_CALL_FORM),
-    configToolsGuidance: buildConfigToolsGuidance(agent, {
-      channelLinked: options.channelLinked,
-      callForm: DURABLE_TOOL_CALL_FORM
-    }),
-    citationsGuidance: buildCitationsGuidance({
-      web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
-      kb:
-        (resolveAgentCapabilities(agent).allKnowledgeBases || options.knowledgeBaseScope.length > 0) &&
-        (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME)),
-      ref: DURABLE_TOOL_CALL_FORM.ref
-    })
+    reportArtifactsGuidance:
+      callForm && enabled(REPORT_ARTIFACTS_TOOL_NAME) ? buildReportArtifactsGuidance(callForm) : undefined,
+    configToolsGuidance:
+      callForm && buildConfigToolsGuidance(agent, { channelLinked: options.channelLinked, callForm, isToolEnabled }),
+    citationsGuidance:
+      callForm &&
+      buildCitationsGuidance({
+        web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
+        kb:
+          (resolveAgentCapabilities(agent).allKnowledgeBases || options.knowledgeBaseScope.length > 0) &&
+          (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME)),
+        ref: callForm.ref
+      })
   })
   const agentDir = application.getPath('feature.agents.pi.root')
   const skills = pi.loadSkills({ cwd, agentDir, skillPaths: [...options.skillPaths], includeDefaults: false })

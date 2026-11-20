@@ -260,6 +260,44 @@ describe('previewDurableSystemPrompt', () => {
     expect(restored).toContain('respond in English')
   })
 
+  // Catches the prompt still sending the model to codemode after the Agent disabled it.
+  it('points Cherry tools at tool_search once codemode is disabled, and names no disabled tool', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(application.getPath('feature.agents.data'), id)
+    const agent = agentService.createAgentWithId(id, {
+      type: 'pi-durable',
+      name: 'Reviewer',
+      model,
+      instructions: 'Review pull requests.',
+      configuration: { bootstrap_completed: true }
+    })
+    await mkdir(application.getPath('feature.agents.system_workspaces'), { recursive: true })
+    const instructions = async (disabled: string[]) =>
+      (
+        await buildDurablePrompt(await loadPiSdk(), {
+          agent,
+          cwd: application.getPath('feature.agents.system_workspaces'),
+          agentDataPath,
+          effectiveLanguage: 'English',
+          channelLinked: false,
+          disabledTools: new Set(disabled),
+          knowledgeBaseScope: [],
+          skillPaths: []
+        })
+      ).instructions
+
+    const withCodemode = await instructions([])
+    const withoutCodemode = await instructions(['codemode', 'mcp__cherry_tools__config_update'])
+    const unreachable = await instructions(['codemode', 'tool_search'])
+
+    expect(withCodemode).toContain('`await tools.mcp__cherry_tools__agent_create({ ... })`')
+    expect(withoutCodemode).toContain('load them with `tool_search` first')
+    expect(withoutCodemode).toContain('`mcp__cherry_tools__agent_create`')
+    expect(withoutCodemode).not.toContain('codemode')
+    expect(withoutCodemode).not.toContain('config_update')
+    expect(unreachable).not.toContain('mcp__cherry_tools__')
+  })
+
   // Catches Context Usage listing a skill's file as loaded while the Agent's own text was sent instead.
   it('drops the files an override displaces from what Context Usage reports as loaded', async () => {
     await seedSkill('skill-1', 'release-notes', 'Write release notes from merged changes.')
