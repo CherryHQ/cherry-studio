@@ -88,6 +88,48 @@ describe('withStreamContinuation', () => {
     expect(resumedPrompt.at(-1)).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'Hello ' }] })
   })
 
+  it('surfaces an error when the replacement finishes with reason error and no error chunk', async () => {
+    const errorFinish = {
+      type: 'finish',
+      finishReason: { unified: 'error', raw: undefined },
+      usage: {}
+    } as unknown as LanguageModelV3StreamPart
+    const head: Script = {
+      parts: [
+        { type: 'stream-start', warnings: [] },
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'Hello ' }
+      ],
+      readError: new Error('socket hang up')
+    }
+    const failedReplacement: Script = {
+      parts: [
+        { type: 'stream-start', warnings: [] },
+        { type: 'text-start', id: 'b' },
+        { type: 'text-delta', id: 'b', delta: 'x' },
+        errorFinish
+      ]
+    }
+    const { model } = scripted([head, failedReplacement, { ...failedReplacement, parts: [...failedReplacement.parts] }])
+    const result = await withStreamContinuation(model, opts).doStream(callOptions)
+    const parts: LanguageModelV3StreamPart[] = []
+    const reader = result.stream.getReader()
+    let error: unknown
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        parts.push(value)
+      }
+    } catch (caught) {
+      error = caught
+    }
+
+    expect(error).toBeInstanceOf(Error)
+    expect(parts.some((p) => p.type === 'finish')).toBe(false)
+    expect(parts.some((p) => p.type === 'text-delta' && p.delta === 'x')).toBe(false)
+  })
+
   it("drops a failed resume attempt's text instead of splicing or prefilling it", async () => {
     const { model, doStream } = scripted([
       {

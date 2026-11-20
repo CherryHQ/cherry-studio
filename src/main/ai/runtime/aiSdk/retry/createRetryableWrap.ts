@@ -401,7 +401,10 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
             // can hand one model's partial answer to another with different options. Until a continuation
             // can be bound to the model, credential and options that produced the visible text, a chain
             // with model fallbacks surfaces the interruption instead of resuming.
-            if (options.streamContinuation === false || options.fallbacks.length > 0) {
+            // The same holds for API-key failover: after a key disconnects mid-reply and its continuation hits
+            // 401/429, the pool would hand that key's output to the next key, which may belong to another
+            // project. Same-model key rotation therefore surfaces the interruption too.
+            if (options.streamContinuation === false || options.fallbacks.length > 0 || apiKeyFallbacks.length > 0) {
               return scopedModel.doStream(callOptions)
             }
             const operation = withStreamContinuation(scopedModel, {

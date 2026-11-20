@@ -127,6 +127,13 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
             }
             part = next.value
             if (part.type === 'error') failure = { error: part.error }
+            else if (buffer && part.type === 'finish' && part.finishReason.unified === 'error') {
+              // A replacement can end with finish reason `error` and no error chunk (OpenAI Responses
+              // `response.failed` without details). Flushing it would save a truncated reply as a success
+              // and hide the original disconnect, so treat it as a failed attempt and surface an error.
+              failure = { error: new Error('Resumed stream finished with an error and no error detail') }
+              part = undefined
+            }
           } catch (error) {
             failure = { error }
           }

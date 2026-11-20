@@ -551,6 +551,31 @@ it('does not resume an interrupted stream through a model fallback chain', async
   expect(fallbackStream).not.toHaveBeenCalled()
 })
 
+it('does not resume an interrupted stream through another API key', async () => {
+  const interrupted = new Error('connection reset')
+  const primaryStream = vi.fn().mockResolvedValue(
+    streamResult([
+      { type: 'text-start', id: 'partial' },
+      { type: 'text-delta', id: 'partial', delta: 'partial answer' },
+      { type: 'error', error: interrupted }
+    ])
+  )
+  const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
+  const wrap = createRetryableWrap({
+    fallbacks: [],
+    apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
+    retryPolicy: policy({ maxAttempts: 2 })
+  })!
+  const model = wrap(makeFakeLanguageModel('primary', vi.fn(), primaryStream))
+
+  const result = await model.doStream({ prompt: [] })
+  const parts = await collectStream(result.stream)
+
+  expect(parts).toContainEqual({ type: 'error', error: interrupted })
+  expect(primaryStream).toHaveBeenCalledOnce()
+  expect(keyBStream).not.toHaveBeenCalled()
+})
+
 it('does not replay a settled retry status from a late buffered-activity heartbeat', async () => {
   vi.useFakeTimers()
   try {
