@@ -16,7 +16,9 @@ Wherever `MessageHeader` shows the model label, it appends the provider's curren
 
 Multi-model fold headers now show the label too. The fold tabs name the model but not the provider, so hiding the header label there left same-model replies from different providers indistinguishable.
 
-Renaming a provider updates old labels. Deleting one leaves the model-only label. Messages, schemas and main-process write paths are unchanged. Long labels truncate, and the full text is on hover.
+Provider instances with editable names use their saved names. Canonical presets use localized labels. Provider changes refresh open replies across windows. Deleting a provider leaves the model-only label, including after a later lookup fails.
+
+Narrow headers give the model name priority and hide the separator with the provider when the pair runs out of room. Hover shows the full text. Topic image capture waits for a bounded provider lookup and wraps long names within the header.
 
 ## Alternatives considered
 
@@ -33,4 +35,5 @@ In the fold layout the header repeats the model name shown on the selected tab.
 
 ## Verification
 
-- Regression — `pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/MessageHeader.test.tsx`: 10 tests pass, including the message's own provider winning over the current model, a provider mutation refreshing an already-mounted header through the real provider hook and SWR, and an unresolved provider leaving the model label alone.
+- Regression — Passing cases in `MessageHeader.test.tsx` cover the message's own provider, local renames, cross-window renames of an editable preset in the header and token details, and the model-only label after deletion followed by a timeout.
+- Regression — `MessageList.test.tsx` verifies that export waits for an offscreen reply's provider lookup and omits the name of a missing provider.

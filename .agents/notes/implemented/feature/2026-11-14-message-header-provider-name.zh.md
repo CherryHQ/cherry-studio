@@ -16,7 +16,9 @@ Status: implemented
 
 多模型标签（fold）布局的头部现在也显示该标签。标签栏只显示模型名而不显示服务商，如果头部仍隐藏模型标签，同一模型经由不同服务商生成的回复就无法区分。
 
-服务商改名后，旧回复的标签随之更新；服务商被删除后只显示模型标签。消息、schema 和 main 进程的写入路径都不变。过长的标签会截断，悬停可看到完整文本。
+名称可编辑的服务商实例显示已保存的名称，标准预设显示本地化名称。服务商变更后，各窗口中打开的回复都会刷新。删除服务商后只显示模型标签，后续查询失败也会保持这一状态。
+
+空间不足时，回复头部优先显示模型名，服务商名放不下时连同分隔符一起隐藏。悬停可查看完整文本。导出主题图片会在超时范围内等待服务商查询，并在头部内换行显示长名称。
 
 ## Alternatives considered
 
@@ -33,4 +35,5 @@ Status: implemented
 
 ## Verification
 
-- Regression — `pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/MessageHeader.test.tsx`：10 个测试通过，覆盖消息自身的服务商优先于当前模型、通过真实服务商 hook 和 SWR，在修改服务商后自动刷新已挂载头部的名称，以及无法解析服务商时只保留模型标签。
+- Regression — `MessageHeader.test.tsx` 通过消息自身的服务商、本窗口改名、跨窗口改名后回复头部和 Token 详情显示可编辑预设的新名称，以及删除后即使查询超时也只显示模型标签的验证。
+- Regression — `MessageList.test.tsx` 验证导出主题图片会等待屏幕外回复的服务商查询，且服务商不存在时省略其名称。
