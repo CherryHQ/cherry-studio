@@ -1,8 +1,8 @@
-import { type CallToolResult, fromJsonSchema, type JsonSchemaType, McpServer } from '@modelcontextprotocol/server'
+import { type CallToolResult, fromJsonSchema, McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { DOCTOR_TOOLS, ToolError } from '@main/ai/agents/doctor/doctorTools'
+import { DOCTOR_TOOLS, type DoctorToolArgs, ToolError } from '@main/ai/agents/doctor/doctorTools'
 import { getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('DoctorServer')
@@ -22,7 +22,7 @@ export function createDoctorServer(sessionId: string): McpServer {
       tool.name,
       {
         description: tool.description,
-        inputSchema: fromJsonSchema<Record<string, unknown>>(tool.inputSchema as JsonSchemaType)
+        inputSchema: fromJsonSchema<DoctorToolArgs>(tool.inputSchema)
       },
       async (args): Promise<CallToolResult> => {
         try {
