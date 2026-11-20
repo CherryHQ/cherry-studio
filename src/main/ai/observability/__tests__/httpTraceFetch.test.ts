@@ -1,4 +1,4 @@
-import type { Span, Tracer } from '@opentelemetry/api'
+import type { Attributes, AttributeValue, Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,10 +7,10 @@ import { createHttpTraceFetch } from '../httpTraceFetch'
 
 /** A fake tracer that records the single span's attributes, status, and end. */
 function fakeTracer() {
-  const attributes: Record<string, unknown> = {}
+  const attributes: Attributes = {}
   const state = { ended: false, status: undefined as { code: SpanStatusCode; message?: string } | undefined }
   const span = {
-    setAttribute: (key: string, value: unknown) => {
+    setAttribute: (key: string, value: AttributeValue) => {
       attributes[key] = value
     },
     setStatus: (status: { code: SpanStatusCode; message?: string }) => {

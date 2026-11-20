@@ -438,8 +438,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!savedEntity) return
 
     // SAFETY: retain typed span fields while copying opaque historical extension keys.
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical span extensions have no fixed value schema.
     const incoming = entity as SpanEntity & Record<string, unknown>
     // SAFETY: the same extension keys must update the existing span without replacing its identity.
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve those extension values without interpreting them.
     const target = savedEntity as SpanEntity & Record<string, unknown>
 
     Object.keys(incoming).forEach((key) => {

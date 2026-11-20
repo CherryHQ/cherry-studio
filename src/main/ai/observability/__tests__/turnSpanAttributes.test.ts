@@ -1,4 +1,4 @@
-import type { Span } from '@opentelemetry/api'
+import type { Attributes, AttributeValue, Span } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,9 +9,9 @@ import {
 } from '../turnSpanAttributes'
 
 function fakeSpan() {
-  const attributes: Record<string, unknown> = {}
+  const attributes: Attributes = {}
   const span = {
-    setAttribute: (key: string, value: unknown) => {
+    setAttribute: (key: string, value: AttributeValue) => {
       attributes[key] = value
     }
   } as unknown as Span
