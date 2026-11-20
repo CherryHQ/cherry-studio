@@ -1,16 +1,30 @@
 import { randomUUID } from 'node:crypto'
 import { closeSync, existsSync, lstatSync, openSync, realpathSync, unlinkSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+
+import * as z from 'zod'
 
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
-import { terminalConversationId } from '@main/services/terminal/contracts'
-import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  atomicWriteFile,
+  createPathOverlapCheck,
+  nearestExistingRealPathSync,
+  type PathNameBehavior
+} from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import {
+  workspaceUsageRecordSchema as usageRecord,
+  type WorkspaceUsageRecord as UsageRecord
+} from '@shared/types/workspaceUsage'
+import { KeyedMutex } from '@shared/utils/async'
 
 import * as storage from './agentWorkspaceStorage'
 
@@ -18,6 +32,7 @@ const logger = loggerService.withContext('AgentWorkspaceStorageService')
 type Workspace = { id: string; path: string }
 type ArchiveRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'archive' }>
 type RestoreRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'restore' }>
+export type WorkspaceUsage = Pick<UsageRecord, 'sessionId' | 'owner'> & { cwd: string }
 
 function probeNameBehavior(directory: string): PathNameBehavior {
   const name = `.cherry-path-${randomUUID()}-Aa-é`
@@ -41,8 +56,140 @@ function probeNameBehavior(directory: string): PathNameBehavior {
   }
 }
 
-class AgentWorkspaceStorageService {
+@Injectable('AgentWorkspaceStorageService')
+@ServicePhase(Phase.WhenReady)
+export class AgentWorkspaceStorageService extends BaseService {
   private readonly blockedRelocations = new Set<string>()
+  private readonly usage = new Map<string, UsageRecord>()
+  private readonly recoveredUsage = new Set<string>()
+  private readonly uncertainUsage = new Set<string>()
+  private readonly journalWrites = new KeyedMutex()
+  private journalReady?: Promise<void>
+  private journalFailure: 'recovery' | 'write' | null = null
+  private readonly failedAdmissions = new Set<string>()
+  private readonly usageReleases = new Map<string, Promise<void>>()
+  private pendingUsage = 0
+  private reclaiming = false
+
+  protected onInit(): Promise<void> {
+    return this.loadUsageJournal()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.loadUsageJournal()
+    await this.journalWrites.runExclusive('usage', () => undefined)
+  }
+
+  private loadUsageJournal(): Promise<void> {
+    return (this.journalReady ??= (async () => {
+      try {
+        const file = application.getPath('feature.agents.data', 'workspace-usage.json')
+        if ((await stat(file)).size > 16 * 1024 * 1024) throw new Error('Workspace usage journal exceeds capacity')
+        const records = z
+          .array(usageRecord)
+          .max(4096)
+          .parse(JSON.parse(await readFile(file, 'utf8')))
+        for (const record of records) {
+          if (this.usage.has(record.id)) throw new Error('Duplicate workspace usage record')
+          this.usage.set(record.id, record)
+          this.recoveredUsage.add(record.id)
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          this.journalFailure = 'recovery'
+          logger.error('Workspace usage recovery failed; automatic reclaim disabled', { error })
+        }
+      }
+    })())
+  }
+
+  private async persistUsage(): Promise<void> {
+    await this.journalWrites.runExclusive('usage', async () => {
+      try {
+        const file = application.getPath('feature.agents.data', 'workspace-usage.json')
+        const content = JSON.stringify([...this.usage.values()])
+        if (Buffer.byteLength(content) > 16 * 1024 * 1024) throw new Error('Workspace usage journal exceeds capacity')
+        await atomicWriteFile(AbsoluteFilePathSchema.parse(file), content, {
+          mode: 0o600
+        })
+        await storage.syncWorkspaceStorageDirectory(path.dirname(file))
+        if (this.journalFailure === 'write') this.journalFailure = null
+      } catch (error) {
+        if (this.journalFailure !== 'recovery') this.journalFailure = 'write'
+        throw error
+      }
+    })
+  }
+
+  async acquireUsage(input: WorkspaceUsage): Promise<string> {
+    if (this.reclaiming) throw new Error('Workspace reclaim is in progress; retry admission')
+    this.pendingUsage++
+    try {
+      await this.loadUsageJournal()
+      if (this.journalFailure) throw new Error('Workspace usage recovery requires verification')
+      if (this.usage.size >= 4096) throw new Error('Workspace usage capacity exceeded')
+      const record = usageRecord.parse({ ...input, id: randomUUID(), createdAt: Date.now() })
+      this.usage.set(record.id, record)
+      try {
+        await this.persistUsage()
+      } catch (error) {
+        this.uncertainUsage.add(record.id)
+        this.failedAdmissions.add(record.id)
+        throw error
+      }
+      return record.id
+    } finally {
+      this.pendingUsage--
+    }
+  }
+
+  releaseUsage(id: string): Promise<void> {
+    const pending = this.usageReleases.get(id)
+    if (pending) return pending
+    const release = (async () => {
+      await this.loadUsageJournal()
+      const record = this.usage.get(id)
+      if (!record || this.recoveredUsage.has(id)) return
+      this.usage.delete(id)
+      this.uncertainUsage.delete(id)
+      try {
+        await this.persistUsage()
+        this.failedAdmissions.delete(id)
+      } catch (error) {
+        this.usage.set(id, record)
+        this.uncertainUsage.add(id)
+        throw error
+      }
+    })().finally(() => this.usageReleases.delete(id))
+    this.usageReleases.set(id, release)
+    return release
+  }
+
+  async discardFailedAdmission(id: string): Promise<boolean> {
+    if (!this.failedAdmissions.has(id)) return false
+    await this.releaseUsage(id)
+    return true
+  }
+
+  async cleanupStatus(): Promise<{ count: number; recoveryFailed: boolean }> {
+    await this.loadUsageJournal()
+    return {
+      count: new Set([...this.recoveredUsage, ...this.uncertainUsage]).size,
+      recoveryFailed: this.journalFailure !== null
+    }
+  }
+
+  markUsageUnconfirmed(id: string): void {
+    if (this.usage.has(id)) this.uncertainUsage.add(id)
+  }
+
+  async listUnconfirmedUsage(sessionId?: string): Promise<UsageRecord[]> {
+    await this.loadUsageJournal()
+    return [...new Set([...this.recoveredUsage, ...this.uncertainUsage])].flatMap((id) => {
+      const record = this.usage.get(id)
+      return record && (sessionId === undefined || record.sessionId === sessionId) ? [structuredClone(record)] : []
+    })
+  }
 
   blockRelocation(workspacePath: string): void {
     this.blockedRelocations.add(path.resolve(workspacePath))
@@ -160,9 +307,7 @@ class AgentWorkspaceStorageService {
   }
 
   async archiveWorkspace(workspace: Workspace): Promise<void> {
-    if (!existsSync(application.getPath('feature.agents.system_workspaces'))) await this.quiesce(workspace.id)
     await this.withSystemWorkspaceStorage(workspace.path, async () => {
-      await this.quiesce(workspace.id)
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
       if (!state) return
@@ -176,7 +321,6 @@ class AgentWorkspaceStorageService {
     if (!workspaces.length) return activate()
     const root = application.getPath('feature.agents.system_workspaces')
     if (!existsSync(root)) {
-      for (const workspace of workspaces) await this.quiesce(workspace.id)
       if (!existsSync(root)) return activate()
     }
     const paths = [...new Set(workspaces.map((workspace) => workspace.path))].sort()
@@ -189,7 +333,6 @@ class AgentWorkspaceStorageService {
     try {
       const restored: Array<{ path: string; record: RestoreRecord }> = []
       for (const workspace of workspaces) {
-        await this.quiesce(workspace.id)
         const record = await this.restore(root, workspace)
         if (record) restored.push({ path: workspace.path, record })
       }
@@ -212,7 +355,6 @@ class AgentWorkspaceStorageService {
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
       if (!state || (lifecycle === 'active' && !state.record)) return
-      if (lifecycle === 'archived') await this.quiesce(workspace.id)
       if (state.record?.operation === 'restore') {
         const record = await this.restore(root, workspace)
         if (record && lifecycle === 'active') await this.commitRestore(root, workspace.path, record)
@@ -226,34 +368,30 @@ class AgentWorkspaceStorageService {
   }
 
   async reclaimOrphanWorkspace(workspacePath: string, options: OrphanSessionReclaimOptions): Promise<string[]> {
-    return (
-      (await this.withSystemWorkspaceStorage(
-        workspacePath,
-        async () => {
-          const artifacts: string[] = []
-          for (const target of this.workspaceStoragePaths(workspacePath)) {
-            const newest = await newestMtimeMs(target)
-            if (newest === null) continue
-            if (options.now - newest <= options.freshnessGateMs) return []
-            artifacts.push(target)
-          }
-          if (artifacts.length) await this.purge({ id: path.basename(workspacePath), path: workspacePath })
-          return artifacts
-        },
-        true
-      )) ?? []
-    )
-  }
-
-  private async quiesce(sessionId: string): Promise<void> {
-    const terminals = await application
-      .get('TerminalService')
-      .closeConversation(terminalConversationId.parse(sessionId))
-    const runtime = application.get('AgentSessionRuntimeService')
-    await runtime.cancelSessionForks(sessionId)
-    await runtime.closeSessionForArchive(sessionId)
-    if (terminals.some((state) => state.cleanup !== 'confirmed'))
-      throw new Error('Terminal cleanup remains unconfirmed')
+    await this.loadUsageJournal()
+    if (this.journalFailure || this.pendingUsage || this.usage.size || this.reclaiming) return []
+    this.reclaiming = true
+    try {
+      return (
+        (await this.withSystemWorkspaceStorage(
+          workspacePath,
+          async () => {
+            const artifacts: string[] = []
+            for (const target of this.workspaceStoragePaths(workspacePath)) {
+              const newest = await newestMtimeMs(target)
+              if (newest === null) continue
+              if (options.now - newest <= options.freshnessGateMs) return []
+              artifacts.push(target)
+            }
+            if (artifacts.length) await this.purge({ id: path.basename(workspacePath), path: workspacePath })
+            return artifacts
+          },
+          true
+        )) ?? []
+      )
+    } finally {
+      this.reclaiming = false
+    }
   }
 
   private async inspect(root: string, workspace: Workspace) {
@@ -440,12 +578,9 @@ class AgentWorkspaceStorageService {
             phase: 'deleting'
           }
     await storage.writeWorkspaceStorageRecord(workspace.path, record)
-    await this.quiesce(record.sessionId)
     for (const target of this.workspaceStoragePaths(workspace.path)) {
       if (target !== `${workspace.path}.storage.json`) await storage.removeWorkspaceArtifact(root, target)
     }
     await storage.clearWorkspaceStorageRecord(workspace.path)
   }
 }
-
-export const agentWorkspaceStorageService = new AgentWorkspaceStorageService()

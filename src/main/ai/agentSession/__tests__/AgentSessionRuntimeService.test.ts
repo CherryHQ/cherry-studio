@@ -111,7 +111,7 @@ vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
   const actual = await importOriginal<typeof SessionModule>()
   return {
     agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
-      getById: mocks.getSessionById,
+      getById: (id: string) => ({ workspace: { path: '/workspace' }, ...mocks.getSessionById(id) }),
       ensureTraceId: mocks.ensureTraceId
     })
   }
@@ -581,6 +581,12 @@ describe('AgentSessionRuntimeService', () => {
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentWorkspaceStorageService')
+        return {
+          acquireUsage: async () => crypto.randomUUID(),
+          releaseUsage: async () => {},
+          markUsageUnconfirmed() {}
+        }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,

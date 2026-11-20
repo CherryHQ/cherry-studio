@@ -27,7 +27,6 @@ import {
   workspaceDirectoryIdentity,
   type WorkspaceStorageRecord
 } from '@main/ai/agents/agentWorkspaceStorage'
-import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { RelocatedCheckpoint } from '@main/ai/runtime/workspaceRelocation'
 import { atomicWriteFile } from '@main/utils/file'
@@ -170,7 +169,7 @@ async function recover(root: string, directory: string, journal: Journal): Promi
     { mode: 0o600 }
   )
   await removeAgentStorageSubdirectory(root, directory)
-  agentWorkspaceStorageService.completeRelocation(journal.oldPath, journal.newPath)
+  application.get('AgentWorkspaceStorageService').completeRelocation(journal.oldPath, journal.newPath)
 }
 
 async function relocate(root: string, workspace: { id: string; path: string }, newPath: string) {
@@ -335,7 +334,7 @@ export async function relocateSystemWorkspaces(): Promise<Set<string>> {
   function failed(workspaceId: string, error: unknown) {
     logger.error('Failed to relocate system workspace; original history retained', { workspaceId, error })
     const workspace = agentWorkspaceService.getById(workspaceId, { includeSystem: true })
-    agentWorkspaceStorageService.blockRelocation(workspace.path)
+    application.get('AgentWorkspaceStorageService').blockRelocation(workspace.path)
     for (const row of agentSessionMessageService.readWorkspaceRelocationHistory(workspaceId))
       protectedSessions.add(row.sessionId)
   }

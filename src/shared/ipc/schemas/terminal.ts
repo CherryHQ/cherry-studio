@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
-import type { TerminalReceipt, TerminalResourceState, TerminalViewFrame } from '@shared/types/terminal'
+import type { TerminalReceipt, TerminalResourceView, TerminalViewFrame } from '@shared/types/terminal'
+import { workspaceUsageRecordSchema } from '@shared/types/workspaceUsage'
 
 import { defineRoute } from '../define'
 
@@ -78,9 +79,22 @@ export const terminalViewAction = z.discriminatedUnion('kind', [
   })
 ])
 export const terminalRequestSchemas = {
+  'terminal.shells': defineRoute({ input: z.object({}).strict(), output: z.array(z.enum(['bash', 'powershell'])) }),
+  'terminal.cleanup.status': defineRoute({
+    input: z.object({}).strict(),
+    output: z.object({ count: revision, recoveryFailed: z.boolean() })
+  }),
+  'terminal.cleanup.list': defineRoute({
+    input: z.object({}).strict(),
+    output: z.array(workspaceUsageRecordSchema).max(4096)
+  }),
+  'terminal.cleanup.retry': defineRoute({
+    input: z.object({ id: z.uuid() }).strict(),
+    output: z.object({ status: z.enum(['confirmed', 'unconfirmed', 'unavailable']) })
+  }),
   'terminal.list': defineRoute({
     input: z.object({ sessionId: z.string().min(1).max(512), selectedId: z.uuid().optional() }).strict(),
-    output: z.custom<{ resources: TerminalResourceState[]; truncated: boolean }>()
+    output: z.custom<{ resources: TerminalResourceView[]; truncated: boolean }>()
   }),
   'terminal.create': defineRoute({
     input: z

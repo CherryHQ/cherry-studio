@@ -40,6 +40,11 @@ describe('durable delivery native branch admission', () => {
     runtime = new AgentSessionRuntimeService()
     const lock = new KeyedMutex()
     MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    MockApplicationUtils.setService('AgentWorkspaceStorageService', {
+      acquireUsage: async () => crypto.randomUUID(),
+      releaseUsage: async () => {},
+      markUsageUnconfirmed() {}
+    })
     MockApplicationUtils.setService('AiStreamManager', {
       isWriteQuiesced: false,
       withDispatchLock: (topic: string, operation: () => Promise<void>) => lock.runExclusive(topic, operation),

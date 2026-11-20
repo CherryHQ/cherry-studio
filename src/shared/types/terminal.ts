@@ -50,6 +50,10 @@ export interface TerminalResourceState {
   stopReason?: TerminalStopReason
 }
 
+export interface TerminalResourceView extends TerminalResourceState {
+  toolCallId?: string
+}
+
 export interface TerminalCaptureRead {
   start: number
   next: number
@@ -64,6 +68,7 @@ export type TerminalRejection =
   | 'stale_control'
   | 'closing'
   | 'capacity_exceeded'
+  | 'admission_unavailable'
   | 'identity_conflict'
   | 'outcome_unknown'
   | 'unsupported'

@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { terminalConversationId, terminalGeneration, terminalResourceId } from '@main/services/terminal/contracts'
 import type { TerminalResourceRef } from '@main/services/terminal/TerminalService'
 import type { terminalRequestSchemas } from '@shared/ipc/schemas/terminal'
@@ -24,6 +23,22 @@ function resourceRef(input: { host: { conversationId: string; generation: string
 }
 
 export const terminalHandlers: IpcHandlersFor<typeof terminalRequestSchemas> = {
+  'terminal.shells': async (_input, { senderId }) => {
+    owner(senderId)
+    return service().availableShells()
+  },
+  'terminal.cleanup.status': async (_input, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentWorkspaceStorageService').cleanupStatus()
+  },
+  'terminal.cleanup.list': async (_input, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentWorkspaceStorageService').listUnconfirmedUsage()
+  },
+  'terminal.cleanup.retry': async ({ id }, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentLifecycleService').retryWorkspaceCleanup(id)
+  },
   'terminal.list': async ({ sessionId, selectedId }, { senderId }) => {
     owner(senderId)
     agentSessionService.getById(sessionId)
@@ -31,12 +46,7 @@ export const terminalHandlers: IpcHandlersFor<typeof terminalRequestSchemas> = {
   },
   'terminal.create': async ({ sessionId, shell, operationId }, { senderId }) => {
     owner(senderId)
-    const session = agentSessionService.getById(sessionId)
-    await prepareAgentSessionWorkspaceDirectory(session)
-    const current = agentSessionService.getById(sessionId)
-    if (current.workspaceId !== session.workspaceId || current.workspace.path !== session.workspace.path)
-      throw new Error('Terminal workspace changed')
-    return service().createUserTerminal(sessionId, session.workspace.path, shell, operationId)
+    return application.get('AgentLifecycleService').createUserTerminal({ sessionId, shell, operationId })
   },
   'terminal.read': async ({ ref, cursor }, { senderId }) => {
     owner(senderId)

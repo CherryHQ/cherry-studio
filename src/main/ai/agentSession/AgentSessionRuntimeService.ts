@@ -358,9 +358,12 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   'ClaudeCodeWarmQueryManager',
   'AutomationReplService',
   'TerminalService',
+  'AgentWorkspaceStorageService',
   'RuntimeActivityService'
 ])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly workspaceChanges = new Set<string>()
+  private readonly workspaceUsage = new WeakMap<AgentRuntimeConnection, string>()
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
@@ -387,7 +390,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionWritable(sessionId: string): void {
-    if (this.forks.edits.has(sessionId) || this.entries.get(sessionId)?.closing) throw new AgentSessionEditError('busy')
+    if (this.workspaceChanges.has(sessionId) || this.forks.edits.has(sessionId) || this.entries.get(sessionId)?.closing)
+      throw new AgentSessionEditError('busy')
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
@@ -433,6 +437,17 @@ export class AgentSessionRuntimeService extends BaseService {
     const parts = snapshot.user.data.parts ?? []
     await validateEditedInput(parts)
     return { messageId, version: snapshot.version, parts }
+  }
+
+  async changeWorkspace<T>(sessionId: string, commit: () => Promise<T>): Promise<T> {
+    this.assertSessionWritable(sessionId)
+    if (this.isSessionBusy(sessionId)) throw new AgentSessionEditError('busy')
+    this.workspaceChanges.add(sessionId)
+    try {
+      return await commit()
+    } finally {
+      this.workspaceChanges.delete(sessionId)
+    }
   }
 
   editSession<T>(
@@ -1409,7 +1424,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
-    if (this.forks.edits.has(sessionId)) return true
+    if (this.workspaceChanges.has(sessionId) || this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return entry.closing === true || isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -2085,31 +2100,52 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
+    const workspace = agentSessionService.getById(entry.sessionId).workspace
+    const storage = application.get('AgentWorkspaceStorageService')
+    const usageId = await storage.acquireUsage({
       sessionId: entry.sessionId,
-      agentId: entry.agentId,
-      modelId: target.modelId,
-      reasoningEffort: target.reasoningEffort,
-      serviceTier: target.serviceTier,
-      knowledgeBaseIds: target.knowledgeBaseIds,
-      fastMode: target.fastMode,
-      resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId),
-      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
-      branchHead: entry.branchHead,
-      onSteerInjected: (inputIds) => {
-        if (this.isCurrentGeneration(entry, attemptId))
-          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
-      },
-      onInputPrepared: (inputId, contextId) => {
-        if (!this.isCurrentGeneration(entry, attemptId)) return
-        const pending = entry.pendingInputs?.get(inputId)
-        if (pending?.generation === attemptId) pending.contextId = contextId
-      }
+      cwd: workspace.path,
+      owner: { kind: 'runtime', contextId: attemptId }
     })
+    let connection: AgentRuntimeConnection
+    try {
+      connection = await driver.connect({
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        modelId: target.modelId,
+        reasoningEffort: target.reasoningEffort,
+        serviceTier: target.serviceTier,
+        knowledgeBaseIds: target.knowledgeBaseIds,
+        fastMode: target.fastMode,
+        resumeToken: entry.lastResumeToken,
+        trace: this.sessionTraceContext(entry, target.modelId),
+        nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
+        branchHead: entry.branchHead,
+        onSteerInjected: (inputIds) => {
+          if (this.isCurrentGeneration(entry, attemptId))
+            this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+        },
+        onInputPrepared: (inputId, contextId) => {
+          if (!this.isCurrentGeneration(entry, attemptId)) return
+          const pending = entry.pendingInputs?.get(inputId)
+          if (pending?.generation === attemptId) pending.contextId = contextId
+        }
+      })
+    } catch (error) {
+      storage.markUsageUnconfirmed(usageId)
+      throw error
+    }
+    this.workspaceUsage.set(connection, usageId)
+    const currentWorkspace = agentSessionService.getById(entry.sessionId).workspace
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
-    if (!this.isCurrentEntry(entry) || entry.closing || !this.connectionTargetEquals(entry, target)) {
+    if (
+      !this.isCurrentEntry(entry) ||
+      entry.closing ||
+      currentWorkspace.id !== workspace.id ||
+      currentWorkspace.path !== workspace.path ||
+      !this.connectionTargetEquals(entry, target)
+    ) {
       await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
       return false
     }
@@ -3471,6 +3507,17 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
+  async retryWorkspaceCleanup(usageId: string): Promise<boolean> {
+    for (const [sessionId, connections] of this.failedClosures) {
+      for (const connection of connections) {
+        if (this.workspaceUsage.get(connection) !== usageId) continue
+        await this.closeRuntimeConnection(connection, sessionId, true)
+        return true
+      }
+    }
+    return false
+  }
+
   private async closeRuntimeConnection(
     connection: AgentRuntimeConnection | undefined,
     sessionId: string,
@@ -3503,6 +3550,16 @@ export class AgentSessionRuntimeService extends BaseService {
           : close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
+          const usageId = this.workspaceUsage.get(connection)
+          if (usageId) {
+            this.workspaceUsage.delete(connection)
+            void application
+              .get('AgentWorkspaceStorageService')
+              .releaseUsage(usageId)
+              .catch((error) => {
+                logger.error('Workspace protection retained after runtime cleanup', { error, sessionId })
+              })
+          }
           const failed = this.failedClosures.get(sessionId)
           const completedLate = failed?.delete(connection)
           this.failedClosureResumeTokens.delete(connection)
