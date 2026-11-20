@@ -117,6 +117,7 @@ export async function prepareDreamingPlan(
   const mutations: MemoryMutation[] = ordered.map(([target, content]) => ({
     kind: 'write',
     receipt: reads.get(target)!.receipt,
+    ...(destinations.has(target) && { transferTarget: true }),
     content
   }))
   mutations.push(
