@@ -1669,8 +1669,11 @@ export function Topics({
         destructive
         onConfirm={async () => {
           const groupId = deletingTopicSubjectId
-          setDeletingTopicSubjectId(null)
+          // Close only this confirmation: a newer one for another group may open while the delete settles.
+          setDeletingTopicSubjectId((current) => (current === groupId ? null : current))
           if (groupId) await handleDeleteTopicSubject(groupId)
+          // Returning false stops the shared dialog from calling onOpenChange(false) again after the await.
+          return false
         }}
       />
       <TopicGroupNameDialog
