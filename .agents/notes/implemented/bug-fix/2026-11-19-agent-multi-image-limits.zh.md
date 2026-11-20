@@ -23,7 +23,7 @@ Status: implemented
 
 ## 影响
 
-默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `imageExts` 图片定义（含 AVIF/HEIC/HEIF/TIFF），两侧在创建托管副本前计数一致。
+默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `AGENT_IMAGE_EXTS` 计数定义（共享 `imageExts` 外加 AVIF/HEIC/HEIF/TIFF），两侧在创建托管副本前计数一致；共享路由表保持不变，因此非视觉 AVIF/HEIC 仍走本地路径回退，不会误入 OCR。
 
 ## 验证
 

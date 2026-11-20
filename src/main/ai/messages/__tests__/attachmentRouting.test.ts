@@ -263,6 +263,25 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
+  // Regression for #20030: a textless managed AVIF with a non-vision model must
+  // keep its path fallback (OTHER + keepUnroutableFileParts) instead of
+  // rerouting into OCR and aborting the turn — even though Agent counting
+  // treats AVIF as an image.
+  it('keeps a non-vision AVIF as a file part instead of aborting into OCR', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      nativeSupport: NONE,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
   it('degrades a native file to a note when materialization returns null', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     resolveMock.mockResolvedValueOnce(null)

@@ -32,8 +32,22 @@
  */
 
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file'
+import { imageExts as sharedImageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
+
+/**
+ * Image extensions counted for Agent multi-image limits (#20030).
+ *
+ * Deliberately separate from the shared `imageExts` routing table: global
+ * `imageExts` drives `getFileTypeByExt` → `attachmentRouting` (IMAGE vs OTHER)
+ * and the non-vision OCR fallback. Expanding the global list would reroute
+ * AVIF/HEIC/TIFF attachments into OCR and abort turns that previously kept a
+ * local-path fallback (notably the built-in Claude Code assistant with a
+ * non-vision model and a textless managed AVIF). Counting must stay
+ * MIME-aware and forward-compatible, so the Agent guard uses this superset
+ * while routing stays untouched.
+ */
+export const AGENT_IMAGE_EXTS: readonly string[] = [...sharedImageExts, '.avif', '.heic', '.heif', '.tif', '.tiff']
 
 /** Structural subset read by the image predicate. Covers `FileUIPart`,
  *  `CherryMessagePart` file parts and renderer `ComposerAttachment`s. */
@@ -72,6 +86,11 @@ function urlPath(url: string): string {
  * data URL, a composer `FILE_TYPE.IMAGE` marker, or a known image extension on
  * the extension, filename or (non-data) URL — in first-occurrence order, so
  * every surface counts the same parts.
+ *
+ * Uses `AGENT_IMAGE_EXTS` (shared routing table plus AVIF/HEIC/TIFF) so
+ * renderer attachments without MIME agree with main's MIME-aware count after
+ * the file bridge. This counting list never alters `getFileTypeByExt`
+ * routing.
  */
 export function isAgentImagePart(part: AgentImagePartLike | null | undefined): boolean {
   if (!part || typeof part !== 'object') return false
@@ -80,11 +99,11 @@ export function isAgentImagePart(part: AgentImagePartLike | null | undefined): b
   if (normalizedLower(part.type) === 'image') return true
   if (typeof part.url === 'string' && dataUrlImageMediaType(part.url) !== undefined) return true
   const ext = normalizedLower(part.ext)
-  if (ext && (imageExts as readonly string[]).includes(ext)) return true
+  if (ext && AGENT_IMAGE_EXTS.includes(ext)) return true
   const filename = normalizedLower(part.filename)
   const name = normalizedLower(part.name)
   const path = typeof part.url === 'string' && !part.url.startsWith('data:') ? urlPath(part.url) : undefined
-  return imageExts.some(
+  return AGENT_IMAGE_EXTS.some(
     (extension) => filename?.endsWith(extension) || name?.endsWith(extension) || path?.endsWith(extension)
   )
 }

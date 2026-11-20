@@ -39,6 +39,7 @@ import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/clau
 import { probeReadable } from '@main/utils/file'
 import {
   AgentImageLimitError,
+  AGENT_IMAGE_EXTS,
   countAgentImageFileParts,
   normalizeAgentImageLimitFailure,
   parseUpstreamImageLimit,
@@ -53,7 +54,6 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -1436,7 +1436,11 @@ function isImageFilePart(part: FileUIPart): boolean {
   if (part.url?.startsWith('data:') && toClaudeImageMediaType(parseDataUrl(part.url)?.mediaType)) return true
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+  // Agent counting superset (shared imageExts plus AVIF/HEIC/TIFF): routing
+  // itself still uses the shared `imageExts` table, so AVIF/HEIC stay OTHER
+  // for non-vision OCR fallback and keep their local-path fallback here via
+  // `canBeClaudeImage` below.
+  return AGENT_IMAGE_EXTS.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 /**
