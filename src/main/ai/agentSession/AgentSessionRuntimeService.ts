@@ -2096,13 +2096,19 @@ export class AgentSessionRuntimeService extends BaseService {
       sender,
       id,
       async () => {
-        await this.primeConnection(sessionId)
-        const entry = this.entries.get(sessionId)
+        // A first connection can fail while Pi configuration is still settling, and priming then drops the
+        // idle entry. One bounded retry re-primes it so the open panel still attaches live.
+        let entry: AgentSessionRuntimeEntry | undefined
         let connection: AgentRuntimeConnection | undefined
-        try {
-          if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
-        } catch (error) {
-          logger.warn('Failed to connect child subscriber', { sessionId, error })
+        for (let attempt = 0; attempt < 2 && !connection; attempt += 1) {
+          await this.primeConnection(sessionId)
+          entry = this.entries.get(sessionId)
+          try {
+            if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
+          } catch (error) {
+            logger.warn('Failed to connect child subscriber', { sessionId, error, attempt })
+          }
+          if (entry && this.entries.get(sessionId) !== entry) return null
         }
         if (entry && this.entries.get(sessionId) !== entry) return null
         const child = await connection?.childProjection?.(toolCallId)
