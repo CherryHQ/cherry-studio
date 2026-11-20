@@ -21,7 +21,8 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 
 The application process and configured service providers are shared within a run. Provider configuration comes from the same run environment and is not changed between scenarios.
 Custom assistants and knowledge bases are named with their case ID. Agent work directories are case-scoped; file tasks remove their own previous output before asserting newly produced content.
-M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
+M-02 creates a case-owned assistant with no custom prompt and an empty setup topic so it appears in the conversation list, restores sidebar visibility after reloading, sends its provider-verification message through a new UI-created chat, and removes that assistant and its topics after the persistence check.
+`custom-provider-chat,polish-prompts,browser-recovery` selects only M-02, MP-16 and MP-125 for combined provider, polishing and local-service recovery checks.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
 
@@ -44,6 +45,19 @@ base, verify recall, restart the application, then query the persisted base and
 verify the answer and citations. It imports the fixtures only once. The `knowledge`
 module task also includes the implemented knowledge case-library scenarios.
 
+### Web tools, estimated cost, and note recall
+
+- `MP-10` and `MP-35` declare `function-call` on their test models so Chat can enable client-side web tools. `MP-10` checks the DuckDuckGo settings and runs a live lookup. `MP-35` supplies a dated bulletin over loopback through the Tavily adapter and fetches `https://example.com/` through the public URL fetch adapter. In mock mode, the model sends `web_fetch` a `urls` array and uses the title, content, and citation ID returned by each tool.
+- `MP-39` checks the `Estimated` label and the exact USD amount separately in the matching Usage row, alongside the token count, time to first token, and generation speed.
+- `MP-79` exports a real note, waits for BM25 indexing, and checks retrieval through both the knowledge API and Chat. The mock model recognizes the recall prompt with the composer’s appended knowledge-base context, searches the case-owned base, and quotes the marker and citation ID from the retrieved note. Re-exporting the note must create a second ready source while preserving the first.
+
+### Code preview, settings, and file library
+
+- `MP-10` and `MP-40` reopen the conversation sidebar after reload when needed and reveal their assistant in the virtualized list. `MP-40` then positions the code preview inside the message list and measures wheel scrolling in the list and preview separately.
+- `MP-107` opens Settings through the sidebar account trigger, which can display a profile name. The case verifies the keyboard bindings, long-paste attachment, delete confirmation, and persisted preferences.
+- `MP-68` reconnects to the controller-owned profile for file cleanup if a restart closes the original page. See the [controller shutdown contract](../../../scripts/e2e/regression/README.md#responsibilities) for the Windows CDP release check. `MP-70` uses case-specific file names so its open and reveal actions resolve to the files it imported.
+- `CODE-03` waits for the configured provider to become active before launching OpenClaw. A failure reports launch alerts and, in branch runs, redacted OpenClaw entries from the run-owned application log. The case verifies the real gateway and dashboard.
+
 ## Adding or selecting a case
 
 1. Add the case to `scripts/e2e/regression/cases.ts`, including its phase, module and focused `tasks`, and required capabilities. Task IDs remain English kebab-case and are independent of phase IDs.
@@ -51,12 +65,18 @@ module task also includes the implemented knowledge case-library scenarios.
 3. Establish its preconditions in the scenario or domain helper. Keep selectors scoped to the relevant product surface.
 4. Run manifest tests, typechecking, and Playwright enumeration. Add a workflow step only when introducing a new phase.
 
-Use the task IDs from the manifest in the workflow's `task` input (`all` selects every case). Within an initialized run, execute a phase through the same controller as CI:
+Select `suite=regression` to run just the desktop regression. Use the task IDs from the manifest in the workflow's string `task` input (`all` selects every case). Combine modules or focused tasks with commas, for example `chat-core,browser,settings`; overlapping cases execute once in manifest order. Within an initialized run, execute a phase through the same controller as CI:
 
 ```sh
 pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase basicFeatures
 ```
+
+`cherryin-chat` selects M-01 on macOS and Windows. It starts in Model Provider settings, completes real CherryIN OAuth in an isolated Chromium session, checks the desktop balance, syncs `deepseek/deepseek-flash` and verifies a completed chat reply before signing out. The workflow reads `CHERRY_TEST_CHERRYIN_ACCOUNT` and `CHERRY_TEST_CHERRYIN_PASSWORD` from repository Actions secrets. The account needs an enabled API Key in the `default` group that can call this model. For a local run, initialize with `--task cherryin-chat`, install the browser with `pnpm exec playwright install --only-shell chromium` and pass the same variables in the environment of `run-phase --phase cherryIn`.
+
+`settings-search` selects SET-01 and SET-02. They verify that pointer clearing keeps
+search open, focused, and on the same tab, and that a blank query and a query
+with no matches show different prompts.
 
 `native-notifications` selects MP-110 for notification settings, actual system delivery,
 native activation and disabled-category suppression. `native-settings` selects the same case.
@@ -130,17 +150,8 @@ Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profil
 language detection and translation, while exercising the real settings UI, model
 routing, automatic clipboard copy, history and usage storage, and restart persistence.
 Its `data-source` annotation and request-journal attachment identify the mocked model
-boundary. Configured provider mode is recorded independently in the run reports;
-mock-mode success cannot substitute for real-provider acceptance.
-
-The repository variables/secrets are listed in `scripts/e2e/regression/config.ts`; the image model variable is `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`.
-
-Custom chat provider creation fills two required endpoint URLs:
-
-- OpenAI: `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL` (for example, `https://api.siliconflow.cn/v1`).
-- Anthropic: `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` (for example, `https://api.siliconflow.cn`).
-
-Both endpoints use `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`. The embedding provider remains separately configured.
+boundary. Mock provider provenance is recorded independently in the run reports;
+fixture success does not establish external model quality.
 
 Never attach credentials or enable credential-bearing Playwright traces. HTML reports and failure screenshots are produced by Playwright and the fixture; sanitized Electron logs are copied during finalization.
 
@@ -149,7 +160,7 @@ Use the [frontend testing guidelines](../../../docs/dev/references/testing/front
 
 ## Desktop platform coverage
 
-All 112 registered regression cases retained in this layer participate on both macOS and Windows, including the marketplace navigation smoke case. The additional 23 cases in [draft #23868](https://github.com/CherryHQ/cherry-studio/pull/23868) are deferred and are not part of this layer's coverage. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
+All registered regression cases participate on both macOS and Windows, including the marketplace navigation smoke case. The additional 23 cases in [draft #23868](https://github.com/CherryHQ/cherry-studio/pull/23868) are deferred and are not part of this layer's coverage. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
 
 Windows single-instance checks use Restart Manager's [resource-user query](https://learn.microsoft.com/en-us/windows/win32/api/_rstmgr/) to verify SQLite file owners. The probe never calls shutdown or restart APIs. Native console input is limited to the new Claude launch process under the isolated run directory, with PID and creation-time checks before each operation.
 

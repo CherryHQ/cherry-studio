@@ -1,10 +1,16 @@
 # Browser automation
 
-Use the browser pane belonging to this conversation. Bind once with `var tab = await browser.getTab()`; this emits this document and the initial AX state. If a dialog blocks the initial AX state, acquisition still returns the handle and emits dialog metadata; use `tab.handleDialog()` and then `tab.getAXState()`. Reuse the handle in later cells. If the page is replaced, reacquire it explicitly with `browser.getTab()`.
+Use the browser pane belonging to this conversation. Bind once with `var tab = await browser.getTab()`; this emits this document and the initial AX state. If a dialog blocks the initial AX state, acquisition still returns the handle and emits dialog metadata; use `tab.handleDialog()` and then `tab.getAXState()`. Reuse the handle in later cells. User selection does not change a bound handle. Use `await browser.listTabs()` to enumerate this conversation’s pages, `await browser.getTab({ tabId })` to acquire one explicitly, and `await browser.newTab(url)` to create an independent page; observe it with `getAXState()` before acting. Closing a page invalidates its handle without redirecting to another page.
 
 ## API
 
 ```ts
+interface Browser {
+  getTab(options?: { tabId?: string }): Promise<Tab>
+  listTabs(): Promise<Array<{ tabId: string; url: string; title: string }>>
+  newTab(url: string): Promise<Tab>
+}
+
 interface Tab {
   getAXState(options?: { scope?: string; maxChars?: number }): Promise<{ id: string; tabId: string; url: string; title: string; text: string; complete: boolean }>
   getScreenshot(options?: { ref?: string; fullPage?: boolean; cursor?: string }): Promise<{ id: string; tabId: string; images: Array<{ region: object; scale: object; index: number }>; nextCursor?: string }>
@@ -30,7 +36,7 @@ interface Tab {
 
 `getAXState` emits a bounded full accessibility tree with actionable refs. `getScreenshot` emits image metadata followed by its image. Neither requires console.log. Their returned objects contain metadata/text, not image bytes. Actions return execution metadata, never an implicit AX snapshot. `find` returns exact accessible role/name matches; print its result when choosing a target. Action metadata may report dialogs, blocked popups or downloads; inspect these when present.
 
-`goto` can replace the guest when switching between a local HTML artifact and a website. When its result reports `handleInvalidated: true`, navigation completed but the old handle is invalid; call `browser.getTab()` before continuing. User cancellation still cancels the navigation.
+`goto` can replace the guest when switching between a local HTML artifact and a website. When its result reports `handleInvalidated: true`, navigation completed but the old handle is invalid; call `browser.getTab({ tabId: result.tabId })` using the returned navigation result before continuing. User cancellation still cancels the navigation.
 
 `evaluate` runs JavaScript in the page, not in the host or REPL; prefer dedicated input methods. `waitFor` requires text or ref and emits the matching full observation. Website tools use IDs returned by `listWebTools`; navigation invalidates them. Full-page screenshots are tiled: use the returned `nextCursor` for continuation. Never combine `ref` and `fullPage`.
 

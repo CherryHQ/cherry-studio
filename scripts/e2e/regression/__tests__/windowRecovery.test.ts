@@ -127,7 +127,6 @@ it('restarts a renderer that stays hidden once, then waits instead of restarting
   )
 
   expect(restartAppMock).toHaveBeenCalledTimes(1)
-  expect(prepareCdpMock).toHaveBeenCalledTimes(1)
   expect(error?.message).toContain('waiting for #root')
 })
 

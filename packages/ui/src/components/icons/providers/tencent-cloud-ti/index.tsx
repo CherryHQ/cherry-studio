@@ -9,7 +9,7 @@ const TencentCloudTi = ({ variant, className, ...props }: CompoundIconProps) => 
 
 export const TencentCloudTiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(TencentCloudTi, {
   Avatar: TencentCloudTiAvatar,
-  colorPrimary: '#00A3FF'
+  colorPrimary: '#e8f7ff'
 })
 
 export default TencentCloudTiIcon

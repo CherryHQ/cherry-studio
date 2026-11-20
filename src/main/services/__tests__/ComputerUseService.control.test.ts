@@ -2,7 +2,13 @@ import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ComputerUse, type ComputerUseClient, type ClosedEvent, type Snapshot } from '@cherrystudio/computer-use'
+import {
+  ComputerUse,
+  type Action,
+  type ComputerUseClient,
+  type ClosedEvent,
+  type Snapshot
+} from '@cherrystudio/computer-use'
 import type * as ComputerUseModule from '@cherrystudio/computer-use'
 import { BaseService } from '@main/core/lifecycle'
 
@@ -14,6 +20,12 @@ vi.mock('@cherrystudio/computer-use', async (original) => ({
 }))
 
 class TestService extends ComputerUseService {
+  override createTask(ownerId: string, label: string, signal?: AbortSignal) {
+    return super.createTask(ownerId, label, signal, {
+      current: () => ({ sessionId: ownerId, topicId: ownerId, bypass: true }),
+      waiting: () => {}
+    })
+  }
   init() {
     this.onInit()
   }
@@ -196,7 +208,7 @@ describe('desktop control ownership and user stop', () => {
   it('restores permission queries after a service restart without reviving stopped tasks', async () => {
     const native = backend()
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
-    const service = new ComputerUseService()
+    const service = new TestService()
     await service._doInit()
     const task = service.createTask('owner', 'Conversation')
     await service.openApp(task, 'app')
@@ -221,7 +233,7 @@ describe('desktop control ownership and user stop', () => {
   it('delivers control state changes to existing and new subscribers after a service restart', async () => {
     const native = backend()
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
-    const service = new ComputerUseService()
+    const service = new TestService()
     await service._doInit()
     await service.openApp(service.createTask('owner', 'Conversation'), 'app')
     let existingView = service.getControls()
@@ -342,10 +354,15 @@ describe('desktop control ownership and user stop', () => {
   it('drains pending startup on stop-all and does not allow a new target through a replacement task', async () => {
     const starting = Promise.withResolvers<ComputerUseClient>()
     const native = backend()
-    vi.mocked(ComputerUse.start).mockReturnValue(starting.promise)
+    const entered = Promise.withResolvers<void>()
+    vi.mocked(ComputerUse.start).mockImplementation(() => {
+      entered.resolve()
+      return starting.promise
+    })
     const service = new TestService()
     const task = service.createTask('owner', 'Conversation')
     const opening = service.openApp(task, 'app').catch((error) => error.code)
+    await entered.promise
     const stopping = service.stopAll()
     expect(service.getControls().some((row) => row.status === 'stopping')).toBe(true)
     starting.resolve(native.client)
@@ -407,6 +424,42 @@ describe('desktop control ownership and user stop', () => {
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
       code: 'USER_STOPPED'
     })
+    await service.stop()
+  })
+
+  it('sends the user global input choice to SDK act and perform calls', async () => {
+    const flags: boolean[] = []
+    const snapshot: Snapshot = {
+      id: 'snapshot',
+      appSessionId: 'app-1',
+      app: { id: 'app', name: 'Editor' },
+      window: { id: 'window', title: 'Document' },
+      inputChannel: { kind: 'accessibility' },
+      tree: { status: 'available', elements: [], truncated: [] },
+      screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
+    }
+    const native = backend({
+      act: async (input) => {
+        flags.push(input.allowGlobalInput ?? false)
+        return { status: 'completed', observation: { status: 'available', snapshot } }
+      },
+      perform: async (input) => {
+        flags.push(input.allowGlobalInput ?? false)
+        return { status: 'completed', appSessionId: input.appSessionId }
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    const app = await service.openApp(task, 'app')
+    const click: Action = { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' }
+    await service.act(task, click)
+    await service.perform(task, click)
+    expect(flags).toEqual([false, false])
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.global_input', true)
+    await service.act(task, click)
+    await service.perform(task, click)
+    expect(flags).toEqual([false, false, true, true])
     await service.stop()
   })
 
@@ -485,7 +538,7 @@ describe('desktop control ownership and user stop', () => {
     })
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
     const broadcast = defaultServiceInstances.IpcApiService.broadcast
-    const service = new ComputerUseService()
+    const service = new TestService()
     await service._doInit()
     const task = service.createTask('owner', 'Conversation')
     await service.openApp(task, 'app')
@@ -521,7 +574,7 @@ describe('desktop control ownership and user stop', () => {
       }
     })
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
-    const service = new ComputerUseService()
+    const service = new TestService()
     await service._doInit()
     await service.openApp(service.createTask('owner', 'Conversation'), 'app')
     await service.stopAll()

@@ -3,8 +3,9 @@ import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { Semaphore } from 'async-mutex'
 import { status } from 'elysia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -78,7 +79,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), silly: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -93,7 +94,7 @@ vi.mock('../adapters', () => ({
     })
   },
   StreamAdapterFactory: {
-    createAdapter: () => ({
+    createAdapter: vi.fn(() => ({
       getMessageId: () => 'gateway-response',
       transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
@@ -101,17 +102,18 @@ vi.mock('../adapters', () => ({
       },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
-    }),
-    getFormatter: () => ({
+    })),
+    getFormatter: vi.fn(() => ({
       formatEvent: (event: unknown) => `data: ${JSON.stringify(event)}\n\n`,
       formatDone: () => 'data: [DONE]\n\n'
-    })
+    }))
   }
 }))
 
-import type { OutputFormat } from '../adapters'
+import { StreamAdapterFactory, type OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
 import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
+import { StreamAdapterFactory as RealStreamAdapterFactory } from '../adapters/factory/StreamAdapterFactory'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -186,13 +188,16 @@ async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<strin
   return out
 }
 
-async function startStreaming(signal?: AbortSignal) {
-  const response = processMessage({
-    params: { model: 'openai:gpt-4', stream: true, messages: [] },
-    inputFormat: 'openai',
-    outputFormat: 'openai',
-    signal
-  })
+async function startStreaming(signal?: AbortSignal, release?: () => void) {
+  const response = processMessage(
+    {
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      signal
+    },
+    release
+  )
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
   return { response, listener: captured.listener! }
 }
@@ -339,12 +344,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const params = createAnthropicParams(
       'gpt-5',
       [
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'assistant', content: [call, structuredClone(call)] },
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'user', content: [output, structuredClone(output)] }
       ],
       true,
       'openai'
     )
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     await processAndCaptureStreamMessages(params)
@@ -372,6 +380,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockIsInternalAgentRequest.mockReturnValue(false)
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams('claude-opus-5', [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] }
     ])
 
@@ -390,6 +399,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams(
       'gpt-5',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       [{ role: 'assistant', content: [call, structuredClone(call)] }],
       true,
       'openai'
@@ -441,6 +451,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'user', content: 'Build the requested feature' },
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -481,6 +492,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
       }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -514,6 +526,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
       { role: 'user', content: '' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -828,6 +841,25 @@ describe('processMessage (streaming)', () => {
     expect(mockAbort).toHaveBeenCalledOnce()
     await expect(readAll(res.body)).resolves.toBe('')
   })
+
+  it.each(['completion', 'disconnect'] as const)(
+    'holds request capacity until %s after SSE commitment',
+    async (end) => {
+      const budget = new Semaphore(1)
+      const [, release] = await budget.acquire()
+      const controller = new AbortController()
+      const { response, listener } = await startStreaming(controller.signal, release)
+      commit(listener)
+      const pendingResponse = await response
+      expect(budget.getValue()).toBe(0)
+
+      if (end === 'completion') await listener.onDone({} as any)
+      else controller.abort()
+
+      await readAll(pendingResponse.body)
+      expect(budget.getValue()).toBe(1)
+    }
+  )
 
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
@@ -1195,4 +1227,132 @@ describe('caller-owned Responses instructions', () => {
       await readAll((await response).body)
     }
   )
+})
+
+describe('processMessage (terminal finish reasons)', () => {
+  afterEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
+    vi.mocked(StreamAdapterFactory.getFormatter).mockReset()
+  })
+  const formats: { format: OutputFormat; path: string }[] = [
+    { format: 'gemini', path: '/v1beta/models/fixture:generateContent' },
+    { format: 'anthropic', path: '/v1/messages' },
+    { format: 'openai', path: '/v1/chat/completions' },
+    { format: 'openai-responses', path: '/v1/responses' }
+  ]
+  it.each([
+    { format: 'gemini', terminal: '"finishReason":"OTHER"', done: '"finishReason":"OTHER"' },
+    { format: 'anthropic', terminal: '"stop_reason":"end_turn"', done: 'event: message_stop' },
+    { format: 'openai', terminal: '"finish_reason":"stop"', done: 'data: [DONE]' },
+    { format: 'openai-responses', terminal: '"status":"completed"', done: 'event: response.completed' }
+  ] as const)('$format / other completes successfully', async ({ format, terminal, done }) => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: format
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+    listener.onChunk({ type: 'finish', finishReason: 'other' })
+    await listener.onDone({} as any)
+    const response = await pending
+    expect(response.status).toBe(200)
+    const body = await readAll(response.body)
+    expect(body).toContain(terminal)
+    expect(body).toContain(done)
+    expect(body).not.toContain('"error"')
+    expect(listener.isAlive?.()).toBe(false)
+  })
+  for (const { format, path } of formats) {
+    for (const reason of ['error'] as const) {
+      for (const withTool of [false, true]) {
+        for (const stream of [false, true]) {
+          it(`${format} / ${reason} / tool=${withTool} / stream=${stream}`, async () => {
+            vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+              RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+            )
+            vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+              RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+            )
+            const pending = processMessage({
+              params: { model: 'openai:gpt-4', stream, messages: [] },
+              inputFormat: 'openai',
+              outputFormat: format
+            })
+            const settled = pending.then(
+              (value) => ({ value }),
+              (error: unknown) => ({ error })
+            )
+            await vi.waitFor(() => expect(captured.listener).toBeDefined())
+            const listener = captured.listener!
+            if (withTool)
+              listener.onChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+            listener.onChunk({ type: 'finish', finishReason: reason })
+            listener.onChunk({ type: 'text-delta', id: 'late', delta: 'late' })
+            await listener.onDone({} as any)
+            const result = await settled
+            expect(listener.isAlive?.()).toBe(false)
+            if (stream) {
+              if (!('value' in result)) throw result.error
+              expect(result.value.status).toBe(200)
+              const body = await readAll(result.value.body)
+              const frames = body.trim().split(/\r?\n\r?\n/)
+              const payloads = frames.map((frame) => {
+                const data = frame.match(/^data:\s?(.*)$/m)
+                expect(data).not.toBeNull()
+                return JSON.parse(data![1])
+              })
+              const errors = payloads.filter((payload) => payload.error || payload.type === 'error')
+              expect(errors).toHaveLength(1)
+              const message = expect.stringContaining(reason)
+              if (format === 'gemini') expect(errors[0]).toEqual({ error: { code: 502, message, status: 'INTERNAL' } })
+              else if (format === 'anthropic') {
+                expect(frames.find((frame) => frame.startsWith('event: error'))).toBeDefined()
+                expect(errors[0]).toEqual({ type: 'error', error: { type: 'api_error', message } })
+              } else if (format === 'openai-responses')
+                expect(errors[0]).toEqual({ type: 'error', code: 'internal_error', message })
+              else expect(errors[0]).toEqual({ error: { message, type: 'server_error', code: 'internal_error' } })
+              expect(body).not.toContain('data: [DONE]')
+              expect(body).not.toContain('"finishReason":"STOP"')
+              expect(frames.some((frame) => /^event:\s*message_stop\s*$/m.test(frame))).toBe(false)
+              for (const payload of payloads) {
+                if (payload.type === 'message_delta') expect(payload.delta?.stop_reason || null).toBeNull()
+                for (const choice of payload.choices ?? []) expect(choice.finish_reason || null).toBeNull()
+                for (const candidate of payload.candidates ?? []) expect(candidate).not.toHaveProperty('finishReason')
+              }
+              expect(
+                payloads.some(
+                  (payload) => payload.type === 'response.completed' || payload.response?.status === 'completed'
+                )
+              ).toBe(false)
+              expect(body).not.toContain('late')
+            } else {
+              if (!('error' in result)) throw new Error('Expected rejection')
+              expect(result.error).toMatchObject({ statusCode: 502 })
+              const mapped = gatewayErrorHandler({
+                request: new Request(`http://fixture${path}`),
+                code: 'UNKNOWN',
+                error: result.error,
+                status
+              } as Parameters<typeof gatewayErrorHandler>[0])
+              expect(mapped.code).toBe(502)
+              expect(mapped.response).toMatchObject(
+                format === 'gemini'
+                  ? { error: { code: 502 } }
+                  : format === 'anthropic'
+                    ? { error: { type: 'api_error' } }
+                    : { error: { type: 'server_error', code: 'internal_error' } }
+              )
+            }
+          })
+        }
+      }
+    }
+  }
 })
