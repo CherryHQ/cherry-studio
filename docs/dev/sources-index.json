@@ -139,7 +139,7 @@
     },
     {
       "path": "docs/dev/references/api-gateway/README.md",
-      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/components/ApiGatewayPanel.tsx","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/apiGateway","src/renderer/pages/launchpad/LaunchpadPage.tsx","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings","src/renderer/routes/app/api-gateway.tsx"]
     },
     {
       "path": "docs/dev/references/api-gateway/remote-agent-access.md",

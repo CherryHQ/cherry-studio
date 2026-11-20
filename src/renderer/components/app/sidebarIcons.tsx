@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 
 type SidebarIconComponent = (props: LucideProps) => ReactNode
@@ -43,7 +44,10 @@ export const SIDEBAR_ICON_COMPONENTS = {
   knowledge: FileSearch,
   files: Folder,
   code_tools: CodeMateIcon,
-  notes: NotepadText
+  notes: NotepadText,
+  api_gateway: ({ size, ...props }: LucideProps) => (
+    <GatewayIcon {...props} width={size} height={size} viewBox="0 0 640 640" />
+  )
 } satisfies Record<SidebarAppId, SidebarIconComponent>
 
 const RESOURCE_ICON_COMPONENTS = {

@@ -4,6 +4,10 @@ sources:
   - src/main/features/apiGateway
   - src/main/ai/runtime/agentApiGateway.ts
   - src/main/services/PdfTranslationService.ts
+  - src/renderer/components/ApiGatewayPanel.tsx
+  - src/renderer/pages/apiGateway
+  - src/renderer/routes/app/api-gateway.tsx
+  - src/renderer/pages/launchpad/LaunchpadPage.tsx
   - src/renderer/hooks/useApiGateway.ts
   - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
   - src/renderer/pages/settings/DeviceConnectionsSettings
@@ -90,7 +94,7 @@ to enable it. It is disabled by default.
 
 1. Configure a working provider and model in **Settings → Model Provider** for
    model requests. Keep Cherry Studio running while the client uses the gateway.
-2. Open **Settings → API Gateway**. While stopped, choose an available port
+2. Open **Unified Gateway** from the Launchpad apps grid, or open **Settings → API Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
    between `1000` and `65535` if the default `23333` is already in use.
 3. Click **Start** and wait for **Running**. Cherry Studio generates a gateway
    API key on first activation.
@@ -107,7 +111,7 @@ remote devices; it does not expose the ordinary HTTP APIs to the LAN.
 
 ### Stop the gateway and automatic startup
 
-Open **Settings → API Gateway** and click **Stop**. This clears the saved
+Open **Unified Gateway** from the Launchpad or **Settings → API Gateway** and click **Stop**. This clears the saved
 startup setting, disables network access, and closes remote-device sessions.
 Gateway-dependent clients and Agent routes need the gateway again before they can
 be used. Ordinary chats can continue without it.
@@ -479,7 +483,9 @@ configured gateway port; a fresh QR is only needed if the endpoint changes.
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. It also publishes
-`feature.api_gateway.lan_running` for remote-access availability. **Main is authoritative**;
+`feature.api_gateway.lan_running` for remote-access availability and the bound host and port in
+`feature.api_gateway.endpoint`, cleared when stopped. The panel uses that endpoint while running
+and the configured host and port while stopped. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared

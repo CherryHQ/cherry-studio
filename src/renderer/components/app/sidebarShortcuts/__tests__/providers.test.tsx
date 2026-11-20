@@ -3,6 +3,7 @@ import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
 // @vitest-environment jsdom
@@ -37,6 +38,7 @@ describe('core sidebar shortcut providers', () => {
 
   it.each([
     ['core.app', 'files', 'workspace', '/app/files'],
+    ['core.app', 'api_gateway', 'workspace', '/app/api-gateway'],
     ['core.mini-app', 'mini app/one', 'workspace', '/app/mini-app/mini%20app%2Fone'],
     ['core.agent', 'agent/one', 'workspace', '/app/agents?agentId=agent%2Fone'],
     ['core.assistant', 'assistant/one', 'workspace', '/app/chat?assistantId=assistant%2Fone'],
@@ -56,6 +58,23 @@ describe('core sidebar shortcut providers', () => {
     await provider(providerId).activate(target, gateway)
 
     expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining({ url: expectedUrl }))
+  })
+
+  it('keeps the active gateway glyph unclipped at the requested sidebar size', () => {
+    const { container } = render(<SidebarIcon icon="api_gateway" active size={16} />)
+    const icon = container.querySelector('svg')!
+    expect(icon).toHaveAttribute('width', '16')
+    expect(icon).toHaveAttribute('height', '16')
+    expect(icon).toHaveAttribute('viewBox', '0 0 640 640')
+  })
+
+  it('resolves the gateway shortcut label and active route', async () => {
+    const app = provider('core.app')
+    const target = createSidebarShortcutTarget('core.app', 'api_gateway')
+    expect(app.validate(target)).toBe(true)
+    const resolved = await app.resolveMany([target])
+    expect([...resolved.values()][0]?.label).toBe('code.api_gateway.title')
+    expect(app.isActive?.(target, { url: '/app/api-gateway' })).toBe(true)
   })
 
   it.each(CORE_SIDEBAR_SHORTCUT_PROVIDERS)('rejects unknown activations for $id', (shortcutProvider) => {

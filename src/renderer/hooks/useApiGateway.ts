@@ -34,6 +34,7 @@ export const useApiGateway = () => {
   const [apiGatewayConfig, setApiGatewayConfig] = useMultiplePreferences(API_GATEWAY_PREFERENCE_KEYS)
 
   const apiGatewayRunning = useSharedCacheValue('feature.api_gateway.running') ?? false
+  const apiGatewayEndpoint = useSharedCacheValue('feature.api_gateway.endpoint')
 
   // Tracks an in-flight start/stop/restart command (for button spinners) AND the
   // initial shared-cache hydration window. Starts `true` until the shared cache is
@@ -106,6 +107,7 @@ export const useApiGateway = () => {
   return {
     apiGatewayConfig,
     apiGatewayRunning,
+    apiGatewayEndpoint,
     apiGatewayLoading,
     startApiGateway,
     stopApiGateway,

@@ -19,6 +19,7 @@ const routeTitleKeys: Record<string, string> = {
   '/app/files': 'title.files',
   '/app/code': 'title.code',
   '/app/notes': 'title.notes',
+  '/app/api-gateway': 'code.api_gateway.title',
   '/app/release-notes': 'settings.about.releases.title',
   '/settings': 'title.settings'
 }

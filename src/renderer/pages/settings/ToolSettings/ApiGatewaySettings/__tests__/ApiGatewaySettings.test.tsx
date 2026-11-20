@@ -104,6 +104,13 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue(gatewayState())
   })
 
+  it('retains the settings header and gateway panel', () => {
+    render(<ApiGatewaySettings />)
+    expect(screen.getByText('apiGateway.title')).toBeInTheDocument()
+    expect(screen.getByText('apiGateway.status.stopped')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.start' })).toBeInTheDocument()
+  })
+
   // A port is an identifier: an out-of-range one has to be refused and explained,
   // not quietly rounded into range the way a magnitude would be.
   it.each([
@@ -174,11 +181,12 @@ describe('ApiGatewaySettings', () => {
     expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
   })
 
-  it('shows connection fields only while the gateway is stopped', () => {
+  it('keeps the connection URL while running but only offers the port and regeneration when stopped', () => {
     const stoppedState = useApiGatewayMock()
     const { rerender } = render(<ApiGatewaySettings />)
 
-    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toHaveValue('http://127.0.0.1:23333')
+    expect(screen.getByLabelText('apiGateway.fields.port.label')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'apiGateway.actions.regenerate' })).toBeInTheDocument()
 
     useApiGatewayMock.mockReturnValue({
@@ -188,7 +196,10 @@ describe('ApiGatewaySettings', () => {
     })
     rerender(<ApiGatewaySettings />)
 
-    expect(screen.queryByRole('textbox', { name: 'apiGateway.fields.url.label' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toHaveValue('http://127.0.0.1:23333')
+    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'apiGateway.fields.url.copyTooltip' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('apiGateway.fields.port.label')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'apiGateway.actions.regenerate' })).not.toBeInTheDocument()
   })
 })
