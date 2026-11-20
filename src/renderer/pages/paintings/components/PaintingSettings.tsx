@@ -107,7 +107,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
             ? t('paintings.output_format_selectable', { formats: outputFormats })
             : outputFormatItem?.outputFormatKind === 'delivery'
               ? t('paintings.output_format_delivery')
-              : t('paintings.output_format_fixed')}
+              : t('paintings.output_format_fixed')}{' '}
+          {t('paintings.output_format_transform_exception')}
         </p>
       )}
       {isTarget && (

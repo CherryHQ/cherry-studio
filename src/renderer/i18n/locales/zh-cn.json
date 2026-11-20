@@ -3339,6 +3339,7 @@
   "paintings.output_format_delivery": "URL 和 base64 用于选择响应的传输方式，而非图像编码。图像编码由服务商决定，不会进行本地转换。",
   "paintings.output_format_fixed": "输出格式由服务商决定。该模型不支持选择格式，也不会进行本地转换，保存的文件沿用服务商返回的格式。",
   "paintings.output_format_selectable": "支持的输出格式：{{formats}}。格式由服务商直接生成，不会进行本地转换，画质、透明度和元数据以服务商输出为准。",
+  "paintings.output_format_transform_exception": "例外：在“另存为”之前旋转或翻转图片，导出的文件为 PNG。",
   "paintings.person_generation": "生成人物",
   "paintings.person_generation_options.allow_adult": "允许成人",
   "paintings.person_generation_options.allow_all": "允许所有",

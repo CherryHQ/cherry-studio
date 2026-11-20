@@ -285,6 +285,13 @@ describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google
     })
   })
 
+  it('delivers OpenAI image fields under `openai`, the only key the gpt-image model reads', () => {
+    expect(engine('dmxapi', { outputFormat: 'jpeg', quality: 'high', numImages: 1 })).toEqual({
+      dmxapi: { quality: 'high' },
+      openai: { outputFormat: 'jpeg', quality: 'high' }
+    })
+  })
+
   it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
     expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })

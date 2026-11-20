@@ -186,6 +186,12 @@ export const DMXAPI_WIRE_PROFILE: WireProfile = {
   forward: ['negativePrompt', 'seed', 'quality']
 }
 
+/** dmxapi's OpenAI-routed block (gpt-image / dall-e): the OpenAI image fields, delivered under `openai`. */
+export const DMXAPI_OPENAI_PROFILE: WireProfile = {
+  forward: ['quality', 'background', 'moderation'],
+  fields: { outputFormat: { to: 'outputFormat' } }
+}
+
 /** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
  *  field, not `size`) into `imageConfig`. Delivered under the `google` key via
  *  the registration's `also`. */
@@ -279,7 +285,15 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
+  // `gpt-image-*` / `dall-e-*` run on `@ai-sdk/openai`'s image model, which reads only `providerOptions.openai`
+  // (camelCase `outputFormat`, `quality`, …); the `dmxapi` body never reaches it.
+  dmxapi: {
+    profile: DMXAPI_WIRE_PROFILE,
+    also: [
+      { key: 'google', profile: DMXAPI_GOOGLE_PROFILE },
+      { key: 'openai', profile: DMXAPI_OPENAI_PROFILE }
+    ]
+  },
   ollama: { profile: OLLAMA_WIRE_PROFILE },
   minimax: { profile: MINIMAX_WIRE_PROFILE }
 }
