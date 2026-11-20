@@ -168,6 +168,14 @@ describe('memory organization lifecycle and commit fences', () => {
     } finally {
       app.isQuitting = false
     }
+    await dreaming._doStop()
+    BaseService.resetInstances()
+    dreaming = new MemoryDreamingService()
+    await dreaming._doInit()
+    vi.spyOn(Date, 'now').mockReturnValue(readDreamingState(scope).files['MEMORY.md'].retryAt + 1)
+    generate.mockResolvedValueOnce({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' })
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
+    expect(readDreamingState(scope).files['MEMORY.md'].processedHash).toBe(previous.observedHash)
   })
 
   it('keeps organization eligible for a bounded retry after a model timeout', async () => {
