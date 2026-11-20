@@ -65,6 +65,13 @@ export function reconcileWebSearchForModel(
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
   if (!canModelUseAssistantWebSearch(nextModel, provider)) return { enableWebSearch: false }
+  // A function-calling model alone is not a route: without a builtin search
+  // route and without a ready client search provider the request resolves to
+  // 'none' ('no-backend'), so restoring the flag would leave the toggle on
+  // with nothing serving it. The saved per-model preference is untouched.
+  if (!hasModelBuiltinWebSearch(nextModel, provider) && !options?.clientSearchAvailable) {
+    return { enableWebSearch: false }
+  }
   // `resolveWebToolRoutes` withdraws the builtin search route when the request
   // will also carry function tools on pre-3 Gemini (reason
   // 'gemini-function-tool-conflict'). Reconciliation must not restore that

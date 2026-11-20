@@ -242,7 +242,8 @@ describe('useAssistant', () => {
         if (path === '/knowledge-bases') return queryResult({ total, items: [] })
         if (path === '/providers')
           return queryResult([
-            { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }] }
+            { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }] },
+            { id: 'provider', serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }] }
           ])
         return queryResult()
       })
@@ -305,6 +306,20 @@ describe('useAssistant', () => {
       const body = trigger.mock.calls[0][0].body
       expect(body.modelId).toBe('provider::model-b')
       expect(body.settings.enableWebSearch).toBe(true)
+    })
+
+    it('keeps search off on a function-calling model with no search route, saved preference untouched', async () => {
+      const orphan = { ...(modelB as object), id: 'orphan::model-c', providerId: 'orphan' } as never
+      const { hook, trigger } = setup({ 'orphan::model-c': { enableWebSearch: true } })
+      await act(async () => {
+        await hook.result.current.setModel(orphan)
+      })
+
+      expect(trigger.mock.calls[0][0].body.settings.enableWebSearch).toBe(false)
+      expect(updateModelSettings).not.toHaveBeenCalled()
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.model_settings')).toEqual({
+        'orphan::model-c': { enableWebSearch: true }
+      })
     })
 
     it('defaults web search to off for a model without saved settings', async () => {

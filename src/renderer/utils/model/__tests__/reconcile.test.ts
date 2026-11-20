@@ -73,7 +73,33 @@ describe('reconcile web search', () => {
     const nextModel = createModel([MODEL_CAPABILITY.FUNCTION_CALL])
 
     expect(canModelUseAssistantWebSearch(nextModel, undefined)).toBe(true)
-    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toBeNull()
+    expect(
+      reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined, { clientSearchAvailable: true })
+    ).toBeNull()
+  })
+
+  it('drops enabled web search on a function-calling model with no builtin route and no ready client provider', () => {
+    const nextModel = createModel([MODEL_CAPABILITY.FUNCTION_CALL])
+
+    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toEqual({
+      enableWebSearch: false
+    })
+  })
+
+  it('applies a no-backend model switch with search off while the saved preference stays readable', () => {
+    const next: Model = { ...createModel([MODEL_CAPABILITY.FUNCTION_CALL]), id: 'p::fc' }
+    const remembered = { enableWebSearch: true }
+    const patch = resolveModelSwitchSettings({
+      next,
+      nextProvider: undefined,
+      currentModelId: 'p::other',
+      currentSettings: {},
+      remembered,
+      clientSearchAvailable: false
+    })
+
+    expect(patch?.enableWebSearch).toBe(false)
+    expect(remembered).toEqual({ enableWebSearch: true })
   })
 
   it('treats an implicitly eligible web-search model as built-in only when the provider natively serves it', () => {
@@ -150,7 +176,11 @@ describe('reconcile web search + reasoning effort pair (#23582)', () => {
     reasoning: GPT5_REASONING
   })
 
-  const openAiProvider = { id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES } as Provider
+  const openAiProvider = {
+    id: 'openai',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+  } as Provider
 
   it('drops enabled web search when the effort has no builtin search route', () => {
     expect(
@@ -166,7 +196,11 @@ describe('reconcile web search + reasoning effort pair (#23582)', () => {
 
   it('keeps enabled web search with minimal effort on a non-OpenAI-family provider', () => {
     expect(
-      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: 'minimal' }, providerWith([]))
+      reconcileWebSearchForModel(
+        gpt5(),
+        { enableWebSearch: true, reasoning_effort: 'minimal' },
+        providerWith([{ id: 'web-search', modelScope: 'all-chat-models' }])
+      )
     ).toBeNull()
   })
 
@@ -215,7 +249,11 @@ describe('resolveModelSwitchSettings (#23582)', () => {
     reasoning: GPT5_REASONING
   })
 
-  const openAiProvider = { id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES } as Provider
+  const openAiProvider = {
+    id: 'openai',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+  } as Provider
 
   it('reconciles a restored incompatible pair without overwriting it (search off, effort kept)', () => {
     const patch = resolveModelSwitchSettings({
