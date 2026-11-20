@@ -18,6 +18,7 @@ import { createAgent, createExecutor } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
@@ -62,7 +63,7 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
  * through `stream()` instead; their callers keep the non-streaming contract.
  */
 /** Coerce a captured stream failure into a throwable, keeping the readable message. */
-function asProviderError(failure: unknown): Error {
+export function asProviderError(failure: unknown): Error {
   if (failure instanceof Error) return failure
   // Some parts arrive as plain objects (e.g. a Codex response.failed payload carries
   // message/type/code/statusCode) rather than Error instances.
@@ -76,7 +77,10 @@ const MAX_PROVIDER_DETAIL_CHARS = 500
 
 /** Provider text is untrusted: strip credential-shaped fragments and cap length before it reaches IPC or logs. */
 function boundProviderDetail(text: string): string {
-  const safe = redactSecretTokens(redactSecretText(text))
+  // Run the provider sanitizer first: a structured request echo in `message` (JSON or an encoded container)
+  // is dropped there rather than copied into the wrapped Error that reaches renderer IPC and the file log.
+  const sanitized = getSafeProviderErrorMessage({ message: text }) || 'details withheld'
+  const safe = redactSecretTokens(redactSecretText(sanitized))
   return safe.length > MAX_PROVIDER_DETAIL_CHARS ? `${safe.slice(0, MAX_PROVIDER_DETAIL_CHARS)}…` : safe
 }
 
