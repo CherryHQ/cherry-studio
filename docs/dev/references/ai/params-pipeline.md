@@ -176,6 +176,9 @@ params merge into `providerOptions[aiSdkProviderId]` (after a
 `mergeCustomProviderParameters` pass that respects existing capability
 options).
 
+Splitting preserves literal names such as `__proto__` as own data properties and
+keeps ordinary record prototypes. It does not validate provider-specific values.
+
 Standard sampling params are assembled directly in `buildAgentOptions`;
 they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params

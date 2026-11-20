@@ -167,10 +167,10 @@ export function getTopP(
   return topP
 }
 
-export function filterStandardParams(
-  standardParams: Partial<Record<AiSdkParam, any>>,
+export function filterStandardParams<T>(
+  standardParams: Partial<Record<AiSdkParam, T>>,
   model: Model
-): Partial<Record<AiSdkParam, any>> {
+): Partial<Record<AiSdkParam, T>> {
   if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)

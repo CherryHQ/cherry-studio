@@ -1,3 +1,5 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+
 import { isCustomProviderNamespace } from '../../../utils/options'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
@@ -13,7 +15,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function selectCustomBodyParameters(
   providerParams: Record<string, unknown>,
-  providerOptions: Record<string, Record<string, unknown>>,
+  providerOptions: ProviderOptions,
   rawProviderId: string
 ): Record<string, unknown> {
   return Object.fromEntries(

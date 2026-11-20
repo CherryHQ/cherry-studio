@@ -1,7 +1,8 @@
 import type { Assistant } from '@shared/data/types/assistant'
 
 /** Extract user-defined request parameters from assistant settings. */
-export function getCustomParameters(assistant: Assistant): Record<string, any> {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Custom JSON values and invalid-JSON fallbacks remain unvalidated; provider and SDK boundaries own their value contracts.
+export function getCustomParameters(assistant: Assistant): Record<string, unknown> {
   return Object.fromEntries(
     assistant.settings?.customParameters?.flatMap((param) => {
       if (!param.name?.trim()) return []
