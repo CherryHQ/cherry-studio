@@ -266,6 +266,8 @@ export const aiRequestSchemas = {
       // Optional request identity pairs this one-shot call with `ai.text.abort`.
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
+      // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
+      streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
@@ -591,6 +593,8 @@ export type AiEventSchemas = {
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
+  // Directed `send` to the caller of a streamed one-shot `ai.text.generate`, keyed by its requestId.
+  'ai.text.delta': { requestId: string; delta: string }
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
   'ai.topic.auto_renamed': { topicId: string }

@@ -153,13 +153,20 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
-  'ai.text.generate': ({ requestId, ...request }) => {
+  'ai.text.generate': ({ requestId, streamDeltas, ...request }, { senderId }) => {
     const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
-    return exposeAiError('ai.text.generate', () =>
-      requestId
+    return exposeAiError('ai.text.generate', () => {
+      if (requestId && streamDeltas && senderId) {
+        return application
+          .get('AiService')
+          .runTextStreamRequest(requestId, generate, (delta) =>
+            application.get('IpcApiService').send(senderId, 'ai.text.delta', { requestId, delta })
+          )
+      }
+      return requestId
         ? application.get('AiService').runTextRequest(requestId, generate)
         : application.get('AiService').generateText(generate)
-    )
+    })
   },
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)

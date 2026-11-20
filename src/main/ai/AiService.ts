@@ -841,6 +841,25 @@ export class AiService extends BaseService {
     )
   }
 
+  /**
+   * Cancellable streamed generation: the same result as {@link runTextRequest}, with each text delta
+   * reported to `onTextDelta` as it arrives. A model that cannot stream answers in one piece.
+   */
+  async runTextStreamRequest(
+    requestId: string,
+    request: AsInProcess<AiGenerateRequest>,
+    onTextDelta: (delta: string) => void
+  ): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateTextWithMode(
+        { ...request, requestOptions: { ...request.requestOptions, signal } },
+        [],
+        'stream',
+        onTextDelta
+      )
+    )
+  }
+
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
@@ -851,7 +870,8 @@ export class AiService extends BaseService {
   private async generateTextWithMode(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[],
-    mode: 'generate' | 'stream'
+    mode: 'generate' | 'stream',
+    onTextDelta?: (delta: string) => void
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -967,7 +987,12 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        onTextDelta
+      )
     )
   }
 
