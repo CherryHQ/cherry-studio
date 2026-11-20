@@ -40,6 +40,9 @@ function useMemorySnapshot(agentId: string) {
   }, [agentId])
 
   const replaceFile = useCallback((file: AgentMemoryFile) => {
+    // A read still in flight may predate this write; applying it would restore the old revision.
+    requestId.current += 1
+    setLoading(false)
     setSnapshot((previous) =>
       previous ? { ...previous, files: previous.files.map((item) => (item.key === file.key ? file : item)) } : previous
     )

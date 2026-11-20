@@ -2904,6 +2904,42 @@ describe('Agent configuration memory', () => {
     writeClipboard.mockRestore()
   })
 
+  // Catches a Refresh that read the file before a Save and resolves after it, putting the old revision back.
+  it('keeps the saved revision when a refresh started before the save resolves after it', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
+    await user.clear(editor)
+    await user.type(editor, 'Saved persona')
+
+    const staleRead = createDeferred<{ directory: string; files: typeof files }>()
+    const respond = ipcRequestMock.getMockImplementation()!
+    ipcRequestMock.mockImplementation(async (route: string, input: unknown) => {
+      if (route !== 'agent.memory.read') return respond(route, input)
+      ipcRequestMock.mockImplementation(respond)
+      return staleRead.promise
+    })
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument())
+
+    await act(async () => staleRead.resolve({ directory: '/agents/agent-1', files }))
+    expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Saved persona')
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+
+    await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), '!')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenLastCalledWith('agent.memory.write', {
+        agentId: AGENT.id,
+        key: 'soul',
+        content: 'Saved persona!',
+        expectedVersion: 'v2'
+      })
+    )
+  })
+
   // AC11: catches losing an unsaved memory draft when going back to the file list or closing configuration.
   it.each(['back', 'close'] as const)(
     'protects memory drafts on %s and leaves only after explicit discard',
