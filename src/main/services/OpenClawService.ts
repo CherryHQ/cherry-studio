@@ -828,6 +828,16 @@ export class OpenClawService extends BaseService {
     return undefined
   }
 
+  /** The installed OpenClaw version for diagnostics, including system-installed binaries; 'unknown' when it cannot be read. */
+  public async getVersion(): Promise<string> {
+    try {
+      const runtime = await this.resolveOpenClawRuntime()
+      return this.sanitizeDiagnostic(runtime.version ?? (await this.detectOpenClawVersion(runtime)))
+    } catch {
+      return 'unknown'
+    }
+  }
+
   private async detectOpenClawVersion(runtime: OpenClawRuntime): Promise<string> {
     try {
       const result = await this.runOpenClawCommand(runtime.path, ['--version'], runtime.env, {

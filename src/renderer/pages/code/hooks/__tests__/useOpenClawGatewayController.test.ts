@@ -246,6 +246,34 @@ describe('useOpenClawGatewayController', () => {
     expect(result.current.startupError).toBeNull()
   })
 
+  it('reads the OpenClaw version from the service when the snapshot has none (system install)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { clipboard: { writeText } }))
+    const previousRequest = mocks.requestMock.getMockImplementation()!
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.start_gateway') return Promise.resolve({ success: false, message: 'Gateway failed' })
+      if (route === 'openclaw.get_version') return Promise.resolve('2026.3.13')
+      if (route === 'app.get_info') return Promise.resolve({ version: '2.2.0' })
+      return previousRequest(route)
+    })
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    await act(async () => {
+      await result.current.onCopyStartupError()
+    })
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('OpenClaw version: 2026.3.13'))
+  })
+
   it.each([
     ['openclaw.sync_config', 'Sync OpenClaw configuration'],
     ['openclaw.start_gateway', 'Start OpenClaw gateway'],
@@ -288,6 +316,7 @@ describe('useOpenClawGatewayController', () => {
       if (route === 'openclaw.start_gateway')
         return Promise.resolve({ success: false, message: 'Gateway startup timed out' })
       if (route === 'app.get_info') return Promise.reject(new Error('version lookup unavailable'))
+      if (route === 'openclaw.get_version') return Promise.reject(new Error('version lookup unavailable'))
       return previousRequest(route)
     })
     const { result } = renderHook(() =>

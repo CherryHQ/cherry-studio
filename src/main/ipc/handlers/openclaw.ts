@@ -22,6 +22,7 @@ export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
     const { status } = await application.get('OpenClawService').getStatus()
     return { status }
   },
+  'openclaw.get_version': async () => application.get('OpenClawService').getVersion(),
   'openclaw.get_dashboard_url': async () => {
     return application.get('OpenClawService').getDashboardUrl()
   },

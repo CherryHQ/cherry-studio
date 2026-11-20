@@ -133,11 +133,15 @@ export function useOpenClawGatewayController({
       .request('app.get_info')
       .then(({ version }) => version)
       .catch(() => 'unknown')
+    // A system-installed OpenClaw has no version in the binary snapshot, so ask the
+    // service (it runs `--version`) rather than reporting "unknown" for a working install.
+    const resolvedOpenClawVersion =
+      openClawVersion ?? (await ipcApi.request('openclaw.get_version').catch(() => undefined))
     const details = [
       `Operation: ${startupError.operation}`,
       `Error: ${startupError.message}`,
       `Cherry Studio version: ${appVersion}`,
-      `OpenClaw version: ${openClawVersion ?? 'unknown'}`
+      `OpenClaw version: ${resolvedOpenClawVersion ?? 'unknown'}`
     ].join('\n')
 
     try {
