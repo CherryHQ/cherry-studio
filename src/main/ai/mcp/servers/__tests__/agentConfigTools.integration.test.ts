@@ -614,6 +614,25 @@ describe('Agent create and configure tools', () => {
       )
     })
 
+    // Catches a card naming the saved Agent model while Cherry Assistant's server creates with the session's model.
+    it("previews a Cherry Assistant create with the session's model when the default model cannot be used", () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'wire::missing-model')
+      seedAgent('caller')
+      const workspace = agentWorkspaceService.findOrCreateByPath(agentsDataDir)
+      const session = agentSessionService.create({
+        agentId: 'caller',
+        name: 'Session',
+        model: OTHER_MODEL,
+        workspace: { type: 'user', workspaceId: workspace.id }
+      })
+
+      expect(
+        previewAgentConfigChange(
+          pendingApproval('mcp__assistant__create_assistant', { name: 'Translator', prompt: 'Translate.' }, session.id)
+        )
+      ).toMatchObject({ ok: true, resource: { highlights: ['Other Model'] } })
+    })
+
     it('previews nothing for an approval that is not an Agent settings change', () => {
       seedAgent('target')
 

@@ -739,9 +739,11 @@ export function createAssistantFromTool(
 }
 
 /** The model of the Agent that owns the Session, which a create falls back to like the tool does. */
-function callerModel(sessionId: string): string | undefined {
-  const { agentId } = agentSessionService.getById(sessionId)
-  return (agentId && agentService.getAgent(agentId)?.model) || undefined
+/** The fallback each server's create tools use: Cherry Assistant's captures the session's model, cherry-tools the Agent's. */
+function callerModel(sessionId: string, serverPart: string): string | undefined {
+  const session = agentSessionService.getById(sessionId)
+  const agentModel = session.agentId ? agentService.getAgent(session.agentId)?.model : undefined
+  return (serverPart === 'assistant' ? (session.model ?? agentModel) : agentModel) || undefined
 }
 
 function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self: boolean }) {
@@ -810,10 +812,10 @@ function buildAgentConfigChangePreview(approvalId: string): AgentConfigChangePre
   const call = toolApprovalRegistry.peekCall(approvalId)
   const name = call && parseFunctionCallToolName(call.toolName)
   const kind = name ? getAgentConfigToolKind(name.serverPart, name.toolPart) : undefined
-  if (!call || !kind) return { ok: false }
+  if (!call || !name || !kind) return { ok: false }
   try {
     if (kind === 'create_agent' || kind === 'create_assistant') {
-      const fallbackModel = callerModel(call.sessionId)
+      const fallbackModel = callerModel(call.sessionId, name.serverPart)
       if (kind === 'create_agent') {
         const { created } = planAgentCreate(CreateAgentToolInputSchema.parse(call.originalInput), fallbackModel)
         const resource = { kind: 'agent' as const, name: created.name, emoji: created.avatar }
