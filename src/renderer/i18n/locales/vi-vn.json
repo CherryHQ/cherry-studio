@@ -5186,7 +5186,6 @@
   "settings.memory.result": "Kết quả từng tệp",
   "settings.memory.retention": "Chỉ các tệp được liệt kê sẽ thay đổi. Bản sao khôi phục được giữ lại và các chỉnh sửa xung đột không bị ghi đè.",
   "settings.memory.title": "Bộ nhớ dùng chung",
-  "settings.memory.use": "Sử dụng bộ nhớ dùng chung",
   "settings.menuGroups.automation": "Hiệu suất",
   "settings.menuGroups.builtinTools": "Công cụ tích hợp",
   "settings.menuGroups.capabilities": "Công cụ",

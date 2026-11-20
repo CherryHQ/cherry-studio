@@ -5186,7 +5186,6 @@
   "settings.memory.result": "파일별 결과",
   "settings.memory.retention": "목록에 있는 파일만 변경합니다. 복구용 백업은 유지되며 충돌하는 변경 사항은 덮어쓰지 않습니다.",
   "settings.memory.title": "공유 메모리",
-  "settings.memory.use": "공유 메모리 사용",
   "settings.menuGroups.automation": "효율성",
   "settings.menuGroups.builtinTools": "내장 도구",
   "settings.menuGroups.capabilities": "도구",

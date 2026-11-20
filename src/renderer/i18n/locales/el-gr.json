@@ -5186,7 +5186,6 @@
   "settings.memory.result": "Αποτελέσματα αρχείων",
   "settings.memory.retention": "Θα αλλάξουν μόνο τα αρχεία της λίστας. Τα αντίγραφα επαναφοράς διατηρούνται και οι αντικρουόμενες αλλαγές δεν αντικαθίστανται.",
   "settings.memory.title": "Κοινόχρηστη μνήμη",
-  "settings.memory.use": "Χρήση κοινόχρηστης μνήμης",
   "settings.menuGroups.automation": "Αποδοτικότητα",
   "settings.menuGroups.builtinTools": "Ενσωματωμένα εργαλεία",
   "settings.menuGroups.capabilities": "Εργαλεία",
