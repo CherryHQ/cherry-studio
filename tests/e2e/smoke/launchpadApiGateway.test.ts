@@ -5,6 +5,7 @@ import type { Page } from '@playwright/test'
 
 import uiLocale from '../../../src/renderer/i18n/locales/en-us.json'
 import esLocale from '../../../src/renderer/i18n/locales/es-es.json'
+import plLocale from '../../../src/renderer/i18n/locales/pl-pl.json'
 import { ThemeMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
@@ -224,25 +225,66 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
 
 test('running gateway actions do not overlap at 200% zoom', async ({ mainWindow: page }) => {
   await prepare(page)
-  await page.setViewportSize({ width: 680, height: 700 })
   await openLaunchpad(page)
   await gatewayTile(page).click()
-  const panel = uiLocator(page, 'api-gateway.panel').filter({ visible: true })
-  await panel.getByRole('button', { name: uiLocale['apiGateway.actions.start'], exact: true }).click()
-  const status = panel.getByText(uiLocale['apiGateway.status.running'], { exact: true })
-  await expect(status).toBeVisible()
-
-  const previousZoom = await page.evaluate(() => window.api.preference.get('app.zoom_factor'))
-  const initialWidth = await page.evaluate(() => window.innerWidth)
+  const mainPanel = uiLocator(page, 'api-gateway.panel').filter({ visible: true })
+  const available = createServer().listen(0, '127.0.0.1')
+  await once(available, 'listening')
+  const port = (available.address() as AddressInfo).port
+  await new Promise<void>((resolve, reject) => available.close((error) => (error ? reject(error) : resolve())))
+  const portField = mainPanel.getByRole('spinbutton', { name: uiLocale['apiGateway.fields.port.label'], exact: true })
+  await portField.fill(String(port))
+  await portField.blur()
+  const url = `http://127.0.0.1:${port}`
+  await expect(
+    mainPanel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
+  ).toHaveValue(url)
+  const previous = await page.evaluate(async () => ({
+    zoom: await window.api.preference.get('app.zoom_factor'),
+    language: await window.api.preference.get('app.language'),
+    font: await window.api.preference.get('ui.theme_user.font_family')
+  }))
+  let detached: Page | undefined
+  let viewport: { width: number; height: number } | null = null
   try {
-    if (previousZoom !== 2) {
-      await page.evaluate((zoom) => window.api.ipcApi.request('app.adjust_zoom', { delta: 2 - zoom }), previousZoom)
-      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(initialWidth)
-    }
+    await page.evaluate(() =>
+      window.api.preference.setMultiple({ 'app.language': 'pl-PL', 'ui.theme_user.font_family': 'Menlo' })
+    )
+    await page.evaluate(() =>
+      window.api.ipcApi.request('tab.detach', {
+        id: 'gateway-zoom-test',
+        url: '/app/api-gateway',
+        title: 'API Gateway',
+        type: 'route'
+      })
+    )
+    await expect
+      .poll(() => {
+        detached = page
+          .context()
+          .pages()
+          .find((candidate) => candidate.url().includes('/windows/subWindow/'))
+        return Boolean(detached)
+      })
+      .toBe(true)
+    if (!detached) throw new Error('Detached gateway window did not open')
+    viewport = detached.viewportSize()
+    await detached.setViewportSize({ width: 680, height: 700 })
+    const panel = uiLocator(detached, 'api-gateway.panel').filter({ visible: true })
+    await panel.getByRole('button', { name: plLocale['apiGateway.actions.start'], exact: true }).click()
+    const status = panel.getByText(plLocale['apiGateway.status.running'], { exact: true })
+    await expect(status).toBeVisible()
+    await page.evaluate((zoom) => window.api.ipcApi.request('app.adjust_zoom', { delta: 2 - zoom }), previous.zoom)
+    await expect
+      .poll(() => detached!.evaluate(() => window.innerWidth), { message: 'Measured innerWidth in CSS px' })
+      .toBeGreaterThanOrEqual(338)
+    await expect
+      .poll(() => detached!.evaluate(() => window.innerWidth), { message: 'Measured innerWidth in CSS px' })
+      .toBeLessThanOrEqual(342)
 
-    const restart = panel.getByRole('button', { name: uiLocale['apiGateway.actions.restart.button'], exact: true })
-    const endpoint = panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
-    const documentation = panel.getByRole('button', { name: uiLocale['apiGateway.documentation.title'], exact: true })
+    const restart = panel.getByRole('button', { name: plLocale['apiGateway.actions.restart.button'], exact: true })
+    const endpoint = panel.getByRole('textbox', { name: plLocale['apiGateway.fields.url.label'], exact: true })
+    const documentation = panel.getByRole('button', { name: plLocale['apiGateway.documentation.title'], exact: true })
     await expect(documentation).toBeVisible()
     const actions = documentation.locator('..')
     await expect(actions.getByRole('button')).toHaveCount(3)
@@ -278,10 +320,33 @@ test('running gateway actions do not overlap at 200% zoom', async ({ mainWindow:
       })
       .toBe(true)
   } finally {
-    await page.evaluate(async (zoom) => {
-      await window.api.ipcApi.request('app.adjust_zoom', { reset: true, delta: 0 })
-      await window.api.ipcApi.request('app.adjust_zoom', { delta: zoom - 1 })
-    }, previousZoom)
+    try {
+      await page.evaluate(async (previous) => {
+        try {
+          await window.api.ipcApi.request('app.adjust_zoom', { reset: true, delta: 0 })
+          await window.api.ipcApi.request('app.adjust_zoom', { delta: previous.zoom - 1 })
+        } finally {
+          await window.api.preference.setMultiple({
+            'app.language': previous.language,
+            'ui.theme_user.font_family': previous.font
+          })
+        }
+      }, previous)
+    } finally {
+      const subWindow =
+        detached ??
+        page
+          .context()
+          .pages()
+          .find((candidate) => candidate.url().includes('/windows/subWindow/'))
+      if (subWindow && !subWindow.isClosed()) {
+        try {
+          if (viewport) await subWindow.setViewportSize(viewport)
+        } finally {
+          await subWindow.close()
+        }
+      }
+    }
   }
 })
 
