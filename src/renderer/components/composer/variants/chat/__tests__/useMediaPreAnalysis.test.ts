@@ -70,6 +70,6 @@ describe('useMediaPreAnalysis', () => {
     expect(cacheService.get('chat.composer.media_preparing.file-token-video')).toBe(true)
 
     finish(new Error('ffmpeg missing'))
-    await waitFor(() => expect(cacheService.get('chat.composer.media_preparing.file-token-video')).toBeFalsy())
+    await waitFor(() => expect(cacheService.get('chat.composer.media_preparing.file-token-video')).toBe(false))
   })
 })
