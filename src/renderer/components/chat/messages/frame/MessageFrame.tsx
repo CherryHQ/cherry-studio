@@ -134,7 +134,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const moveFocus = useRef(false)
   const expandButton = useRef<HTMLButtonElement>(null)
   const setReplyExpanded = (next: boolean) => {
-    if (next) requestReadingControl()
+    requestReadingControl()
     moveFocus.current = true
     setExpanded(next)
   }
@@ -143,7 +143,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     moveFocus.current = false
     const target = collapsed ? expandButton.current : messageContainerRef.current
     if (!target) return
-    target.focus({ preventScroll: true })
+    target.focus({ preventScroll: !collapsed })
     if (collapsed && !navigateWithScrollRuntime(target, 'center')) {
       scrollIntoView(target, { block: 'nearest', container: 'nearest' })
     }
