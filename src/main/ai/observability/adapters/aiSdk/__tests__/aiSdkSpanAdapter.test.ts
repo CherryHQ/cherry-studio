@@ -1,10 +1,10 @@
-import type { Span } from '@opentelemetry/api'
+import type { Attributes, Span, SpanContext } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
 import { AiSdkSpanAdapter } from '../aiSdkSpanAdapter'
 
 /** Minimal OTel-v2 ReadableSpan-shaped fake: the adapter reads these internal fields off the span. */
-function fakeSpan(overrides: Record<string, unknown>): Span {
+function fakeSpan(overrides: { _attributes?: Attributes; parentSpanContext?: Pick<SpanContext, 'spanId'> }): Span {
   return {
     spanContext: () => ({ spanId: 'span-1', traceId: 'trace-1', traceFlags: 1 }),
     name: 'ai.streamText',
@@ -44,7 +44,7 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — parent linkage', () => {
 })
 
 describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)', () => {
-  const usage = (attrs: Record<string, unknown>) =>
+  const usage = (attrs: Attributes) =>
     AiSdkSpanAdapter.convertToSpanEntity({
       span: fakeSpan({ _attributes: { 'ai.operationId': 'ai.streamText', ...attrs } }),
       topicId: 't'

@@ -5,7 +5,7 @@
  * Note the AI SDK hierarchy: ai.xxx is one level, ai.xxx.xxx is a child of that level.
  */
 
-import type { Span } from '@opentelemetry/api'
+import type { Attributes, Span } from '@opentelemetry/api'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { loggerService } from '@logger'
@@ -22,7 +22,7 @@ export interface AiSdkSpanData {
 // Extended interface for accessing the span's internal data.
 interface SpanWithInternals extends Span {
   _spanProcessor?: any
-  _attributes?: Record<string, any>
+  _attributes?: Attributes
   _events?: any[]
   name?: string
   startTime?: [number, number]
@@ -178,7 +178,7 @@ export class AiSdkSpanAdapter {
    * legacy `promptTokens`/`completionTokens` aliases, the `gen_ai.usage.*` semantic-convention
    * spelling, and the single-value `ai.usage.tokens` embeddings shape. See the inline notes below.
    */
-  private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
+  private static extractTokenUsage(attributes: Attributes): TokenUsage | undefined {
     const read = (...keys: string[]): number | undefined => {
       for (const key of keys) {
         const value = attributes[key]
@@ -228,7 +228,7 @@ export class AiSdkSpanAdapter {
    * Extract inputs and outputs from AI SDK attributes.
    * Maps precisely by span type per the AI SDK documentation.
    */
-  private static extractInputsOutputs(attributes: Record<string, any>): { inputs?: any; outputs?: any } {
+  private static extractInputsOutputs(attributes: Attributes): { inputs?: any; outputs?: any } {
     const operationId = attributes['ai.operationId']
     let inputs: any = undefined
     let outputs: any = undefined
@@ -295,7 +295,7 @@ export class AiSdkSpanAdapter {
   /**
    * Extract outputs for top-level LLM spans.
    */
-  private static extractLLMOutputs(attributes: Record<string, any>): any {
+  private static extractLLMOutputs(attributes: Attributes): any {
     const outputs: any = {}
 
     if (attributes['ai.response.text']) {
@@ -317,7 +317,7 @@ export class AiSdkSpanAdapter {
   /**
    * Extract outputs for provider spans.
    */
-  private static extractProviderOutputs(attributes: Record<string, any>): any {
+  private static extractProviderOutputs(attributes: Attributes): any {
     const outputs: any = {}
 
     if (attributes['ai.response.text']) {
@@ -347,7 +347,7 @@ export class AiSdkSpanAdapter {
   /**
    * Generic input extraction (fallback logic).
    */
-  private static extractGenericInputs(attributes: Record<string, any>): any {
+  private static extractGenericInputs(attributes: Attributes): any {
     const inputKeys = ['ai.prompt', 'ai.prompt.messages', 'ai.request', 'inputs']
 
     for (const key of inputKeys) {
@@ -361,7 +361,7 @@ export class AiSdkSpanAdapter {
   /**
    * Generic output extraction (fallback logic).
    */
-  private static extractGenericOutputs(attributes: Record<string, any>): any {
+  private static extractGenericOutputs(attributes: Attributes): any {
     const outputKeys = ['ai.response.text', 'ai.response', 'ai.output', 'outputs']
 
     for (const key of outputKeys) {
@@ -449,7 +449,7 @@ export class AiSdkSpanAdapter {
   /**
    * Extract extra data specific to the span type.
    */
-  private static extractSpanTypeSpecificData(attributes: Record<string, any>): Record<string, any> {
+  private static extractSpanTypeSpecificData(attributes: Attributes): Record<string, any> {
     const operationId = attributes['ai.operationId']
     const specificData: Record<string, any> = {}
 
