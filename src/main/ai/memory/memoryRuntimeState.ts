@@ -11,7 +11,7 @@ import type { MemoryScope } from '@shared/types/memory'
 
 import { MemoryError } from './memoryFiles'
 
-export type MemoryRuntimeOwner = { agentSessionId: string } | { topicId: string; assistantId: string }
+export type MemoryRuntimeOwner = { agentSessionId: string } | { topicId: string; assistantId?: string }
 
 const stateSchema = z.strictObject({ version: z.literal(1), protection: z.string().nullable() })
 
@@ -71,7 +71,7 @@ function stateKey(owner: MemoryRuntimeOwner, scope: MemoryScope): string {
 }
 
 /** Only a fresh conversation can establish that none of its history used shared memory. */
-export function hasUnexposedAssistantHistory(owner: { topicId: string; assistantId: string }): boolean {
+export function hasUnexposedAssistantHistory(owner: { topicId: string; assistantId?: string }): boolean {
   const db = application.get('DbService').getDb()
   const key = stateKey(owner, { kind: 'shared' })
   const row = db.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
