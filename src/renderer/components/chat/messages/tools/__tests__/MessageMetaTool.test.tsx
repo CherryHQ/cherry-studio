@@ -65,7 +65,7 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/tool_invoke/)
-    expect(screen.getByText('[Unserializable]')).toBeInTheDocument()
+    expect(await screen.findByText('[Unserializable]')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '复制' }))
     await waitFor(() => expect(copyText).toHaveBeenCalledWith('[Unserializable]', { successMessage: '已复制' }))
   })
