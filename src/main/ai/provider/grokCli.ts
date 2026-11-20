@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import { gte, valid as validSemver } from 'semver'
 
 import { application } from '@application'
@@ -91,8 +92,7 @@ export function normalizeGrokModelId(modelId: string): string {
   return (modelId || '').toLowerCase().split('/').pop() || ''
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Responses request JSON may contain strings or heterogeneous blocks; only readable text is forwarded as instructions.
-function textFromResponsesContent(content: unknown): string {
+function textFromResponsesContent(content: JSONValue | undefined): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
@@ -111,11 +111,11 @@ function textFromResponsesContent(content: unknown): string {
  * Rewrite a generic OpenAI Responses payload (parsed object, mutated in place
  * and returned) into the shape xAI's Grok CLI proxy accepts.
  */
-export function rewriteGrokCliResponsesBody(json: Record<string, any>): Record<string, any> {
+export function rewriteGrokCliResponsesBody(json: JSONObject): JSONObject {
   if (Array.isArray(json.input)) {
     const instructionParts: string[] = []
-    json.input = json.input.filter((item: Record<string, any>) => {
-      if (!item || typeof item !== 'object') return true
+    json.input = json.input.filter((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return true
       // Unsigned reasoning from other providers cannot be replayed to the proxy.
       if (item.type === 'reasoning') return typeof item.encrypted_content === 'string' && !!item.encrypted_content
       if (typeof item.content === 'string' && item.content.length === 0) return false
@@ -137,7 +137,8 @@ export function rewriteGrokCliResponsesBody(json: Record<string, any>): Record<s
   }
 
   const modelId = normalizeGrokModelId(typeof json.model === 'string' ? json.model : '')
-  const effort = json.reasoning?.effort
+  const reasoning = json.reasoning
+  const effort = reasoning && typeof reasoning === 'object' && !Array.isArray(reasoning) ? reasoning.effort : undefined
   // Legacy CLI models reject effort; newer models receive the already-resolved effort.
   if (modelId && modelId !== 'grok-build' && modelId !== 'grok-composer-2.5-fast' && effort) {
     json.reasoning = { effort }
@@ -146,7 +147,7 @@ export function rewriteGrokCliResponsesBody(json: Record<string, any>): Record<s
   }
 
   json.store ??= false
-  const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
+  const include = new Set(Array.isArray(json.include) ? json.include : [])
   include.add('reasoning.encrypted_content')
   json.include = [...include]
 

@@ -5,6 +5,8 @@
  * directly.
  */
 
+import type { JSONObject } from '@ai-sdk/provider'
+
 const CODEX_REASONING_INCLUDE = 'reasoning.encrypted_content'
 
 export interface CodexCredentials {
@@ -17,10 +19,10 @@ export interface CodexCredentials {
  * the shape the ChatGPT codex backend requires: server-side `store` is rejected,
  * response length caps are not accepted, and encrypted reasoning must round-trip.
  */
-export function coerceCodexRequestJson(json: Record<string, any>): Record<string, any> {
+export function coerceCodexRequestJson(json: JSONObject): JSONObject {
   json.store = false
   delete json.max_output_tokens
-  const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
+  const include = new Set(Array.isArray(json.include) ? json.include : [])
   include.add(CODEX_REASONING_INCLUDE)
   json.include = [...include]
   return json
