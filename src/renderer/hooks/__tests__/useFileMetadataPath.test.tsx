@@ -91,4 +91,21 @@ describe('file metadata hooks follow the selected POSIX path', () => {
     await waitFor(() => expect(view.result.current.size).toEqual({ status: 'ok', size: 8 }))
     await waitFor(() => expect(view.result.current.text).toBe('text'))
   })
+
+  it('applies saved growth to a size cap even after same-file metadata has resolved', async () => {
+    const files = new Map([['/fixtures/draft.txt', textFile(1024)]])
+    installMetadata(files)
+    const view = renderHook(({ size }) => useFileSize('/fixtures', 'draft.txt', 0, size), {
+      initialProps: { size: 1024 }
+    })
+    await waitFor(() => expect(view.result.current).toEqual({ status: 'ok', size: 1024 }))
+
+    files.set('/fixtures/draft.txt', textFile(OVERSIZED))
+    view.rerender({ size: OVERSIZED })
+    expect(view.result.current).toEqual({ status: 'ok', size: OVERSIZED })
+
+    files.set('/fixtures/draft.txt', textFile(8))
+    view.rerender({ size: 8 })
+    await waitFor(() => expect(view.result.current).toEqual({ status: 'ok', size: 8 }))
+  })
 })

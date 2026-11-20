@@ -36,5 +36,9 @@ export type {
   AgentRuntime
 } from './contracts'
 export { runtimeId } from './contracts'
+export { cloneHistoryData } from './cloneHistoryData'
+export { immutable } from './immutable'
 export { ThreadFeed } from './observation'
 export { RuntimeMessageStream } from './messageStream'
+
+export { projectNestedTool, type NestedToolRecord } from './nestedTool'

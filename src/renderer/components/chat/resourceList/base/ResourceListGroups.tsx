@@ -174,6 +174,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         <button
           type="button"
           aria-expanded={!collapsed}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
@@ -329,6 +330,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <button
             type="button"
             aria-current={showsSelectedSurface ? 'true' : undefined}
+            data-dnd-row-control
             className="flex h-full min-w-0 items-center gap-1.5 text-left text-inherit outline-none"
             onClick={handleClick}>
             {groupHeaderIcon && (
@@ -355,6 +357,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             type="button"
             aria-hidden="true"
             tabIndex={-1}
+            data-dnd-row-control
             className="h-full flex-1 cursor-pointer"
             onClick={handleClick}
           />
@@ -364,6 +367,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (

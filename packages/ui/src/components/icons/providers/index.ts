@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 174
+ * Generated at: 2026-11-20T10:00:00.000Z
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -139,6 +139,7 @@ export { QueritIcon as Querit } from './querit'
 export { QwenIcon as Qwen } from './qwen'
 export { QwencloudIcon as Qwencloud } from './qwencloud/qwencloud'
 export { RadeonCloudIcon as RadeonCloud } from './radeon-cloud'
+export { RapidMlxIcon as RapidMlx } from './rapid-mlx/rapid-mlx'
 export { RecraftIcon as Recraft } from './recraft'
 export { RelaceIcon as Relace } from './relace'
 export { RiverflowIcon as Riverflow } from './riverflow'

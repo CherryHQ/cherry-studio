@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { callTool, holds, latch, reply, toolBase } from '../../src/contract/fixtures'
 import { currentGoal, goalUsage } from '../../src/core/goal/goalHistory'
 import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
-import { lifecycleHandlers } from '../../src/orchestration/lifecycle'
-import type { CompactionVerdict, HarnessPorts } from '../../src/ports/harness'
-import { goal, goalEntry, roundEntry, usage } from '../core/history'
+import type { HarnessPorts } from '../../src/ports/harness'
+import { usage } from '../core/history'
 import { markers, records, runRecords, world } from './world'
 
 const compactions = async (w: ReturnType<typeof world>, thread: Parameters<ReturnType<typeof world>['read']>[0]) =>
@@ -65,52 +64,6 @@ async function forkWithPendingResult() {
 }
 
 describe('lifecycle handlers', () => {
-  it('memoizes real summary usage with its request owner across a pause and replay', async () => {
-    const w = world()
-    const t = await w.fake.createThread()
-    const started = latch()
-    const finish = latch()
-    let requests = 0
-    const handlers = lifecycleHandlers({
-      ...w.host,
-      summarizer: {
-        summarize: async () => {
-          requests++
-          started.release()
-          await finish.promise
-          return { summary: 'condensed', usage: usage(17, 0.2) }
-        }
-      }
-    })
-    const history = [
-      goalEntry(goal({ admittedRound: 'r1' })),
-      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' })
-    ]
-    const request = {
-      key: 'compact-1',
-      history,
-      reason: 'manual' as const,
-      messages: [],
-      signal: new AbortController().signal
-    }
-    await w.enter(t, async (_entries, ports) => {
-      const first = handlers.onCompacting(t, request, ports)
-      await started.promise
-      const paused = [...history, goalEntry(goal({ phase: 'paused', armed: false }))]
-      finish.release()
-      const result = await first
-      expect(result).toMatchObject({
-        summary: 'condensed',
-        accounting: { record: { value: { goalId: 'g1', usage: usage(17, 0.2) } } }
-      })
-      const replay = await handlers.onCompacting(t, { ...request, history: paused }, ports)
-      expect(replay).toEqual(result)
-      expect(requests).toBe(1)
-      const manual = await handlers.onCompacting(t, { ...request, key: 'compact-2', history: paused }, ports)
-      expect(manual).toMatchObject({ accounting: { record: { value: { goalId: null } } } })
-    })
-  })
-
   it('counts a child compaction in that run and preserves it after restart', async () => {
     const hold = holds()
     const w = world({
@@ -126,7 +79,7 @@ describe('lifecycle handlers', () => {
     await w.fake.sendUser(t, 'go')
     await hold.started('child')
     const child = runRecords(await w.read(t))[0].sessionId
-    w.host.giveSummary({ summary: 'condensed', usage: usage(17, 0.2) })
+    w.fake.scriptSummary(child, { text: 'condensed', usage: usage(17, 0.2) })
     await w.fake.compact(child)
     expect((await w.read(t)).children.get(child)?.runUsage[0]).toMatchObject({ totalTokens: 17, costUsd: 0.2 })
     hold.release('child')
@@ -137,73 +90,21 @@ describe('lifecycle handlers', () => {
     expect(goalUsage(await w.read(t), 'g1').tokens).toBe(0)
   })
 
-  // Catches a compaction the package was never asked about, or a summary not kept for a rerun of the same compaction
-  // (I-d: on Durable the select phase reruns after a crash).
-  it('compacts with the host summary and keeps it under the compaction key', async () => {
+  it('uses the native summary and leaves history unchanged when the summary fails', async () => {
     const w = world()
     const t = await w.fake.createThread()
     w.fake.script(t, [reply('first')])
     await w.fake.sendUser(t, 'go')
     await w.fake.settle()
-    const last = (await w.read(t)).history.at(-1)!.id
-    w.host.giveSummary('what happened so far')
-    await w.fake.compact(t)
-    expect(await compactions(w, t)).toHaveLength(1)
-    expect(w.host.asked.summaries).toBe(1)
-    expect(JSON.stringify(w.fake.persistentLog())).toContain(`cherry.summary:${t}:${last}`)
-  })
-
-  // Catches a failed or empty summary that compacts anyway, losing the context with nothing in its place (D33), or a
-  // decline without the reason the host shows for the failed compaction (M2).
-  it('declines a compaction whose summary fails or is empty, saying why', async () => {
-    const verdicts: CompactionVerdict[] = []
-    const w = world({
-      wrap: (ports) => ({
-        ...ports,
-        lifecycle: {
-          register: (handlers) =>
-            ports.lifecycle.register({
-              ...handlers,
-              onCompacting: async (thread, request, p) => {
-                const verdict = await handlers.onCompacting(thread, request, p)
-                verdicts.push(verdict)
-                return verdict
-              }
-            })
-        }
-      })
-    })
-    const t = await w.fake.createThread()
-    w.fake.script(t, [reply('first'), reply('second')])
-    await w.fake.sendUser(t, 'go')
-    await w.fake.settle()
-    await w.fake.compact(t)
-    await w.fake.sendUser(t, 'more')
-    await w.fake.settle()
-    w.host.giveSummary('   ')
+    w.fake.scriptSummary(t, { error: 'summary failed' })
     await w.fake.compact(t)
     expect(await compactions(w, t)).toHaveLength(0)
-    expect(w.host.asked.summaries).toBe(2)
-    expect(verdicts).toEqual([
-      { decline: true, reason: 'no summary scripted' },
-      { decline: true, reason: 'The summary is empty' }
-    ])
-  })
-
-  // Catches an empty summary kept under the compaction key: a retry of the same compaction would decline again without
-  // asking the host (D33).
-  it('asks the host again after an empty summary', async () => {
-    const w = world()
-    const t = await w.fake.createThread()
-    w.fake.script(t, [reply('first')])
-    await w.fake.sendUser(t, 'go')
-    await w.fake.settle()
-    w.host.giveSummary('   ')
-    await w.fake.compact(t)
-    w.host.giveSummary('a real summary')
+    w.fake.scriptSummary(t, reply('what happened so far'))
     await w.fake.compact(t)
     expect(await compactions(w, t)).toHaveLength(1)
-    expect(w.host.asked.summaries).toBe(2)
+    expect(JSON.stringify(await w.fake.withCall(t, (ports) => ports.ledger.modelContext(t)))).toContain(
+      'what happened so far'
+    )
   })
 
   // Catches a compaction that goes through while the run is over its request cap: one more model request the cap
@@ -226,10 +127,9 @@ describe('lifecycle handlers', () => {
     await w.fake.sendUser(t, 'go')
     await hold.started('child')
     const [{ sessionId: child }] = runRecords(await w.read(t))
-    w.host.giveSummary('summary')
+    w.fake.scriptSummary(child, reply('summary'))
     await w.fake.compact(child)
     expect(await compactions(w, child)).toHaveLength(0)
-    expect(w.host.asked.summaries).toBe(0)
   })
 
   // Catches onCompacted writing nothing or writing while a run is active: the model would lose track of the
@@ -250,7 +150,7 @@ describe('lifecycle handlers', () => {
     await w.fake.sendUser(t, 'go')
     await hold.started('child')
     await hold.started('parent')
-    w.host.giveSummary('summary')
+    w.fake.scriptSummary(t, reply('summary'))
     await w.fake.compact(t)
     expect(markers(await w.read(t), 'subagent-status')).toEqual([])
     hold.release('parent')
@@ -293,7 +193,7 @@ describe('a forked child', () => {
   // list the parent's children and open a notification run the parent never recorded.
   it('neither lists nor delivers the results it inherited after a compaction', async () => {
     const { w, t, fork } = await forkWithPendingResult()
-    w.host.giveSummary('summary of the fork')
+    w.fake.scriptSummary(fork, reply('summary of the fork'))
     await w.fake.compact(fork)
     await w.fake.settle()
     expect(await compactions(w, fork)).toHaveLength(1)

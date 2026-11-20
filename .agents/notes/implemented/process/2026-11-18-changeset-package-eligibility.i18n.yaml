@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-18-changeset-package-eligibility.md
+2026-11-18-changeset-package-eligibility.md: e36c68dc5fb43bcf1745519a6bcce2170f47de22
+2026-11-18-changeset-package-eligibility.zh.md: e29189307e3fdaaebfe75c1e1bf189cd755143c0
