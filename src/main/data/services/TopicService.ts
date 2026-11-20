@@ -456,6 +456,7 @@ export class TopicService {
   createGroupAndAssign(id: string, dto: CreateTopicGroupDto): CreateTopicGroupResult {
     const dbService = application.get('DbService')
     let created = false
+    let renamed = false
 
     const result = dbService.withWriteTx((tx) => {
       const [existing] = tx
@@ -468,8 +469,15 @@ export class TopicService {
 
       let group = groupService.findByIdTx(tx, dto.groupId)
       if (group) {
-        if (group.entityType !== 'topic' || group.name !== dto.name) {
+        if (group.entityType !== 'topic') {
           throw DataApiErrorFactory.validation({ groupId: [`Group id already in use: ${dto.groupId}`] })
+        }
+        // The id is a per-draft UUID, so an existing topic group is this draft's earlier commit. A replay
+        // with an edited name (the first reply was lost) renames it instead of leaving the dialog stuck.
+        if (group.name !== dto.name) {
+          tx.update(groupTable).set({ name: dto.name }).where(eq(groupTable.id, group.id)).run()
+          group = { ...group, name: dto.name }
+          renamed = true
         }
       } else {
         insertWithOrderKey(
@@ -490,6 +498,7 @@ export class TopicService {
 
     const effects: DataApiDataChangeEffect[] = []
     if (created) effects.push({ endpoint: '/groups', kind: 'membership', entityIds: [result.group.id] })
+    else if (renamed) effects.push({ endpoint: '/groups', kind: 'projection', entityIds: [result.group.id] })
     effects.push(...this.readModelEffects([id], 'projection'))
     notifyDataApiDataChange(effects)
     logger.info('Created topic group and assigned topic', { id, groupId: result.group.id, replay: !created })

@@ -1530,11 +1530,31 @@ describe('TopicService', () => {
       expect(topicGroups()).toHaveLength(1)
     })
 
-    it('rejects reusing a group id for a different name', async () => {
+    it('renames the committed group when a lost-reply replay arrives with an edited name', async () => {
       await seedTopic()
       topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      notifyDataApiDataChangeMock.mockClear()
 
-      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Other' })).toThrow()
+      const result = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Papers' })
+
+      expect(result.group.name).toBe('Papers')
+      expect(topicGroups()).toHaveLength(1)
+      expect(topicGroups()[0]?.name).toBe('Papers')
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      expect(
+        (notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string; kind?: string }>).some(
+          (effect) => effect.endpoint === '/groups' && effect.kind === 'projection'
+        )
+      ).toBe(true)
+    })
+
+    it('still rejects reusing the id of a group of another entity type', async () => {
+      await seedTopic()
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: GROUP_ID, entityType: 'assistant', name: 'Research', orderKey: 'a0' })
+
+      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })).toThrow()
     })
   })
 
