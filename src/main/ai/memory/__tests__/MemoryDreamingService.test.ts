@@ -43,6 +43,7 @@ import * as extractionState from '../memoryExtractionState'
 import { readExtractionState, nextExtractionDaily, writeExtractionState } from '../memoryExtractionState'
 import * as memoryFiles from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
+import { MemoryStore } from '../MemoryStore'
 
 describe('memory organization lifecycle and commit fences', () => {
   const dbh = setupTestDatabase()
@@ -146,37 +147,51 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
-  it('refunds the second automatic attempt if the app quits before commit', async () => {
-    for (let i = 0; i < 10; i++) await save('Fact ' + i)
-    generate.mockRejectedValueOnce(new Error('model unavailable'))
-    await expect(dreaming.execute(job())).rejects.toThrow()
-    const previous = readDreamingState(scope).files['MEMORY.md']
-    expect(previous.attempts).toBe(1)
-    vi.spyOn(Date, 'now').mockReturnValue(previous.retryAt + 1)
-    const app = application as { isQuitting: boolean }
-    generate.mockImplementationOnce(async () => {
-      app.isQuitting = true
-      return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
-    })
-    try {
-      await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
-      expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({
-        attempts: 1,
-        revision: previous.revision,
-        observedHash: previous.observedHash
+  it.each(['model', 'commit'] as const)(
+    'refunds the second automatic attempt if the app quits during %s before writing',
+    async (phase) => {
+      for (let i = 0; i < 10; i++) await save('Fact ' + i)
+      generate.mockRejectedValueOnce(new Error('model unavailable'))
+      await expect(dreaming.execute(job())).rejects.toThrow()
+      const previous = readDreamingState(scope).files['MEMORY.md']
+      expect(previous.attempts).toBe(1)
+      vi.spyOn(Date, 'now').mockReturnValue(previous.retryAt + 1)
+      const app = application as { isQuitting: boolean }
+      generate.mockImplementationOnce(async () => {
+        if (phase === 'model') app.isQuitting = true
+        else {
+          const commit = MemoryStore.prototype.commit
+          vi.spyOn(MemoryStore.prototype, 'commit').mockImplementationOnce(function (this: MemoryStore, ...params) {
+            const read = memoryFiles.readMemoryBytes
+            vi.spyOn(memoryFiles, 'readMemoryBytes').mockImplementationOnce(async (...args) => {
+              app.isQuitting = true
+              return read(...args)
+            })
+            return commit.apply(this, params)
+          })
+        }
+        return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
       })
-    } finally {
-      app.isQuitting = false
+      try {
+        await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+        expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({
+          attempts: 1,
+          revision: previous.revision,
+          observedHash: previous.observedHash
+        })
+      } finally {
+        app.isQuitting = false
+      }
+      await dreaming._doStop()
+      BaseService.resetInstances()
+      dreaming = new MemoryDreamingService()
+      await dreaming._doInit()
+      vi.spyOn(Date, 'now').mockReturnValue(readDreamingState(scope).files['MEMORY.md'].retryAt + 1)
+      generate.mockResolvedValueOnce({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' })
+      await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
+      expect(readDreamingState(scope).files['MEMORY.md'].processedHash).toBe(previous.observedHash)
     }
-    await dreaming._doStop()
-    BaseService.resetInstances()
-    dreaming = new MemoryDreamingService()
-    await dreaming._doInit()
-    vi.spyOn(Date, 'now').mockReturnValue(readDreamingState(scope).files['MEMORY.md'].retryAt + 1)
-    generate.mockResolvedValueOnce({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' })
-    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
-    expect(readDreamingState(scope).files['MEMORY.md'].processedHash).toBe(previous.observedHash)
-  })
+  )
 
   it('keeps organization eligible for a bounded retry after a model timeout', async () => {
     await save('A durable fact')

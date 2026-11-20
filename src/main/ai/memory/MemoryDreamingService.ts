@@ -1084,15 +1084,17 @@ export class MemoryDreamingService extends BaseService {
         throw new DreamingError('output')
       }
       assertCurrent()
-      mayHaveWritten = true
       const result = await session.commit(
         plan.mutations,
         async () => assertCurrent,
         [...plan.reads.values()].map((read) => read.receipt),
         undefined,
-        plan.deleted.size ? paths : undefined
+        plan.deleted.size ? paths : undefined,
+        () => {
+          mayHaveWritten = true
+        }
       )
-      mayHaveWritten = result.files.some((file) => file.outcome !== 'unchanged')
+      mayHaveWritten &&= result.files.some((file) => file.outcome !== 'unchanged')
       const partial =
         !!result.error || result.files.some((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged')
       let checked = 0

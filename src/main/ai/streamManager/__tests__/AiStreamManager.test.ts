@@ -3562,7 +3562,7 @@ describe('AiStreamManager', () => {
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
     })
 
-    it('waits for both persisted replies before admitting the chained turn', async () => {
+    it('drops the queued continuation when Stop arrives during terminal persistence', async () => {
       const dispatch = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const memory = vi.fn()
       mgr.onMemoryResponsesCompleted(memory)
@@ -3575,6 +3575,9 @@ describe('AiStreamManager', () => {
           await saved.promise
         }
       }
+      const firstFeed = controlledStream()
+      const secondFeed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
       mgr.send({
         topicId: 'a',
         isPersistentConversation: true,
@@ -3585,17 +3588,20 @@ describe('AiStreamManager', () => {
         listeners: [listener]
       })
       mgr.enqueuePendingSteer('a', 'next')
-      const first = mgr.onExecutionDone('a', 'provider-a::model-a')
+      firstFeed.close()
       await started.promise
-      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      secondFeed.close()
+      await expect.poll(() => listener.doneResults.length).toBe(2)
       await flush()
       expect(memory).not.toHaveBeenCalled()
       expect(dispatch).not.toHaveBeenCalled()
+      const stopping = mgr.abortAndDrain('a', 'user-requested')
+      await flush()
       saved.resolve()
-      await first
+      await stopping
       await flush()
       expect(memory.mock.calls).toEqual([[{ topicId: 'a', memoryResponseIds: ['first', 'second'] }]])
-      expect(dispatch).toHaveBeenCalledTimes(1)
+      expect(dispatch).not.toHaveBeenCalled()
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
