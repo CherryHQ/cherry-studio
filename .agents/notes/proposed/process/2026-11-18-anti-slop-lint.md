@@ -10,7 +10,9 @@ Enabling the complete anti-slop preset at once exposes substantial existing debt
 
 ## Proposal
 
-Install all 18 generic anti-slop rules and the native `oxc/no-accumulating-spread` companion, but activate them individually only after their findings within the approved scope are cleared and relevant contracts pass verification. The integration layer registers the plugin without activating unfinished rules. Each rule-specific stack layer contains its cleanup and enables that rule as an error. Preserve existing lint scope and unrelated rules. Omit the Effect-specific plugin sources because this repository does not use Effect. Do not weaken an activated production rule, add production directory exemptions or introduce fabricated type evidence to bypass findings. Test files and test-only directories are exempt from `no-unknown-parameters` and `no-chained-type-assertions`: invalid-input fixtures, partial native mocks and historical data can require unknown inputs or chained assertions. Preserve substantive contract fixes; do not expand fixtures solely to eliminate these assertions. All other test lint rules retain their configured scope.
+Keep `no-shape-in-symbol-names` explicitly off. Its substring ban rejects correct geometric terms, schema definitions and persisted property names. Restricting it to bare `Shape` declarations would still impose a naming preference without establishing a domain or safety contract. Preserve its upstream source without a local fork; do not rename correct identifiers solely to satisfy it.
+
+Install all 18 generic anti-slop rules and the native `oxc/no-accumulating-spread` companion. Activate the 17 selected generic rules and the native companion individually only after their findings within the approved scope are cleared and relevant contracts pass verification. The integration layer registers the plugin without activating unfinished rules. Each rule-specific stack layer contains its cleanup and enables that rule as an error. Preserve existing lint scope and unrelated rules. Omit the Effect-specific plugin sources because this repository does not use Effect. Do not weaken an activated production rule, add production directory exemptions or introduce fabricated type evidence to bypass findings. Test files and test-only directories are exempt from `no-unknown-parameters` and `no-chained-type-assertions`: invalid-input fixtures, partial native mocks and historical data can require unknown inputs or chained assertions. Preserve substantive contract fixes; do not expand fixtures solely to eliminate these assertions. All other test lint rules retain their configured scope.
 
 Place the copied plugin at `scripts/lint/anti-slop/`, retain its exact upstream revision and MIT notices, and keep `@oxlint/plugins` pinned to the exact Oxlint version. Upstream explicitly supports copying source and has no official npm package; its package exports uncompiled TypeScript, which Node does not strip inside `node_modules`. A Git dependency would require an extra compilation or loading mechanism. The initial integration keeps the supported local-source mechanism without the redundant outer vendor directory. The plugin's own third-party notices retain their upstream layout.
 
@@ -20,13 +22,13 @@ The ai-core `AiPlugin.transformParams` contract changes from partial patches to 
 
 ## Alternatives considered
 
-- Keep only compatible rules: the user explicitly requests full adoption and cleanup.
+- Disable rules solely because existing code violates them: clear worthwhile rules before activation instead. Exclude `no-shape-in-symbol-names` for its low-value naming policy, not because of migration volume.
 - Use an unofficial npm package or Git dependency: adds another release owner or a compilation mechanism rather than using upstream's supported installation.
 - Rewrite the whole repository in one unreviewable change: boundary and test migrations need contract-specific verification.
 
 ## Acceptance criteria
 
-- AC1 — Each rule is activated as an error only after its findings within the approved scope are cleared; real CLI probes verify the activation. All 18 generic rules and the native companion are active when migration is complete. (verification: unit)
+- AC1 — Each rule is activated as an error only after its findings within the approved scope are cleared; real CLI probes verify the activation. The 17 selected generic rules and the native companion are active when migration is complete; `no-shape-in-symbol-names` remains explicitly off. (verification: unit)
 - AC2 — The plugin loads from `scripts/lint/anti-slop/` with matching pinned dependencies, unchanged upstream generic production source, no unused Effect plugin, and retained license/provenance records. (verification: unit)
 - AC3 — A bounded initial cleanup batch passes targeted lint and existing tests for its affected contracts; subsequent batches retain the same verification discipline. (verification: unit)
 - AC4 — The remaining rule inventory and verification limits are reported accurately; documentation describes full adoption and the incomplete migration. (verification: docs gate)
