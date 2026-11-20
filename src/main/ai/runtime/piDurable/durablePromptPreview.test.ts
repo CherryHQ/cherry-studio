@@ -260,6 +260,40 @@ describe('previewDurableSystemPrompt', () => {
     expect(restored).toContain('respond in English')
   })
 
+  // Catches Context Usage listing a skill's file as loaded while the Agent's own text was sent instead.
+  it('drops the files an override displaces from what Context Usage reports as loaded', async () => {
+    await seedSkill('skill-1', 'release-notes', 'Write release notes from merged changes.')
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(application.getPath('feature.agents.data'), id)
+    const agent = agentService.createAgentWithId(id, {
+      type: 'pi-durable',
+      name: 'Reviewer',
+      model,
+      instructions: 'Review pull requests.',
+      configuration: { bootstrap_completed: true, prompt_overrides: { skills: 'Use only my skills.' } }
+    })
+    await mkdir(application.getPath('feature.agents.system_workspaces'), { recursive: true })
+    const skillsSource = async (configuration: typeof agent.configuration) => {
+      const { sections } = await buildDurablePrompt(await loadPiSdk(), {
+        agent: { ...agent, configuration },
+        cwd: application.getPath('feature.agents.system_workspaces'),
+        agentDataPath,
+        effectiveLanguage: 'English',
+        channelLinked: false,
+        disabledTools: new Set(),
+        knowledgeBaseScope: [],
+        skillPaths: [application.getPath('feature.agents.skills', 'release-notes')]
+      })
+      const rendered = await sections.find((section) => section.key === 'skills')!.render()
+      return typeof rendered === 'object' ? rendered.source : undefined
+    }
+
+    const overridden = await skillsSource(agent.configuration)
+    expect(overridden?.kind).toBe('skills')
+    expect(overridden?.resources ?? []).toHaveLength(0)
+    expect((await skillsSource({ ...agent.configuration, prompt_overrides: {} }))?.resources).not.toHaveLength(0)
+  })
+
   it('returns the built-in prompt of a built-in Agent', async () => {
     // Built-in Agents are seeded, never created through the service.
     const { id } = dbh.db

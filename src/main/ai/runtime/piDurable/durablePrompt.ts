@@ -85,7 +85,8 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
   const agentDir = application.getPath('feature.agents.pi.root')
   const skills = pi.loadSkills({ cwd, agentDir, skillPaths: [...options.skillPaths], includeDefaults: false })
   const builder = new PromptBuilder()
-  // An Agent's text replaces a section only when the section renders, and keeps its source for context usage.
+  // An Agent's text replaces a section only when the section renders. It keeps the section's kind for Context
+  // Usage but none of the files it displaced, which were not sent.
   const withOverride = (section: DurablePromptSection): DurablePromptSection => {
     const text = isEditablePromptSection(section.key) ? overrides?.[section.key] : undefined
     if (text === undefined) return section
@@ -94,7 +95,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
       async render() {
         const content = await section.render()
         if (content === undefined) return undefined
-        return typeof content === 'object' ? { ...content, text } : text
+        return typeof content === 'object' ? { text, source: { kind: content.source.kind } } : text
       }
     }
   }
