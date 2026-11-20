@@ -10,7 +10,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { createAgent, startNewAgentTask } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
-import { selectSidebarApp } from '../helpers/navigation'
+import { selectConversationListOption, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -60,13 +60,12 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect(await readdir(emptyPath)).toEqual([])
     const original = await register(originalPath, originalName)
     const empty = await register(emptyPath, emptyName)
-    // A real provider and runtime execute the relative-path write; no successful tool result is injected.
+    // The runtime executes the relative-path write requested by the model fixture.
     const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await selectSidebarApp(page, 'Work')
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    await selectConversationListOption(view, 'Group by', 'Agent')
     await createAgent(page, {
       name: agentName,
       runtime: 'Pi',
@@ -78,8 +77,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await page.locator(`[data-option-id="${original.id}"]`).click()
     await expect(view.getByRole('button', { name: originalName, exact: true }).last()).toBeVisible()
 
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Work directory', exact: true }).click()
+    await selectConversationListOption(view, 'Group by', 'Work directory')
     const group = view.getByRole('listbox').getByRole('button', { name: originalName, exact: true })
     await expect(group).toBeVisible()
     await group.click({ button: 'right' })
@@ -131,8 +129,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect(await readdir(emptyPath)).toEqual([])
     await screenshot('MP-53 real tool wrote in switched workspace')
 
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    await selectConversationListOption(view, 'Group by', 'Agent')
     await startNewAgentTask(page, agentName)
     await view
       .getByRole('button', { name: new RegExp(`^No work directory$|^${targetName}$`) })
@@ -155,8 +152,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await expect.poll(async () => (await readWorkspaces()).some(({ id }) => id === empty.id)).toBe(false)
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Work directory', exact: true }).click()
+    await selectConversationListOption(view, 'Group by', 'Work directory')
     await expect(view.getByRole('button', { name: emptyName, exact: true })).toHaveCount(0)
     expect((await stat(emptyPath)).isDirectory()).toBe(true)
     expect(await readdir(emptyPath)).toEqual([])

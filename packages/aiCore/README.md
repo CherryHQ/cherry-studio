@@ -400,7 +400,7 @@ await client.streamObject({
 
 ## 📄 License
 
-MIT License - 详见 [LICENSE](https://github.com/CherryHQ/cherry-studio/blob/main/LICENSE) 文件
+MIT License - 详见 [LICENSE](./LICENSE) 文件
 
 ---
 

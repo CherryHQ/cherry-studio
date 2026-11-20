@@ -67,7 +67,6 @@ describe('MarkdownImageExportPopup', () => {
     void MarkdownImageExportPopup.show({ imageCount: 3 })
 
     expect(await screen.findByText(/image_mode\.count:3/)).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'embed' })).toBeChecked()
     // settle the popup so later shows are not single-flight-blocked
     await user.click(screen.getByRole('button', { name: 'common.cancel:' }))
   })

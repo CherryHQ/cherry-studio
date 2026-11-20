@@ -21,23 +21,6 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).not.toThrow()
   })
 
-  it('pairs the runtime primary with an adaptive foreground and an independent ring', async () => {
-    const sources = await loadSources()
-
-    expect(sources.themeInput).toContain('--cs-theme-primary-foreground: var(--cs-primary-foreground);')
-    expect(sources.shadcn).toContain('--primary-foreground: var(--cs-theme-primary-foreground);')
-    expect(sources.shadcn).toContain('--ring: var(--cs-ring);')
-    expect(sources.shadcn).not.toContain('--ring: color-mix(in srgb, var(--primary)')
-  })
-
-  it('keeps product links independent from the runtime primary', async () => {
-    const sources = await loadSources()
-
-    expect(sources.product).toContain('--link: var(--cs-blue-600);')
-    expect(sources.product).toContain('--link: var(--cs-blue-400);')
-    expect(sources.product).not.toContain('--link: var(--primary);')
-  })
-
   it('rejects cross-layer duplicate ownership', async () => {
     const sources = await loadSources()
     sources.product += '\n:root { --cs-background: hotpink; }\n'

@@ -11,4 +11,4 @@ export { type InputParamsMap, MessageConverterFactory } from './factory/MessageC
 export { StreamAdapterFactory } from './factory/StreamAdapterFactory'
 
 // Public contract interfaces
-export type { InputFormat, ISseFormatter, IStreamAdapter, OutputFormat } from './interfaces'
+export type { InputFormat, ISseFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from './interfaces'

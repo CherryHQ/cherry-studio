@@ -99,7 +99,7 @@ test('Archive names the image-generation job blocking permanent deletion', async
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: 'Delete Permanently', exact: true }).click()
 
-    const dialog = page.getByRole('dialog', { name: 'Delete permanently?', exact: true })
+    const dialog = page.getByRole('dialog', { name: `Permanently delete "${name}.png"?`, exact: true })
     await expect(
       dialog.getByText(
         '1 file is still used by 1 record and will be kept. Remove that reference before deleting permanently.',

@@ -15,6 +15,8 @@ import type {
 
 import type { OperationResult } from '@cherrystudio/agent-runtime'
 
+import { isSyntheticClaudeModel } from './synthetic'
+
 export interface ClaudeTaskFact {
   message: SdkTaskSystemMessage
   status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
@@ -148,6 +150,16 @@ export class ClaudeControlState {
   }
 
   accept(message: SDKMessage): void {
+    if (message.type === 'assistant' && isSyntheticClaudeModel(message.message.model)) {
+      this.sawAbortedMessage ||= message.aborted === true
+      return
+    }
+    if (
+      message.type === 'stream_event' &&
+      message.event.type === 'message_start' &&
+      isSyntheticClaudeModel(message.event.message.model)
+    )
+      return
     if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) {
       if (message.type === 'assistant')
         this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })

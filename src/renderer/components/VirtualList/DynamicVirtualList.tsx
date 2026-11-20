@@ -99,6 +99,9 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   /** Layout classes for the scroll area root. */
   scrollAreaClassName?: string
 
+  /** Content spacing inside the scroll boundary. */
+  contentProps?: React.ComponentProps<typeof ScrollArea>['contentProps']
+
   scrollHideDelay?: number
 
   /**
@@ -161,6 +164,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     itemContainerStyle,
     scrollerStyle,
     scrollAreaClassName,
+    contentProps,
     scrollHideDelay = 2000,
     role = 'region',
     scrollElementRef,
@@ -182,20 +186,25 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
 
   const contentRef = useRef<HTMLDivElement>(null)
-  const [externalScrollMargin, setExternalScrollMargin] = useState(0)
+  const [contentScrollMargin, setContentScrollMargin] = useState(0)
   const usesExternalScroll = externalScrollElement !== undefined
+  const measuresContentOffset = usesExternalScroll || contentProps !== undefined
   const horizontal = restOptions.horizontal
-  const scrollMargin = usesExternalScroll ? externalScrollMargin : (restOptions.scrollMargin ?? 0)
+  const scrollMargin = usesExternalScroll ? contentScrollMargin : (restOptions.scrollMargin ?? contentScrollMargin)
 
   useLayoutEffect(() => {
     const content = contentRef.current
     const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
-    if (!usesExternalScroll || !scrollElement || !content) return undefined
+    if (!measuresContentOffset) {
+      setContentScrollMargin(0)
+      return undefined
+    }
+    if (!scrollElement || !content) return undefined
 
     const measureScrollMargin = () => {
       const contentRect = content.getBoundingClientRect()
       const scrollRect = scrollElement.getBoundingClientRect()
-      setExternalScrollMargin(
+      setContentScrollMargin(
         horizontal
           ? contentRect.left - scrollRect.left + scrollElement.scrollLeft - scrollElement.clientLeft
           : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
@@ -212,7 +221,16 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       }
     }
     return () => observer.disconnect()
-  }, [externalScrollElement, usesExternalScroll, horizontal, isSticky, header])
+  }, [
+    externalScrollElement,
+    usesExternalScroll,
+    horizontal,
+    isSticky,
+    header,
+    measuresContentOffset,
+    contentProps?.className,
+    contentProps?.style
+  ])
 
   const activeStickyIndexesRef = useRef<number[]>([])
 
@@ -427,7 +445,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   if (usesExternalScroll) {
     return (
       <div {...viewportProps} style={{ ...scrollerStyle, overflow: 'visible' }}>
-        {content}
+        {contentProps ? <div {...contentProps}>{content}</div> : content}
       </div>
     )
   }
@@ -443,7 +461,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       type={autoHideScrollbar ? 'scroll' : 'auto'}
       scrollHideDelay={scrollHideDelay}
       viewportProps={viewportProps}
-      contentProps={horizontal ? { className: 'h-full' } : undefined}>
+      contentProps={{ ...contentProps, className: cn(horizontal && 'h-full', contentProps?.className) }}>
       {content}
     </ScrollArea>
   )

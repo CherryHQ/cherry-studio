@@ -1,5 +1,5 @@
 import { Eraser, ScanLine } from 'lucide-react'
-import mime from 'mime-types'
+import mime from 'mime'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,12 +59,7 @@ import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { isVisionModel } from '@renderer/utils/model'
-import {
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  resolveReasoningEffortForModel
-} from '@renderer/utils/model'
+import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -78,6 +73,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
+import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
@@ -434,6 +430,7 @@ const ChatComposerInner = ({
     customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
@@ -1063,7 +1060,7 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editingMessageForCurrentTopic) {
       restoredEditingSessionIdRef.current = null
       editingOriginalFilePartsByTokenIdRef.current = new Map()
@@ -1354,7 +1351,7 @@ const ChatComposerInner = ({
 
       try {
         const blob = await getImageBlobFromSource(reference.url)
-        const extension = mime.extension(blob.type)
+        const extension = mime.getExtension(blob.type)
         if (!extension || !imageExts.includes(`.${extension}`)) {
           throw new Error(`Unsupported image type: ${blob.type}`)
         }
@@ -1826,6 +1823,7 @@ const ChatComposerInner = ({
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
+    assistantAvatarSrc: displayAssistant?.avatarSrc,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,
@@ -1901,6 +1899,8 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          focusOnTabActivation
+          markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
