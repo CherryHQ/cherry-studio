@@ -23,6 +23,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   const { t } = useTranslation()
   const [
     agentType,
+    name,
     prompt,
     skillIds,
     disabledTools,
@@ -37,6 +38,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
     control: form.control,
     name: [
       'agentType',
+      'name',
       'prompt',
       'skillIds',
       'disabledTools',
@@ -61,6 +63,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
         <PiPromptField
           value={prompt}
           onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
+          name={name}
           draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
           heading={
             <h3 className="-mb-2 flex items-baseline gap-1.5 font-medium text-foreground text-sm">

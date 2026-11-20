@@ -641,6 +641,7 @@ function AgentEditDialogContent({
         <PiPromptField
           value={values.instructions}
           onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
+          name={values.name}
           overrides={values.promptOverrides}
           onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
           section={promptSection}

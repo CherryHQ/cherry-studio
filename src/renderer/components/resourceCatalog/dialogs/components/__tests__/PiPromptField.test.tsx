@@ -91,10 +91,12 @@ function answerWithDraft(builtinInstructions?: string) {
 function Harness({
   draft = baseDraft,
   initial = '',
+  name = '',
   withOverrides = false
 }: {
   draft?: PiPromptDraft
   initial?: string
+  name?: string
   withOverrides?: boolean
 }) {
   const [value, setValue] = useState(initial)
@@ -104,6 +106,7 @@ function Harness({
       <PiPromptField
         value={value}
         onChange={setValue}
+        name={name}
         draft={draft}
         {...(withOverrides ? { overrides, onOverridesChange: setOverrides } : {})}
       />
@@ -257,6 +260,21 @@ describe('PiPromptField', () => {
 
     expect(screen.getByText(/^saved:\s*$/)).toBeInTheDocument()
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.')
+  })
+
+  // Catches Generate on a blank Agent prompt having nothing to generate from.
+  it('generates a blank Agent prompt from the Agent name', async () => {
+    answerWithDraft()
+    fetchGenerate.mockResolvedValue('You review pull requests.')
+    const user = userEvent.setup()
+    render(<Harness name="Code Reviewer" />)
+    await screen.findByRole('button', { name: '技能: 只读' })
+    await openInstructions(user)
+
+    await user.click(screen.getByRole('button', { name: /生成提示词/ }))
+
+    expect(await screen.findByText('saved: You review pull requests.')).toBeInTheDocument()
+    expect(fetchGenerate).toHaveBeenCalledWith(expect.objectContaining({ content: 'Code Reviewer' }))
   })
 
   it('optimizes one guidance block with AI, leaving the Agent prompt as it was', async () => {

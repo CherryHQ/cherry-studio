@@ -14,6 +14,7 @@ import {
   type AgentPromptOverrides,
   isEditablePromptSection
 } from '@shared/ai/agentPromptSections'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type {
   AgentPromptBlockPreview,
   AgentSystemPromptDraft,
@@ -60,6 +61,8 @@ export type PiPromptDraft = Omit<AgentSystemPromptDraft, 'instructions' | 'langu
 type PiPromptFieldProps = {
   value: string
   onChange: (value: string) => void
+  /** The Agent's name, which Generate writes a blank Agent prompt from. */
+  name: string
   draft: PiPromptDraft
   /** Given only where the Agent exists: guidance blocks are then editable and saved here. */
   overrides?: AgentPromptOverrides
@@ -140,6 +143,7 @@ export function getPromptBlockTitleKey(key: string): string | undefined {
 export function PiPromptField({
   value,
   onChange,
+  name,
   draft,
   overrides,
   onOverridesChange,
@@ -195,6 +199,7 @@ export function PiPromptField({
           }
           value={instructions}
           builtin={preview?.builtinInstructions}
+          name={name}
           onChange={onChange}
           fill={Boolean(onSectionChange)}
         />
@@ -402,12 +407,14 @@ function InstructionsEditor({
   label,
   value,
   builtin,
+  name,
   onChange,
   fill
 }: {
   label: ReactNode
   value: string
   builtin: string | undefined
+  name: string
   onChange: (next: string) => void
   /** Fills a dialog page; in a scrolling step it takes a fixed tall height instead. */
   fill: boolean
@@ -424,7 +431,8 @@ function InstructionsEditor({
         <>
           <PromptPolishActions
             value={value}
-            emptyValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+            fallbackSource={name}
+            emptyValueSystemPrompt={AGENT_PROMPT}
             existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
             onChange={onChange}
           />
