@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-14T13:47:05.564Z
- * Total icons: 175
+ * Total icons: 176
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -113,6 +113,7 @@ import { MixedbreadIcon } from './mixedbread'
 import { ModelscopeIcon } from './modelscope'
 import { MonicaIcon } from './monica'
 import { MoonshotIcon } from './moonshot'
+import { MorseIcon } from './morse'
 import { N8nIcon } from './n8n'
 import { NamiAiIcon } from './nami-ai'
 import { NapkinIcon } from './napkin/napkin'
@@ -290,6 +291,7 @@ export const PROVIDER_ICON_CATALOG = {
   modelscope: ModelscopeIcon,
   monica: MonicaIcon,
   moonshot: MoonshotIcon,
+  morse: MorseIcon,
   n8n: N8nIcon,
   'nami-ai': NamiAiIcon,
   napkin: NapkinIcon,
