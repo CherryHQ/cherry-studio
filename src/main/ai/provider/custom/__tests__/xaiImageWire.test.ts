@@ -1,10 +1,10 @@
 import { join } from 'node:path'
 
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV3CallOptions, JSONObject } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { describe, expect, it } from 'vitest'
 
-import { buildParamsSchema, type ImageGenerationMode } from '@cherrystudio/provider-registry'
+import { buildParamsSchema, type ImageGenerationMode, imageParamsSchema } from '@cherrystudio/provider-registry'
 import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 
 import { splitParamValues } from '../../../utils/imageOptions'
@@ -28,10 +28,11 @@ function paramsSchema(modelId: string, mode: ImageGenerationMode) {
 
 async function captureRequest(
   mode: ImageGenerationMode,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Per-model schemas preserve opaque extension fields; the production catalog gate below establishes canonical values.
   parsed: Record<string, unknown>,
   files?: ImageModelV3CallOptions['files']
 ) {
-  const requests: { url: string; contentType: string | null; body: Record<string, unknown> }[] = []
+  const requests: { url: string; contentType: string | null; body: JSONObject }[] = []
   const fetch: typeof globalThis.fetch = (url, init) => {
     expect(String(url)).toBe(`${BASE_URL}/images/${mode === 'edit' ? 'edits' : 'generations'}`)
     expect(init?.method).toBe('POST')
@@ -46,9 +47,10 @@ async function captureRequest(
       })
     )
   }
-  const { structured, vendorBag } = splitParamValues(parsed)
+  const canonicalParams = imageParamsSchema.parse(parsed)
+  const { structured, vendorBag } = splitParamValues(canonicalParams)
   const registration = WIRE_REGISTRY['xai'] ?? DEFAULT_DIFFUSION_REGISTRATION
-  const providerOptions = buildVendorProviderOptions('xai', parsed, registration, vendorBag)
+  const providerOptions = buildVendorProviderOptions('xai', canonicalParams, registration, vendorBag)
   const result = await createXai({ apiKey: 'test', baseURL: BASE_URL, fetch })
     .image('grok-imagine-image-2.0')
     .doGenerate({
