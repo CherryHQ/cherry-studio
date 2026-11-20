@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Bot, Layers, Palette, Settings2, Sparkles } from 'lucide-react'
+import { Bot, Layers, Settings2, Sparkles, SwatchBook } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +28,7 @@ const RESOURCE_TYPES = [
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
   { id: 'agent', label: 'marketplace.type.agent', icon: Bot },
   { id: 'mcp', label: 'marketplace.type.mcp', icon: McpLogo },
-  { id: 'theme', label: 'settings.theme.title', icon: Palette }
+  { id: 'theme', label: 'settings.theme.title', icon: SwatchBook }
 ] as const
 const OVERVIEW_TYPES = ['skill', 'agent', 'mcp', 'theme'] as const
 const marketplaceRoute = getRouteApi('/app/marketplace')
