@@ -241,6 +241,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
+      // A settled badge must not be replayed by a late buffered-activity heartbeat.
+      lastRetryEvent = undefined
       options.onRetryEvent?.({ state: 'settled' })
     }
     const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
@@ -374,7 +376,13 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
                 return typeof value === 'function' ? value.bind(model) : value
               }
             })
-            if (options.streamContinuation === false) return scopedModel.doStream(callOptions)
+            // The resumed request goes back through the fallback chain, which restarts at the primary and
+            // can hand one model's partial answer to another with different options. Until a continuation
+            // can be bound to the model, credential and options that produced the visible text, a chain
+            // with model fallbacks surfaces the interruption instead of resuming.
+            if (options.streamContinuation === false || options.fallbacks.length > 0) {
+              return scopedModel.doStream(callOptions)
+            }
             const operation = withStreamContinuation(scopedModel, {
               maxAttempts: retryCount,
               takeRetry: () => budget.remaining > 0 && (budget.remaining--, true),
@@ -392,7 +400,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               // idle-chunk timer sees activity while the resumed attempt is buffered.
               onBufferedActivity: () => {
                 const now = Date.now()
-                if (!lastRetryEvent || now - lastActivityEmit < BUFFERED_ACTIVITY_INTERVAL_MS) return
+                if (!retryActive || !lastRetryEvent || now - lastActivityEmit < BUFFERED_ACTIVITY_INTERVAL_MS) return
                 lastActivityEmit = now
                 options.onRetryEvent?.(lastRetryEvent)
               }

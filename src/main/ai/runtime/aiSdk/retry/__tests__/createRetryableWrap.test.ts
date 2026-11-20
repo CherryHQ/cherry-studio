@@ -526,3 +526,69 @@ it('resumes the locked OpenAI adapter after a 503 and an interrupted successful 
     vi.useRealTimers()
   }
 })
+
+it('does not resume an interrupted stream through a model fallback chain', async () => {
+  const interrupted = new Error('connection reset')
+  const primaryStream = vi.fn().mockResolvedValue(
+    streamResult([
+      { type: 'text-start', id: 'partial' },
+      { type: 'text-delta', id: 'partial', delta: 'partial answer' },
+      { type: 'error', error: interrupted }
+    ])
+  )
+  const fallbackStream = vi.fn().mockResolvedValue(streamResult([]))
+  const wrap = createRetryableWrap({
+    fallbacks: [fallbackOf(makeFakeLanguageModel('fallback', vi.fn(), fallbackStream))],
+    retryPolicy: policy({ maxAttempts: 2 })
+  })!
+  const model = wrap(makeFakeLanguageModel('primary', vi.fn(), primaryStream))
+
+  const result = await model.doStream({ prompt: [] })
+  const parts = await collectStream(result.stream)
+
+  expect(parts).toContainEqual({ type: 'error', error: interrupted })
+  expect(primaryStream).toHaveBeenCalledOnce()
+  expect(fallbackStream).not.toHaveBeenCalled()
+})
+
+it('does not replay a settled retry status from a late buffered-activity heartbeat', async () => {
+  vi.useFakeTimers()
+  try {
+    const events: Array<{ state: string }> = []
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce(
+        streamResult([
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          }
+        ])
+      )
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      onRetryEvent: (event) => events.push(event)
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    const states = events.map((event) => event.state)
+    const settledAt = states.lastIndexOf('settled')
+    expect(settledAt).toBeGreaterThan(-1)
+    expect(states.slice(settledAt + 1)).not.toContain('retrying')
+  } finally {
+    vi.useRealTimers()
+  }
+})
