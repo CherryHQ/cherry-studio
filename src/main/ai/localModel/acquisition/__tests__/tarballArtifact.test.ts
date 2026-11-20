@@ -191,10 +191,10 @@ describe('shared artifact acquisition', () => {
         }
       }
       const requested: string[] = []
-      vi.mocked(net.fetch).mockImplementation((async (url) => {
+      vi.mocked(net.fetch).mockImplementation(async (url) => {
         requested.push(String(url))
         return tarballResponse(requested.length === 1 ? Buffer.from('corrupt archive') : FAKE_TARBALL_CONTENT)
-      }) as typeof net.fetch)
+      })
 
       await installArtifact(artifact, new AbortController().signal, undefined, artifactRegistryOrder(preference))
 
