@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import * as z from 'zod'
 
 import { t } from '@main/i18n'
@@ -99,7 +100,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     normalized: NormalizedInput
   ): Promise<{ imageUrls?: string[] }> {
-    const body: Record<string, unknown> = {
+    const body: JSONObject = {
       model: normalized.modelId,
       prompt: normalized.prompt,
       n: normalized.n
@@ -118,7 +119,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     normalized: NormalizedInput,
     params: DmxapiProviderParams
   ): Promise<{ imageUrls?: string[] }> {
-    const body: Record<string, unknown> = {
+    const body: JSONObject = {
       model: normalized.modelId,
       input: normalized.prompt,
       stream: false
@@ -149,7 +150,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (normalized.prompt) content.push({ text: normalized.prompt })
     for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
-    const parameters: Record<string, unknown> = {}
+    const parameters: JSONObject = {}
     if (normalized.size) parameters.size = normalized.size.replace(/x/i, '*')
     if (normalized.n && normalized.n > 1) parameters.n = normalized.n
     if (typeof normalized.seed === 'number') parameters.seed = normalized.seed
@@ -157,7 +158,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (params.promptExtend !== undefined) parameters.prompt_extend = params.promptExtend
     if (params.addWatermark !== undefined) parameters.watermark = params.addWatermark
 
-    const body: Record<string, unknown> = {
+    const body: JSONObject = {
       model: normalized.modelId,
       input: { messages: [{ role: 'user', content }] },
       ...(Object.keys(parameters).length > 0 && { parameters })
@@ -175,7 +176,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     normalized: NormalizedInput
   ): Promise<{ imageUrls?: string[] }> {
-    const body: Record<string, unknown> = {
+    const body: JSONObject = {
       model: normalized.modelId,
       prompt: normalized.prompt,
       n: normalized.n,
@@ -190,7 +191,7 @@ class DmxapiTransport implements ImageGenerationTransport {
   private async requestJson<TSchema extends z.ZodType>(
     schema: TSchema,
     path: string,
-    body: Record<string, unknown>,
+    body: JSONObject,
     signal?: AbortSignal,
     opts?: { authHeader?: string; authValue?: string }
   ): Promise<z.infer<TSchema>> {
