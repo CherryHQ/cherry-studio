@@ -20,9 +20,10 @@ vi.mock('@playwright/test', async (importOriginal) => {
 })
 
 // Model the browser's clamped scroll position; unbounded bottom polling used to exhaust the wait budget.
-function listFixture(scrollHeight = 450) {
+function listFixture(scrollHeight = 450, mounted = true) {
   let position = 0
   let waits = 0
+  let scrolls = 0
   const element = {
     clientHeight: 100,
     scrollHeight,
@@ -37,14 +38,21 @@ function listFixture(scrollHeight = 450) {
     }
   }
   const scroller = {
-    evaluate: async (callback: (node: typeof element) => unknown) => callback(element)
+    count: async () => {
+      scrolls += 1
+      return mounted ? 1 : 0
+    },
+    evaluate: async (callback: (node: typeof element) => unknown) => {
+      scrolls += 1
+      return callback(element)
+    }
   } as unknown as Locator
   const page = {
     waitForTimeout: async () => {
       if (++waits > 10) throw new Error('List traversal exceeded its window budget')
     }
   } as unknown as Page
-  return { element, scroller, page }
+  return { element, scroller, page, scrollCalls: () => scrolls }
 }
 
 beforeEach(() => vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback()))
@@ -121,5 +129,25 @@ it('reads a list shorter than its viewport without scrolling', async () => {
   const { element, scroller, page } = listFixture(50)
 
   expect(await collectVirtualizedText(page, scroller)).toBe('Last entry')
+  expect(element.scrollTop).toBe(0)
+})
+
+it('reveals an already rendered entry when the list never mounts a scroller', async () => {
+  const { element, scroller, page, scrollCalls } = listFixture(450, false)
+  let revealed = 0
+  const target = {
+    count: async () => 0,
+    first: () => ({
+      waitFor: async () => {},
+      scrollIntoViewIfNeeded: async () => {
+        revealed += 1
+      }
+    })
+  } as unknown as Locator
+
+  await revealVirtualized(page, scroller, target)
+
+  expect(revealed).toBe(1)
+  expect(scrollCalls()).toBe(1)
   expect(element.scrollTop).toBe(0)
 })

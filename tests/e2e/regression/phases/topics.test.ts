@@ -111,8 +111,11 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
     await expect(listOptions).toBeVisible()
     await listOptions.click()
     const collapseAll = page.getByRole('menuitem', { name: 'Collapse all', exact: true })
-    if (await collapseAll.isVisible()) await collapseAll.click()
-    await listOptions.click()
+    if (await collapseAll.isVisible()) {
+      await collapseAll.click()
+      // The menu closes with the action, so it has to be reopened for Expand all.
+      await listOptions.click()
+    }
     await page.getByRole('menuitem', { name: 'Expand all', exact: true }).click()
     const sessionScroller = view.locator('[data-virtual-scrolling]').first()
     const showMore = view.getByRole('button', { name: 'Show more', exact: true }).first()
