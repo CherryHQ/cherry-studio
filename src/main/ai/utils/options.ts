@@ -1,5 +1,4 @@
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
-import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { JSONObject } from '@ai-sdk/provider'
@@ -323,9 +322,8 @@ function buildOpenResponsesProviderOptions(reasoningOptions: JSONObject): Provid
 function buildAnthropicProviderOptions(
   reasoningOptions: JSONObject,
   providerOptionsKey = 'anthropic'
-): Record<string, AnthropicProviderOptions> {
-  const providerOptions = { ...reasoningOptions } as AnthropicProviderOptions
-  return { [providerOptionsKey]: { ...providerOptions } }
+): ProviderOptions {
+  return { [providerOptionsKey]: { ...reasoningOptions } }
 }
 
 function buildGeminiProviderOptions(
