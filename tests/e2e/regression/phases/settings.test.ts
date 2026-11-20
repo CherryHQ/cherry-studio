@@ -30,6 +30,7 @@ import { ctrlWheelZoom } from '../scenarios/ctrlWheelZoom'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
 import { fontsAndZoom } from '../scenarios/fontsAndZoom'
 import { longUserMessageExpansion } from '../scenarios/longUserMessageExpansion'
+import { mp06SettingsPersistence } from '../scenarios/mp06SettingsPersistence'
 import { networkProxySettings } from '../scenarios/networkProxySettings'
 import { notificationSettings } from '../scenarios/notificationSettings'
 
@@ -200,8 +201,10 @@ async function openSettingsSearch(mainWindow: Page) {
     .toMatchObject({ id: owningTabId, pathname: '/settings/appearance' })
   const searchButton = navigation.getByRole('button', { name: en['settings.search.placeholder'], exact: true })
   await searchButton.click()
-  const input = navigation.getByRole('combobox', { name: en['settings.search.placeholder'], exact: true })
-  const clear = navigation.getByRole('button', { name: en['common.clear'], exact: true })
+  // Clicking the collapsed search button expands a field in the page header; it is no longer
+  // rendered inside the navigation rail, so scope the field and its clear button to the view.
+  const input = settings.getByRole('combobox', { name: en['settings.search.placeholder'], exact: true })
+  const clear = settings.getByRole('button', { name: en['common.clear'], exact: true })
   await expect(input).toBeVisible()
   await expect(input).toBeFocused()
   await mainWindow.keyboard.type('proxy')
