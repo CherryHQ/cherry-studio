@@ -6,7 +6,8 @@ import { type HexColor, isHexColor } from '@renderer/utils/color'
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 
 interface ClassDictionary {
-  [id: string]: any
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Class values are arbitrary; classNames and clsx only test their truthiness.
+  [id: string]: unknown
 }
 
 interface ClassArray extends Array<ClassValue> {}
