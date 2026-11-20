@@ -24,6 +24,21 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.spawnFailed
 }
 
+const NTSTATUS_NAMES: ReadonlyMap<number, string> = new Map([
+  [0xc000001d, 'STATUS_ILLEGAL_INSTRUCTION'],
+  [0xc0000005, 'STATUS_ACCESS_VIOLATION'],
+  [0xc000007b, 'STATUS_INVALID_IMAGE_FORMAT'],
+  [0xc0000135, 'STATUS_DLL_NOT_FOUND'],
+  [0xc0000142, 'STATUS_DLL_INIT_FAILED'],
+  [0xc0000409, 'STATUS_STACK_BUFFER_OVERRUN']
+])
+
+/** Windows reports NTSTATUS exits as unsigned (3221225501) or signed (-1073741795); `>>> 0` normalizes both. */
+export function formatExitCode(code: number): string {
+  const name = NTSTATUS_NAMES.get(code >>> 0)
+  return name ? `${code} (${name})` : String(code)
+}
+
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
 export function classifyClaudeCodeTerminalReason(reason: string): ErrorCategory {
   return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason) })
@@ -36,7 +51,7 @@ export function recordClaudeCodeProcessExit(
   stderrTail: string
 ): void {
   const stderr = stderrTail.trim()
-  const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
+  const status = code !== null ? `exited with code ${formatExitCode(code)}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
@@ -65,7 +80,7 @@ export function createClaudeCodeProcessExitError(
 ): Error {
   const status =
     diagnostics.exitCode !== undefined
-      ? `exited with code ${diagnostics.exitCode}`
+      ? `exited with code ${formatExitCode(diagnostics.exitCode)}`
       : diagnostics.exitSignal
         ? `terminated by signal ${diagnostics.exitSignal}`
         : 'failed to start'
