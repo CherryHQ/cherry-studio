@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
+import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabelKey } from '@renderer/i18n/label'
@@ -19,10 +21,12 @@ import {
   isClaudeCodeNotLoggedIn
 } from '@renderer/utils/errorClassifier'
 import { isLikelyInLanguage } from '@renderer/utils/errorLanguage'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import { useMessageParts } from './MessagePartsContext'
 
 const logger = loggerService.withContext('ErrorBlock')
 
@@ -53,6 +57,17 @@ const NOTICE_KEYS: Record<ErrorCategory, { readonly title: string; readonly info
   unknown: { title: 'error.diagnosis.unknown' }
 }
 const RETRY_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>(['server', 'stream', 'parse'])
+/** Failures another provider's model can get past; request-shaped and local-tool failures would recur. */
+const PROVIDER_SWITCH_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
+  'auth',
+  'permission',
+  'region',
+  'model',
+  'quota',
+  'rate_limit',
+  'server',
+  'deprecated'
+])
 
 interface Props {
   partId: string
@@ -109,7 +124,8 @@ const MessageErrorInfo: React.FC<{
     openErrorDetail,
     navigateErrorTarget,
     notifyError,
-    regenerateMessage
+    regenerateMessage,
+    renderRegenerateModelPicker
   } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
@@ -139,6 +155,15 @@ const MessageErrorInfo: React.FC<{
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, category)
   const cherryCloudQuotaRejection = cloudPresentation.quota
+  const messageParts = useMessageParts(message.id)
+  const canOfferSubscriptionModel =
+    !!renderRegenerateModelPicker &&
+    !!providerId &&
+    providerId !== CHERRY_CLOUD_PROVIDER_ID &&
+    message.status !== 'pending' &&
+    (PROVIDER_SWITCH_CATEGORIES.has(category) || !!localModelFailure)
+  const { activePaid, isPlansReady } = useCherryCloudPlans(canOfferSubscriptionModel)
+  const offerSubscriptionModel = canOfferSubscriptionModel && isPlansReady && !!activePaid
 
   // An app-owned i18nKey is the throwing code's own conclusion — prefer it over a pattern-matched
   // category, which can name the wrong subsystem. `<provider>` keys stay as the info (link form).
@@ -285,6 +310,27 @@ const MessageErrorInfo: React.FC<{
     action = { label: t('common.retry'), onClick: () => void retry() }
   }
 
+  const subscriptionModelEntry =
+    offerSubscriptionModel && renderRegenerateModelPicker ? (
+      // React bubbles the picker's portal clicks through the card; keep them from opening the detail.
+      <span className="contents" onClick={(event) => event.stopPropagation()}>
+        {renderRegenerateModelPicker({
+          message,
+          messageParts,
+          providerId: CHERRY_CLOUD_PROVIDER_ID,
+          trigger: (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto min-h-0 cursor-pointer rounded-sm px-0 text-link shadow-none hover:no-underline">
+              {t('error.notice.switch_to_subscription_model')}
+            </Button>
+          )
+        })}
+      </span>
+    ) : undefined
+
   return (
     <ErrorNotice
       className="my-2"
@@ -292,6 +338,7 @@ const MessageErrorInfo: React.FC<{
       title={title}
       info={info}
       action={action}
+      extra={subscriptionModelEntry}
       onOpenDetail={openErrorDetail ? showErrorDetail : undefined}
       onDismiss={removeMessageErrorPart ? onRemoveErrorPart : undefined}
     />

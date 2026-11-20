@@ -1688,6 +1688,7 @@
   "error.notice.server.title": "제공자를 일시적으로 사용할 수 없습니다",
   "error.notice.stream.info": "응답을 받는 도중 연결이 끊어졌습니다. 네트워크가 안정적인지 확인한 후 다시 시도하세요.",
   "error.notice.stream.title": "응답이 중단되었습니다",
+  "error.notice.switch_to_subscription_model": "구독 모델 사용",
   "error.notice.unknown.original": "원문: {{message}}",
   "error.notice.unknown.summarizing": "무엇이 잘못되었는지 정리하는 중…",
   "error.ocr_detail_empty": "OCR을 실행했지만 이미지에서 읽을 수 있는 텍스트를 찾지 못했습니다. 이미지에 텍스트가 있다면 설정 → 파일 처리에서 OCR 처리기 구성(예: 언어 설정)을 확인하거나 처리기를 변경하세요.",

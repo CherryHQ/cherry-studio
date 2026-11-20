@@ -463,6 +463,26 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(filter?.({ capabilities: [] })).toBe(true)
   })
 
+  it('limits the regenerate model picker to the requested provider', () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    render(
+      <>
+        {value?.actions.renderRegenerateModelPicker?.({
+          message: { id: 'message-a' } as any,
+          messageParts: [],
+          trigger: <button type="button">pick model</button>,
+          providerId: 'cherryai-subscription'
+        })}
+      </>
+    )
+
+    const filter = modelSelectorMock.props.at(-1)?.filter
+    expect(filter?.({ providerId: 'openai', capabilities: [] })).toBe(false)
+    expect(filter?.({ providerId: 'cherryai-subscription', capabilities: [] })).toBe(true)
+  })
+
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
     const request = requestTopicImageAction('copy', createTopic('topic-a'), { emit: false })
     let value: MessageListProviderValue | undefined
