@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -249,8 +249,8 @@ describe('evaluateTaskGuard', () => {
 
 describe('resolveAgentGuardPath', () => {
   it('resolves relative and absolute paths inside the workspace', () => {
-    expect(resolveAgentGuardPath('/ws', 'a/b.txt')).toBe('/ws/a/b.txt')
-    expect(resolveAgentGuardPath('/ws', '/ws/a.txt')).toBe('/ws/a.txt')
+    expect(resolveAgentGuardPath('/ws', 'a/b.txt')).toBe(resolve('/ws', 'a/b.txt'))
+    expect(resolveAgentGuardPath('/ws', '/ws/a.txt')).toBe(resolve('/ws', 'a.txt'))
   })
 
   it.each(['/etc/passwd', '../x', 'a/../../x', '/ws', '', '\\\\host\\share', '//host/share/x', '\\\\?\\C:\\x'])(
