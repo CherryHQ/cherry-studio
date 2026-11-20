@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "このミニアプリを閉じ、6つの地域すべてのログインデータを消去します。既定の環境のログインデータは保持します。",
   "miniApp.region.clear_data_title": "地域別のログインデータを消去しますか？",
   "miniApp.region.cleared": "地域別のログインデータを消去しました。",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "{{country}}を使用",
   "miniApp.region.failed": "地域のエミュレーションが停止しました。このミニアプリを開き直してください。問題が続く場合は、アプリのログを確認してください。",
   "miniApp.region.menu": "環境 · {{mode}}",

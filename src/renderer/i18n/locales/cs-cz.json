@@ -2934,7 +2934,6 @@
   "miniApp.region.clear_data_description": "Tímto se tato mini aplikace zavře a vymažou se její přihlašovací údaje pro všech šest regionů. Výchozí přihlašovací údaje zůstanou zachovány.",
   "miniApp.region.clear_data_title": "Vymazat regionální přihlašovací údaje?",
   "miniApp.region.cleared": "Regionální přihlašovací údaje byly vymazány.",
-  "miniApp.region.disable": "Výchozí",
   "miniApp.region.enable": "Použít {{country}}",
   "miniApp.region.failed": "Regionální emulace byla zastavena. Znovu otevřete tuto mini aplikaci. Pokud problém přetrvává, zkontrolujte protokoly aplikace.",
   "miniApp.region.menu": "Prostředí · {{mode}}",

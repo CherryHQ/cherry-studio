@@ -1,4 +1,8 @@
 import { EventEmitter } from 'node:events'
+import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempDisposable } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
@@ -16,12 +20,16 @@ import { IpcRouter } from '@main/ipc/IpcRouter'
 import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MINI_APP_REGIONS } from '@shared/types/miniAppRegion'
-import { getMiniAppRegionPartition } from '@shared/utils/miniAppRegion'
 
 import { RegionalSessionRegistry } from '../RegionalSessionRegistry'
+import { getMiniAppRegionPartition, getRegionalPartitionDirectory } from '../regionalSessionStorage'
 
-type TestSession = Electron.Session & { cookie: string | null; httpCache: string | null; codeCache: string | null }
+type TestSession = Electron.Session & {
+  cookie: string | null
+  httpCache: string | null
+  codeCache: string | null
+  httpAuth: string | null
+}
 
 describe('regional session ownership and data removal', () => {
   const dbh = setupTestDatabase()
@@ -30,8 +38,11 @@ describe('regional session ownership and data removal', () => {
   let sessions: Map<string, TestSession>
   let registerSession: ReturnType<typeof vi.fn>
   let unregisterSession: ReturnType<typeof vi.fn>
+  let disk: Awaited<ReturnType<typeof mkdtempDisposable>>
+  const partitionPath = (partition: string) =>
+    path.join(disk.path, 'Partitions', getRegionalPartitionDirectory(partition))
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.mocked(application.get('DbService').withWriteTx).mockImplementation((fn) => dbh.db.transaction(fn))
     MockMainPreferenceServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
@@ -66,22 +77,32 @@ describe('regional session ownership and data removal', () => {
       return host ? ({ webContents: host, isDestroyed: () => false } as Electron.BrowserWindow) : undefined
     })
     sessions = new Map()
+    disk = await mkdtempDisposable(path.join(tmpdir(), 'cherry-regional-test-'))
+    vi.mocked(application.getPath).mockImplementation((key, leaf) => {
+      if (key === 'app.session') return path.join(disk.path, leaf ?? '')
+      return path.resolve('/mock', key, leaf ?? '')
+    })
     vi.mocked(session.fromPartition).mockImplementation((partition) => {
       if (!sessions.has(partition)) {
+        const storagePath = partitionPath(partition)
+        mkdirSync(storagePath, { recursive: true })
         const current = {
+          storagePath,
           cookie: partition as string | null,
           httpCache: partition as string | null,
           codeCache: partition as string | null,
+          httpAuth: partition as string | null,
           webRequest: { onBeforeRequest: vi.fn() },
           closeAllConnections: vi.fn(async () => {}),
-          clearStorageData: vi.fn(async () => {
+          clearData: vi.fn(async () => {
             current.cookie = null
-          }),
-          clearCache: vi.fn(async () => {
             current.httpCache = null
           }),
           clearCodeCaches: vi.fn(async () => {
             current.codeCache = null
+          }),
+          clearAuthCache: vi.fn(async () => {
+            current.httpAuth = null
           })
         }
         sessions.set(partition, current as unknown as TestSession)
@@ -104,8 +125,12 @@ describe('regional session ownership and data removal', () => {
   })
 
   afterEach(async () => {
-    await registry.dispose()
-    MockMainPreferenceServiceUtils.resetMocks()
+    try {
+      await registry.dispose()
+    } finally {
+      await disk.remove()
+      MockMainPreferenceServiceUtils.resetMocks()
+    }
   })
 
   it('opens a saved website with a long catalog ID in the default session through IPC', async () => {
@@ -124,11 +149,129 @@ describe('regional session ownership and data removal', () => {
     expect(sessions.size).toBe(0)
   })
 
+  it('allows a regional session for the same parsed HTTPS form accepted by the catalog', async () => {
+    const appId = 'parsed-site'
+    await miniAppHandlers['/mini-apps'].POST({
+      body: { appId, name: 'Parsed site', url: 'https:example.test' }
+    })
+    expect(miniAppService.getByAppId(appId).url).toBe('https:example.test')
+    await registry.setCountry(appId, 'JP', 'one')
+    await expect(registry.prepare(appId, 'one')).resolves.toMatchObject({ fake: true })
+  })
+
+  it('retains the country of a legacy ID named __proto__', async () => {
+    const appId = '__proto__'
+    await miniAppHandlers['/mini-apps'].POST({
+      body: { appId, name: 'Legacy site', url: 'https://legacy.example' }
+    })
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'feature.mini_app.us_environment_app_ids': [appId],
+      'feature.mini_app.fake_environment.country': 'FR'
+    })
+    await registry.resume()
+
+    const selections = application.get('PreferenceService').get('feature.mini_app.region_profiles')
+    expect(Object.hasOwn(selections, appId)).toBe(true)
+    expect(selections[appId]).toBe('FR')
+    expect(application.get('PreferenceService').get('feature.mini_app.us_environment_app_ids')).toEqual([])
+    await expect(registry.prepare(appId, 'one')).resolves.toMatchObject({
+      partition: getMiniAppRegionPartition(appId, 'FR'),
+      fake: true
+    })
+  })
+
+  it('keeps case-distinct IDs separate and does not open an aliased legacy partition', async () => {
+    await miniAppHandlers['/mini-apps'].POST({
+      body: { appId: 'Alpha', name: 'Another site', url: 'https://alpha.example' }
+    })
+    await registry.setCountry('Alpha', 'JP', 'two')
+    const alpha = await registry.prepare('alpha', 'one')
+    const other = await registry.prepare('Alpha', 'two')
+    const legacy = 'persist:webview-fake:jp:alpha'
+    mkdirSync(partitionPath(legacy), { recursive: true })
+
+    expect(partitionPath(alpha.partition)).not.toBe(partitionPath(other.partition))
+    await registry.clearData('alpha', 'one')
+
+    expect(sessions.get(alpha.partition)?.cookie).toBeNull()
+    expect(sessions.get(other.partition)?.cookie).toBe(other.partition)
+    expect(sessions.has(legacy)).toBe(false)
+    expect(registry.isPrepared(other.partition, hosts.get('two')!.id)).toBe(true)
+  })
+
+  it('deletes a never-regional website without creating sessions and clears a stored legacy partition', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', false)
+    await registry.removeApp('beta', 'one')
+    expect(sessions.size).toBe(0)
+
+    const legacy = 'persist:webview-fake:jp:alpha'
+    mkdirSync(partitionPath(legacy), { recursive: true })
+    await registry.removeApp('alpha', 'one')
+
+    expect([...sessions.keys()]).toEqual([legacy])
+    expect(sessions.get(legacy)).toMatchObject({ cookie: null, httpCache: null, httpAuth: null })
+  })
+
+  it('retains the catalog row and recovery block across restart when IndexedDB files remain', async () => {
+    const { partition } = await registry.prepare('alpha', 'one')
+    const indexedDb = path.join(partitionPath(partition), 'IndexedDB')
+    mkdirSync(indexedDb, { recursive: true })
+    const file = path.join(indexedDb, 'retained.sqlite')
+    writeFileSync(file, 'test data')
+
+    await expect(registry.removeApp('alpha', 'one')).rejects.toThrow('IndexedDB')
+    expect(miniAppService.getByAppId('alpha').appId).toBe('alpha')
+
+    registry = new RegionalSessionRegistry(() => () => {})
+    await registry.resume()
+    await expect(registry.prepare('alpha', 'two')).rejects.toThrow('unavailable')
+    await expect(registry.setCountry('alpha', 'DE', 'two')).rejects.toThrow('unavailable')
+
+    unlinkSync(file)
+    await registry.clearData('alpha', 'two')
+    registry = new RegionalSessionRegistry(() => () => {})
+    await registry.resume()
+    await expect(registry.prepare('alpha', 'two')).resolves.toMatchObject({ partition })
+  })
+
+  it.each([false, true])('waits for and reports a pending teardown (already revoking: %s)', async (alreadyRevoking) => {
+    await registry.prepare('alpha', 'one')
+    const started = Promise.withResolvers<void>()
+    const pending = Promise.withResolvers<void>()
+    unregisterSession.mockImplementationOnce(() => {
+      started.resolve()
+      return pending.promise
+    })
+    const unsubscribe = application.get('PreferenceService').subscribeChange('feature.mini_app.region_profiles', () => {
+      void registry.revokeInactive().catch(() => {})
+    })
+    if (alreadyRevoking) {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', false)
+      void registry.revokeInactive().catch(() => {})
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', true)
+    }
+    const settled = vi.fn()
+    const updating = registry.setCountry('alpha', 'DE', 'one').then(settled, settled)
+    const failure = new Error('retirement failed')
+
+    try {
+      await started.promise
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(settled).not.toHaveBeenCalled()
+    } finally {
+      pending.reject(failure)
+      await updating
+      unsubscribe()
+      await registry.clearData('alpha', 'one')
+    }
+    expect(settled).toHaveBeenCalledWith(failure)
+  })
+
   it('keeps different countries and admits only the host that prepared the app', async () => {
     const alpha = await registry.prepare('alpha', 'one')
     const beta = await registry.prepare('beta', 'two')
-    expect(alpha.partition).toBe('persist:webview-fake:JP:alpha')
-    expect(beta.partition).toBe('persist:webview-us:beta')
+    expect(alpha.partition).toBe(getMiniAppRegionPartition('alpha', 'JP'))
+    expect(beta.partition).toBe(getMiniAppRegionPartition('beta', 'US'))
     expect(registry.isPrepared(alpha.partition, hosts.get('one')!.id)).toBe(true)
     expect(registry.isPrepared(alpha.partition, hosts.get('two')!.id)).toBe(false)
     await expect(registry.prepare('alpha', null)).rejects.toThrow()
@@ -215,7 +358,7 @@ describe('regional session ownership and data removal', () => {
       beta: null
     })
     const alpha = await registry.prepare('alpha', 'one')
-    expect(alpha.partition).toBe('persist:webview-fake:FR:alpha')
+    expect(alpha.partition).toBe(getMiniAppRegionPartition('alpha', 'FR'))
     expect(await registry.prepare('beta', 'two')).toMatchObject({ partition: 'persist:webview', fake: false })
   })
 
@@ -291,11 +434,12 @@ describe('regional session ownership and data removal', () => {
       body: { url: 'file:///C:/mini-app/index.html' }
     })
     let finish!: () => void
-    vi.mocked(oldCountry.clearStorageData).mockImplementationOnce(
+    vi.mocked(oldCountry.clearData).mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           finish = () => {
             oldCountry.cookie = null
+            oldCountry.httpCache = null
             resolve()
           }
         })
@@ -321,11 +465,13 @@ describe('regional session ownership and data removal', () => {
       { endpoint: '/mini-apps', kind: 'membership' }
     ])
 
-    for (const country of Object.keys(MINI_APP_REGIONS) as Array<keyof typeof MINI_APP_REGIONS>) {
-      expect(sessions.get(getMiniAppRegionPartition('alpha', country))).toMatchObject({
+    expect(sessions.size).toBe(2)
+    for (const siteSession of sessions.values()) {
+      expect(siteSession).toMatchObject({
         cookie: null,
         httpCache: null,
-        codeCache: null
+        codeCache: null,
+        httpAuth: null
       })
     }
     await expect(miniAppHandlers['/mini-apps/:appId'].GET({ params: { appId: 'alpha' } })).rejects.toMatchObject({
@@ -399,7 +545,7 @@ describe('regional session ownership and data removal', () => {
         body: { url: 'file:///C:/mini-app/index.html' }
       })
     if (editFirst) await edit()
-    vi.mocked(previous.clearCache).mockRejectedValueOnce(new Error('disk failure'))
+    vi.mocked(previous.clearData).mockRejectedValueOnce(new Error('disk failure'))
     await expect(registry.clearData('alpha', 'one')).rejects.toThrow('disk failure')
     if (!editFirst) await edit()
 
@@ -408,13 +554,14 @@ describe('regional session ownership and data removal', () => {
     await expect(registry.prepare('alpha', 'one')).rejects.toThrow('unavailable')
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.mini_app.fake_environment.enabled', false)
     await expect(registry.prepare('alpha', 'two')).rejects.toThrow('unavailable')
-    vi.mocked(previous.clearCache).mockRejectedValueOnce(new Error('retry failure'))
+    vi.mocked(previous.clearData).mockRejectedValueOnce(new Error('retry failure'))
     await expect(registry.clearData('alpha', 'one')).rejects.toThrow('retry failure')
     await expect(registry.prepare('alpha', 'two')).rejects.toThrow('unavailable')
 
     await registry.clearData('alpha', 'one')
-    for (const country of Object.keys(MINI_APP_REGIONS) as Array<keyof typeof MINI_APP_REGIONS>) {
-      expect(sessions.get(getMiniAppRegionPartition('alpha', country))).toMatchObject({
+    expect(sessions.size).toBe(3)
+    for (const siteSession of [sessions.get(alpha.partition), previous]) {
+      expect(siteSession).toMatchObject({
         cookie: null,
         httpCache: null,
         codeCache: null
@@ -464,12 +611,12 @@ describe('regional session ownership and data removal', () => {
     expect(registry.isPrepared(getMiniAppRegionPartition('alpha', 'JP'), hosts.get('one')!.id)).toBe(false)
   })
 
-  it('blocks preparation during data reset and clears every country without touching the default session', async () => {
+  it('blocks preparation during data reset and clears stored countries without touching the default session', async () => {
     const alpha = await registry.prepare('alpha', 'one')
     session.fromPartition('persist:webview')
     const previous = session.fromPartition(getMiniAppRegionPartition('alpha', 'FR'))
     let finish!: () => void
-    vi.mocked(previous.clearStorageData).mockImplementationOnce(
+    vi.mocked(previous.clearData).mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           finish = resolve
@@ -489,11 +636,11 @@ describe('regional session ownership and data removal', () => {
   })
 
   it.each([
-    ['JP', 'clearStorageData'],
-    ['JP', 'clearCache'],
+    ['JP', 'clearData'],
+    ['JP', 'clearAuthCache'],
     ['JP', 'clearCodeCaches'],
-    ['FR', 'clearStorageData'],
-    ['FR', 'clearCache'],
+    ['FR', 'clearData'],
+    ['FR', 'clearAuthCache'],
     ['FR', 'clearCodeCaches']
   ] as const)('blocks the app after %s %s fails until an explicit successful reset', async (country, method) => {
     const alpha = await registry.prepare('alpha', 'one')
@@ -525,8 +672,9 @@ describe('regional session ownership and data removal', () => {
     await expect(registry.prepare('alpha', 'two')).rejects.toThrow()
     await registry.clearData('alpha', 'one')
 
-    for (const current of Object.keys(MINI_APP_REGIONS) as Array<keyof typeof MINI_APP_REGIONS>) {
-      expect(sessions.get(getMiniAppRegionPartition('alpha', current))).toMatchObject({
+    expect(sessions.size).toBe(country === 'JP' ? 2 : 3)
+    for (const siteSession of new Set([sessions.get(alpha.partition), failing])) {
+      expect(siteSession).toMatchObject({
         cookie: null,
         httpCache: null,
         codeCache: null
@@ -738,7 +886,7 @@ describe('regional session ownership and data removal', () => {
     const sessionToClear = session.fromPartition(getMiniAppRegionPartition('alpha', 'FR'))
     const started = Promise.withResolvers<void>()
     const finish = Promise.withResolvers<void>()
-    vi.mocked(sessionToClear.clearStorageData).mockImplementationOnce(async () => {
+    vi.mocked(sessionToClear.clearData).mockImplementationOnce(async () => {
       started.resolve()
       await finish.promise
     })

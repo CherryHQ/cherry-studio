@@ -9,7 +9,8 @@ import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
 import type { MiniAppCountry, MiniAppRegionProfile } from '@shared/types/miniAppRegion'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { isMiniAppRegionPartition } from '@shared/utils/miniAppRegion'
+import { getWebviewPartition, hasMatchingWebviewSession, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
 import { exportAnnotationDocument } from './annotationExport'
@@ -47,14 +48,14 @@ interface ExportAnnotationsInput {
  * (`persist:miniapp:*`) carries its own deny-all popup policy, and
  * `setWindowOpenHandler` replaces whatever was installed before it.
  */
-function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean, keepInApp = false) {
+function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean) {
   webview.setWindowOpenHandler(({ url, disposition }) => {
     // Keep popup windows in the guest session so auth cookies and opener callbacks survive.
     if (disposition === 'new-window' && (url.startsWith('http:') || url.startsWith('https:'))) {
       return { action: 'allow' }
     }
 
-    if (isExternal || (!keepInApp && application.get('PreferenceService').get('app.browser.open_links_in_browser'))) {
+    if (isExternal || application.get('PreferenceService').get('app.browser.open_links_in_browser')) {
       if (isSafeExternalUrl(url)) {
         void application
           .get('MainWindowService')
@@ -317,9 +318,9 @@ export class WebviewService extends BaseService {
     if (this.preloadBindings.has(contents)) return
 
     const preloadPath = application.getPath('feature.webview.preload_file')
-    if (!existsSync(preloadPath)) {
+    const preloadAvailable = existsSync(preloadPath)
+    if (!preloadAvailable) {
       logger.error(`Webview preload is missing, annotations and host shortcuts will not work: ${preloadPath}`)
-      return
     }
 
     const handler = (
@@ -327,22 +328,29 @@ export class WebviewService extends BaseService {
       webPreferences: Electron.WebPreferences,
       params: { partition?: string; src?: string }
     ) => {
+      if (!hasMatchingWebviewSession(webPreferences, params.partition)) {
+        event.preventDefault()
+        return
+      }
+      const partition = webPreferences.partition
       // Local mini apps own a separate capability bridge and sandbox policy. Electron has
       // one preload slot, so writing here would silently replace that bridge.
-      if (params.partition !== WEBVIEW_PARTITION) {
-        if (!this.isPreparedRegionalPartition(params.partition, contents.id, params.src)) {
-          if (/^persist:webview-(?:us|fake):/.test(params.partition ?? '')) event.preventDefault()
+      if (partition !== WEBVIEW_PARTITION) {
+        if (!isMiniAppRegionPartition(partition)) return
+        if (!this.isPreparedRegionalPartition(partition, contents.id, params.src)) {
+          event.preventDefault()
           return
         }
       }
-      webPreferences.preload = preloadPath
+      if (preloadAvailable) webPreferences.preload = preloadPath
+      else delete webPreferences.preload
       webPreferences.nodeIntegration = false
       webPreferences.nodeIntegrationInSubFrames = false
       webPreferences.contextIsolation = true
       webPreferences.sandbox = true
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
-      const regional = params.partition && this.regionalSessions.get(session.fromPartition(params.partition))
+      const regional = partition && this.regionalSessions.get(session.fromPartition(partition))
       if (regional) {
         // Shared workers inherit the renderer language rather than page CDP overrides.
         webPreferences.additionalArguments = [
@@ -462,7 +470,7 @@ export class WebviewService extends BaseService {
 
   setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {
     const webview = this.findOwnedSiteWebview(webviewId, senderId)
-    if (webview) configureOpenLinkExternal(webview, isExternal, this.regionalSessions.has(webview.session))
+    if (webview) configureOpenLinkExternal(webview, isExternal)
   }
 
   /**

@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Cette mini-application sera fermée et ses données de connexion des six régions seront effacées. Les données de l’environnement par défaut seront conservées.",
   "miniApp.region.clear_data_title": "Effacer les données de connexion régionales ?",
   "miniApp.region.cleared": "Données de connexion régionales effacées.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Utiliser {{country}}",
   "miniApp.region.failed": "La simulation régionale s’est arrêtée. Rouvrez cette mini-application. Si le problème persiste, consultez les journaux de l’application.",
   "miniApp.region.menu": "Environnement · {{mode}}",

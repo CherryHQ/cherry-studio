@@ -31,7 +31,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
 import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
@@ -373,23 +373,6 @@ describe('WebviewContainer partition readiness', () => {
     expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId })
   })
 
-  it('prepares a new guest and releases the old lease when its regional session is invalidated', async () => {
-    const leases = ['00000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-000000000012']
-    let prepared = 0
-    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
-      route === 'webview.region.prepare'
-        ? { partition: 'persist:webview-us:chatgpt', fake: true, leaseId: leases[prepared++] }
-        : undefined
-    )
-    const container = renderWebview({ kind: 'site' })
-    const old = await webviewIn(container)
-    const invalidate = vi.mocked(useIpcOn).mock.calls.find(([name]) => name === 'webview.region.invalidated')![1]
-    await act(async () => invalidate({ appId: 'chatgpt' }))
-    const current = await webviewIn(container)
-    expect(current).not.toBe(old)
-    expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId: leases[0] })
-    expect(prepared).toBe(2)
-  })
   it('releases a regional preparation that finishes after its host component unmounts', async () => {
     const leaseId = '00000000-0000-4000-8000-000000000001'
     let finish!: (value: unknown) => void

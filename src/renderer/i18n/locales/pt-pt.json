@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Esta miniaplicação será fechada e os seus dados de início de sessão das seis regiões serão eliminados. Os dados do ambiente predefinido serão mantidos.",
   "miniApp.region.clear_data_title": "Limpar os dados de início de sessão regionais?",
   "miniApp.region.cleared": "Dados de início de sessão regionais eliminados.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Usar {{country}}",
   "miniApp.region.failed": "A simulação regional foi interrompida. Volte a abrir esta miniaplicação. Se o problema persistir, consulte os registos da aplicação.",
   "miniApp.region.menu": "Ambiente · {{mode}}",

@@ -11,11 +11,11 @@ import { BaseService } from '@main/core/lifecycle'
 import { BrowserSessionService } from '@main/features/browser'
 import { createGuest } from '@main/features/browser/__tests__/guestFixture'
 import { webviewHandlers } from '@main/ipc/handlers/webview'
-import { getMiniAppRegionPartition } from '@shared/utils/miniAppRegion'
 
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US', t: (key: string) => key }))
 
 import { AnnotationSession } from '../AnnotationSession'
+import { getMiniAppRegionPartition } from '../regionalSessionStorage'
 import { WebviewService } from '../WebviewService'
 
 const NATIVE_UA = 'CherryStudio/1.0 Electron/1.0 Browser/1.0'

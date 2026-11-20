@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Diese MiniApp wird geschlossen und ihre Anmeldedaten für alle sechs Regionen werden gelöscht. Die Anmeldedaten der Standardumgebung bleiben erhalten.",
   "miniApp.region.clear_data_title": "Regionale Anmeldedaten löschen?",
   "miniApp.region.cleared": "Regionale Anmeldedaten gelöscht.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "{{country}} verwenden",
   "miniApp.region.failed": "Die Regionssimulation wurde beendet. Öffne diese Mini-App erneut. Wenn das Problem weiterhin besteht, prüfe die Anwendungsprotokolle.",
   "miniApp.region.menu": "Umgebung · {{mode}}",

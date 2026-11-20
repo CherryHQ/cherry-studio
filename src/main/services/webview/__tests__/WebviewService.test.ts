@@ -482,7 +482,7 @@ describe('WebviewService webview ownership', () => {
       vi.spyOn(service, 'isPreparedRegionalPartition').mockReturnValue(true)
       internals.regionalSessions.set(localSession, { profile })
       internals.attachWebviewPreload(hostContents as unknown as Electron.WebContents)
-      const preferences: Electron.WebPreferences = { additionalArguments: ['--existing-option'] }
+      const preferences: Electron.WebPreferences = { partition, additionalArguments: ['--existing-option'] }
       hostContents.emit('will-attach-webview', {}, preferences, { partition })
       expect(preferences.additionalArguments).toEqual(['--existing-option', `--lang=${profile.locale}`])
     }
@@ -494,7 +494,7 @@ describe('WebviewService webview ownership', () => {
       hostContents as unknown as Electron.WebContents
     )
     for (const partition of ['persist:webview', 'persist:miniapp:local']) {
-      const preferences: Electron.WebPreferences = { additionalArguments: ['--existing-option'] }
+      const preferences: Electron.WebPreferences = { partition, additionalArguments: ['--existing-option'] }
       hostContents.emit('will-attach-webview', {}, preferences, { partition })
       expect(preferences.additionalArguments).toEqual(['--existing-option'])
     }
@@ -643,28 +643,40 @@ describe('WebviewService webview ownership', () => {
     expect(destroyedGuest.setWindowOpenHandler).not.toHaveBeenCalled()
   })
 
-  it('preserves explicit external intent when global internal browsing is enabled', async () => {
+  it.each(['default', 'regional'] as const)('routes tabs and keeps new-window popups for a %s site', async (kind) => {
     await application.get('PreferenceService').set('app.browser.open_links_in_browser', true)
     try {
       const guest = createContents(7, host)
+      if (kind === 'regional') {
+        guest.session = {}
+        const internals = service as unknown as {
+          regionalSessions: Map<object, { profile: MiniAppRegionProfile }>
+        }
+        internals.regionalSessions.set(guest.session, { profile: MINI_APP_REGIONS.JP })
+      }
       guestById.set(7, guest)
       service.setOpenLinkExternal(7, true, 'owner')
       const external = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(external({ url: 'https://accounts.google.com', disposition: 'new-window' })).toEqual({
-        action: 'allow'
-      })
-      expect(application.get('MainWindowService').openWebsite).not.toHaveBeenCalled()
-      expect(external({ url: 'https://example.com', disposition: 'foreground-tab' })).toEqual({ action: 'deny' })
-      expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', true)
-      expect(external({ url: 'javascript:alert(1)', disposition: 'new-window' })).toEqual({ action: 'deny' })
+      const popup = { url: 'https://sign-in.example.test/', disposition: 'new-window' }
+      const foreground = { url: 'https://example.test/foreground', disposition: 'foreground-tab' }
+      const background = { url: 'https://example.test/background', disposition: 'background-tab' }
+      const openWebsite = application.get('MainWindowService').openWebsite
+      expect(external(popup)).toEqual({ action: 'allow' })
+      expect(external({ url: 'file:///example.txt', disposition: 'new-window' })).toEqual({ action: 'deny' })
+      expect(openWebsite).not.toHaveBeenCalled()
+      expect(external(foreground)).toEqual({ action: 'deny' })
+      expect(openWebsite).toHaveBeenLastCalledWith(foreground.url, true)
+      expect(external(background)).toEqual({ action: 'deny' })
+      expect(openWebsite).toHaveBeenLastCalledWith(background.url, true)
 
       service.setOpenLinkExternal(7, false, 'owner')
       const automatic = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(automatic({ url: 'https://accounts.google.com', disposition: 'new-window' })).toEqual({
-        action: 'allow'
-      })
-      expect(automatic({ url: 'https://example.com', disposition: 'foreground-tab' })).toEqual({ action: 'deny' })
-      expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', false)
+      expect(automatic(popup)).toEqual({ action: 'allow' })
+      expect(openWebsite).toHaveBeenCalledTimes(2)
+      expect(automatic(foreground)).toEqual({ action: 'deny' })
+      expect(openWebsite).toHaveBeenLastCalledWith(foreground.url, false)
+      expect(automatic(background)).toEqual({ action: 'deny' })
+      expect(openWebsite).toHaveBeenLastCalledWith(background.url, false)
     } finally {
       await application.get('PreferenceService').set('app.browser.open_links_in_browser', false)
     }

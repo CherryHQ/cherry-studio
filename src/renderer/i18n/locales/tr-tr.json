@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Bu mini uygulama kapanır ve altı bölgenin tüm oturum açma verileri silinir. Varsayılan ortamın verileri korunur.",
   "miniApp.region.clear_data_title": "Bölgesel oturum açma verileri temizlensin mi?",
   "miniApp.region.cleared": "Bölgesel oturum açma verileri temizlendi.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "{{country}} kullan",
   "miniApp.region.failed": "Bölge emülasyonu durdu. Bu mini uygulamayı yeniden açın. Sorun devam ederse uygulama günlüklerini kontrol edin.",
   "miniApp.region.menu": "Ortam · {{mode}}",

@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Tiện ích này sẽ đóng và dữ liệu đăng nhập của cả sáu khu vực sẽ bị xóa. Dữ liệu của môi trường mặc định được giữ lại.",
   "miniApp.region.clear_data_title": "Xóa dữ liệu đăng nhập theo khu vực?",
   "miniApp.region.cleared": "Đã xóa dữ liệu đăng nhập theo khu vực.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Dùng {{country}}",
   "miniApp.region.failed": "Mô phỏng khu vực đã dừng. Hãy mở lại ứng dụng nhỏ này. Nếu sự cố vẫn tiếp diễn, hãy kiểm tra nhật ký ứng dụng.",
   "miniApp.region.menu": "Môi trường · {{mode}}",

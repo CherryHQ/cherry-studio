@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Se cerrará esta miniaplicación y se borrarán sus datos de inicio de sesión de las seis regiones. Se conservarán los datos del entorno predeterminado.",
   "miniApp.region.clear_data_title": "¿Borrar los datos de inicio de sesión regionales?",
   "miniApp.region.cleared": "Datos de inicio de sesión regionales borrados.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Usar {{country}}",
   "miniApp.region.failed": "La simulación regional se ha detenido. Vuelve a abrir esta miniaplicación. Si el problema persiste, revisa los registros de la aplicación.",
   "miniApp.region.menu": "Entorno · {{mode}}",

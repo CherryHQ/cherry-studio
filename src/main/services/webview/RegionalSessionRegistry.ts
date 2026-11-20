@@ -7,7 +7,13 @@ import { miniAppService } from '@data/services/MiniAppService'
 import { loggerService } from '@logger'
 import type { WindowId } from '@shared/ipc/types'
 import { MINI_APP_REGIONS, type MiniAppCountry, type MiniAppRegionProfile } from '@shared/types/miniAppRegion'
-import { getMiniAppRegionPartition, isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
+import { isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
+
+import {
+  findStoredRegionalPartitions,
+  getMiniAppRegionPartition,
+  verifyRegionalIndexedDbCleared
+} from './regionalSessionStorage'
 
 const logger = loggerService.withContext('RegionalSessionRegistry')
 
@@ -108,12 +114,35 @@ export class RegionalSessionRegistry {
     return [...this.retirements.values()].filter((retirement) => retirement.appId === appId)
   }
 
+  private appTeardowns(appId: string): Promise<void>[] {
+    return [
+      ...this.appRetirements(appId).map(({ done }) => done),
+      ...[...this.hostCleanups].filter(([, owner]) => owner === appId).map(([task]) => task)
+    ]
+  }
+
+  private isCleanupBlocked(appId: string): boolean {
+    return (
+      this.cleanupBlockedApps.has(appId) ||
+      application.get('PreferenceService').get('feature.mini_app.region_recovery_required_app_ids').includes(appId)
+    )
+  }
+
+  private async persistRecoveryRequirement(appId: string, required: boolean): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    const key = 'feature.mini_app.region_recovery_required_app_ids'
+    const blocked = preferences.get(key)
+    if (required !== blocked.includes(appId)) {
+      await preferences.set(key, required ? [...blocked, appId] : blocked.filter((id) => id !== appId))
+    }
+  }
+
   setCountry(appId: string, country: MiniAppCountry | null, senderId: WindowId | null): Promise<void> {
     const write = this.selectionQueue.then(async () => {
       this.requireHost(senderId)
       if (country) this.requireRegionalSite(appId)
       else this.requireSite(appId)
-      if ((country && this.cleanupBlockedApps.has(appId)) || this.suspended)
+      if ((country && this.isCleanupBlocked(appId)) || this.suspended)
         throw new Error('Regional session is unavailable')
       const preferences = application.get('PreferenceService')
       if (
@@ -122,11 +151,17 @@ export class RegionalSessionRegistry {
           !preferences.get('feature.mini_app.fake_environment.enabled'))
       )
         throw new Error('Regional profiles are disabled')
-      await preferences.set('feature.mini_app.region_profiles', {
+      const existingTeardowns = new Set(this.appTeardowns(appId))
+      const update = preferences.set('feature.mini_app.region_profiles', {
         ...preferences.get('feature.mini_app.region_profiles'),
         [appId]: country
       })
-      await this.revokeInactive()
+      // The main preference subscriber runs synchronously and may already have removed the old leases.
+      const startedTeardowns = this.appTeardowns(appId).filter((task) => !existingTeardowns.has(task))
+      await drainCleanup(
+        [update.then(() => this.revokeInactive()), ...startedTeardowns, ...(country ? existingTeardowns : [])],
+        'Failed to apply the MiniApp country'
+      )
     })
     this.selectionQueue = write.catch(() => {})
     return write
@@ -134,7 +169,7 @@ export class RegionalSessionRegistry {
 
   async prepare(appId: string, senderId: WindowId | null) {
     const host = this.requireHost(senderId)
-    if (this.suspended || this.cleanupBlockedApps.has(appId)) throw new Error('Regional session is unavailable')
+    if (this.suspended || this.isCleanupBlocked(appId)) throw new Error('Regional session is unavailable')
     let pending = this.appRetirements(appId)
     while (pending.length) {
       await drainCleanup(
@@ -143,7 +178,7 @@ export class RegionalSessionRegistry {
       )
       pending = this.appRetirements(appId)
     }
-    if (host.isDestroyed() || this.cleanupBlockedApps.has(appId) || this.suspended) {
+    if (host.isDestroyed() || this.isCleanupBlocked(appId) || this.suspended) {
       throw new Error('Regional preparation was revoked')
     }
     const country = this.country(appId)
@@ -153,7 +188,7 @@ export class RegionalSessionRegistry {
         [...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id)),
         'Failed to retire regional sessions for this MiniApp'
       )
-      if (host.isDestroyed() || this.cleanupBlockedApps.has(appId) || this.suspended) {
+      if (host.isDestroyed() || this.isCleanupBlocked(appId) || this.suspended) {
         throw new Error('Regional preparation was revoked')
       }
       return { partition: 'persist:webview', fake: false, leaseId: null }
@@ -204,7 +239,7 @@ export class RegionalSessionRegistry {
         lease.partition === partition &&
         lease.host.id === hostId &&
         !lease.host.isDestroyed() &&
-        !this.cleanupBlockedApps.has(lease.appId) &&
+        !this.isCleanupBlocked(lease.appId) &&
         this.appRetirements(lease.appId).length === 0 &&
         this.country(lease.appId) === lease.country
       ) {
@@ -314,8 +349,16 @@ export class RegionalSessionRegistry {
     const done = drainCleanup(
       [...this.sessionCleanup(guestSession, regional), Promise.resolve().then(() => this.closeGuests(guestSession))],
       'Failed to retire a regional session'
-    ).catch((error) => {
+    ).catch(async (error) => {
       this.cleanupBlockedApps.add(appId)
+      try {
+        await this.persistRecoveryRequirement(appId, true)
+      } catch (persistenceError) {
+        throw new RegionalCleanupError(
+          [error, persistenceError],
+          'Failed to retire a regional session and record its recovery requirement'
+        )
+      }
       throw error
     })
     const retirement = { appId, done }
@@ -381,7 +424,7 @@ export class RegionalSessionRegistry {
   async clearData(appId: string, senderId: WindowId | null): Promise<void> {
     this.requireHost(senderId)
     this.requireSite(appId)
-    await this.withDataCleared(appId, () => {})
+    await this.withDataCleared(appId, () => this.persistRecoveryRequirement(appId, false))
   }
 
   async removeApp(appId: string, senderId: WindowId | null): Promise<void> {
@@ -400,6 +443,9 @@ export class RegionalSessionRegistry {
           'feature.mini_app.region_profiles': profiles,
           'feature.mini_app.us_environment_app_ids': preferences
             .get('feature.mini_app.us_environment_app_ids')
+            .filter((id) => id !== appId),
+          'feature.mini_app.region_recovery_required_app_ids': preferences
+            .get('feature.mini_app.region_recovery_required_app_ids')
             .filter((id) => id !== appId)
         })
         miniAppService.delete(appId)
@@ -423,20 +469,29 @@ export class RegionalSessionRegistry {
   }
 
   private async clearDataAndRun(appId: string, action: () => void | Promise<void>): Promise<void> {
+    // Persist the barrier before touching data so an interrupted reset is retried after a restart.
+    await this.persistRecoveryRequirement(appId, true)
     await Promise.allSettled([
       ...[...this.leases].filter(([, lease]) => lease.appId === appId).map(([id]) => this.releaseLease(id)),
       ...[...this.hostCleanups].filter(([, ownerAppId]) => ownerAppId === appId).map(([task]) => task)
     ])
-    for (const country of Object.keys(MINI_APP_REGIONS) as MiniAppCountry[]) {
-      const partition = getMiniAppRegionPartition(appId, country)
+    const allowLegacy = !miniAppService
+      .list()
+      .some((app) => app.kind === 'site' && app.appId !== appId && app.appId.toLowerCase() === appId.toLowerCase())
+    const partitions = new Set([
+      ...(await findStoredRegionalPartitions(appId, allowLegacy)),
+      ...[...this.retirements].filter(([, retirement]) => retirement.appId === appId).map(([partition]) => partition)
+    ])
+    for (const partition of partitions) {
       await this.retirements.get(partition)?.done.catch(() => {})
       const guestSession = session.fromPartition(partition)
       guestSession.webRequest.onBeforeRequest((_details, callback) => callback({ cancel: true }))
       await this.closeGuests(guestSession)
       await guestSession.closeAllConnections()
-      await guestSession.clearStorageData()
-      await guestSession.clearCache()
+      await guestSession.clearData()
       await guestSession.clearCodeCaches({ urls: [] })
+      await guestSession.clearAuthCache()
+      await verifyRegionalIndexedDbCleared(guestSession.storagePath)
       this.retirements.delete(partition)
     }
     await action()
@@ -448,10 +503,10 @@ export class RegionalSessionRegistry {
     const preferences = application.get('PreferenceService')
     const legacy = preferences.get('feature.mini_app.us_environment_app_ids')
     if (legacy.length) {
-      const profiles = { ...preferences.get('feature.mini_app.region_profiles') }
-      for (const appId of legacy) {
-        if (!Object.hasOwn(profiles, appId))
-          profiles[appId] = preferences.get('feature.mini_app.fake_environment.country')
+      const legacyCountry = preferences.get('feature.mini_app.fake_environment.country')
+      const profiles = {
+        ...Object.fromEntries(legacy.map((appId) => [appId, legacyCountry])),
+        ...preferences.get('feature.mini_app.region_profiles')
       }
       await preferences.setMultiple({
         'feature.mini_app.region_profiles': profiles,

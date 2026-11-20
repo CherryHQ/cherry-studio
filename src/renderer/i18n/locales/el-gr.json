@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Αυτό το MiniApp θα κλείσει και θα διαγραφούν τα δεδομένα σύνδεσης και για τις έξι περιοχές. Τα δεδομένα του προεπιλεγμένου περιβάλλοντος διατηρούνται.",
   "miniApp.region.clear_data_title": "Διαγραφή δεδομένων σύνδεσης περιοχών;",
   "miniApp.region.cleared": "Τα δεδομένα σύνδεσης περιοχών διαγράφηκαν.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Χρήση: {{country}}",
   "miniApp.region.failed": "Η προσομοίωση περιοχής σταμάτησε. Ανοίξτε ξανά τη μικροεφαρμογή. Αν το πρόβλημα επιμένει, ελέγξτε τα αρχεία καταγραφής της εφαρμογής.",
   "miniApp.region.menu": "Περιβάλλον · {{mode}}",

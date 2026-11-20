@@ -94,7 +94,6 @@ vi.mock('@renderer/components/command', () => {
     id?: string
     label?: string
     enabled?: boolean
-    checked?: boolean
     onSelect?: () => void
     children?: MenuItem[]
   }
@@ -105,12 +104,7 @@ vi.mock('@renderer/components/command', () => {
           {items(item.children)}
         </div>
       ) : item.label ? (
-        <button
-          key={item.id ?? index}
-          type="button"
-          disabled={item.enabled === false}
-          aria-pressed={item.checked}
-          onClick={item.onSelect}>
+        <button key={item.id ?? index} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
           {item.label}
         </button>
       ) : null
@@ -237,7 +231,7 @@ describe('MiniApp launchpad pin menu', () => {
     view.rerender(<MiniApp {...props} app={fileSite} />)
     expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'miniApp.region.clear_data' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'common.default' })).toBeEnabled()
   })
 
   it('selects a country for one mini app while preserving another app’s saved country', async () => {
@@ -254,8 +248,8 @@ describe('MiniApp launchpad pin menu', () => {
         calculator: 'JP'
       })
     )
-    await waitFor(() => expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.region.disable' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.default' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'common.default' }))
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
         'other-app': 'US',
@@ -272,7 +266,7 @@ describe('MiniApp launchpad pin menu', () => {
     expect(
       screen.getByRole('button', { name: 'miniApp.region.enable:settings.developer.fake.countries.JP' })
     ).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'common.default' })).toBeEnabled()
   })
 
   it('keeps reset and default actions available after failed cleanup and an edit to a file URL', async () => {
@@ -302,7 +296,7 @@ describe('MiniApp launchpad pin menu', () => {
     })
     view.rerender(<TestMiniApp app={{ ...calculatorApp, url: 'file:///C:/mini-app/index.html' }} />)
     expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'miniApp.region.disable' }))
+    await user.click(screen.getByRole('button', { name: 'common.default' }))
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
         calculator: null

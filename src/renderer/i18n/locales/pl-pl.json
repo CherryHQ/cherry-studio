@@ -2971,7 +2971,6 @@
   "miniApp.region.clear_data_description": "Ta miniaplikacja zostanie zamknięta, a jej dane logowania dla wszystkich sześciu regionów zostaną usunięte. Dane środowiska domyślnego zostaną zachowane.",
   "miniApp.region.clear_data_title": "Wyczyścić regionalne dane logowania?",
   "miniApp.region.cleared": "Regionalne dane logowania zostały usunięte.",
-  "miniApp.region.disable": "Domyślne",
   "miniApp.region.enable": "Użyj: {{country}}",
   "miniApp.region.failed": "Symulacja środowiska została przerwana. Otwórz ponownie tę miniaplikację. Jeśli problem się powtarza, sprawdź dzienniki aplikacji.",
   "miniApp.region.menu": "Środowisko · {{mode}}",

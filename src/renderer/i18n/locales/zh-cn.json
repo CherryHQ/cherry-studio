@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "将关闭此小程序并清除六个地区的登录数据，默认环境的登录数据会保留。",
   "miniApp.region.clear_data_title": "清除地区登录数据？",
   "miniApp.region.cleared": "地区登录数据已清除。",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "使用{{country}}",
   "miniApp.region.failed": "区域模拟已中断，请重新打开此小程序。若反复出现，请检查应用日志。",
   "miniApp.region.menu": "环境 · {{mode}}",

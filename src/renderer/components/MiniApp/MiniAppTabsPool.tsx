@@ -30,6 +30,7 @@ function MiniAppGuest({
     [key, instance]
   )
   const loaded = useCallback(() => webviewRuntimeService.reportLoaded(key, instance, true), [key, instance])
+  const failed = useCallback(() => webviewRuntimeService.reportFailed(key, instance), [key, instance])
   useEffect(() => {
     if (!element || kind !== 'app') return
     void ipcApi.request('mini_app.runtime.set_visible', { appId: appId, visible }).catch(() => {})
@@ -44,6 +45,7 @@ function MiniAppGuest({
         kind={kind}
         onSetRefCallback={bind}
         onLoadedCallback={loaded}
+        onFailedCallback={failed}
         onFocusChange={onFocusChange}
       />
     </div>

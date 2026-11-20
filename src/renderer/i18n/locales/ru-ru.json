@@ -2935,7 +2935,6 @@
   "miniApp.region.clear_data_description": "Это мини-приложение будет закрыто, а его данные входа для всех шести регионов будут удалены. Данные среды по умолчанию сохранятся.",
   "miniApp.region.clear_data_title": "Очистить региональные данные входа?",
   "miniApp.region.cleared": "Региональные данные входа удалены.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Использовать {{country}}",
   "miniApp.region.failed": "Эмуляция региона остановлена. Откройте мини-приложение заново. Если проблема сохраняется, проверьте журналы приложения.",
   "miniApp.region.menu": "Среда · {{mode}}",

@@ -3,7 +3,8 @@ import { isEqual } from 'es-toolkit/compat'
 
 export interface WebviewSource {
   src: string
-  partition: string
+  /** A session selection change requires a new guest. Main resolves the actual partition. */
+  environment: string
 }
 
 export interface WebviewRequest {
@@ -20,6 +21,7 @@ export interface WebviewResource {
   instance: number
   element: WebviewTag | null
   loaded: boolean
+  failed: boolean
   visible: boolean
   lastAccessTime: number
 }
@@ -46,7 +48,7 @@ export class WebviewRuntimeService {
       const existing = previous.get(demand.key)
       const source = demand.source ?? existing?.source
       if (!source || (!existing && !demand.visible)) continue
-      if (existing && existing.source.partition === source.partition) {
+      if (existing && existing.source.environment === source.environment) {
         next.push(
           isEqual(existing.source, source) &&
             existing.visible === demand.visible &&
@@ -67,6 +69,7 @@ export class WebviewRuntimeService {
           instance: ++this.nextInstance,
           element: null,
           loaded: false,
+          failed: false,
           visible: demand.visible,
           lastAccessTime: demand.lastAccessTime
         })
@@ -95,13 +98,15 @@ export class WebviewRuntimeService {
     if (!current) return
     this.publish(
       this.resources.map((resource) =>
-        resource === current ? { ...resource, instance: ++this.nextInstance, element: null, loaded: false } : resource
+        resource === current
+          ? { ...resource, instance: ++this.nextInstance, element: null, loaded: false, failed: false }
+          : resource
       )
     )
   }
 
   bind(key: string, instance: number, element: WebviewTag | null): void {
-    this.update(key, instance, { element, loaded: false })
+    this.update(key, instance, { element, loaded: false, failed: false })
   }
 
   reportLoaded(key: string, instance: number, loaded: boolean): void {
@@ -110,7 +115,15 @@ export class WebviewRuntimeService {
     this.update(key, instance, { loaded })
   }
 
-  private update(key: string, instance: number, patch: Partial<Pick<WebviewResource, 'element' | 'loaded'>>): void {
+  reportFailed(key: string, instance: number): void {
+    this.update(key, instance, { loaded: false, failed: true })
+  }
+
+  private update(
+    key: string,
+    instance: number,
+    patch: Partial<Pick<WebviewResource, 'element' | 'loaded' | 'failed'>>
+  ): void {
     const current = this.get(key)
     if (
       !current ||

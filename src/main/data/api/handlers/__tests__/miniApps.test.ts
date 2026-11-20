@@ -344,13 +344,21 @@ describe('miniAppHandlers', () => {
   })
 
   describe('DELETE /mini-apps/:appId', () => {
-    it('deletes a website row through the data service alone', async () => {
-      getByAppIdMock.mockReturnValueOnce({ kind: 'site' })
+    it.each([
+      [{ kind: 'site', presetMiniAppId: null }, 'mini_app.delete_site'],
+      [{ kind: 'site', presetMiniAppId: 'preset' }, 'status="disabled"'],
+      [{ kind: 'app', presetMiniAppId: null }, 'mini_app.uninstall']
+    ])('refuses to delete %j through DataApi', async (app, reason) => {
+      getByAppIdMock.mockReturnValueOnce(app)
 
-      await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'custom-app' } })
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'mini-app' } })
+      ).rejects.toMatchObject({
+        code: 'INVALID_OPERATION',
+        message: expect.stringContaining(reason)
+      })
 
-      expect(deleteMock).toHaveBeenCalledWith('custom-app')
-      expect(getByAppIdMock).not.toHaveBeenCalled()
+      expect(deleteMock).not.toHaveBeenCalled()
     })
   })
 })

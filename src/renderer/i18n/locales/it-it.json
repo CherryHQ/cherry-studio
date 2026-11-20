@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "Questa mini app verrà chiusa e i suoi dati di accesso per tutte e sei le regioni verranno cancellati. I dati dell’ambiente predefinito verranno conservati.",
   "miniApp.region.clear_data_title": "Cancellare i dati di accesso regionali?",
   "miniApp.region.cleared": "Dati di accesso regionali cancellati.",
-  "miniApp.region.disable": "Predefinito",
   "miniApp.region.enable": "Usa {{country}}",
   "miniApp.region.failed": "La simulazione regionale si è interrotta. Riapri questa mini app. Se il problema persiste, controlla i registri dell’applicazione.",
   "miniApp.region.menu": "Ambiente · {{mode}}",

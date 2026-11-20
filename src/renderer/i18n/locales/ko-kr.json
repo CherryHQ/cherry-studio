@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "이 미니 앱을 닫고 여섯 지역 모두의 로그인 데이터를 지웁니다. 기본 로그인 데이터는 유지됩니다.",
   "miniApp.region.clear_data_title": "지역별 로그인 데이터를 지우시겠습니까?",
   "miniApp.region.cleared": "지역별 로그인 데이터를 지웠습니다.",
-  "miniApp.region.disable": "기본값",
   "miniApp.region.enable": "{{country}} 사용",
   "miniApp.region.failed": "지역 환경 에뮬레이션이 중지되었습니다. 이 미니 앱을 다시 여세요. 문제가 계속되면 애플리케이션 로그를 확인하세요.",
   "miniApp.region.menu": "환경 · {{mode}}",

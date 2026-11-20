@@ -21,16 +21,19 @@ import { CreateLogoSchema } from './logo'
  * v2 API would refuse to recreate.
  */
 export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
-export const MINI_APP_ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'file:'] as const
+export const MINI_APP_WEB_URL_PROTOCOLS = ['http:', 'https:'] as const
+export const MINI_APP_ALLOWED_URL_PROTOCOLS = [...MINI_APP_WEB_URL_PROTOCOLS, 'file:'] as const
 
 export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
   message: 'url must be a valid http, https, or file URL'
 })
 
-export function isAllowedMiniAppUrl(value: string): boolean {
+export function isAllowedMiniAppUrl(
+  value: string,
+  protocols: readonly string[] = MINI_APP_ALLOWED_URL_PROTOCOLS
+): boolean {
   try {
-    const url = new URL(value)
-    return MINI_APP_ALLOWED_URL_PROTOCOLS.includes(url.protocol as (typeof MINI_APP_ALLOWED_URL_PROTOCOLS)[number])
+    return protocols.includes(new URL(value).protocol)
   } catch {
     return false
   }
@@ -111,7 +114,6 @@ type MiniAppBaseSchemas = {
    * Individual miniapp endpoint
    * @example GET /mini-apps/qwen
    * @example PATCH /mini-apps/qwen { "status": "disabled" }
-   * @example DELETE /mini-apps/qwen
    */
   '/mini-apps/:appId': {
     /** Get a miniapp by appId */
@@ -125,7 +127,7 @@ type MiniAppBaseSchemas = {
       body: UpdateMiniAppDto
       response: MiniApp
     }
-    /** Delete a miniapp */
+    /** @deprecated This route refuses deletion. Use `mini_app.delete_site` for website MiniApps. */
     DELETE: {
       params: { appId: string }
       response: void

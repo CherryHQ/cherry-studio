@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "將關閉此小程式並清除六個地區的登入資料，預設環境的登入資料會保留。",
   "miniApp.region.clear_data_title": "清除地區登入資料？",
   "miniApp.region.cleared": "地區登入資料已清除。",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "使用{{country}}",
   "miniApp.region.failed": "區域模擬已中斷，請重新開啟此小程式。若問題持續發生，請檢查應用程式記錄。",
   "miniApp.region.menu": "環境 · {{mode}}",

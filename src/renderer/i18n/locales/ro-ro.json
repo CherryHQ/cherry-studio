@@ -2934,7 +2934,6 @@
   "miniApp.region.clear_data_description": "Această miniaplicație se va închide, iar datele sale de autentificare pentru toate cele șase regiuni vor fi șterse. Datele mediului implicit vor fi păstrate.",
   "miniApp.region.clear_data_title": "Ștergi datele regionale de autentificare?",
   "miniApp.region.cleared": "Datele regionale de autentificare au fost șterse.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Folosește {{country}}",
   "miniApp.region.failed": "Simularea regională s-a oprit. Redeschide această miniaplicație. Dacă problema persistă, verifică jurnalele aplicației.",
   "miniApp.region.menu": "Mediu · {{mode}}",

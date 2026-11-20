@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.mini_app.region_recovery_required_app_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Website MiniApps that require an explicit, successful regional data reset before preparation"
+    },
+    {
       "targetKey": "feature.mini_app.region_profiles",
       "type": "Record<string, 'US' | 'JP' | 'SG' | 'GB' | 'FR' | 'DE' | null>",
       "defaultValue": {},

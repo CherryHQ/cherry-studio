@@ -125,8 +125,11 @@ const MiniAppPane: FC<Props> = ({
         targetId={app.appId}
         hostShortcutEnabled={hostShortcutEnabled}
       />
-      {!isReady && (
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+      {!isReady && !resource?.failed && (
+        <div
+          role="status"
+          aria-label={t('common.loading')}
+          className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} alt={displayName} />
           <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
         </div>

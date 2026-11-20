@@ -238,13 +238,13 @@ const MiniApp: FC<Props> = ({
             type: 'submenu',
             id: 'mini-app.environment',
             label: t('miniApp.region.menu', {
-              mode: fake && country ? t(MINI_APP_REGIONS[country].labelKey) : t('miniApp.region.disable')
+              mode: fake && country ? t(MINI_APP_REGIONS[country].labelKey) : t('common.default')
             }),
             children: [
               {
                 type: 'item',
                 id: 'mini-app.environment-default',
-                label: t('miniApp.region.disable'),
+                label: t('common.default'),
                 checked: !fake,
                 enabled: !regionBusy,
                 onSelect: () => selectEnvironment(null)

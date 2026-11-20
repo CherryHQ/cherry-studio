@@ -1,4 +1,4 @@
-/** Holds new requests while a regional session changes its inherited proxy. */
+/** Holds intercepted requests while a regional session changes its inherited proxy. */
 export class RegionalProxyGate {
   appliedKey: string | null = null
   private state: 'waiting' | 'ready' | 'blocked' = 'waiting'

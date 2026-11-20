@@ -158,6 +158,14 @@ describe('resolveProxyConfig', () => {
     })
   })
 
+  it.each([
+    [' HTTP://Proxy.Example:80/ ', 'http://proxy.example'],
+    ['socks5://[::1]:1080/', 'socks5://[::1]:1080'],
+    ['socks5://Proxy.Example:1080', 'socks5://proxy.example:1080']
+  ])('canonicalizes a custom endpoint %s', (url, proxyRules) => {
+    expect(resolveProxyConfig({ mode: 'custom', url, bypassRules: '' })).toMatchObject({ proxyRules })
+  })
+
   it('maps custom + empty bypass → loopback scope (#20920)', () => {
     expect(resolveProxyConfig({ mode: 'custom', url: 'http://127.0.0.1:7890', bypassRules: '' })).toEqual({
       mode: 'fixed_servers',
@@ -372,6 +380,41 @@ describe('ProxyService — preference wiring', () => {
     await reconcilerOf(manager).flush()
     await expect(fixture.request()).resolves.toBe(true)
     expect(fixture.delivered).toEqual(['http://recovered:3'])
+  })
+
+  it('rejects a saved custom URL with a query before either proxy stack applies it', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://proxy.example:8080?option=value'
+    })
+    const manager = new ProxyService()
+    const fixture = regionalSessionFixture()
+
+    await expect(manager.registerSession(fixture.guestSession)).rejects.toThrow('Invalid custom proxy endpoint')
+    await expect(fixture.request()).resolves.toBe(false)
+    expect(fixture.guestSession.setProxy).not.toHaveBeenCalled()
+    expect(sessionSetProxyMock).not.toHaveBeenCalled()
+    expect(nodeProxyConfigureMock).not.toHaveBeenCalled()
+    await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({
+      converged: false,
+      lastError: 'Invalid custom proxy endpoint'
+    })
+  })
+
+  it('uses a credential-free endpoint in Electron while preserving Node proxy authentication', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://test-user:test-password@Proxy.Example:8080/'
+    })
+    const fixture = regionalSessionFixture()
+    await new ProxyService().registerSession(fixture.guestSession)
+
+    expect(nodeProxyConfigureMock).toHaveBeenCalledWith(
+      expect.objectContaining({ proxyRules: 'http://test-user:test-password@proxy.example:8080' })
+    )
+    const electronConfig = expect.objectContaining({ proxyRules: 'http://proxy.example:8080' })
+    expect(sessionSetProxyMock).toHaveBeenCalledWith(electronConfig)
+    expect(fixture.guestSession.setProxy).toHaveBeenCalledWith(electronConfig)
   })
 
   it('does not reopen a regional session revoked during a proxy transition', async () => {
@@ -604,8 +647,8 @@ describe('ProxyService — preference wiring', () => {
 
   it('reports an apply that threw as unconverged with the reason, until a later apply succeeds', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
-    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', '127.0.0.1:7890')
-    nodeProxyConfigureMock.mockRejectedValueOnce(new TypeError('Invalid URL'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    nodeProxyConfigureMock.mockRejectedValueOnce(new Error('Node proxy apply failed'))
     const manager = new ProxyService()
     await (manager as any).onReady()
 
@@ -614,10 +657,10 @@ describe('ProxyService — preference wiring', () => {
       hasConfiguredUrl: true,
       systemProxyReadFailed: false,
       converged: false,
-      lastError: 'Invalid URL'
+      lastError: 'Node proxy apply failed'
     })
 
-    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7891')
     await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({ converged: true })
     await expect(manager.getAppliedSnapshot()).resolves.not.toHaveProperty('lastError')
   })
@@ -883,6 +926,7 @@ describe('ProxyService — connection test', () => {
     expect(JSON.stringify(result)).not.toContain('proxy-user')
     expect(JSON.stringify(result)).not.toContain('proxy-secret')
     expect(JSON.stringify(result)).not.toContain('127.0.0.1')
+    expect(proxyTestSetProxyMock).toHaveBeenCalledWith(expect.objectContaining({ proxyRules: 'http://127.0.0.1:8080' }))
   })
 
   it('classifies unreachable proxies without exposing the rejected error', async () => {

@@ -86,6 +86,7 @@ const MiniAppWebview = memo(
     kind,
     onSetRefCallback,
     onLoadedCallback,
+    onFailedCallback,
     onFocusChange
   }: {
     appid: string
@@ -93,6 +94,7 @@ const MiniAppWebview = memo(
     kind: MiniAppKind
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
+    onFailedCallback?: () => void
     /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
     onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
@@ -113,7 +115,12 @@ const MiniAppWebview = memo(
     const [regionFailed, setRegionFailed] = useState(false)
     const regionStarted = useRef(false)
     useIpcOn('webview.region.failed', ({ webviewId }) => {
-      if (webviewRef.current?.getWebContentsId() === webviewId) setRegionFailed(true)
+      if (!fake || !webviewRef.current) return
+      try {
+        if (webviewRef.current.getWebContentsId() === webviewId) setRegionFailed(true)
+      } catch {
+        // Electron throws before the WebView is attached.
+      }
     })
 
     const loadedRef = useRef(false)
@@ -124,6 +131,12 @@ const MiniAppWebview = memo(
       loadTimerRef.current = null
     }, [])
     useEffect(() => clearLoadTimer, [clearLoadTimer])
+    const failed = prepareState === 'failed' || regionFailed
+    useEffect(() => {
+      if (!failed) return
+      clearLoadTimer()
+      onFailedCallback?.()
+    }, [failed, clearLoadTimer, onFailedCallback])
 
     const handleLoaded = useCallback(() => {
       if (fake && !regionReady) return
@@ -213,9 +226,9 @@ const MiniAppWebview = memo(
       display: 'inline-flex'
     }
 
-    if (prepareState === 'failed' || regionFailed) {
+    if (failed) {
       return (
-        <div data-mini-app-prepare-failed style={WebviewStyle}>
+        <div role="alert" data-mini-app-prepare-failed style={WebviewStyle}>
           {t(regionFailed ? 'miniApp.region.failed' : 'miniApp.error.prepare_failed')}
         </div>
       )
@@ -249,15 +262,11 @@ const MiniAppWebview = memo(
 
 export default function WebviewContainer(props: ComponentProps<typeof MiniAppWebview>) {
   const [profiles] = usePreference('feature.mini_app.region_profiles')
-  const [revision, setRevision] = useState(0)
-  useIpcOn('webview.region.invalidated', ({ appId }) => {
-    if (appId === props.appid) setRevision((value) => value + 1)
-  })
   const [fakeAppIds] = usePreference('feature.mini_app.us_environment_app_ids')
   const [developerMode] = usePreference('app.developer_mode.enabled')
   const [fakeEnabled] = usePreference('feature.mini_app.fake_environment.enabled')
   const [fakeCountry] = usePreference('feature.mini_app.fake_environment.country')
   const selected = selectedMiniAppCountry(props.appid, profiles, fakeAppIds, fakeCountry)
   const environment = isMiniAppRegionEligible(props) && developerMode && fakeEnabled && selected ? selected : 'default'
-  return <MiniAppWebview key={`${props.kind}:${props.appid}:${environment}:${revision}`} {...props} />
+  return <MiniAppWebview key={`${props.kind}:${props.appid}:${environment}`} {...props} />
 }

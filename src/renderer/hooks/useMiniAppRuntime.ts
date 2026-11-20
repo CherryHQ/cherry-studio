@@ -13,7 +13,7 @@ import {
   miniAppIdFromTabUrl,
   miniAppResourceKey
 } from '@renderer/utils/miniAppKeepAlive'
-import { getMiniAppRegionPartition, isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
+import { isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
 
 function useMiniAppDescriptors(appIds: string[]) {
   const { data: apps } = useQuery('/mini-apps')
@@ -145,12 +145,7 @@ export function useMiniAppRuntimeBinding(): void {
             source: app
               ? {
                   src: app.url,
-                  partition:
-                    app.kind === 'app'
-                      ? `persist:miniapp:${appId}`
-                      : regional
-                        ? getMiniAppRegionPartition(appId, country)
-                        : 'persist:webview'
+                  environment: app.kind === 'app' ? 'installed' : regional || 'default'
                 }
               : undefined,
             visible,
@@ -182,6 +177,14 @@ export function useMiniAppRuntimeBinding(): void {
     regionAppIds,
     regionProfiles
   ])
+
+  useIpcOn('webview.region.invalidated', ({ appId }) => {
+    const key = miniAppResourceKey(appId)
+    const resource = webviewRuntimeService.get(key)
+    if (!resource || resource.source.environment === 'installed') return
+    if (resource.element?.getAttribute('partition') === 'persist:webview') return
+    webviewRuntimeService.restart(key)
+  })
 
   useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
     if (split?.appId === appId) setSplit(null)

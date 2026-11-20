@@ -2933,7 +2933,6 @@
   "miniApp.region.clear_data_description": "This closes this MiniApp and clears its sign-in data for all six regions. Default sign-in data is kept.",
   "miniApp.region.clear_data_title": "Clear regional sign-in data?",
   "miniApp.region.cleared": "Regional sign-in data cleared.",
-  "miniApp.region.disable": "Default",
   "miniApp.region.enable": "Use {{country}}",
   "miniApp.region.failed": "Regional emulation stopped. Reopen this mini app. If the problem persists, check the application logs.",
   "miniApp.region.menu": "Environment · {{mode}}",

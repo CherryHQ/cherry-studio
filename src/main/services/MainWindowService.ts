@@ -32,7 +32,12 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import {
+  getWebviewPartition,
+  getWebviewSecurityProfile,
+  hasMatchingWebviewSession,
+  WebviewSecurityProfile
+} from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -466,15 +471,20 @@ export class MainWindowService extends BaseService {
     const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
     mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
-      const securityProfile = getWebviewSecurityProfile(params.partition ?? '')
+      if (!hasMatchingWebviewSession(webPreferences, params.partition)) {
+        event.preventDefault()
+        return
+      }
+      const partition = webPreferences.partition
+      const securityProfile = getWebviewSecurityProfile(partition ?? '')
       // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
       // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.
       if (!securityProfile) {
         if (
-          !isMiniAppPartition(params.partition) &&
+          !isMiniAppPartition(partition) &&
           !application
             .get('WebviewService')
-            .isPreparedRegionalPartition(params.partition, mainWindow.webContents.id, params.src)
+            .isPreparedRegionalPartition(partition, mainWindow.webContents.id, params.src)
         ) {
           event.preventDefault()
         }
