@@ -95,12 +95,12 @@ export async function writeWorkspaceStorageRecord(workspace: string, record: Wor
     await handle.close()
   }
   await rename(temporary, `${workspace}.storage.json`)
-  await syncDirectory(path.dirname(workspace))
+  await syncWorkspaceStorageDirectory(path.dirname(workspace))
 }
 
 export async function clearWorkspaceStorageRecord(workspace: string): Promise<void> {
   await rm(`${workspace}.storage.json`, { force: true })
-  await syncDirectory(path.dirname(workspace))
+  await syncWorkspaceStorageDirectory(path.dirname(workspace))
 }
 
 export async function workspaceDirectoryIdentity(root: string, directory: string): Promise<WorkspaceDirectoryIdentity> {
@@ -176,7 +176,7 @@ export async function unpackWorkspaceArchive(file: string, directory: string): P
   await validateWorkspaceContents(directory)
 }
 
-async function syncDirectory(directory: string): Promise<void> {
+export async function syncWorkspaceStorageDirectory(directory: string): Promise<void> {
   try {
     const handle = await open(directory, 'r')
     try {
@@ -194,15 +194,15 @@ export async function moveWorkspacePath(root: string, from: string, to: string):
   await assertAgentStoragePath(root, to)
   if (await workspaceStat(to)) throw new Error(`Workspace destination is occupied: ${to}`)
   await rename(from, to)
-  await syncDirectory(path.dirname(from))
-  if (path.dirname(from) !== path.dirname(to)) await syncDirectory(path.dirname(to))
+  await syncWorkspaceStorageDirectory(path.dirname(from))
+  if (path.dirname(from) !== path.dirname(to)) await syncWorkspaceStorageDirectory(path.dirname(to))
 }
 
 export async function publishWorkspaceArchive(root: string, temporary: string, archive: string): Promise<void> {
   await assertAgentStoragePath(root, temporary)
   await assertAgentStoragePath(root, archive)
   await rename(temporary, archive)
-  await syncDirectory(path.dirname(archive))
+  await syncWorkspaceStorageDirectory(path.dirname(archive))
 }
 
 export async function ensureWorkspaceStage(root: string, directory: string): Promise<void> {

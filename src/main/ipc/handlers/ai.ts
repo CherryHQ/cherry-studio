@@ -7,7 +7,6 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
-import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
@@ -272,7 +271,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     }
   },
   'ai.agent.workspace.register': async ({ path, name }) =>
-    agentWorkspaceStorageService.registerWorkspace(path, { name }),
+    application.get('AgentWorkspaceStorageService').registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 

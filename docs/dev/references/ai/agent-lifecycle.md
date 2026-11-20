@@ -154,6 +154,28 @@ with residual archive markers follow the same restore rules. The initial DB-only
 pass runs during service readiness, before JobManager's deferred startup recovery.
 Retention disabled does not disable reconciliation or make archived rows orphans.
 
+## Default workspace changes
+
+`AgentLifecycleService.setSessionWorkspace()` coordinates the existing empty-conversation
+workspace endpoint. Active Agent work must finish or stop first. Retained terminal resources
+alone do not prevent a change. A Host admission barrier precedes the database commit;
+new commands use the new binding, while existing shells retain their cwd, environment,
+program and input control. Pending preparations recheck their captured workspace revision.
+Idle runtime connections reconcile or rebuild on the next fresh turn.
+
+`AgentWorkspaceStorageService` is a lifecycle service below the terminal and runtime
+owners. It persists bounded usage records in `workspace-usage.json` under the Agent data
+root, outside reclaimable system workspaces. Registration precedes storage use; confirmed
+scope/context cleanup releases it. A restart loads unresolved records before reclaim and
+keeps them protected without restoring processes. Missing PIDs and an unreadable journal
+cannot authorize reclaim. Automatic system-workspace reclaim waits while any profile
+execution/context remains preparing, active or cleanup-unconfirmed, including shells
+that started elsewhere and later entered a managed directory.
+
+Explicit archive, restore and purge reserve storage while `AgentLifecycleService` drains
+the relevant owners, then hand the reservation to the storage operation without an
+admission gap. Storage conversion and orphan reclaim do not close conversations.
+
 ## Purge and artifact ownership
 
 Explicit purge and retention cleanup use the same lifecycle owner. Candidates are

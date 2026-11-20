@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +23,9 @@ import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
 import * as workspaceArchive from '../agentWorkspaceStorage'
-import { agentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
+import { AgentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
+
+let agentWorkspaceStorageService: AgentWorkspaceStorageService
 
 const mocks = vi.hoisted(() => ({
   busyForArchive: vi.fn().mockReturnValue(false),
@@ -65,13 +68,20 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   beforeEach(async () => {
     BaseService.resetInstances()
+    agentWorkspaceStorageService = new AgentWorkspaceStorageService()
+    MockApplicationUtils.setService('AgentWorkspaceStorageService', agentWorkspaceStorageService)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.busyForArchive.mockReturnValue(false)
     mocks.closeSessionForArchive.mockResolvedValue(undefined)
+    vi.mocked(application.get('TerminalService').closeConversation).mockResolvedValue([])
     root = await mkdtemp(path.join(os.tmpdir(), 'lifecycle-workspace-'))
     const getPath = vi.mocked(application.getPath).getMockImplementation()!
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
-      key === 'feature.agents.system_workspaces' || key === 'feature.agents.data' ? root : getPath(key, filename)
+      key === 'feature.agents.system_workspaces' || key === 'feature.agents.data'
+        ? filename
+          ? path.join(root, filename)
+          : root
+        : getPath(key, filename)
     )
     lifecycle = new AgentLifecycleService()
     dbh.db
@@ -107,10 +117,8 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   it('retains workspace files while terminal scope cleanup remains unconfirmed', async () => {
     const terminal = vi.mocked(application.get('TerminalService').closeConversation)
-    terminal.mockResolvedValueOnce([{ cleanup: 'unconfirmed' } as Awaited<ReturnType<typeof terminal>>[number]])
-    await expect(
-      agentWorkspaceStorageService.archiveWorkspace({ id: 'system', path: path.join(root, '2026-10-12', 'system') })
-    ).rejects.toThrow('Terminal cleanup remains unconfirmed')
+    terminal.mockResolvedValue([{ cleanup: 'unconfirmed' } as Awaited<ReturnType<typeof terminal>>[number]])
+    await lifecycle.archiveSessions(['system'])
     expect(await readFile(path.join(root, '2026-10-12', 'system', 'output.txt'), 'utf8')).toBe('system output')
     expect(existsSync(path.join(root, '2026-10-12', 'system.tar.gz'))).toBe(false)
   })
@@ -376,7 +384,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     })
 
     const restore = () => (mode === 'agent' ? lifecycle.restoreAgent('agent') : lifecycle.restoreSession('system'))
-    await expect(restore()).rejects.toThrow('cannot safely restore')
+    await expect(restore()).rejects.toMatchObject({ code: 'CONFLICT' })
     expect(await readFile(path.join(nested, 'keep.txt'), 'utf8')).toBe('created after archival')
     expect(await readFile(`${parent}.tar.gz`)).toEqual(originalArchive)
     expect(
@@ -478,7 +486,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     await lifecycle.archiveSessions(['system'])
     const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)!
     try {
-      await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
+      await expect(lifecycle.restoreSession('system')).rejects.toMatchObject({ code: 'CONFLICT' })
       expect(existsSync(parent)).toBe(false)
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt

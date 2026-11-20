@@ -45,6 +45,7 @@ const limits = { maxFrameBytes: 64 * 1024, maxBufferedBytes: 256 * 1024, maxBuff
 export interface TerminalLease {
   conversationId: TerminalConversationId
   context: TerminalContext
+  workspaceRevision: number
 }
 export interface TerminalResourceRef {
   host: TerminalHostIdentity
@@ -54,6 +55,7 @@ interface Execution {
   ref: TerminalResourceRef
   kind: TerminalLaunch['kind']
   state?: TerminalResourceState
+  usageId?: string
   output: TerminalCapture
   ready: Promise<TerminalReceipt>
   onOutput?: (data: Uint8Array, truncated: boolean, source: 'stdout' | 'stderr' | 'terminal') => void
@@ -69,6 +71,7 @@ interface Host {
   instance: UtilityProcessInstance<TerminalHostContract>
   ready: Promise<void>
   sequence: number
+  admissionRevision: number
   pending: number
   resources: Set<TerminalResourceId>
   phase: 'starting' | 'ready' | 'closing' | 'lost'
@@ -79,8 +82,10 @@ interface Conversation {
   id: TerminalConversationId
   sealed: boolean
   revision: number
+  workspaceRevision: number
+  changingWorkspace: boolean
   admissions: number
-  preparations: number
+  preparations: Set<Promise<void>>
   contexts: Map<string, TerminalContext>
   bindings: Map<string, Binding>
   executions: Map<TerminalResourceId, Execution>
@@ -89,7 +94,7 @@ interface Conversation {
 
 @Injectable('TerminalService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['UtilityProcessManager'])
+@DependsOn(['UtilityProcessManager', 'AgentWorkspaceStorageService'])
 export class TerminalService extends BaseService {
   private readonly changes = new Emitter<TerminalConversationId>()
   readonly onDidChange = this.changes.event
@@ -116,12 +121,29 @@ export class TerminalService extends BaseService {
     conversationId: string,
     cwd: string,
     shell: 'default' | 'bash' | 'powershell',
-    replayKey: string
+    replayKey: string,
+    workspaceRevision: number,
+    prepare: () => Promise<void>
   ): Promise<TerminalReceipt> {
     const conversation = this.conversation(conversationId)
-    conversation.preparations++
+    if (!this.accepting || conversation.sealed) return { kind: 'rejected', reason: 'closing' }
+    if (workspaceRevision !== conversation.workspaceRevision) return { kind: 'rejected', reason: 'stale_context' }
+    const preparation = Promise.withResolvers<void>()
+    conversation.preparations.add(preparation.promise)
+    let usageId: string | undefined
     try {
+      usageId = await application.get('AgentWorkspaceStorageService').acquireUsage({
+        sessionId: conversationId,
+        cwd,
+        owner: { kind: 'preparation', operationId: replayKey }
+      })
+      if (!this.accepting || conversation.sealed) return { kind: 'rejected', reason: 'closing' }
+      if (workspaceRevision !== conversation.workspaceRevision) return { kind: 'rejected', reason: 'stale_context' }
+      await prepare()
+      if (!this.accepting || conversation.sealed) return { kind: 'rejected', reason: 'closing' }
+      if (workspaceRevision !== conversation.workspaceRevision) return { kind: 'rejected', reason: 'stale_context' }
       const lease = await this.attachRuntime({ conversationId, contextId: 'user-terminal', bindingId: 'user-terminal' })
+      lease.workspaceRevision = workspaceRevision
       const env = await getShellEnv()
       const requested =
         shell === 'default'
@@ -165,7 +187,12 @@ export class TerminalService extends BaseService {
         `create-user:${replayKey}`
       )
     } finally {
-      conversation.preparations--
+      try {
+        if (usageId) await application.get('AgentWorkspaceStorageService').releaseUsage(usageId)
+      } finally {
+        conversation.preparations.delete(preparation.promise)
+        preparation.resolve()
+      }
       if (conversation.host) void this.recycle(conversation, conversation.host)
     }
   }
@@ -179,8 +206,10 @@ export class TerminalService extends BaseService {
         id,
         sealed: false,
         revision: 0,
+        workspaceRevision: 0,
+        changingWorkspace: false,
         admissions: 0,
-        preparations: 0,
+        preparations: new Set(),
         contexts: new Map(),
         bindings: new Map(),
         executions: new Map()
@@ -207,7 +236,38 @@ export class TerminalService extends BaseService {
       await host.ready
       await this.command(conversation, host, { kind: 'bind', context })
     }
-    return { conversationId: conversation.id, context: structuredClone(context) }
+    return {
+      conversationId: conversation.id,
+      context: structuredClone(context),
+      workspaceRevision: conversation.workspaceRevision
+    }
+  }
+
+  workspaceRevision(conversationId: string): number {
+    return this.conversation(conversationId).workspaceRevision
+  }
+
+  async changeWorkspace<T>(conversationId: string, commit: () => T): Promise<T> {
+    const conversation = this.conversation(conversationId)
+    if (conversation.sealed || conversation.changingWorkspace) throw new Error('Terminal admission is unavailable')
+    conversation.changingWorkspace = true
+    try {
+      const host = conversation.host
+      conversation.revision++
+      if (host && host.phase !== 'lost' && host.phase !== 'closing') {
+        await host.ready
+        await host.instance.request('advanceAdmission', {
+          host: host.identity,
+          admissionRevision: conversation.revision
+        })
+        host.admissionRevision = conversation.revision
+      }
+      const result = commit()
+      conversation.workspaceRevision++
+      return result
+    } finally {
+      conversation.changingWorkspace = false
+    }
   }
 
   private valid(conversation: Conversation, lease: TerminalLease): boolean {
@@ -257,7 +317,12 @@ export class TerminalService extends BaseService {
         ? known.execution.ready
         : Promise.resolve({ kind: 'rejected', reason: 'identity_conflict' })
     if (!this.accepting || conversation.sealed) return Promise.resolve({ kind: 'rejected', reason: 'closing' })
-    if (!this.valid(conversation, input.lease)) return Promise.resolve({ kind: 'rejected', reason: 'stale_context' })
+    if (
+      conversation.changingWorkspace ||
+      input.lease.workspaceRevision !== conversation.workspaceRevision ||
+      !this.valid(conversation, input.lease)
+    )
+      return Promise.resolve({ kind: 'rejected', reason: 'stale_context' })
     const active = [...conversation.executions.values()].filter((item) => item.state?.cleanup !== 'confirmed')
     const globalPipes = [...this.conversations.values()].reduce(
       (count, item) =>
@@ -292,6 +357,7 @@ export class TerminalService extends BaseService {
     conversation.admissions++
     void (async () => {
       let host: Host | undefined
+      let submitted = false
       try {
         host = await this.ensureHost(conversation)
         execution.ref.host = host.identity
@@ -311,10 +377,31 @@ export class TerminalService extends BaseService {
           outputCursor: 0
         }
         host.resources.add(id)
-        if (conversation.sealed || !this.valid(conversation, input.lease)) {
+        if (
+          conversation.sealed ||
+          conversation.changingWorkspace ||
+          input.lease.workspaceRevision !== conversation.workspaceRevision ||
+          !this.valid(conversation, input.lease)
+        ) {
           host.resources.delete(id)
           return { kind: 'rejected', reason: 'stale_context' } as const
         }
+        execution.usageId = await application.get('AgentWorkspaceStorageService').acquireUsage({
+          sessionId: conversation.id,
+          cwd: launch.cwd,
+          owner: { kind: 'terminal', resourceId: id, generation: host.identity.generation }
+        })
+        if (
+          conversation.sealed ||
+          conversation.changingWorkspace ||
+          input.lease.workspaceRevision !== conversation.workspaceRevision ||
+          !this.valid(conversation, input.lease)
+        ) {
+          host.resources.delete(id)
+          await application.get('AgentWorkspaceStorageService').releaseUsage(execution.usageId)
+          return { kind: 'rejected', reason: 'stale_context' } as const
+        }
+        submitted = true
         const receipt = await this.command(conversation, host, {
           kind: 'start',
           id,
@@ -322,15 +409,31 @@ export class TerminalService extends BaseService {
           retention,
           launch
         })
-        if (receipt.kind === 'rejected' && receipt.reason !== 'outcome_unknown') host.resources.delete(id)
+        if (receipt.kind === 'rejected' && receipt.reason !== 'outcome_unknown') {
+          host.resources.delete(id)
+          await application.get('AgentWorkspaceStorageService').releaseUsage(execution.usageId)
+        }
+        this.releaseCleanedUsage(execution)
         return receipt
       } catch (error) {
+        if (!submitted) {
+          host?.resources.delete(id)
+          if (execution.usageId)
+            await application
+              .get('AgentWorkspaceStorageService')
+              .releaseUsage(execution.usageId)
+              .catch((error) =>
+                logger.error('Workspace protection retained after rejected startup', { error, resource: execution.ref })
+              )
+        } else if (execution.usageId) {
+          application.get('AgentWorkspaceStorageService').markUsageUnconfirmed(execution.usageId)
+        }
         logger.warn('Terminal launch could not be confirmed', {
           error,
           conversationId: conversation.id,
           resourceId: id
         })
-        return { kind: 'rejected', reason: 'outcome_unknown' } as const
+        return { kind: 'rejected', reason: submitted ? 'outcome_unknown' : 'admission_unavailable' } as const
       } finally {
         this.pending--
         conversation.admissions--
@@ -426,7 +529,7 @@ export class TerminalService extends BaseService {
     const conversation = this.conversations.get(terminalConversationId.parse(conversationId))
     return Boolean(
       conversation &&
-      (conversation.preparations ||
+      (conversation.preparations.size ||
         conversation.admissions ||
         [...conversation.executions.values()].some((item) => item.state?.cleanup !== 'confirmed'))
     )
@@ -530,7 +633,11 @@ export class TerminalService extends BaseService {
         if (options.signal?.aborted) {
           if (resource.kind === 'pipe' && resource.retention.kind === 'turn')
             await this.stopTurn(
-              { conversationId: ref.host.conversationId, context: resource.context },
+              {
+                conversationId: ref.host.conversationId,
+                context: resource.context,
+                workspaceRevision: this.workspaceRevision(ref.host.conversationId)
+              },
               resource.retention.turnId
             )
           return { status: 'cancelled' as const, resource }
@@ -692,11 +799,28 @@ export class TerminalService extends BaseService {
     return host.instance.request('link', { ...view.ref, viewId, ...input })
   }
 
+  private releaseCleanedUsage(execution: Execution): void {
+    if (execution.state?.cleanup !== 'confirmed' || !execution.usageId) return
+    const id = execution.usageId
+    execution.usageId = undefined
+    void application
+      .get('AgentWorkspaceStorageService')
+      .releaseUsage(id)
+      .catch((error) => {
+        logger.error('Workspace protection retained after terminal cleanup', { error, resource: execution.ref })
+      })
+  }
+
   private async command(conversation: Conversation, host: Host, command: TerminalCommand): Promise<TerminalReceipt> {
     const sequence = ++host.sequence
+    const admissionRevision = conversation.revision
+    if ((command.kind === 'bind' || command.kind === 'start') && host.admissionRevision !== admissionRevision) {
+      await host.instance.request('advanceAdmission', { host: host.identity, admissionRevision })
+      host.admissionRevision = Math.max(host.admissionRevision, admissionRevision)
+    }
     const mutation: TerminalMutation = {
       host: host.identity,
-      admissionRevision: conversation.revision,
+      admissionRevision,
       operation: { id: terminalOperationId.parse(`${host.identity.generation}:${sequence}`), sequence },
       command
     }
@@ -714,6 +838,7 @@ export class TerminalService extends BaseService {
         const execution = conversation.executions.get(receipt.resource.id)
         if (execution && (!execution.state || execution.state.revision <= receipt.resource.revision))
           execution.state = receipt.resource
+        if (execution) this.releaseCleanedUsage(execution)
         this.changes.fire(conversation.id)
       }
       return receipt
@@ -752,6 +877,7 @@ export class TerminalService extends BaseService {
       instance,
       ready: Promise.resolve(),
       sequence: 0,
+      admissionRevision: conversation.revision,
       pending: 0,
       resources: new Set(),
       phase: 'starting',
@@ -800,6 +926,7 @@ export class TerminalService extends BaseService {
               if (state.host.generation !== identity.generation || state.id !== id)
                 throw new Error('Terminal observation identity mismatch')
               if (!execution.state || execution.state.revision <= state.revision) execution.state = state
+              this.releaseCleanedUsage(execution)
               if (state.cleanup === 'confirmed' && state.outputCursor === execution.output.cursor) {
                 if (state.kind === 'pty' && !execution.screen) {
                   try {
@@ -881,7 +1008,7 @@ export class TerminalService extends BaseService {
       host.resources.size ||
       host.pending ||
       conversation.admissions ||
-      conversation.preparations
+      conversation.preparations.size
     )
       return
     host.phase = 'closing'
@@ -953,6 +1080,7 @@ export class TerminalService extends BaseService {
         this.lost(conversation, host, error)
       }
     }
+    await Promise.all(conversation.preparations)
     await Promise.all([...conversation.executions.values()].map((execution) => execution.ready))
     return this.list(conversationId)
   }

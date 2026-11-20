@@ -5,6 +5,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { vi } from 'vitest'
 
 import { application } from '@application'
+import { AgentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { BaseService } from '@main/core/lifecycle'
 import type {
   UtilityProcessInstanceOptions,
@@ -53,6 +54,10 @@ export async function createTestTerminalService() {
             const v = input as TerminalHostContract['methods']['release']['input']
             return host.release(v.host, v.id)
           }
+          if (method === 'advanceAdmission') {
+            const v = input as TerminalHostContract['methods']['advanceAdmission']['input']
+            return host.advanceAdmission(v.host, v.admissionRevision)
+          }
           if (method === 'seal') {
             const v = input as TerminalHostContract['methods']['seal']['input']
             return host.seal(v.host, v.admissionRevision)
@@ -87,6 +92,7 @@ export async function createTestTerminalService() {
     }
   })
   BaseService.resetInstances()
+  MockApplicationUtils.setService('AgentWorkspaceStorageService', new AgentWorkspaceStorageService())
   const service = new TerminalService()
   MockApplicationUtils.setService('TerminalService', service)
   await service._doInit()

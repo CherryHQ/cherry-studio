@@ -956,6 +956,10 @@ export class AgentSessionService {
     return { row, clearedTaskScheduleIds }
   }
 
+  assertWorkspaceChangeAllowed(id: string): void {
+    this.assertSessionHasNoMessagesTx(application.get('DbService').getDb(), id)
+  }
+
   /**
    * Replace a session's workspace. Only an empty session (no messages) may
    * change its workspace; once a conversation has started the binding is

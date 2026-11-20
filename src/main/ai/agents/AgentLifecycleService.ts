@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+
 import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { DbOrTx } from '@data/db/types'
@@ -6,18 +8,20 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { terminalConversationId } from '@main/services/terminal/contracts'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { KeyedMutex } from '@shared/utils/async'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
-import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
@@ -45,7 +49,8 @@ export class AgentSessionArchiveBusyError extends Error {
   'AgentSessionRuntimeService',
   'AiStreamManager',
   'ChannelManager',
-  'TerminalService'
+  'TerminalService',
+  'AgentWorkspaceStorageService'
 ])
 export class AgentLifecycleService extends BaseService {
   private readonly agentLocks = new KeyedMutex()
@@ -92,9 +97,8 @@ export class AgentLifecycleService extends BaseService {
           const workspaces = agentSessionService
             .listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
             .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
-          const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
-            workspaces,
-            () =>
+          const { agent, scheduleIds, restoredSessionIds } = await this.withQuiescedWorkspaces(workspaces, () =>
+            application.get('AgentWorkspaceStorageService').restoreWorkspaces(workspaces, () =>
               application.get('DbService').withWriteTx((tx) => {
                 const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
                 return {
@@ -103,6 +107,7 @@ export class AgentLifecycleService extends BaseService {
                   scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
                 }
               })
+            )
           )
           for (const id of restoredSessionIds)
             await application.get('TerminalService').reopenConversation(terminalConversationId.parse(id))
@@ -160,14 +165,49 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  createUserTerminal(input: { sessionId: string; shell: 'default' | 'bash' | 'powershell'; operationId: string }) {
+    return this.runOperation('create-user-terminal:' + input.sessionId, async () => {
+      const session = agentSessionService.getById(input.sessionId)
+      const terminal = application.get('TerminalService')
+      const revision = terminal.workspaceRevision(input.sessionId)
+      return terminal.createUserTerminal(
+        input.sessionId,
+        session.workspace.path,
+        input.shell,
+        input.operationId,
+        revision,
+        () => prepareAgentSessionWorkspaceDirectory(session)
+      )
+    })
+  }
+
+  setSessionWorkspace(id: string, source: AgentSessionWorkspaceSource) {
+    return this.runOperation('set-session-workspace:' + id, () =>
+      this.sessionLocks.runExclusive(id, async () => {
+        const current = agentSessionService.getConversationById(id)
+        const unchanged =
+          source.type === 'system' ? current.workspace.type === 'system' : current.workspaceId === source.workspaceId
+        if (unchanged) return current
+        agentSessionService.assertWorkspaceChangeAllowed(id)
+        return application
+          .get('AgentSessionRuntimeService')
+          .changeWorkspace(id, () =>
+            application.get('TerminalService').changeWorkspace(id, () => agentSessionService.setWorkspace(id, source))
+          )
+      })
+    )
+  }
+
   restoreSession(id: string) {
     return this.runOperation('restore-session:' + id, () =>
       this.sessionLocks.runExclusive(id, async () => {
         const workspaces = agentSessionService
           .listSystemWorkspaceSessions([id])
           .filter((workspace) => workspace.deletedAt !== null)
-        const restored = await agentWorkspaceStorageService.restoreWorkspaces(workspaces, () =>
-          agentSessionService.restore(id)
+        const restored = await this.withQuiescedWorkspaces(workspaces, () =>
+          application
+            .get('AgentWorkspaceStorageService')
+            .restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
         )
         await application.get('TerminalService').reopenConversation(terminalConversationId.parse(id))
         return restored
@@ -224,10 +264,10 @@ export class AgentLifecycleService extends BaseService {
         await this.sessionLocks.runExclusive(id, async () => {
           for (const workspace of agentSessionService.listSystemWorkspaceSessions([id])) {
             try {
-              await agentWorkspaceStorageService.reconcileWorkspace(
-                workspace,
-                workspace.deletedAt === null ? 'active' : 'archived'
-              )
+              if (workspace.deletedAt !== null) await this.quiesceWorkspace(workspace.id)
+              await application
+                .get('AgentWorkspaceStorageService')
+                .reconcileWorkspace(workspace, workspace.deletedAt === null ? 'active' : 'archived')
             } catch (error) {
               logger.warn('Workspace storage operation retained for retry', { workspace: workspace.path, error })
             }
@@ -501,10 +541,49 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  private async withQuiescedWorkspaces<T>(
+    workspaces: Array<{ id: string; path: string }>,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    if (!workspaces.length) return operation()
+    const storage = application.get('AgentWorkspaceStorageService')
+    const paths = workspaces.map((workspace) => workspace.path)
+    const release = storage.reserveWorkspaceStorage(
+      paths.flatMap((path) => storage.workspaceStoragePaths(path)),
+      paths
+    )
+    if (!release && existsSync(application.getPath('feature.agents.system_workspaces')))
+      throw DataApiErrorFactory.conflict(
+        'Workspace storage is in use; retry after the operation completes',
+        'Workspace'
+      )
+    try {
+      for (const workspace of workspaces) await this.quiesceWorkspace(workspace.id)
+      // The storage operation reacquires synchronously, before another admission can run.
+      release?.()
+      return await operation()
+    } finally {
+      release?.()
+    }
+  }
+
+  private async quiesceWorkspace(sessionId: string): Promise<void> {
+    const terminals = await application
+      .get('TerminalService')
+      .closeConversation(terminalConversationId.parse(sessionId))
+    const runtime = application.get('AgentSessionRuntimeService')
+    await runtime.cancelSessionForks(sessionId)
+    await runtime.closeSessionForArchive(sessionId)
+    if (terminals.some((state) => state.cleanup !== 'confirmed'))
+      throw new Error('Terminal cleanup remains unconfirmed')
+  }
+
   private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {
     for (const workspace of workspaces) {
       try {
-        await agentWorkspaceStorageService.purgeWorkspace(workspace)
+        await this.withQuiescedWorkspaces([workspace], () =>
+          application.get('AgentWorkspaceStorageService').purgeWorkspace(workspace)
+        )
       } catch (error) {
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath: workspace.path, error })
       }
@@ -515,7 +594,9 @@ export class AgentLifecycleService extends BaseService {
     for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
       if (workspace.deletedAt === null) continue
       try {
-        await agentWorkspaceStorageService.archiveWorkspace(workspace)
+        await this.withQuiescedWorkspaces([workspace], () =>
+          application.get('AgentWorkspaceStorageService').archiveWorkspace(workspace)
+        )
       } catch (error) {
         logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })
       }

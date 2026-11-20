@@ -140,7 +140,14 @@ describe.skipIf(process.platform === 'win32')('native terminal tool adapters', (
       { thread: 'native-root', id: 'server' }
     )
     expect(sent).toMatchObject({ status: 'running', resource: { process: { kind: 'running' } } })
-    await service.stopTurn({ conversationId: tools.conversationId, context: terminal.context }, 'server')
+    await service.stopTurn(
+      {
+        conversationId: tools.conversationId,
+        context: terminal.context,
+        workspaceRevision: service.workspaceRevision(tools.conversationId)
+      },
+      'server'
+    )
     await vi.waitFor(() => expect(service.list(tools.conversationId)[0]?.shellFacts?.kind).toBe('program'))
     const state = service.list(tools.conversationId)[0]
     const facts = state.shellFacts
