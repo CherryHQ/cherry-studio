@@ -23,7 +23,7 @@ The shared panel retains gateway status, address, port, credentials and start/st
 ## Verification
 
 - AC1 — src/renderer/pages/launchpad/__tests__/LaunchpadPage.test.tsx: catches a missing gateway tile or incorrect destination.
-- AC2 — src/renderer/components/apiGateway/__tests__/ApiGatewayPanel.test.tsx: catches broken start/stop actions, address display and key masking.
+- AC2 — src/renderer/components/__tests__/ApiGatewayPanel.test.tsx: catches broken start/stop actions, address display and key masking.
 - AC3 — tests/e2e/smoke/launchpadApiGateway.test.ts: exercises pinning, sidebar navigation and launchpad retention after unpinning.
 - AC4 — src/renderer/pages/apiGateway/__tests__/ApiGatewayPage.test.tsx: catches a blank stopped panel or missing start action.
 - AC5 — tests/e2e/smoke/launchpadApiGateway.test.ts: exercises the Device Connections link and Settings panel.

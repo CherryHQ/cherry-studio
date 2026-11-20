@@ -23,7 +23,7 @@ Status: implemented
 ## Verification
 
 - AC1 — src/renderer/pages/launchpad/__tests__/LaunchpadPage.test.tsx: 检查网关图块缺失或目标地址错误。
-- AC2 — src/renderer/components/apiGateway/__tests__/ApiGatewayPanel.test.tsx: 检查启停操作、地址显示和密钥遮盖。
+- AC2 — src/renderer/components/__tests__/ApiGatewayPanel.test.tsx: 检查启停操作、地址显示和密钥遮盖。
 - AC3 — tests/e2e/smoke/launchpadApiGateway.test.ts: 覆盖固定、侧栏导航及取消固定后启动台保留入口。
 - AC4 — src/renderer/pages/apiGateway/__tests__/ApiGatewayPage.test.tsx: 检查停止状态面板为空或缺少启动按钮。
 - AC5 — tests/e2e/smoke/launchpadApiGateway.test.ts: 覆盖设备连接链接和设置面板。

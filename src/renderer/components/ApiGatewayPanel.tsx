@@ -131,9 +131,10 @@ const ApiGatewayPanel: FC = () => {
         </StatusSection>
         <StatusActions>
           {apiGatewayRunning && (
-            <Button variant="outline" onClick={openApiDocs}>
+            <Button variant="outline" aria-label={t('apiGateway.documentation.title')} onClick={openApiDocs}>
               <ExternalLink size={13} />
-              {t('apiGateway.documentation.title')}
+              {/* 141px label + 16px icon + 6px gap + 20px padding + borders need about 190px. */}
+              <span className="@max-[190px]/actions:hidden">{t('apiGateway.documentation.title')}</span>
             </Button>
           )}
           {apiGatewayRunning && (
@@ -340,7 +341,10 @@ const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const StatusActions = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-wrap items-center justify-end gap-2', className)} {...props} />
+  <div
+    className={cn('@container/actions flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2', className)}
+    {...props}
+  />
 )
 
 const Sections = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
