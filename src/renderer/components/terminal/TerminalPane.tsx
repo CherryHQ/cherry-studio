@@ -1,207 +1,105 @@
-import { Plus, TerminalSquare } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { TerminalSquare } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Badge, ScrollArea } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import type { TerminalResourceState } from '@shared/types/terminal'
+import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { TerminalCanvas } from './TerminalCanvas'
-import { TerminalSettingsMenu } from './TerminalSettingsMenu'
+import { useTerminalResources } from './TerminalResourcesProvider'
 
-export function TerminalPane({ sessionId, active }: { sessionId: string; active: boolean }) {
+export function TerminalPane({ active }: { sessionId: string; active: boolean }) {
   const { t } = useTranslation()
-  const [resources, setResources] = useState<TerminalResourceState[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [claimId, setClaimId] = useState<string | null>(null)
-  const selectedId = useRef(selected)
-  selectedId.current = selected
-  const [historyLimited, setHistoryLimited] = useState(false)
-  const update = useCallback(
-    (resource: TerminalResourceState) =>
-      setResources((previous) => {
-        const old = previous.find((item) => item.id === resource.id)
-        if (old && old.revision >= resource.revision) return previous
-        return old ? previous.map((item) => (item.id === resource.id ? resource : item)) : [...previous, resource]
-      }),
-    []
-  )
+  const terminal = useTerminalResources()
+  const resource = terminal.resources.find((item) => item.id === terminal.tabs.selectedTerminalId)
+  const cleanup = terminal.cleanupTabs.find((item) => item.id === terminal.selectedCleanupId)
+  const lastTerminal = terminal.tabs.terminals
+    .filter((item) => !terminal.tabs.hiddenTerminalIds.includes(item.id))
+    .at(-1)
+  const show = terminal.show
   useEffect(() => {
-    if (!active) return
-    let stopped = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const load = async () => {
-      try {
-        const result = await ipcApi.request('terminal.list', { sessionId, selectedId: selectedId.current ?? undefined })
-        if (stopped) return
-        const next = result.resources
-        setHistoryLimited(result.truncated)
-        setResources((previous) =>
-          next.map((item) => {
-            const old = previous.find((candidate) => candidate.id === item.id)
-            return old && old.revision > item.revision ? old : item
-          })
-        )
-        setSelected((current) =>
-          current && next.some((item) => item.id === current) ? current : (next.at(-1)?.id ?? null)
-        )
-      } catch (cause) {
-        if (!stopped) setError(cause instanceof Error ? cause.message : String(cause))
-      }
-      if (!stopped) timer = setTimeout(() => void load(), 250)
-    }
-    void load()
-    return () => {
-      stopped = true
-      if (timer) clearTimeout(timer)
-    }
-  }, [active, sessionId])
-  const create = async (shell: 'default' | 'powershell') => {
-    setCreating(true)
-    try {
-      const receipt = await ipcApi.request('terminal.create', { sessionId, shell, operationId: crypto.randomUUID() })
-      if (receipt.kind !== 'resource')
-        throw new Error(
-          t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
-        )
-      update(receipt.resource)
-      setClaimId(receipt.resource.id)
-      setSelected(receipt.resource.id)
-      setError(null)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setCreating(false)
-    }
-  }
-  const resource = resources.find((item) => item.id === selected)
+    if (active && !terminal.tabs.selectedTerminalId && !terminal.selectedCleanupId && lastTerminal)
+      show(lastTerminal.id, lastTerminal.title)
+  }, [active, terminal.tabs.selectedTerminalId, terminal.selectedCleanupId, lastTerminal, show])
   return (
     <div className="flex size-full min-h-0 flex-col bg-background text-foreground">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
-        <TerminalSquare className="size-4 text-muted-foreground" aria-hidden="true" />
-        <span className="shrink-0 text-sm font-medium">{t('terminal.title')}</span>
-        <Button
-          className="ml-auto"
-          size="sm"
-          variant="outline"
-          disabled={creating}
-          onClick={() => void create('default')}>
-          <Plus className="size-3.5" aria-hidden="true" />
-          {t('terminal.new_terminal')}
-        </Button>
-        <Button size="sm" variant="ghost" disabled={creating} onClick={() => void create('powershell')}>
-          {t('terminal.new_powershell')}
-        </Button>
-        <TerminalSettingsMenu />
-      </div>
-      {error && (
-        <div role="alert" className="px-3 py-2 text-xs text-destructive">
-          {error}
-        </div>
+      {terminal.error && (
+        <p role="alert" className="px-3 py-2 text-xs text-destructive">
+          {terminal.error}
+        </p>
       )}
-      {historyLimited && <p className="px-3 py-1 text-xs text-muted-foreground">{t('terminal.history_limited')}</p>}
-      {resources.length > 0 && (
-        <ScrollArea className="max-h-32 shrink-0 border-b">
-          <div className="flex flex-wrap gap-1 p-2" role="tablist" aria-label={t('terminal.resources')}>
-            {resources.slice(-32).map((item) => (
-              <Button
-                key={item.id}
-                role="tab"
-                aria-selected={selected === item.id}
-                variant={selected === item.id ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setSelected(item.id)}>
-                {item.shell === 'bash'
-                  ? 'Bash'
-                  : item.shell === 'powershell'
-                    ? 'PowerShell'
-                    : item.shell === 'zsh'
-                      ? 'zsh'
-                      : t('terminal.title')}{' '}
-                <span className="font-mono text-xs">{item.id.slice(0, 6)}</span>
-                <Badge variant="outline" className="text-xs">
-                  {t(
-                    item.kind === 'pty'
-                      ? 'terminal.persistent'
-                      : item.retention.kind === 'session'
-                        ? 'terminal.background'
-                        : 'terminal.command'
-                  )}
-                </Badge>
-              </Button>
-            ))}
-          </div>
-        </ScrollArea>
+      {terminal.cleanup.data?.recoveryFailed && (
+        <p role="alert" className="px-3 py-2 text-xs text-warning">
+          {t('terminal.cleanup.protected')}
+        </p>
       )}
-      {resource ? (
+      {cleanup ? (
+        <CleanupRecord key={cleanup.id} record={cleanup} />
+      ) : resource ? (
         <>
-          <div
-            className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground"
-            role="status">
-            <span>
-              {t(
-                (
-                  {
-                    not_started: 'terminal.process.not_started',
-                    starting: 'terminal.process.starting',
-                    running: 'terminal.process.running',
-                    closing: 'terminal.process.closing',
-                    exited: 'terminal.process.exited',
-                    lost: 'terminal.process.lost'
-                  } as const
-                )[resource.process.kind]
-              )}
-            </span>
-            {resource.process.kind === 'exited' && (
-              <span>{t('terminal.exit_code', { code: resource.process.exitCode ?? '—' })}</span>
-            )}
-            {resource.cleanup !== 'none' && (
-              <span>
-                {t(
-                  (
-                    {
-                      pending: 'terminal.cleanup.pending',
-                      confirmed: 'terminal.cleanup.confirmed',
-                      unconfirmed: 'terminal.cleanup.unconfirmed'
-                    } as const
-                  )[resource.cleanup]
-                )}
-              </span>
-            )}
-            {resource.kind === 'pty' && (
-              <span>
-                {t(
-                  (
-                    {
-                      unknown: 'terminal.shell.unknown',
-                      prompt: 'terminal.shell.prompt',
-                      program: 'terminal.shell.program'
-                    } as const
-                  )[resource.shellFacts?.kind ?? 'unknown']
-                )}
-              </span>
-            )}
-          </div>
           {resource.kind === 'pty' && (resource.cleanup !== 'confirmed' || resource.screenAvailable) ? (
             <TerminalCanvas
               key={`${resource.host.generation}:${resource.id}`}
               resource={resource}
               active={active}
-              onResource={update}
-              takeControlOnAttach={claimId === resource.id}
-              onAttached={() => setClaimId(null)}
+              onResource={terminal.update}
+              takeControlOnAttach={terminal.claimId === resource.id}
+              onAttached={terminal.clearClaim}
             />
           ) : (
-            <TerminalOutput key={resource.id} resource={resource} active={active} onResource={update} />
+            <TerminalOutput key={resource.id} resource={resource} active={active} onResource={terminal.update} />
           )}
         </>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-sm text-muted-foreground">
-          <TerminalSquare className="size-8" aria-hidden="true" />
-          <p>{t('terminal.empty')}</p>
+          <TerminalSquare className="size-8" aria-hidden />
+          <p>{t(terminal.tabs.selectedTerminalId ? 'terminal.unavailable' : 'terminal.empty')}</p>
+          <Button variant="outline" size="sm" disabled={terminal.creating} onClick={() => void terminal.create()}>
+            {t('terminal.new_terminal')}
+          </Button>
         </div>
+      )}
+    </div>
+  )
+}
+
+function CleanupRecord({ record }: { record: WorkspaceUsageRecord }) {
+  const { t } = useTranslation()
+  const terminal = useTerminalResources()
+  const [status, setStatus] = useState<'confirmed' | 'unconfirmed' | 'unavailable'>('unconfirmed')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const retry = async () => {
+    setPending(true)
+    try {
+      const result = await ipcApi.request('terminal.cleanup.retry', { id: record.id })
+      setStatus(result.status)
+      await terminal.cleanup.mutate()
+      setError(null)
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 text-sm">
+      <p role="status" className={status === 'confirmed' ? 'text-muted-foreground' : 'text-warning'}>
+        {t(status === 'confirmed' ? 'terminal.cleanup.confirmed' : 'terminal.cleanup.unconfirmed')}
+      </p>
+      <p className="break-all font-mono text-xs text-muted-foreground">{record.cwd}</p>
+      {status !== 'confirmed' && <p className="text-muted-foreground">{t('terminal.cleanup.protected')}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      {status !== 'confirmed' && (
+        <Button className="self-start" variant="outline" size="sm" disabled={pending} onClick={() => void retry()}>
+          {t('terminal.retry_close')}
+        </Button>
       )}
     </div>
   )
@@ -276,7 +174,23 @@ function TerminalOutput({
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+      {(resource.cleanup === 'unconfirmed' || resource.process.kind === 'lost') && (
+        <p role="alert" className="px-3 py-2 text-xs text-warning">
+          {t('terminal.cleanup.protected')}
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
+      {truncated && <p className="px-3 py-1 text-xs text-muted-foreground">{t('terminal.output_truncated')}</p>}
+      <ScrollArea className="min-h-0 flex-1">
+        <pre className="whitespace-pre-wrap break-all p-3 font-mono text-xs" aria-label={t('terminal.output')}>
+          {output}
+        </pre>
+      </ScrollArea>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t px-3 py-2">
         {resource.kind === 'pipe' &&
           resource.shell === 'bash' &&
           resource.retention.kind === 'turn' &&
@@ -290,19 +204,8 @@ function TerminalOutput({
             {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.stop')}
           </Button>
         )}
-        <span className="text-xs text-muted-foreground">{t('terminal.output_only')}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{t('terminal.output_only')}</span>
       </div>
-      {error && (
-        <div role="alert" className="px-3 py-2 text-xs text-destructive">
-          {error}
-        </div>
-      )}
-      {truncated && <p className="px-3 py-1 text-xs text-muted-foreground">{t('terminal.output_truncated')}</p>}
-      <ScrollArea className="min-h-0 flex-1">
-        <pre className="whitespace-pre-wrap break-all p-3 font-mono text-xs" aria-label={t('terminal.output')}>
-          {output}
-        </pre>
-      </ScrollArea>
     </div>
   )
 }

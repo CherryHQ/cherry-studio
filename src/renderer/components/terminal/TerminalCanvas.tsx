@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Textarea } from '@cherrystudio/ui'
+import { Button, DropdownMenuItem, Textarea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import type { InputFor } from '@shared/ipc/types'
 import type { GhosttySnapshot, GhosttyTheme, GhosttyMouseInput, TerminalResourceState } from '@shared/types/terminal'
@@ -20,7 +20,7 @@ import {
   type GhosttyKeyboardLayoutMap
 } from './keyCodes'
 import { applyTerminalFrame } from './terminalFrames'
-import { useTerminalSettings } from './TerminalSettingsMenu'
+import { TerminalSettingsMenu, useTerminalSettings } from './TerminalSettingsMenu'
 
 type WireAction = InputFor<'terminal.action'>['action']
 type LocalInput<T> = T extends { kind: 'key' | 'paste' } ? Omit<T, 'geometryEpoch'> : T
@@ -89,6 +89,7 @@ export function TerminalCanvas({
   const [inputValue, setInputValue] = useState('')
   const [focused, setFocused] = useState(false)
   const [controlling, setControlling] = useState(false)
+  const [controlPending, setControlPending] = useState(false)
   const [viewReady, setViewReady] = useState(false)
   const focus = useRef(false)
   const claim = useRef(false)
@@ -100,6 +101,7 @@ export function TerminalCanvas({
   const resizing = useRef(0)
   const [geometryReady, setGeometryReady] = useState(false)
   const measuredGeometry = useRef('')
+  const confirmedGeometry = useRef('')
 
   const paint = useCallback(() => {
     draw.current = null
@@ -178,7 +180,11 @@ export function TerminalCanvas({
       const action: WireAction =
         intent.kind === 'key' || intent.kind === 'paste' ? { ...intent, geometryEpoch: epoch.current } : intent
       const controlChange = action.kind === 'take-control' || action.kind === 'return-control'
-      if (controlChange) controlEpoch.current++
+      if (controlChange) {
+        controlEpoch.current++
+        setGeometryReady(false)
+        setControlPending(true)
+      }
       const viewId = view.current
       const controlRevision = current.current.controlRevision
       if (action.kind === 'key' || action.kind === 'paste') {
@@ -188,6 +194,7 @@ export function TerminalCanvas({
       }
       const bytes = new TextEncoder().encode(JSON.stringify(action)).byteLength
       if (!viewId || queued.current >= 32 || queuedBytes.current + bytes > 128 * 1024) {
+        if (controlChange) setControlPending(false)
         setError(t('terminal.error.input_queue'))
         return Promise.resolve(false)
       }
@@ -197,24 +204,40 @@ export function TerminalCanvas({
       const work = queue.current
         .then(async () => {
           if (view.current !== viewId) throw new Error(t('terminal.error.view_changed'))
-          const receipt = await ipcApi.request('terminal.action', { viewId, operationId, controlRevision, action })
+          const submitted =
+            action.kind === 'resize'
+              ? { ...action, geometryEpoch: current.current.geometryEpoch ?? epoch.current }
+              : action
+          const receipt = await ipcApi.request('terminal.action', {
+            viewId,
+            operationId,
+            controlRevision,
+            action: submitted
+          })
           if (receipt.kind !== 'resource')
             throw new Error(
               t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
             )
           if (receipt.resource.revision >= current.current.revision) current.current = receipt.resource
+          if (controlChange) {
+            measuredGeometry.current = ''
+            confirmedGeometry.current = ''
+          }
           if (action.kind === 'take-control') setControlling(true)
           if (action.kind === 'take-control') input.current?.focus()
           if (action.kind === 'return-control') setControlling(false)
           callback.current(receipt.resource)
-          handled = receipt.inputHandled === true
+          handled = receipt.inputHandled === true || action.kind === 'resize'
           setError(null)
         })
         .catch((cause: unknown) => {
           setError(cause instanceof Error ? cause.message : String(cause))
         })
         .finally(() => {
-          if (controlChange) controlEpoch.current++
+          if (controlChange) {
+            controlEpoch.current++
+            setControlPending(false)
+          }
           queued.current--
           queuedBytes.current -= bytes
         })
@@ -300,7 +323,12 @@ export function TerminalCanvas({
                   frame.resource.controlRevision >= current.current.controlRevision
                 )
                   setControlling(frame.controlling)
-                setGeometryReady(!resizing.current && frame.geometryEpoch >= (current.current.geometryEpoch ?? 0))
+                setGeometryReady(
+                  !resizing.current &&
+                    measuredGeometry.current.startsWith(`${attached}:`) &&
+                    confirmedGeometry.current === measuredGeometry.current &&
+                    frame.geometryEpoch >= (current.current.geometryEpoch ?? 0)
+                )
                 if (
                   selection.current &&
                   snapshot.current &&
@@ -392,9 +420,13 @@ export function TerminalCanvas({
             cellWidth: metrics.current.width,
             cellHeight: metrics.current.height,
             geometryEpoch: epoch.current
-          }).finally(() => {
-            resizing.current--
           })
+            .then((accepted) => {
+              if (accepted) confirmedGeometry.current = geometry
+            })
+            .finally(() => {
+              resizing.current--
+            })
         }
       }
     }
@@ -529,48 +561,14 @@ export function TerminalCanvas({
   const canInput = controlled && geometryReady
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={resource.process.kind !== 'running'}
-          onClick={() => void send({ kind: controlled ? 'return-control' : 'take-control' })}>
-          {t(controlled ? 'terminal.return_control' : 'terminal.take_control')}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={copy}>
-          {t('terminal.copy')}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!canInput}
-          onClick={() =>
-            void send({
-              kind: 'key',
-              event: {
-                key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
-                mods: 2,
-                consumedMods: 0,
-                composing: false,
-                unshiftedCodepoint: 99,
-                text: 'c',
-                repeat: false
-              }
-            })
-          }>
-          {t('terminal.interrupt')}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={resource.cleanup === 'confirmed'}
-          onClick={() => void send({ kind: 'stop' })}>
-          {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close')}
-        </Button>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {t(controlled ? 'terminal.user_control' : 'terminal.observing')}
-        </span>
-      </div>
+      {(resource.cleanup === 'unconfirmed' || resource.process.kind === 'lost') && (
+        <div role="alert" className="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-warning">
+          <span className="flex-1">{t('terminal.cleanup.protected')}</span>
+          <Button size="sm" variant="outline" onClick={() => void send({ kind: 'stop' })}>
+            {t('terminal.retry_close')}
+          </Button>
+        </div>
+      )}
       {(error || viewError) && (
         <div role="alert" className="px-3 py-2 text-xs text-destructive">
           {error || viewError}
@@ -578,7 +576,7 @@ export function TerminalCanvas({
       )}
       <div
         ref={root}
-        className="relative min-h-0 flex-1 overflow-auto bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring"
+        className={`relative min-h-0 flex-1 ${controlled ? 'overflow-hidden' : 'overflow-auto'} bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring`}
         style={{ fontFamily: 'var(--code-font-family)' }}
         onPointerDown={(event) => {
           event.preventDefault()
@@ -765,6 +763,56 @@ export function TerminalCanvas({
         <pre className="sr-only" role="log" aria-live={focused ? 'polite' : 'off'} aria-label={t('terminal.output')}>
           {accessible}
         </pre>
+      </div>
+      <div
+        className="flex min-w-0 shrink-0 items-center gap-2 border-t border-border-subtle px-3 py-1 text-xs text-muted-foreground"
+        data-testid="terminal-footer">
+        <span
+          className="min-w-0 flex-1 truncate"
+          title={resource.shellFacts?.kind === 'prompt' ? resource.shellFacts.cwd : resource.shell}>
+          {resource.shell}
+          {resource.shellFacts?.kind === 'prompt' ? ` · ${resource.shellFacts.cwd}` : ''}
+        </span>
+        <span className="shrink-0">
+          {t(
+            resource.cleanup === 'pending'
+              ? 'terminal.cleanup.pending'
+              : controlled
+                ? 'terminal.user_control'
+                : 'terminal.observing'
+          )}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={resource.process.kind !== 'running' || controlPending || takeControlOnAttach}
+          onClick={() => void send({ kind: controlled ? 'return-control' : 'take-control' })}>
+          {t(controlled ? 'terminal.return_control' : 'terminal.take_control')}
+        </Button>
+        <TerminalSettingsMenu>
+          <DropdownMenuItem onSelect={copy}>{t('terminal.copy')}</DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canInput}
+            onSelect={() =>
+              void send({
+                kind: 'key',
+                event: {
+                  key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
+                  mods: 2,
+                  consumedMods: 0,
+                  composing: false,
+                  unshiftedCodepoint: 99,
+                  text: 'c',
+                  repeat: false
+                }
+              })
+            }>
+            {t('terminal.interrupt')}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={resource.cleanup === 'confirmed'} onSelect={() => void send({ kind: 'stop' })}>
+            {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close')}
+          </DropdownMenuItem>
+        </TerminalSettingsMenu>
       </div>
     </div>
   )

@@ -138,6 +138,12 @@ export type UseCacheSchema = {
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
+  'agent.resource_tabs.${sessionId}': {
+    order: string[]
+    terminals: { id: string; title: string }[]
+    hiddenTerminalIds: string[]
+    selectedTerminalId: string | null
+  }
   // Detached Chat/Agent windows keep pane state within their renderer process. These values are
   // seeded from the matching persisted preference but never sync back to the main window.
   'ui.window.chat.sidebar.width': number
@@ -237,6 +243,7 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.scroll_anchor.${topicId}': null,
+  'agent.resource_tabs.${sessionId}': { order: [], terminals: [], hiddenTerminalIds: [], selectedTerminalId: null },
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,

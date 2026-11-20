@@ -6,6 +6,7 @@ import type { InputFor } from '@shared/ipc/types'
 import type { TerminalResourceState, TerminalViewFrame } from '@shared/types/terminal'
 
 import { TerminalCanvas } from '../TerminalCanvas'
+vi.unmock('@cherrystudio/ui')
 
 const resource: TerminalResourceState = {
   id: '11111111-1111-4111-8111-111111111111' as TerminalResourceState['id'],
@@ -40,7 +41,32 @@ beforeEach(() => {
   stdin = ''
   alive = true
   current = structuredClone(resource)
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+    return {
+      canvas: this,
+      measureText: () => ({ width: 8, actualBoundingBoxAscent: 11, actualBoundingBoxDescent: 3 }),
+      getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) }),
+      getTransform: () => ({ a: 1, d: 1 }),
+      save() {},
+      restore() {},
+      resetTransform() {},
+      setTransform() {},
+      fillRect() {},
+      clearRect() {},
+      strokeRect() {}
+    } as unknown as CanvasRenderingContext2D
+  })
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback([{ target, contentRect: { width: 640, height: 400 } } as ResizeObserverEntry], this)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: Promise.resolve() } })
   window.api.ipcApi.request = vi.fn(async (route, payload) => {
     if (route === 'terminal.attach') return { ok: true, data: viewId }
@@ -169,6 +195,48 @@ it('keeps keyboard focus after clicking the terminal surface', async () => {
   await waitFor(() => expect(stdin).toBe('pwd'))
 })
 
+it('keeps takeover input read-only until the viewport is measured and resize completes', async () => {
+  controlling = false
+  let measure: () => void = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        measure = () =>
+          this.callback([{ target, contentRect: { width: 640, height: 400 } } as ResizeObserverEntry], this)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const originalRequest = window.api.ipcApi.request
+  const resize = Promise.withResolvers<void>()
+  let resizing = false
+  window.api.ipcApi.request = vi.fn(async (route, payload) => {
+    if (route === 'terminal.action' && (payload as InputFor<'terminal.action'>).action.kind === 'resize') {
+      resizing = true
+      await resize.promise
+    }
+    return originalRequest(route, payload)
+  })
+  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const area = screen.getByRole('textbox')
+  await userEvent.click(screen.getByRole('button', { name: /接管|Take control/ }))
+  await screen.findByRole('button', { name: /交还 Agent|Return to Agent/ })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  expect(area).toHaveAttribute('readonly')
+  act(measure)
+  await waitFor(() => expect(resizing).toBe(true))
+  expect(area).toHaveAttribute('readonly')
+  await act(async () => resize.resolve())
+  await input()
+  fireEvent.input(area, { target: { value: 'printf' } })
+  await waitFor(() => expect(stdin).toBe('printf'))
+})
+
 it('commits IME once and preserves later intentional identical text and characters', async () => {
   render(<TerminalCanvas resource={current} active onResource={() => {}} />)
   const area = await input()
@@ -186,6 +254,52 @@ it('commits IME once and preserves later intentional identical text and characte
   fireEvent.input(area, { target: { value: 'a' } })
   fireEvent.input(area, { target: { value: 'a' } })
   await waitFor(() => expect(stdin).toBe('你好你好aa'))
+})
+
+it('accepts input after viewport changes queued behind an unfinished resize', async () => {
+  let measure: (width: number) => void = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        measure = (width) =>
+          this.callback([{ target, contentRect: { width, height: 400 } } as ResizeObserverEntry], this)
+        measure(640)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const originalRequest = window.api.ipcApi.request
+  const firstResize = Promise.withResolvers<void>()
+  let started = false
+  window.api.ipcApi.request = vi.fn(async (route, payload) => {
+    if (route === 'terminal.action') {
+      const { action } = payload as InputFor<'terminal.action'>
+      if (action.kind === 'resize') {
+        if (!started) {
+          started = true
+          await firstResize.promise
+        }
+        if (action.geometryEpoch !== current.geometryEpoch)
+          return { ok: true, data: { kind: 'rejected', reason: 'stale_control' } }
+        current = { ...current, geometryEpoch: (current.geometryEpoch ?? 0) + 1, revision: current.revision + 1 }
+      }
+    }
+    return originalRequest(route, payload)
+  })
+  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  await waitFor(() => expect(started).toBe(true))
+  act(() => {
+    measure(620)
+    measure(600)
+  })
+  await act(async () => firstResize.resolve())
+  const area = await input()
+  fireEvent.input(area, { target: { value: 'after-resize' } })
+  await waitFor(() => expect(stdin).toBe('after-resize'))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 it('refuses a composition commit after control transfers', async () => {
   const rendered = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
