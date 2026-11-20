@@ -8,6 +8,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { createAtomicWriteStream, remove } from '@main/utils/file'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -78,7 +79,8 @@ function yieldToEventLoop(): Promise<void> {
 
 async function* collectNormalChatRecords(
   range: DiagnosticTimeRange,
-  warnings: Set<DiagnosticWarning>
+  warnings: Set<DiagnosticWarning>,
+  topicId?: string
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
   const topics = new Map<string, ChatRecordReference>()
@@ -86,6 +88,7 @@ async function* collectNormalChatRecords(
     do {
       const page = messageService.listLiveCreatedInRangeMetadataPage({
         ...range,
+        topicId,
         cursor,
         limit: CHAT_RECORD_PAGE_SIZE
       })
@@ -129,7 +132,8 @@ async function* collectNormalChatRecords(
 
 async function* collectAgentChatRecords(
   range: DiagnosticTimeRange,
-  warnings: Set<DiagnosticWarning>
+  warnings: Set<DiagnosticWarning>,
+  sessionId?: string
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
   const sessions = new Map<string, ChatRecordReference>()
@@ -137,6 +141,7 @@ async function* collectAgentChatRecords(
     do {
       const page = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
         ...range,
+        sessionId,
         cursor,
         limit: CHAT_RECORD_PAGE_SIZE
       })
@@ -215,8 +220,15 @@ function warnUnreadableChatSource(
   })
 }
 
-export function collectChatRecords(range: DiagnosticTimeRange): ChatRecordCollection {
+export function collectChatRecords(range: DiagnosticTimeRange, topicId?: string): ChatRecordCollection {
   const warnings = new Set<DiagnosticWarning>()
+  if (topicId !== undefined) {
+    const candidates = isAgentSessionTopic(topicId)
+      ? collectAgentChatRecords(range, warnings, extractAgentSessionId(topicId))
+      : collectNormalChatRecords(range, warnings, topicId)
+    return { candidates, warnings }
+  }
+
   const candidates = mergeNewestFirst(
     collectNormalChatRecords(range, warnings),
     collectAgentChatRecords(range, warnings)
