@@ -155,8 +155,6 @@ export interface MessageModelPickerRenderOptions {
   messageParts: CherryMessagePart[]
   trigger: ReactNode
   onOpenChange?: (open: boolean) => void
-  /** Limits the picker to this provider's models. */
-  providerId?: string
 }
 
 export interface MessageErrorDiagnosisStep {
@@ -449,6 +447,8 @@ export interface MessageListActions {
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
+  /** Regenerates with a model from the user's current paid subscription; absent without one and in image captures. */
+  renderSubscriptionModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleSelectAllMessages?: (checked: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void

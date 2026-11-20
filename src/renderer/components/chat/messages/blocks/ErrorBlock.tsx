@@ -5,7 +5,6 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
-import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabelKey } from '@renderer/i18n/label'
@@ -21,6 +20,7 @@ import {
   isClaudeCodeNotLoggedIn
 } from '@renderer/utils/errorClassifier'
 import { isLikelyInLanguage } from '@renderer/utils/errorLanguage'
+import { IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE } from '@renderer/utils/image'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -125,7 +125,7 @@ const MessageErrorInfo: React.FC<{
     navigateErrorTarget,
     notifyError,
     regenerateMessage,
-    renderRegenerateModelPicker
+    renderSubscriptionModelPicker
   } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
@@ -156,14 +156,12 @@ const MessageErrorInfo: React.FC<{
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, category)
   const cherryCloudQuotaRejection = cloudPresentation.quota
   const messageParts = useMessageParts(message.id)
-  const canOfferSubscriptionModel =
-    !!renderRegenerateModelPicker &&
+  const offerSubscriptionModel =
+    !!renderSubscriptionModelPicker &&
     !!providerId &&
     providerId !== CHERRY_CLOUD_PROVIDER_ID &&
     message.status !== 'pending' &&
     (PROVIDER_SWITCH_CATEGORIES.has(category) || !!localModelFailure)
-  const { activePaid, isPlansReady } = useCherryCloudPlans(canOfferSubscriptionModel)
-  const offerSubscriptionModel = canOfferSubscriptionModel && isPlansReady && !!activePaid
 
   // An app-owned i18nKey is the throwing code's own conclusion — prefer it over a pattern-matched
   // category, which can name the wrong subsystem. `<provider>` keys stay as the info (link form).
@@ -311,13 +309,16 @@ const MessageErrorInfo: React.FC<{
   }
 
   const subscriptionModelEntry =
-    offerSubscriptionModel && renderRegenerateModelPicker ? (
+    offerSubscriptionModel && renderSubscriptionModelPicker ? (
       // React bubbles the picker's portal clicks through the card; keep them from opening the detail.
-      <span className="contents" onClick={(event) => event.stopPropagation()}>
-        {renderRegenerateModelPicker({
+      // Image exports omit the entry so a shared capture does not reveal the account's paid plan.
+      <span
+        className="contents"
+        {...{ [IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE]: '' }}
+        onClick={(event) => event.stopPropagation()}>
+        {renderSubscriptionModelPicker({
           message,
           messageParts,
-          providerId: CHERRY_CLOUD_PROVIDER_ID,
           trigger: (
             <Button
               type="button"

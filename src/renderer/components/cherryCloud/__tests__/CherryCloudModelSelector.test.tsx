@@ -206,4 +206,36 @@ describe('AMD free models', () => {
       availability.amdLocked = []
     }
   })
+  it('keeps locked AMD rows out of a picker that disables offers, as the subscription recovery picker does', async () => {
+    plans.phase = 'signed-in'
+    availability.hidesEveryModel = false
+    availability.amdLocked = [{ id: 'amd/qwen', display_name: 'AMD Qwen', available_features: ['chat', 'translate'] }]
+    const providers = [provider('cherryai', 'CherryAI')]
+    const models = [model('cherryai', 'qwen')]
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/models' ? models : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      refetch: vi.fn(async () => undefined),
+      mutate: vi.fn(async () => undefined)
+    }))
+    try {
+      render(
+        <SWRConfig value={{ provider: () => new Map() }}>
+          <CherryCloudModelSelector
+            multiple={false}
+            open
+            showSubscriptionOffers={false}
+            onSelect={vi.fn()}
+            trigger={<button type="button">Models</button>}
+          />
+        </SWRConfig>
+      )
+      expect(await screen.findByText('qwen')).toBeInTheDocument()
+      expect(screen.queryByText('AMD Qwen')).not.toBeInTheDocument()
+    } finally {
+      availability.hidesEveryModel = true
+      availability.amdLocked = []
+    }
+  })
 })
