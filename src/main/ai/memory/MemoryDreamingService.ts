@@ -961,6 +961,7 @@ export class MemoryDreamingService extends BaseService {
     this.active = { scope, controller }
     const revisions = new Map<string, number>()
     const attempts = new Map<string, number>()
+    let mayHaveWritten = false
     let readingFiles = false
     let attempted = false
     let inputs: MemoryRead[] = []
@@ -1082,6 +1083,8 @@ export class MemoryDreamingService extends BaseService {
       } catch {
         throw new DreamingError('output')
       }
+      assertCurrent()
+      mayHaveWritten = true
       const result = await session.commit(
         plan.mutations,
         async () => assertCurrent,
@@ -1089,6 +1092,7 @@ export class MemoryDreamingService extends BaseService {
         undefined,
         plan.deleted.size ? paths : undefined
       )
+      mayHaveWritten = result.files.some((file) => file.outcome !== 'unchanged')
       const partial =
         !!result.error || result.files.some((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged')
       let checked = 0
@@ -1141,7 +1145,9 @@ export class MemoryDreamingService extends BaseService {
             file.reason = 'budget'
           }
         const preempted = controller.signal.reason === 'foreground' && !ctx.signal.aborted
-        if (preempted && attempted) {
+        const quittingBeforeWrite =
+          (application.isQuitting || controller.signal.reason === 'stopped') && !mayHaveWritten
+        if ((preempted || quittingBeforeWrite) && attempted) {
           for (const read of inputs) {
             const file = latest.files[read.path]
             const previous = attempts.get(read.path)
@@ -1162,7 +1168,7 @@ export class MemoryDreamingService extends BaseService {
         const retryable =
           attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
         latest.manual = start.manual && (preempted || retryable)
-        if (ctx.signal.aborted && !timedOut) {
+        if (ctx.signal.aborted && !timedOut && !quittingBeforeWrite) {
           latest.generation++
           latest.manual = false
           latest.cancelled = true

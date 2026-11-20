@@ -535,18 +535,15 @@ export class MemoryStore {
       source === 'clear'
         ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, memoryHash(after)])))
         : undefined
-    const batch = await createMemoryBackup(
-      await this.checkedBackupRoot(),
-      changes,
-      source,
+    const batch = await createMemoryBackup(await this.checkedBackupRoot(), changes, source, {
       legacy,
       clearScopeHash,
       recoveryOf,
-      this.root,
-      proposed
+      activeRoot: this.root,
+      transferTargets: proposed
         .filter((change) => change.transferTarget && memoryHash(change.before) === memoryHash(change.after))
         .map((change) => ({ path: change.path, hash: memoryHash(change.after) }))
-    )
+    })
     const steps = new Map(batch.steps.map((step) => [step.path, step]))
     const result: MemoryCommitResult = {
       batchId: batch.id,
@@ -611,15 +608,30 @@ export class MemoryStore {
         if (batch.recoveryOf) {
           const original = await latestMemoryBackup(await this.checkedBackupRoot(), batch.recoveryOf)
           if (original?.status === 'partial') {
+            const confirmed: MemoryFileChange[] = []
+            const root = await this.checkedBackupRoot()
+            const predecessor =
+              original.recoveryOf && hasOrderedRecovery(original)
+                ? await latestMemoryBackup(root, original.recoveryOf)
+                : undefined
             for (const step of original.steps) {
               if (step.outcome === 'unchanged') continue
               const reverse = batch.steps.find((candidate) => candidate.path === step.path)
-              if (
-                reverse?.outcome === 'applied' ||
-                memoryHash(await readMemoryBytes(this.root, step.path)) === step.beforeHash
-              )
-                step.outcome = 'unchanged'
+              if (reverse?.outcome !== 'applied') {
+                const current = await readMemoryBytes(this.root, step.path)
+                if (memoryHash(current) !== step.beforeHash) continue
+                // Rebuild the inverse only from verified originals; a matching live hash alone
+                // does not tell us which bytes an eventual undo should put back.
+                const prior =
+                  reverse ??
+                  predecessor?.steps.find((item) => item.path === step.path && item.beforeHash === step.afterHash)
+                if (prior?.beforeHash === step.afterHash)
+                  confirmed.push({ path: step.path, before: decodeOriginal(prior), after: current })
+              }
+              step.outcome = 'unchanged'
             }
+            if (confirmed.length)
+              batch = await createMemoryBackup(root, [], 'recovery', { recoveryOf: original.id, confirmed })
             if (original.steps.some((step) => step.outcome !== 'unchanged')) return resume ? original : batch
             original.status = 'completed'
             await saveMemoryBackup(await this.checkedBackupRoot(), original)

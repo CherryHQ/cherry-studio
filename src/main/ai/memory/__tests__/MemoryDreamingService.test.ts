@@ -146,6 +146,30 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
+  it('refunds the second automatic attempt if the app quits before commit', async () => {
+    for (let i = 0; i < 10; i++) await save('Fact ' + i)
+    generate.mockRejectedValueOnce(new Error('model unavailable'))
+    await expect(dreaming.execute(job())).rejects.toThrow()
+    const previous = readDreamingState(scope).files['MEMORY.md']
+    expect(previous.attempts).toBe(1)
+    vi.spyOn(Date, 'now').mockReturnValue(previous.retryAt + 1)
+    const app = application as { isQuitting: boolean }
+    generate.mockImplementationOnce(async () => {
+      app.isQuitting = true
+      return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
+    })
+    try {
+      await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+      expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({
+        attempts: 1,
+        revision: previous.revision,
+        observedHash: previous.observedHash
+      })
+    } finally {
+      app.isQuitting = false
+    }
+  })
+
   it('keeps organization eligible for a bounded retry after a model timeout', async () => {
     await save('A durable fact')
     dreaming.request(scope)
@@ -866,6 +890,15 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(generate).not.toHaveBeenCalled()
     expect((await session.read('MEMORY.md')).content).toBe('User replacement')
     expect(readExtractionState(batch.key)).toMatchObject({ outcome: 'skipped', skippedConflict: 8 })
+    const conflicted = readExtractionState(batch.key)!.recent.find((ticket) => ticket.messageId === batch.users[7])!
+    generate.mockResolvedValueOnce({
+      text: JSON.stringify({ outcome: 'no_eligible', reason: 'No fact to add', candidates: [] }),
+      finishReason: 'stop'
+    })
+    await expect(
+      dreaming.previewExtraction({ source: conflicted.input, fromMessageId: batch.users[0] }, () => undefined)
+    ).resolves.toMatchObject({ mode: 'preview' })
+    generate.mockClear()
     expect(readExtractionState(batch.key)?.pending.map((t) => t.messageId)).toEqual(batch.users.slice(8))
     vi.spyOn(Date, 'now').mockReturnValue(nextExtractionDaily(Date.now()) + 1)
     generate.mockImplementation(async () => ({ text: automaticReply([]), finishReason: 'stop' }))

@@ -396,6 +396,8 @@ export function skipExtractionTurns(
   if (reason === 'budget') state.skippedBudget += removed.length
   else if (reason === 'source') state.skippedSource += removed.length
   else {
+    // These receipts still describe the conversation. excludedThrough fences automatic replay.
+    state.recent = [...state.recent, ...removed].slice(-PREVIEW_RECEIPTS)
     state.skippedConflict += removed.length
     state.excludedThrough = sourcePosition(
       [

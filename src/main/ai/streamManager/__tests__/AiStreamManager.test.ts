@@ -3229,6 +3229,42 @@ describe('AiStreamManager', () => {
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
     })
 
+    it('waits for both persisted replies before admitting the chained turn', async () => {
+      const dispatch = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+      const memory = vi.fn()
+      mgr.onMemoryResponsesCompleted(memory)
+      const started = Promise.withResolvers<void>()
+      const saved = Promise.withResolvers<void>()
+      const listener = new FakeListener('persistence:a', 'persistence')
+      listener.onDoneImpl = async () => {
+        if (listener.doneResults.length === 1) {
+          started.resolve()
+          await saved.promise
+        }
+      }
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        models: [
+          { modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'first' } },
+          { modelId: 'provider-b::model-b', request: { ...req('a'), messageId: 'second' } }
+        ],
+        listeners: [listener]
+      })
+      mgr.enqueuePendingSteer('a', 'next')
+      const first = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await started.promise
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      await flush()
+      expect(memory).not.toHaveBeenCalled()
+      expect(dispatch).not.toHaveBeenCalled()
+      saved.resolve()
+      await first
+      await flush()
+      expect(memory.mock.calls).toEqual([[{ topicId: 'a', memoryResponseIds: ['first', 'second'] }]])
+      expect(dispatch).toHaveBeenCalledTimes(1)
+    })
+
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
@@ -3524,6 +3560,42 @@ describe('AiStreamManager', () => {
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
+    })
+
+    it('waits for both persisted replies before admitting the chained turn', async () => {
+      const dispatch = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
+      const memory = vi.fn()
+      mgr.onMemoryResponsesCompleted(memory)
+      const started = Promise.withResolvers<void>()
+      const saved = Promise.withResolvers<void>()
+      const listener = new FakeListener('persistence:a', 'persistence')
+      listener.onDoneImpl = async () => {
+        if (listener.doneResults.length === 1) {
+          started.resolve()
+          await saved.promise
+        }
+      }
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        models: [
+          { modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'first' } },
+          { modelId: 'provider-b::model-b', request: { ...req('a'), messageId: 'second' } }
+        ],
+        listeners: [listener]
+      })
+      mgr.enqueuePendingSteer('a', 'next')
+      const first = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await started.promise
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      await flush()
+      expect(memory).not.toHaveBeenCalled()
+      expect(dispatch).not.toHaveBeenCalled()
+      saved.resolve()
+      await first
+      await flush()
+      expect(memory.mock.calls).toEqual([[{ topicId: 'a', memoryResponseIds: ['first', 'second'] }]])
+      expect(dispatch).toHaveBeenCalledTimes(1)
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {

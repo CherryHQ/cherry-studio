@@ -217,6 +217,7 @@ export interface ActiveStream {
   hasTaskResultOwner?: boolean
   completedTaskCount?: number
   completionFailed?: boolean
+  chainedMemoryCompletionPending?: boolean
   terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */

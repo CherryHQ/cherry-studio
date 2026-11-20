@@ -1611,6 +1611,8 @@ export class AiStreamManager extends BaseService {
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
 
+    if (chatChaining) stream.chainedMemoryCompletionPending = true
+
     if (topicDone && stream.status === 'done' && stream.isPersistentConversation) {
       const tasks = this.completedBatchTasks.get(topicId) ?? new Set<string>()
       for (const execution of stream.executions.values()) {
@@ -1631,14 +1633,6 @@ export class AiStreamManager extends BaseService {
       if (this.activeStreams.get(topicId) !== stream) return
 
       if (chatChaining) {
-        if (stream.isPersistentConversation && !stream.hasTaskResultOwner && !stream.completionFailed) {
-          this._onMemoryResponsesCompleted.fire({
-            topicId,
-            memoryResponseIds: [...stream.executions.values()].flatMap((execution) =>
-              execution.anchorMessageId ? [execution.anchorMessageId] : []
-            )
-          })
-        }
         this.scheduleNextChatTurn(topicId)
       } else if (topicDone && !chaining) {
         // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
@@ -1927,6 +1921,11 @@ export class AiStreamManager extends BaseService {
       this.suppressedChatContinuationTopicIds.add(topicId)
       return
     }
+    const settling = this.activeStreams.get(topicId)
+    if (this.terminalDispatchInFlight.has(topicId)) {
+      await this.whenTerminalDispatchSettled(topicId)
+      if (this.activeStreams.get(topicId) !== settling) return
+    }
     const queue = this.pendingSteers.get(topicId)
     const pending = queue?.[0]
     if (!pending) {
@@ -1945,6 +1944,22 @@ export class AiStreamManager extends BaseService {
     if (queue.length === 0) this.pendingSteers.delete(topicId)
 
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
+    if (previous?.chainedMemoryCompletionPending) {
+      previous.chainedMemoryCompletionPending = false
+      if (
+        previous.status === 'done' &&
+        previous.isPersistentConversation &&
+        !previous.hasTaskResultOwner &&
+        !previous.completionFailed
+      ) {
+        this._onMemoryResponsesCompleted.fire({
+          topicId,
+          memoryResponseIds: [...previous.executions.values()].flatMap((execution) =>
+            execution.anchorMessageId ? [execution.anchorMessageId] : []
+          )
+        })
+      }
+    }
     if (previous) this.evictStream(topicId)
 
     const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
