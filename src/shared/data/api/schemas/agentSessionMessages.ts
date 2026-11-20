@@ -36,6 +36,8 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
 
+export const AgentSessionMessageQuerySchema = AgentSessionMessagesListQuerySchema.pick({ deferToolOutputs: true })
+
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
 // ============================================================================
@@ -120,6 +122,7 @@ export type AgentSessionMessageSchemas = {
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: {
       params: { sessionId: string; messageId: string }
+      query?: z.infer<typeof AgentSessionMessageQuerySchema>
       response: AgentSessionMessageEntity
     }
     PATCH: {

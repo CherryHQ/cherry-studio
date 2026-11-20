@@ -10,24 +10,31 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import {
   useDataChange,
   useInfiniteFlatItems,
   useMutation,
+  useReadCache,
   useWriteInfiniteCache
 } from '@renderer/data/hooks/useDataApi'
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { AGENT_SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { Sequencer } from '@shared/utils/async'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
 const PAGE_SIZE = 50
+const MESSAGE_QUERY = { deferToolOutputs: true } as const
+const logger = loggerService.withContext('useAgentSessionParts')
 
 interface CachedAgentSessionMessage {
   turnOrigin: AutonomousTurnOrigin | undefined
@@ -91,7 +98,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     {
       params: { sessionId },
       // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
-      query: { deferToolOutputs: true },
+      query: MESSAGE_QUERY,
       limit: PAGE_SIZE,
       enabled,
       swrOptions: {
@@ -119,16 +126,119 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   )
   const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { deferToolOutputs: true },
+    query: MESSAGE_QUERY,
     limit: PAGE_SIZE
   })
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
   const deleteQueuesRef = useRef(new Map<string, Promise<void>>())
   const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
+  const listPath = `/agent-sessions/${sessionId}/messages` as const
+  const readCache = useReadCache()
+  const readSessionPages = useCallback(
+    () =>
+      readCache<CursorPaginationResponse<AgentSessionMessageEntity>[]>(listPath, MESSAGE_QUERY, { limit: PAGE_SIZE }),
+    [listPath, readCache]
+  )
+  const refreshScope = useMemo(() => ({ sessionId, enabled, queue: new Sequencer() }), [sessionId, enabled])
+  const refreshState = useRef<typeof refreshScope | undefined>(refreshScope)
+  const historyRevalidation = useRef<Promise<void> | undefined>(undefined)
+  useLayoutEffect(() => {
+    refreshState.current = refreshScope
+    return () => {
+      refreshState.current = undefined
+    }
+  }, [refreshScope])
+  useLayoutEffect(() => {
+    if (!isRefreshing) return
+    const { promise, resolve } = Promise.withResolvers<void>()
+    historyRevalidation.current = promise
+    return () => {
+      historyRevalidation.current = undefined
+      resolve()
+    }
+  }, [isRefreshing, sessionId])
   useDataChange(
     '/agent-sessions/:sessionId/messages',
-    () => {
-      if (enabled) void mutate()
+    (effects) => {
+      if (!enabled) return
+      const isCurrent = () => refreshState.current === refreshScope
+      const refresh = async () => {
+        if (historyRevalidation.current) await historyRevalidation.current
+        if (!isCurrent()) return
+        const cached = readSessionPages()
+        if (!cached?.length || effects.some((effect) => !effect.entityIds?.length || effect.kind === 'order')) {
+          await mutate()
+          return
+        }
+        const changed = new Set<string>()
+        const inserted = new Set<string>()
+        for (const effect of effects) {
+          const ids = effect.kind === 'membership' ? inserted : changed
+          for (const id of effect.entityIds ?? []) ids.add(id)
+        }
+
+        if (inserted.size) {
+          const firstPage = cached[0]
+          const limit = firstPage.items.length + inserted.size
+          if (cached.length > 1 && limit <= AGENT_SESSION_MESSAGES_MAX_LIMIT) {
+            const head = await dataApiService.get(listPath as '/agent-sessions/:sessionId/messages', {
+              query: { ...MESSAGE_QUERY, limit }
+            })
+            if (historyRevalidation.current) await historyRevalidation.current
+            if (!isCurrent()) return
+            // Reuse the older cursor chain only after proving the selected branch is a pure prepend.
+            if (
+              head.nextCursor === firstPage.nextCursor &&
+              head.items.length === limit &&
+              head.items.slice(0, inserted.size).every((item) => inserted.has(item.id)) &&
+              firstPage.items.every((item, index) => item.id === head.items[index + inserted.size].id) &&
+              readSessionPages() === cached
+            ) {
+              await writeSessionMessagesCache([head, ...cached.slice(1)])
+              for (const item of head.items) changed.delete(item.id)
+            } else {
+              await mutate()
+              return
+            }
+          } else {
+            await mutate()
+            return
+          }
+        }
+
+        const loaded = new Set(cached.flatMap((page) => page.items.map((item) => item.id)))
+        const updated = await Promise.all(
+          [...changed]
+            .filter((id) => loaded.has(id))
+            .map((id) =>
+              dataApiService.get(`${listPath}/${id}` as '/agent-sessions/:sessionId/messages/:messageId', {
+                query: MESSAGE_QUERY
+              })
+            )
+        )
+        if (historyRevalidation.current) await historyRevalidation.current
+        if (!isCurrent() || !updated.length) return
+        const byId = new Map(updated.map((item) => [item.id, item]))
+        await writeSessionMessagesCache((currentPages) =>
+          currentPages?.map((page) => {
+            const items = page.items.map((item) => {
+              const next = byId.get(item.id)
+              return next && next.updatedAt >= item.updatedAt ? { ...next, siblings: item.siblings } : item
+            })
+            return items.some((item, index) => item !== page.items[index]) ? { ...page, items } : page
+          })
+        )
+      }
+      void refreshScope.queue
+        .queue(async () => {
+          try {
+            await refresh()
+          } catch (error) {
+            logger.warn('Agent message refresh failed', error as Error)
+            if (isCurrent()) await mutate()
+          }
+        })
+        .catch((error) => logger.warn('Agent history refresh failed', error as Error))
     },
     { routeParams: { sessionId } }
   )
@@ -242,9 +352,22 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   }, [enabled, mutate, projectMessages, projectionOwnerToken])
 
   // A reservation can arrive after branch selection. Only Main's selected path may enter this cache.
-  const seedReservedMessages = useCallback<(messages: CherryUIMessage[]) => Promise<void>>(async () => {
-    await mutate()
-  }, [mutate])
+  const seedReservedMessages = useCallback(
+    async (reserved: CherryUIMessage[]) => {
+      await refreshScope.queue.queue(async () => {
+        if (refreshState.current !== refreshScope) return
+        const current = readSessionPages()
+        if (
+          current &&
+          reserved.every((message) => current.some((page) => page.items.some((row) => row.id === message.id)))
+        ) {
+          return
+        }
+        await mutate()
+      })
+    },
+    [mutate, readSessionPages, refreshScope]
+  )
   const replaceMessageTail = useCallback<
     (messageId: string, replacements: CherryUIMessage[]) => Promise<void>
   >(async () => {

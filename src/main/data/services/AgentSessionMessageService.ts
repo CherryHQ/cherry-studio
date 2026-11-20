@@ -270,6 +270,7 @@ type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
   dataChange: 'membership' | 'projection'
   activityTimestamp: number | null
+  historyActionDependents?: string[]
 }
 
 function replaceAgentSessionMessageFileRefsTx(
@@ -875,10 +876,11 @@ export class AgentSessionMessageService {
     }
   }
 
-  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): number {
     const row = this.findExistingMessageRow(tx, sessionId, messageId)
-    if (!row) return
-    tx.update(sessionMessagesTable)
+    if (!row) return 0
+    return tx
+      .update(sessionMessagesTable)
       .set({
         data: sql`json_remove(${sessionMessagesTable.data}, '$.runtimeAnchor')`,
         updatedAt: Date.now()
@@ -890,7 +892,7 @@ export class AgentSessionMessageService {
           sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
-      .run()
+      .run().changes
   }
 
   search(query: SessionMessageContentSearchInput) {
@@ -1229,13 +1231,7 @@ export class AgentSessionMessageService {
       .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
       .prepare()
     const items = pageRows.map(({ id, parentId }) => {
-      const item = this.rowToEntity(readRow.get({ id })!)
-      if (options.deferToolOutputs && item.role === 'assistant' && item.data.parts) {
-        item.data = {
-          ...item.data,
-          parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${sessionId}`, id)
-        }
-      }
+      const item = this.projectMessage(readRow.get({ id })!, options.deferToolOutputs)
       return { ...item, siblings: siblingsByParent.get(parentId) ?? [] }
     })
     const tail = pageRows[pageRows.length - 1]
@@ -1282,12 +1278,23 @@ export class AgentSessionMessageService {
     ])
   }
 
-  getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
+  getSessionMessage(sessionId: string, messageId: string, deferToolOutputs?: boolean): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
     const row = this.findExistingMessageRow(database, sessionId, messageId)
     if (!row || row.role === 'root') throw DataApiErrorFactory.notFound('Message', messageId)
-    return this.rowToEntity(row)
+    return this.projectMessage(row, deferToolOutputs)
+  }
+
+  private projectMessage(row: SessionMessageRow, deferToolOutputs?: boolean): AgentSessionMessageEntity {
+    const item = this.rowToEntity(row)
+    if (deferToolOutputs && item.role === 'assistant' && item.data.parts) {
+      item.data = {
+        ...item.data,
+        parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${item.sessionId}`, item.id)
+      }
+    }
+    return item
   }
 
   updateSessionMessage(
@@ -1295,7 +1302,7 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
-    const message = application.get('DbService').withWriteTx((tx) => {
+    const { message, changedForkAnchors } = application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
@@ -1309,7 +1316,7 @@ export class AgentSessionMessageService {
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
-      this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      const changedForkAnchors = this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: mergedData, updatedAt })
@@ -1318,10 +1325,15 @@ export class AgentSessionMessageService {
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      return this.rowToEntity(updated)
+      return { message: this.rowToEntity(updated), changedForkAnchors }
     })
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        ...(changedForkAnchors === 0 && { entityIds: [messageId] })
+      }
     ])
     return message
   }
@@ -1721,6 +1733,28 @@ export class AgentSessionMessageService {
       )
       replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
 
+      // A user's edit eligibility depends on its parent's successful fork checkpoint.
+      const previousForkAnchor =
+        existingRow.role === 'assistant' && existingRow.status === 'success'
+          ? existingRow.data.runtimeAnchor
+          : undefined
+      const nextForkAnchor = message.role === 'assistant' && status === 'success' ? data.runtimeAnchor : undefined
+      const historyActionDependents =
+        previousForkAnchor || nextForkAnchor
+          ? db
+              .select({ id: sessionMessagesTable.id })
+              .from(sessionMessagesTable)
+              .where(
+                and(
+                  eq(sessionMessagesTable.sessionId, sessionId),
+                  eq(sessionMessagesTable.parentId, messageId),
+                  eq(sessionMessagesTable.role, 'user'),
+                  isNull(sessionMessagesTable.delivery)
+                )
+              )
+              .all()
+              .map((row) => row.id)
+          : undefined
       return {
         entity: this.rowToEntity({
           ...existingRow,
@@ -1740,7 +1774,8 @@ export class AgentSessionMessageService {
           updatedAt: updatedAtMs
         }),
         dataChange: 'projection',
-        activityTimestamp
+        activityTimestamp,
+        historyActionDependents
       }
     }
 
@@ -1824,7 +1859,7 @@ export class AgentSessionMessageService {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: result.dataChange,
           routeParams: { sessionId: params.sessionId },
-          entityIds: [result.entity.id]
+          entityIds: [result.entity.id, ...(result.historyActionDependents ?? [])]
         }
       ])
     }

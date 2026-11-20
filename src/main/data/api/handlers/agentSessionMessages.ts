@@ -7,6 +7,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
+  AgentSessionMessageQuerySchema,
   type AgentSessionMessageSchemas,
   AgentSessionMessagesListQuerySchema,
   SelectAgentSessionBranchSchema,
@@ -43,9 +44,15 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
   },
 
   '/agent-sessions/:sessionId/messages/:messageId': {
-    GET: async ({ params }) => {
+    GET: async ({ params, query }) => {
       agentSessionService.getConversationById(params.sessionId)
-      return agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId)
+      const parsed = AgentSessionMessageQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const { sessionId, messageId } = params
+      const message = agentSessionMessageService.getSessionMessage(sessionId, messageId, parsed.data.deferToolOutputs)
+      if (!parsed.data.deferToolOutputs) return message
+      const actions = application.get('AgentSessionRuntimeService').getHistoryActions(sessionId, [messageId])
+      return { ...message, historyActions: actions.get(messageId) }
     },
 
     PATCH: async ({ params, body }) => {

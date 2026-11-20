@@ -415,16 +415,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        parentId: validated.parentMessageId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
-        }
-      })
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          parentId: validated.parentMessageId,
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        { publishDataChange: true }
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
@@ -450,6 +453,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: validated.sessionId },
+        entityIds: persisted.savedMessages.map((message) => message.id)
+      }
+    ])
     return this.activateDispatch(persisted, subscriber)
   }
 }
