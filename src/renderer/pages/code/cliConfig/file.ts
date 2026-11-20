@@ -128,6 +128,7 @@ export function parseJsonOrThrow(content: string): Record<string, Serializable> 
   return parsed as Record<string, Serializable>
 }
 
-export function renderJsonFile(value: Record<string, any>): string {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- JSON.stringify owns omission and serialization errors for arbitrary foreign config values.
+export function renderJsonFile(value: Record<string, unknown>): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
