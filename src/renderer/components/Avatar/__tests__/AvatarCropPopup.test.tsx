@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PopupHost } from '@renderer/components/PopupHost'
 import i18n from '@renderer/i18n/resolver'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 import { AvatarCropPopup } from '../AvatarCropPopup'
 
@@ -86,6 +87,16 @@ describe('AvatarCropPopup', () => {
       width: expect.closeTo(0.25),
       height: expect.closeTo(0.25)
     })
+  })
+
+  // Catches a corrupt image leaving a blank dialog with Confirm disabled and no error shown.
+  it('reports an image that cannot be decoded and returns nothing to save', async () => {
+    const { result } = await showCrop()
+
+    fireEvent.error(image())
+
+    await expect(result).resolves.toBeNull()
+    expect(toast.error).toHaveBeenCalledWith('Failed to process the image, please try again')
   })
 
   it('frames the user avatar in a circle', async () => {

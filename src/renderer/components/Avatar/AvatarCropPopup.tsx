@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ImageCropArea } from '@renderer/utils/image'
 
 const MIN_ZOOM = 1
@@ -86,6 +87,12 @@ function AvatarCropDialog({
               style={{ cropAreaStyle: { border: '2px solid var(--primary)' } }}
               onCropChange={setCrop}
               onZoomChange={setZoom}
+              mediaProps={{
+                onError: () => {
+                  toast.error(i18n.t('message.error.image_process_failed'))
+                  close(null)
+                }
+              }}
               onMediaLoaded={setMedia}
               onCropComplete={setFramed}
             />
