@@ -57,7 +57,7 @@ const routingModeOverrides = ROUTING_MODES.map(([modelId, name]) => ({
 })) satisfies ProviderModelOffer[]
 
 /**
- * Models the router can pin (GET /v1/models, 2026-11-12) that have a models.json row, by router id; the
+ * Models the router can pin (GET /v1/models, 2026-11-20) that have a models.json row, by router id; the
  * catalog key derives from it.
  */
 const PINNABLE_MODELS = [
@@ -70,6 +70,8 @@ const PINNABLE_MODELS = [
   'claude-opus-4-7',
   'claude-opus-4-6',
   'claude-sonnet-4-6',
+  'gpt-6.2-sol',
+  'gpt-6.2-astra',
   'gpt-6.1-sol',
   'gpt-6.1-terra',
   'gpt-6-sol',
@@ -95,6 +97,24 @@ const pinnedModelOverrides = PINNABLE_MODELS.map((apiModelId) => ({
   reason: TEXT_ONLY_REASON
 })) satisfies ProviderModelOffer[]
 
+/**
+ * Models the router can pin that have no models.json row yet: named offers, so sync gives them their own
+ * capabilities and limits instead of none. Claude Fable 5.2 has the same API surface as Claude Fable 5.1
+ * (tools, structured output, 1,000,000-token context, 128,000 output tokens), here text-only like every pin.
+ */
+const unlistedModelOffers = [
+  {
+    apiModelId: 'claude-fable-5-2',
+    name: 'Claude Fable 5.2',
+    ownedBy: 'anthropic',
+    capabilities: { force: ['function-call', 'structured-output'] },
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    limits: { contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+    reason: TEXT_ONLY_REASON
+  }
+] satisfies ProviderModelOffer[]
+
 export default defineProvider({
   id: 'aistupidlevel',
   name: 'AI Stupid Level',
@@ -118,5 +138,5 @@ export default defineProvider({
   },
   modelsDevProvider: 'aistupidlevel',
   standaloneModelIds: ROUTING_MODES.map(([id]) => id),
-  overrides: [...routingModeOverrides, ...pinnedModelOverrides]
+  overrides: [...routingModeOverrides, ...pinnedModelOverrides, ...unlistedModelOffers]
 })

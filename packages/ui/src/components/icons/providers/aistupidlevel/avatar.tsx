@@ -10,7 +10,7 @@ export function AistupidlevelAvatar({ size = 32, shape = 'circle', className }: 
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <AistupidlevelLight className="dark:hidden" style={{ width: size, height: size }} />
         <AistupidlevelDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>

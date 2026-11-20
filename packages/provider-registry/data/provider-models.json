@@ -2221,6 +2221,22 @@
     },
     {
       "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "claude-fable-5-2",
+      "name": "Claude Fable 5.2",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
       },
       "inputModalities": ["text"],
@@ -2405,6 +2421,26 @@
       },
       "inputModalities": ["text"],
       "modelId": "gpt-6-1-terra",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-6.2-astra",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-2-astra",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-6.2-sol",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-2-sol",
       "providerId": "aistupidlevel",
       "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
     },
@@ -45814,5 +45850,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e91e3e0caf0b486d"
+  "version": "134efd4d3ac8597b"
 }

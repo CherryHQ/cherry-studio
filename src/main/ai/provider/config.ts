@@ -297,6 +297,16 @@ export async function resolveProviderAiSdkConfig(
         return config
       })
     },
+    // AI Stupid Level's Smart Router accepts `response_format.json_schema` on every model it routes to, so the
+    // adapter forwards the schema instead of downgrading it to `json_object` (aistupidlevel.test.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'aistupidlevel'),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.supportsStructuredOutputs = true
+        return config
+      })
+    },
     // Moonshot chat routes to its extension so the `$web_search` echo-tool factory
     // resolves under providerId 'moonshot'; the provider's transformRequestBody
     // rewrites the declaration to Kimi's builtin_function shape (moonshotProvider.ts).
