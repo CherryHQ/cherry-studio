@@ -79,7 +79,11 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import { countAgentImageAttachments, resolveMaxAgentImages } from '@shared/ai/agentImageLimits'
+import {
+  countAgentImageAttachments,
+  countAgentImageFileParts,
+  resolveMaxAgentImages
+} from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -1295,10 +1299,13 @@ const AgentComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         // Re-check on drain: the model may have changed since the follow-up was
-        // queued. Keeps the payload so a model switch unblocks retry.
+        // queued. Keeps the payload so a model switch unblocks retry. Count both
+        // composer attachments and prebuilt file parts (Desktop unsent-message
+        // Resend reaches here with prebuilt parts that bypass the draft count).
         const drainMaxImages = resolveMaxAgentImages(model)
         if (drainMaxImages !== undefined) {
-          const drainImageCount = countAgentImageAttachments(attachments)
+          const drainImageCount =
+            countAgentImageAttachments(attachments) + countAgentImageFileParts(payload.userMessageParts)
           if (drainImageCount > drainMaxImages) {
             toast.warning(t('agent.image_limit_exceeded', { limit: drainMaxImages, count: drainImageCount }))
             return false
@@ -1336,6 +1343,25 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
+        // Capability-driven multi-image guard (#20030): a main-side rejection
+        // carries the typed limit keys across IPC (see serializeError). Render
+        // the limit warning so retry preserves the draft instead of showing a
+        // generic processing error.
+        const serialized = error as Record<string, unknown> | null
+        const i18nKey = typeof serialized?.i18nKey === 'string' ? serialized.i18nKey : undefined
+        if (
+          i18nKey === 'agent_image_limit_exceeded' ||
+          i18nKey === 'agent_image_limit_exceeded_after_send' ||
+          (error as Error)?.name === 'AgentImageLimitError'
+        ) {
+          const values = (serialized?.detailI18nValues as Record<string, string> | undefined) ?? {}
+          const limit = Number(values.limit ?? serialized?.limit)
+          const count = Number(values.count ?? serialized?.count)
+          if (Number.isFinite(limit) && Number.isFinite(count)) {
+            toast.warning(t('agent.image_limit_exceeded', { limit, count }))
+            return false
+          }
+        }
         toast.errorFromException(error)
         return false
       }

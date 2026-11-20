@@ -46,6 +46,15 @@ describe('isAgentImagePart', () => {
     expect(isAgentImagePart({ type: 'file', url: 'file:///tmp/photo.webp?x=1#y' })).toBe(true)
   })
 
+  it('counts AVIF/HEIC/TIFF by extension like main does by MIME (#20030)', () => {
+    // Renderer attachments lack MIME; main counts image/avif by MIME after the
+    // bridge. Both sides must agree before managed copies are created.
+    expect(isAgentImagePart({ type: 'file', filename: 'shot.avif' })).toBe(true)
+    expect(isAgentImagePart({ type: 'file', filename: 'shot.heic' })).toBe(true)
+    expect(isAgentImagePart({ type: 'file', ext: '.avif', name: 'out-of-workspace' })).toBe(true)
+    expect(countAgentImageFileParts([{ type: 'file', filename: 'a.avif' }])).toBe(1)
+  })
+
   it('rejects non-image parts', () => {
     expect(isAgentImagePart({ type: 'file', mediaType: 'video/mp4', filename: 'clip.mp4' })).toBe(false)
     expect(isAgentImagePart({ type: 'file', mediaType: 'application/pdf', filename: 'doc.pdf' })).toBe(false)

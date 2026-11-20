@@ -21,6 +21,7 @@ import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
@@ -130,6 +131,23 @@ export function registerAgentMethods(
         outcome = {
           status: 'rejected',
           error: { reason: 'TARGET_UNAVAILABLE', message: toExecutionFailure(serializeError(error)).message }
+        }
+      } else if (error instanceof AgentImageLimitError) {
+        // Capability-driven multi-image guard (#20030): the outcome is known —
+        // the turn exceeds the model's image cap — so record a rejection with
+        // the typed limit instead of interrupted/INTERNAL.
+        outcome = {
+          status: 'rejected',
+          error: {
+            reason: 'CONFLICT',
+            message: error.message,
+            details: {
+              limit: error.limit,
+              count: error.count,
+              ...(error.runtime ? { runtime: error.runtime } : {}),
+              ...(error.sent ? { sent: true } : {})
+            }
+          }
         }
       } else {
         logger.error('Remote command failed before settling', error as Error)

@@ -464,6 +464,8 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     capabilities,
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
+    ...(override.limits?.maxAgentImages !== undefined ? { maxAgentImages: override.limits.maxAgentImages } : {}),
+    ...(override.maxAgentImages !== undefined ? { maxAgentImages: override.maxAgentImages } : {}),
     pricing: override.pricing as ProtoModelConfig['pricing'],
     parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
@@ -494,6 +496,7 @@ export function mergePresetModel(
     contextWindow,
     maxOutputTokens,
     maxInputTokens,
+    maxAgentImages,
     pricing,
     parameterSupport,
     replaceWith
@@ -503,16 +506,6 @@ export function mergePresetModel(
   const resolvedCapabilities = reasoningSupport
     ? Array.from(new Set([...capabilities, MODEL_CAPABILITY.REASONING]))
     : capabilities
-  // Capability-driven Agent image limit (#20030): the registry does not declare
-  // it today, so read defensively — a future catalog/override can seed real
-  // per-model limits without touching these call sites.
-  const presetLimit = (presetModel as { maxAgentImages?: unknown }).maxAgentImages
-  const overrideLimit = (catalogOverride as { maxAgentImages?: unknown } | null)?.maxAgentImages
-  const declaredLimit = overrideLimit ?? presetLimit
-  const maxAgentImages =
-    typeof declaredLimit === 'number' && Number.isFinite(declaredLimit) && declaredLimit >= 0
-      ? Math.floor(declaredLimit)
-      : undefined
 
   return {
     id: createUniqueModelId(providerId, presetModel.id),
@@ -561,6 +554,9 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
+  // Capability-driven Agent image limit (#20030, registry-owned, not user-editable):
+  // preset → override.limits → override top-level (explicit alias wins).
+  let maxAgentImages = presetModel.maxAgentImages
   const mergedPricing = presetModel.pricing
     ? { ...presetModel.pricing, ...catalogOverride?.pricing }
     : catalogOverride?.pricing
@@ -621,6 +617,8 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     if (catalogOverride.limits?.contextWindow != null) contextWindow = catalogOverride.limits.contextWindow
     if (catalogOverride.limits?.maxOutputTokens != null) maxOutputTokens = catalogOverride.limits.maxOutputTokens
     if (catalogOverride.limits?.maxInputTokens != null) maxInputTokens = catalogOverride.limits.maxInputTokens
+    if (catalogOverride.limits?.maxAgentImages != null) maxAgentImages = catalogOverride.limits.maxAgentImages
+    if (catalogOverride.maxAgentImages != null) maxAgentImages = catalogOverride.maxAgentImages
     if (catalogOverride.endpointTypes?.length) endpointTypes = [...catalogOverride.endpointTypes]
     if (catalogOverride.inputModalities?.length) inputModalities = [...catalogOverride.inputModalities]
     if (catalogOverride.outputModalities?.length) outputModalities = [...catalogOverride.outputModalities]
@@ -637,6 +635,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     contextWindow,
     maxOutputTokens,
     maxInputTokens,
+    maxAgentImages,
     pricing,
     parameterSupport,
     replaceWith

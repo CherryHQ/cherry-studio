@@ -3372,7 +3372,15 @@ export class AgentSessionRuntimeService extends BaseService {
     // captured model, not the entry's latest default. The connection targets
     // `turn.modelId` while live (see `connectionTarget`), so an agent-default
     // change during connection opening must not re-gate the opening turn.
-    this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+    // Include replayed history: a fresh native context replays saved images,
+    // so a text-only send with two historical images must still fail here
+    // with the typed limit (and surface historical attachments) before the
+    // paid call, even though the draft itself is empty.
+    if (context?.length) {
+      this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType)
+    } else {
+      this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+    }
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,

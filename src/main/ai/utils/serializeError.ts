@@ -92,6 +92,12 @@ export function serializeError(error: unknown): SerializedError {
     // renderer cannot tell empty OCR output from a failing processor.
     if ('detailI18nKey' in e && typeof e.detailI18nKey === 'string') serialized.detailI18nKey = e.detailI18nKey
     if ('detailI18nValues' in e) serialized.detailI18nValues = toSerializable(e.detailI18nValues)
+    // Capability-driven Agent image limit (#20030): keep the actual limit/count so
+    // renderer + remote boundaries render the typed message instead of a generic error.
+    if ('limit' in e && typeof e.limit === 'number') serialized.limit = e.limit
+    if ('count' in e && typeof e.count === 'number') serialized.count = e.count
+    if ('runtime' in e && typeof e.runtime === 'string') serialized.runtime = e.runtime
+    if ('sent' in e && typeof e.sent === 'boolean') serialized.sent = e.sent
     if ('providerErrorCategory' in e && isErrorCategory(e.providerErrorCategory)) {
       serialized.providerErrorCategory = e.providerErrorCategory
     }

@@ -10,20 +10,20 @@ Status: implemented
 
 ## 决策
 
-`src/shared/ai/agentImageLimits.ts` 提供统一的图片判定与保序计数，供消息体、运行时载荷与 composer 附件共用。`resolveMaxAgentImages` 读取生产级 `Model` 契约（`src/shared/data/types/model.ts` 的 `Model.maxAgentImages`）：显式声明的单模型上限优先；无声明的视觉模型不限量（受支持的模型按用户顺序收到全部图片）；非视觉模型沿用现有优雅回退（OCR 文本、路径引用、Read 守卫），不新增拦截。`ModelService.customRowToRuntimeModel` 与 `ProviderRegistryService.mergePresetModel` 防御性透传上限（未来目录/覆盖/DB 值可直接生效；当前尚无提供商声明），`enrichRowsFromRegistryTx` 为自定义模型继承目录上限。`assertAgentImageLimit` 抛出携带实际上限、数量与 `sent` 标记的 `AgentImageLimitError`；上游 `At most N image(s)` 解析器把提供商拒绝转换为同一错误形状，结果边界失败使用 `sent: true`。
+`src/shared/ai/agentImageLimits.ts` 提供统一的图片判定与保序计数，供消息体、运行时载荷与 composer 附件共用。`resolveMaxAgentImages` 读取生产级 `Model` 契约（`src/shared/data/types/model.ts` 的 `Model.maxAgentImages`）：显式声明的单模型上限优先；无声明的视觉模型不限量（受支持的模型收到全部图片；Pi/Durable 保持用户顺序，Claude 原生块因路由可能先发托管图片）；非视觉模型沿用现有优雅回退（OCR 文本、路径引用、Read 守卫），不新增拦截。`ProviderRegistryService.mergePresetModel` 与 `applyPresetAndOverride` 透传目录拥有的上限（`ModelConfig.maxAgentImages` 与 `ProviderModelOverride.limits.maxAgentImages`，兼容顶层别名），`enrichRowsFromRegistryTx` 为自定义模型继承目录上限；自定义行无目录值时仍不限量。`assertAgentImageLimit` 抛出携带实际上限、数量与 `sent` 标记的 `AgentImageLimitError`；上游 `At most N image(s)` 解析器把提供商拒绝转换为同一错误形状，仅 Claude Code 结果边界失败使用 `sent: true`——Pi/Pi-Durable 轮中工具读取失败沿用原有错误路径。
 
-校验发生在任何付费提供商请求之前、任何 DB 写入之前。`AgentChatContextProvider.validateDispatch` 按轮次模型校验图片数量，`prepareAgentSessionDispatch` 在忙碌分支 `saveMessage` 前与空闲分支 `persistDispatchTx` 前复查，因此超限提交不会留下已提交的用户消息或无流结算的待定助手消息；`enqueue`/`beginTurn` 竞态导致已提交时按最佳努力删除刚写入的行且以上限错误为准。渲染层 composer 在 `handleSendDraft` 直接拦截，并在 follow-up 出队执行的 `sendQueuedPayload` 中复查，避免排队期间更换模型造成漏检。主进程 `AgentSessionRuntimeService` 在 `beginTurn`、`enqueueUserMessage` 与 `admitTurn` 三处校验，覆盖 composer 发送、重试、follow-up、steer 以及各通道与远端输入，适用于全部运行时；`admitTurn` 按轮次捕获的 `turn.modelId` 校验（与存活轮次的 `connectionTarget` 一致），因此连接打开期间变更智能体默认模型不会错误重审正在打开的轮次。Claude Code 额外在构造原生图片块之前拦截（早于文件 IO 与 SDK 调用），归一化携带上游上限的 SDK 准入拒绝，并通过 `normalizeResultImageLimitFailure` 使用最近提交的图片数量归一化提供商 `result` 失败（已发送措辞）。被拒绝的发送前轮次保留草稿与历史，重试时附件与指令完整。四个文案（`agent.image_limit_exceeded`、`error.agent_image_limit_exceeded`、`error.agent_image_limit_exceeded_after_send`、`error.agent_image_limit_detail`）已在全部 18 个语言目录中翻译。
+校验发生在任何付费提供商请求之前、任何 DB 写入之前。`AgentChatContextProvider.validateDispatch` 按轮次模型校验图片数量，`prepareAgentSessionDispatch` 在忙碌分支 `saveMessage` 前与空闲分支 `persistDispatchTx` 前复查，编辑路由在 fork 事务内复查使超限替换回滚并保留原始行；因此超限提交不会留下已提交的用户消息或无流结算的待定助手消息；`enqueue`/`beginTurn` 竞态导致已提交时按最佳努力删除刚写入的行且以上限错误为准。渲染层 composer 在 `handleSendDraft` 直接拦截，并在 follow-up 出队执行的 `sendQueuedPayload` 中复查（同时计数附件与预构建文件分片，覆盖 Resend），主侧拒绝展示类型化上限提示且保留草稿，避免排队期间更换模型造成漏检。主进程 `AgentSessionRuntimeService` 在 `beginTurn`、`enqueueUserMessage` 与 `admitTurn`（含历史回放，按 `turn.modelId` 校验）三处校验，覆盖 composer 发送、重试、follow-up、steer 以及各通道与远端输入，适用于全部运行时；`admitTurn` 按轮次捕获的 `turn.modelId` 校验（与存活轮次的 `connectionTarget` 一致），因此连接打开期间变更智能体默认模型不会错误重审正在打开的轮次。Claude Code 额外在构造原生图片块之前拦截（早于文件 IO 与 SDK 调用），归一化携带上游上限的 SDK 准入拒绝，并通过 `normalizeResultImageLimitFailure` 使用待提交原生块数量队列归一化提供商 `result` 失败（纯文本 steer 不会覆盖待定图片计数，回放块计入，已发送措辞）。远端将类型化上限映射为 rejected/CONFLICT 并携带 limit/count，而非 interrupted/INTERNAL。被拒绝的发送前轮次保留草稿与历史，重试时附件与指令完整。四个文案（`agent.image_limit_exceeded`、`error.agent_image_limit_exceeded`、`error.agent_image_limit_exceeded_after_send`、`error.agent_image_limit_detail`）已在全部 18 个语言目录中翻译，`serializeError` 保留 limit/count/runtime/sent 与 i18n 键以便跨 IPC 渲染。
 
 ## 备选方案
 
 - 静默丢弃或降采样多余图片：未经用户同意丢失数据；已拒绝。
 - 按轮次自动拆分发送：破坏需要同屏对比与多截屏的语义；最终选择带上限提示的拦截。
-- 在 provider-registry 新增聊天图片上限字段：目前没有提供商声明该元数据，兼容与版本成本更高；`Model.maxAgentImages` 契约加防御性透传即可保留扩展点，未来目录/DB 值可直接生效，无需改动调用处。
-- 转换 Pi 轮次中工具读取图片的失败：Pi 通过工具懒加载读取图片，只有初始附件可做发送前校验，其余情况仍经已发送归一化展示实际上限而非原始透传文本。
+- 在 provider-registry 新增聊天图片上限字段：已实现为目录拥有的 `ModelConfig.maxAgentImages` 与 `ProviderModelOverride.limits.maxAgentImages`（无 user_model 列、无 DB 迁移）；既有预置行下次读取即继承。
+- 转换 Pi 轮次中工具读取图片的失败：Pi 通过工具懒加载读取图片，只有初始附件可做发送前校验；Pi/Durable 工具读取失败沿用原有错误路径，不经 Claude 专用的已发送归一化。
 
 ## 影响
 
-默认行为不变：没有声明上限时，各运行时按顺序转发全部附件图片。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行，超限轮次不会留下孤立用户消息、待定助手消息或远端预留；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`）表明请求已经发出。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。
+默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `imageExts` 图片定义（含 AVIF/HEIC/HEIF/TIFF），两侧在创建托管副本前计数一致。
 
 ## 验证
 

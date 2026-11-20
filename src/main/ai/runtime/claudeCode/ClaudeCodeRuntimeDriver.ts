@@ -41,6 +41,7 @@ import {
   AgentImageLimitError,
   countAgentImageFileParts,
   normalizeAgentImageLimitFailure,
+  parseUpstreamImageLimit,
   resolveMaxAgentImages
 } from '@shared/ai/agentImageLimits'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -162,7 +163,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
-  /** Last submitted image count for provider result-boundary normalization. */
+  /** Submitted native image-block counts for provider result-boundary normalization. */
+  private pendingImageCounts: number[] = []
+  /** Last submitted image count (legacy single-value view of the pending queue). */
   private lastImageCount?: number
   private readonly currentSources = new Set<string>()
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
@@ -318,19 +321,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(
-      withAgentContext(input.message, input.context),
-      this.resumeToken,
-      input.systemReminder,
-      {
-        supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: resolveModelImageSupport(this.input.modelId),
-        maxImages: resolveModelImageLimit(this.input.modelId)
-      }
-    )
+    const merged = withAgentContext(input.message, input.context)
+    const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages: resolveModelImageSupport(this.input.modelId),
+      maxImages: resolveModelImageLimit(this.input.modelId)
+    })
     // Remember for the provider result boundary: a later `result` failure
     // names only the limit, so the count must come from the submitted turn.
-    this.lastImageCount = countAgentImageFileParts(input.message.data.parts)
+    // Record actual native image blocks (including replayed history) and keep
+    // a queue so a text-only steer does not overwrite a pending image count.
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -341,7 +342,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged')
-      throw normalizeImageLimitRejection(result.error?.message ?? result.status, input.message.data.parts)
+      throw normalizeImageLimitRejection(result.error?.message ?? result.status, merged.data.parts)
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -359,17 +360,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(
-      withAgentContext(input.message, input.context),
-      this.resumeToken,
-      input.systemReminder,
-      {
-        supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: resolveModelImageSupport(this.input.modelId),
-        maxImages: resolveModelImageLimit(this.input.modelId)
-      }
-    )
-    this.lastImageCount = countAgentImageFileParts(input.message.data.parts)
+    const merged = withAgentContext(input.message, input.context)
+    const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages: resolveModelImageSupport(this.input.modelId),
+      maxImages: resolveModelImageLimit(this.input.modelId)
+    })
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -380,7 +377,63 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged')
-      throw normalizeImageLimitRejection(result.error?.message ?? result.status, input.message.data.parts)
+      throw normalizeImageLimitRejection(result.error?.message ?? result.status, merged.data.parts)
+  }
+
+  /**
+   * Record the actual submitted native image blocks (including replayed history)
+   * so the provider `result` boundary can correlate a limit failure with native
+   * request membership. Queued so a text-only steer cannot overwrite a pending
+   * image count before native placement.
+   */
+  private recordSubmittedImageCount(
+    content: SDKUserMessage['message']['content'],
+    merged: AgentSessionMessageEntity
+  ): void {
+    const blocks = Array.isArray(content) ? content.filter((part) => part.type === 'image').length : 0
+    // Fall back to merged file-part count when no native blocks were produced
+    // (e.g. vision disabled or all images took the path fallback) so a later
+    // limit failure still carries the attached count.
+    const count = blocks > 0 ? blocks : countAgentImageFileParts(merged.data.parts)
+    this.pendingImageCounts.push(count)
+    this.lastImageCount = count
+  }
+
+  /**
+   * Consume the pending image count that best matches a provider `result`
+   * failure (first count exceeding the parsed limit, else the most recent).
+   * Returns undefined when no pending submission exists.
+   */
+  private consumeImageCountForResult(failure: unknown): number | undefined {
+    if (this.pendingImageCounts.length === 0) return this.lastImageCount
+    const message =
+      typeof failure === 'string'
+        ? failure
+        : failure instanceof Error
+          ? failure.message
+          : typeof (failure as { message?: unknown }).message === 'string'
+            ? String((failure as { message?: unknown }).message)
+            : undefined
+    const limit = parseUpstreamImageLimit(message)
+    if (limit !== undefined) {
+      let best = -1
+      for (let i = 0; i < this.pendingImageCounts.length; i++) {
+        if (
+          this.pendingImageCounts[i] > limit &&
+          (best === -1 || this.pendingImageCounts[i] > this.pendingImageCounts[best])
+        ) {
+          best = i
+        }
+      }
+      if (best !== -1) {
+        const [count] = this.pendingImageCounts.splice(best, 1)
+        this.lastImageCount = count
+        return count
+      }
+    }
+    const count = this.pendingImageCounts.pop()
+    this.lastImageCount = count
+    return count
   }
 
   async reconcile(input: {
@@ -757,13 +810,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // workspace owner already acknowledged `submit` before yielding the
         // input to the SDK, so an image-limit rejection surfaces here as a
         // `ClaudeCodeResultError`. Normalize to the typed limit error with
-        // sent-aware wording (the request was already sent).
-        const normalized = normalizeResultImageLimitFailure(control.failure, this.lastImageCount)
+        // sent-aware wording (the request was already sent). Use the pending
+        // queue so a text-only steer cannot overwrite a pending image count,
+        // and include replayed blocks via the recorded native submission.
+        const count = this.consumeImageCountForResult(control.failure)
+        const normalized = normalizeResultImageLimitFailure(control.failure, count)
         const error = normalized ?? new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
         return { type: 'error', error }
       }
       if (!control.terminal) return
+      // Turn complete: drop one pending image count (the settled submission).
+      if (this.pendingImageCounts.length > 0) {
+        this.pendingImageCounts.shift()
+        this.lastImageCount = this.pendingImageCounts[this.pendingImageCounts.length - 1]
+      }
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
         runtime: 'claude-code',

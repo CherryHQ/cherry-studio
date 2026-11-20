@@ -397,6 +397,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
         req.editTarget,
         (tx, nativeSessionId, nativeContextId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+          // Revalidate inside the transaction: fork preparation runs
+          // asynchronously, and a cap may have become enforceable for the same
+          // model while preparing. Failing here rolls back the branch
+          // replacement, so an over-limit edit leaves the original rows intact
+          // instead of committing a replacement with no stream to settle it.
+          assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
           const result = this.persistDispatchTx(
             tx,
             validated,
