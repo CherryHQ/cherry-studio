@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { stat } from 'node:fs/promises'
+import type { BigIntStats } from 'node:fs'
+import { constants } from 'node:fs'
+import { open, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { Context } from '@earendil-works/chord/context'
@@ -49,39 +51,49 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
     }
 
     override async writeFile(file: string, content: string | Uint8Array, context: Context) {
-      return super.writeFile(await this.filePath(file, context), content, context)
+      const target = await this.filePath(file, context)
+      if (!mutation.getStore()?.identity) return super.writeFile(target, content, context)
+      context.abortSignal?.throwIfAborted()
+      const handle = await open(target, constants.O_WRONLY | constants.O_NONBLOCK)
+      try {
+        await authorizeOpenedFile(target, await handle.stat({ bigint: true }))
+        context.abortSignal?.throwIfAborted()
+        await handle.truncate(0)
+        await handle.writeFile(content, { signal: context.abortSignal })
+        return { ok: true, value: undefined } as const
+      } finally {
+        await handle.close()
+      }
     }
   }
-  return new DesktopEnvironment({
-    ...options,
-    async authorizeOpenedFile(file, opened) {
-      if (opened.ino === 0n) throw new Error('The file has no verifiable identity')
-      if (!opened.isFile() || (await memoryTarget(file)))
-        throw new Error('Use the memory editor for managed memory files')
-      const active = mutation.getStore()
-      if (active) {
-        const identity = `${opened.dev}:${opened.ino}`
-        if (active.identity && active.identity !== identity) throw new Error('File identity changed during edit')
-        if (!active.identity) {
-          const lock = fileLocks.get(identity) ?? new Mutex()
-          fileLocks.set(identity, lock)
-          const release = await lock.acquire()
-          active.identity = identity
-          active.release = () => {
-            release()
-            if (!lock.isLocked()) fileLocks.delete(identity)
-          }
-        }
+  return new DesktopEnvironment({ ...options, authorizeOpenedFile })
+}
+
+async function authorizeOpenedFile(file: string, opened: BigIntStats) {
+  if (opened.ino === 0n) throw new Error('The file has no verifiable identity')
+  if (!opened.isFile() || (await memoryTarget(file))) throw new Error('Use the memory editor for managed memory files')
+  const active = mutation.getStore()
+  if (active) {
+    const identity = `${opened.dev}:${opened.ino}`
+    if (active.identity && active.identity !== identity) throw new Error('File identity changed during edit')
+    if (!active.identity) {
+      const lock = fileLocks.get(identity) ?? new Mutex()
+      fileLocks.set(identity, lock)
+      const release = await lock.acquire()
+      active.identity = identity
+      active.release = () => {
+        release()
+        if (!lock.isLocked()) fileLocks.delete(identity)
       }
-      await assertNotMemoryHardLink(opened)
-      const current = await stat(file, { bigint: true })
-      if (
-        current.dev !== opened.dev ||
-        current.ino !== opened.ino ||
-        current.nlink !== opened.nlink ||
-        current.ctimeNs !== opened.ctimeNs
-      )
-        throw new Error('The file changed during authorization; retry the operation')
     }
-  })
+  }
+  await assertNotMemoryHardLink(opened)
+  const current = await stat(file, { bigint: true })
+  if (
+    current.dev !== opened.dev ||
+    current.ino !== opened.ino ||
+    current.nlink !== opened.nlink ||
+    current.ctimeNs !== opened.ctimeNs
+  )
+    throw new Error('The file changed during authorization; retry the operation')
 }

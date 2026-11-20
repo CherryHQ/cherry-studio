@@ -667,43 +667,58 @@ describe('limits, access, and recovery', () => {
     expect((await store.read(caller, 'MEMORY.md')).content).toBe('Entry')
   })
 
-  it('restores a merged source before reversing its index and destination', async () => {
-    const target = '.memories/combined.md'
-    const source = '.memories/source.md'
-    await save(source, 'Full source')
-    const changes = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
-    await store.commit(
-      caller,
-      [
-        { kind: 'write', receipt: changes[0].receipt, content: 'Full source' },
-        { kind: 'write', receipt: changes[1].receipt, content: 'Combined link' },
-        { kind: 'delete', receipt: changes[2].receipt }
-      ],
-      'dreaming',
-      approve
-    )
-    await writeFile(path.join(root, source), 'External version')
-    const blocked = await store.previewRecovery(caller)
-    expect(blocked!.files.every((file) => file.conflict)).toBe(true)
-    await store.recover(caller, blocked!.token, approve)
-    expect((await store.read(caller, target)).content).toBe('Full source')
-    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Combined link')
-    await unlink(path.join(root, source))
-    const preview = await store.previewRecovery(caller)
-    expect(preview!.files.map((file) => file.path)).toEqual([source, 'MEMORY.md', target])
-    const writes: string[] = []
-    const write = memoryFiles.writeMemoryBytes
-    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
-      if (args[0] === root) writes.push(args[1])
-      return write(...args)
-    })
-    await store.recover(caller, preview!.token, approve)
-    expect(writes).toEqual([source, 'MEMORY.md', target])
-    await writeFile(path.join(root, target), 'External change')
-    const redo = await store.previewRecovery(caller)
-    expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
-    expect((await store.read(caller, source)).content).toBe('Full source')
-  })
+  it.each([false, true])(
+    'restores a merged source before reversing its index and destination (manual removal=%s)',
+    async (manualRemoval) => {
+      const target = '.memories/combined.md'
+      const source = '.memories/source.md'
+      await save(source, 'Full source')
+      const changes = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
+      await store.commit(
+        caller,
+        [
+          { kind: 'write', receipt: changes[0].receipt, content: 'Full source' },
+          { kind: 'write', receipt: changes[1].receipt, content: 'Combined link' },
+          { kind: 'delete', receipt: changes[2].receipt }
+        ],
+        'dreaming',
+        approve
+      )
+      if (manualRemoval) {
+        await unlink(path.join(root, target))
+        await writeFile(path.join(root, 'MEMORY.md'), 'Index conflict')
+        await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+        await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+        await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+        const redo = await store.previewRecovery(caller)
+        expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
+        await store.recover(caller, redo!.token, approve)
+        expect((await store.read(caller, source)).content).toBe('Full source')
+        return
+      }
+      await writeFile(path.join(root, source), 'External version')
+      const blocked = await store.previewRecovery(caller)
+      expect(blocked!.files.every((file) => file.conflict)).toBe(true)
+      await store.recover(caller, blocked!.token, approve)
+      expect((await store.read(caller, target)).content).toBe('Full source')
+      expect((await store.read(caller, 'MEMORY.md')).content).toBe('Combined link')
+      await unlink(path.join(root, source))
+      const preview = await store.previewRecovery(caller)
+      expect(preview!.files.map((file) => file.path)).toEqual([source, 'MEMORY.md', target])
+      const writes: string[] = []
+      const write = memoryFiles.writeMemoryBytes
+      vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (args[0] === root) writes.push(args[1])
+        return write(...args)
+      })
+      await store.recover(caller, preview!.token, approve)
+      expect(writes).toEqual([source, 'MEMORY.md', target])
+      await writeFile(path.join(root, target), 'External change')
+      const redo = await store.previewRecovery(caller)
+      expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
+      expect((await store.read(caller, source)).content).toBe('Full source')
+    }
+  )
 
   it('extends the same reverse backup after an external conflict clears', async () => {
     const topics = ['.memories/a.md', '.memories/b.md']
