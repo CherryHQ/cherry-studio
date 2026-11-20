@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -14,8 +14,9 @@ const directory = mkdtempSync(join(tmpdir(), 'cherry-anti-slop-'))
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
-function lint(source: string, rule?: string) {
-  const file = join(directory, 'probe.ts')
+function lint(source: string, rule?: string, filename = 'probe.ts') {
+  const file = join(directory, filename)
+  mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, source)
 
   const selectedConfig = rule ? join(directory, 'rule.config.json') : config
@@ -30,7 +31,7 @@ function lint(source: string, rule?: string) {
   }
   const result = spawnSync(
     process.execPath,
-    [binary, '--config', selectedConfig, '--format', 'json', '--deny-warnings', file],
+    [binary, '--config', selectedConfig, '--format', 'json', '--deny-warnings', '--no-ignore', file],
     {
       encoding: 'utf8'
     }
@@ -51,6 +52,8 @@ describe('available generic anti-slop rules', () => {
     ['no-accumulating-spread', 'export const result = [1, 2].reduce((acc, item) => [...acc, item], [] as number[])'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     ['no-unknown-returns', 'export function read(): unknown { return "value" }'],
+    ['no-unknown-parameters', 'export function read(value: unknown) { return value }'],
+    ['no-chained-type-assertions', 'export const result = "value" as unknown as number'],
     [
       'no-widen-then-assert',
       'const known = "value"; const broad: unknown = known; export const result = broad as string'
@@ -120,4 +123,25 @@ describe('available generic anti-slop rules', () => {
     expect(result.status).toBe(0)
     expect(result.diagnostics).toEqual([])
   })
+
+  it.each(['probe.test.ts', 'probe.spec.tsx', '__tests__/helper.ts', 'nested/tests/helper.ts'])(
+    'allows test boundaries without disabling other rules in %s',
+    (filename) => {
+      const boundary = lint(
+        'export function read(value: unknown) { return value }\nexport const result = "value" as unknown as number',
+        undefined,
+        filename
+      )
+      expect(boundary.status).toBe(0)
+      expect(boundary.diagnostics).toEqual([])
+
+      const invalid = lint('export function read(value: object) { return value }', undefined, filename)
+      expect(invalid.status).toBe(1)
+      expect(invalid.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'anti-slop(no-object-parameters)', severity: 'error' })
+        ])
+      )
+    }
+  )
 })

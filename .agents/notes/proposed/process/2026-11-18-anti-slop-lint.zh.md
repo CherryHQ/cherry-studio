@@ -10,7 +10,7 @@ Status: proposed
 
 ## 提案
 
-接入全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 配套规则，但只有在某条规则在约定范围内的违规已清零、相关契约验证通过后，才逐条启用。接入层注册插件，不启用尚未完成清理的规则。每条规则对应的 stack 层包含清理改动，并将该规则开启为错误。保留现有 lint 范围及无关规则。仓库不使用 Effect，因此不保留 Effect 专属插件源码。不得弱化已启用的生产代码规则、增加生产目录豁免或伪造类型信息来规避发现。测试文件及测试专用目录仅豁免 `no-unknown-parameters`：非法输入 fixture、mock 和通用测试工具可以合理地接收未知值。其他测试 lint 规则保持原有配置范围。
+接入全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 配套规则，但只有在某条规则在约定范围内的违规已清零、相关契约验证通过后，才逐条启用。接入层注册插件，不启用尚未完成清理的规则。每条规则对应的 stack 层包含清理改动，并将该规则开启为错误。保留现有 lint 范围及无关规则。仓库不使用 Effect，因此不保留 Effect 专属插件源码。不得弱化已启用的生产代码规则、增加生产目录豁免或伪造类型信息来规避发现。测试文件及测试专用目录豁免 `no-unknown-parameters` 和 `no-chained-type-assertions`：非法输入 fixture、局部原生 mock 及历史数据可能需要未知输入或连续类型断言。保留实质契约修复；不为消除这些断言而扩充 fixture。其他测试 lint 规则保持原有配置范围。
 
 将复制的插件放在 `scripts/lint/anti-slop/`，保留确切上游版本及 MIT 声明，并将 `@oxlint/plugins` 固定为与 Oxlint 完全相同的版本。上游明确支持复制源码且没有官方 npm 包；其包导出未编译的 TypeScript，而 Node 不会在 `node_modules` 内执行类型擦除。Git 依赖需要额外的编译或加载机制。本次集成保留受支持的本地源码机制，去掉多余的外层 vendor 目录。插件内部的第三方声明保留上游布局。
 
