@@ -519,3 +519,104 @@ it.each([
   expect(await collect(result.stream)).toContainEqual({ type: 'error', error: wrapped })
   expect(doStream).toHaveBeenCalledOnce()
 })
+
+it('does not resume a plain provider error that declares isRetryable false', async () => {
+  const error = Object.assign(new Error('invalid prompt'), { code: 'invalid_prompt', isRetryable: false })
+  const { model, doStream } = scripted([
+    {
+      parts: [
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' },
+        { type: 'error', error }
+      ]
+    }
+  ])
+  const result = await withStreamContinuation(model, opts).doStream(callOptions)
+  expect(await collect(result.stream)).toContainEqual({ type: 'error', error })
+  expect(doStream).toHaveBeenCalledOnce()
+})
+
+it('treats a restart that repeats the visible prefix as a failed attempt instead of duplicating text', async () => {
+  const prefix = 'The quick brown fox '
+  const echo = [
+    { type: 'text-start', id: 'b' },
+    { type: 'text-delta', id: 'b', delta: `${prefix}jumps` },
+    { type: 'text-end', id: 'b' },
+    finish
+  ] as LanguageModelV3StreamPart[]
+  const { model, doStream } = scripted([
+    {
+      parts: [
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: prefix }
+      ],
+      readError: new Error('socket hang up')
+    },
+    { parts: echo },
+    { parts: echo }
+  ])
+  const result = await withStreamContinuation(model, opts).doStream(callOptions)
+  let error: unknown
+  const seen: string[] = []
+  const reader = result.stream.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value.type === 'text-delta') seen.push(value.delta)
+    }
+  } catch (e) {
+    error = e
+  }
+  expect(error).toMatchObject({ name: 'ResumedStreamEchoError' })
+  expect(seen.join('')).toBe(prefix)
+  expect(doStream).toHaveBeenCalledTimes(2)
+})
+
+it('retries a transient failure to open the resumed request with the remaining attempts', async () => {
+  const streamOf = (parts: LanguageModelV3StreamPart[], readError?: Error) => {
+    const queue = [...parts]
+    return {
+      stream: new ReadableStream<LanguageModelV3StreamPart>({
+        pull(controller) {
+          const next = queue.shift()
+          if (next) controller.enqueue(next)
+          else if (readError) controller.error(readError)
+          else controller.close()
+        }
+      })
+    }
+  }
+  const interrupted = streamOf(
+    [
+      { type: 'text-start', id: 'a' },
+      { type: 'text-delta', id: 'a', delta: 'Hello ' }
+    ],
+    new Error('socket hang up')
+  )
+  const resumed = streamOf([
+    { type: 'text-start', id: 'b' },
+    { type: 'text-delta', id: 'b', delta: 'world' },
+    { type: 'text-end', id: 'b' },
+    finish
+  ])
+  const doStream = vi
+    .fn()
+    .mockResolvedValueOnce(interrupted)
+    .mockRejectedValueOnce(new Error('connection reset'))
+    .mockResolvedValueOnce(resumed)
+  const model = {
+    specificationVersion: 'v3',
+    provider: 'p',
+    modelId: 'm',
+    supportedUrls: {},
+    doStream
+  } as unknown as LanguageModelV3
+  const result = await withStreamContinuation(model, opts).doStream(callOptions)
+  const parts = await collect(result.stream)
+  expect(parts.filter((p) => p.type === 'text-delta').map((p) => (p as { delta: string }).delta)).toEqual([
+    'Hello ',
+    'world'
+  ])
+  expect(doStream).toHaveBeenCalledTimes(3)
+})

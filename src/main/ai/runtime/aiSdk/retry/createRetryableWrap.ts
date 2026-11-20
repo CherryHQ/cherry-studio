@@ -401,17 +401,32 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
             // can hand one model's partial answer to another with different options. Until a continuation
             // can be bound to the model, credential and options that produced the visible text, a chain
             // with model fallbacks surfaces the interruption instead of resuming.
-            // The same holds for API-key failover: after a key disconnects mid-reply and its continuation hits
-            // 401/429, the pool would hand that key's output to the next key, which may belong to another
-            // project. Same-model key rotation therefore surfaces the interruption too.
-            if (options.streamContinuation === false || options.fallbacks.length > 0 || apiKeyFallbacks.length > 0) {
+            if (options.streamContinuation === false || options.fallbacks.length > 0) {
               return scopedModel.doStream(callOptions)
             }
+            // With an API-key pool the resumed request is pinned to the key that produced the visible text:
+            // it never goes back through the pool, so a 401/429 on the continuation surfaces the interruption
+            // instead of handing that key's output to the next key, which may belong to another project.
+            const resumeModel: LanguageModelV3 | undefined =
+              apiKeyFallbacks.length > 0
+                ? {
+                    specificationVersion: 'v3',
+                    provider: requestApiKeyModel.provider,
+                    modelId: requestApiKeyModel.modelId,
+                    supportedUrls: requestApiKeyModel.supportedUrls,
+                    doGenerate: (params) => requestApiKeyModel.doGenerate(params),
+                    doStream: (params) => {
+                      if (exhaustedApiKeyError) throw exhaustedApiKeyError
+                      return retryScope.run(budget, () => activeApiKeyModel.doStream(params))
+                    }
+                  }
+                : undefined
             const operation = withStreamContinuation(scopedModel, {
               maxAttempts: retryCount,
               takeRetry: () => budget.remaining > 0 && (budget.remaining--, true),
               baseDelayMs: RETRY_BASE_DELAY_MS,
               backoffEnabled,
+              ...(resumeModel && { resumeModel }),
               onRetry: ({ attempt, reason }) => {
                 const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
                 lastRetryEvent = event

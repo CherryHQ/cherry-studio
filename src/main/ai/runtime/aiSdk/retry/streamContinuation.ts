@@ -32,7 +32,15 @@ export interface StreamContinuationOptions {
    * reaches the consumer, so a consumer-side idle timer would otherwise see a silent stream.
    */
   onBufferedActivity?: () => void
+  /**
+   * Model used for the resumed request. Defaults to the wrapped model. A key pool passes the model
+   * bound to the credential that produced the visible text, so a resume cannot rotate to another key.
+   */
+  resumeModel?: LanguageModelV3
 }
+
+/** Shorter prefixes can legitimately reappear at the start of a continuation. */
+const MIN_ECHO_PREFIX = 16
 
 function isResumableError(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted || isAbortError(error)) return false
@@ -48,6 +56,11 @@ function isResumableError(error: unknown, signal?: AbortSignal): boolean {
       error.cause instanceof Error &&
       /terminated|socket|network|incomplete.*chunk|connection.*(?:reset|closed)/i.test(error.cause.message)
     )
+  }
+  // Normalized provider errors can arrive as plain objects with an explicit `isRetryable: false`
+  // (OpenAI Responses `invalid_prompt`): honor the flag instead of re-issuing the request.
+  if (typeof error === 'object' && error !== null && (error as { isRetryable?: unknown }).isRetryable === false) {
+    return false
   }
   return !AISDKError.isInstance(error)
 }
@@ -87,6 +100,8 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
     // output is dropped instead of spliced in, so a provider that ignores the
     // prefill and restarts cannot leave repeated partial text behind.
     let buffer: LanguageModelV3StreamPart[] | null = null
+    // A failure to open the resumed request is handled like a failed attempt on the next loop turn.
+    let pendingFailure: { error: unknown } | undefined
     let snapshot: { text: string; openTextId: string | undefined; resumable: boolean } | null = null
 
     const dropAttempt = () => {
@@ -112,42 +127,60 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
       async pull(controller) {
         while (true) {
           let part: LanguageModelV3StreamPart | undefined
-          let failure: { error: unknown } | undefined
+          let failure: { error: unknown } | undefined = pendingFailure
+          pendingFailure = undefined
           try {
-            const next = await reader.read()
-            if (next.done) {
-              if (buffer) {
-                for (const buffered of buffer) controller.enqueue(buffered)
-                buffer = null
-                snapshot = null
-              }
-              settle()
-              controller.close()
-              return
-            }
-            part = next.value
-            if (part.type === 'error') failure = { error: part.error }
-            else if (buffer && part.type === 'finish' && part.finishReason.unified === 'error') {
-              // A replacement can end with finish reason `error` and no error chunk (OpenAI Responses
-              // `response.failed` without details). Flushing it would save a truncated reply as a success
-              // and hide the original disconnect, so treat it as a failed attempt and surface an error.
-              // A provider-declared reason (Gemini `MALFORMED_FUNCTION_CALL`, with its `finishMessage`) is
-              // deterministic, so keep it in the surfaced error and do not spend another retry on it.
-              const raw = part.finishReason.raw
-              const finishMessage = (part.providerMetadata?.google as { finishMessage?: unknown } | undefined)
-                ?.finishMessage
-              const detail = [raw, typeof finishMessage === 'string' ? finishMessage : undefined]
-                .filter(Boolean)
-                .join(': ')
-              failure = {
-                error: detail
-                  ? new AISDKError({
-                      name: 'ResumedStreamFinishError',
-                      message: `Resumed stream finished with an error: ${detail}`
+            const next = failure ? undefined : await reader.read()
+            if (next?.done) {
+              const prefix = snapshot?.text ?? ''
+              // A restart that repeats the visible prefix would splice duplicate text. The prefill contract
+              // is suffix-only, so an echo is a failed attempt, not a continuation.
+              if (buffer && prefix.length >= MIN_ECHO_PREFIX) {
+                const replacementText = buffer.flatMap((b) => (b.type === 'text-delta' ? [b.delta] : [])).join('')
+                if (replacementText.startsWith(prefix)) {
+                  failure = {
+                    error: new AISDKError({
+                      name: 'ResumedStreamEchoError',
+                      message: 'Resumed stream repeated the text already shown instead of continuing it'
                     })
-                  : new Error('Resumed stream finished with an error and no error detail')
+                  }
+                }
               }
-              part = undefined
+              if (!failure) {
+                if (buffer) {
+                  for (const buffered of buffer) controller.enqueue(buffered)
+                  buffer = null
+                  snapshot = null
+                }
+                settle()
+                controller.close()
+                return
+              }
+            } else if (next) {
+              part = next.value
+              if (part.type === 'error') failure = { error: part.error }
+              else if (buffer && part.type === 'finish' && part.finishReason.unified === 'error') {
+                // A replacement can end with finish reason `error` and no error chunk (OpenAI Responses
+                // `response.failed` without details). Flushing it would save a truncated reply as a success
+                // and hide the original disconnect, so treat it as a failed attempt and surface an error.
+                // A provider-declared reason (Gemini `MALFORMED_FUNCTION_CALL`, with its `finishMessage`) is
+                // deterministic, so keep it in the surfaced error and do not spend another retry on it.
+                const raw = part.finishReason.raw
+                const finishMessage = (part.providerMetadata?.google as { finishMessage?: unknown } | undefined)
+                  ?.finishMessage
+                const detail = [raw, typeof finishMessage === 'string' ? finishMessage : undefined]
+                  .filter(Boolean)
+                  .join(': ')
+                failure = {
+                  error: detail
+                    ? new AISDKError({
+                        name: 'ResumedStreamFinishError',
+                        message: `Resumed stream finished with an error: ${detail}`
+                      })
+                    : new Error('Resumed stream finished with an error and no error detail')
+                }
+                part = undefined
+              }
             }
           } catch (error) {
             failure = { error }
@@ -184,7 +217,7 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
             }
             try {
               signal?.throwIfAborted()
-              const resumed = await model.doStream({
+              const resumed = await (options.resumeModel ?? model).doStream({
                 ...callOptions,
                 prompt: [...callOptions.prompt, { role: 'assistant', content: [{ type: 'text', text }] }]
               })
@@ -196,10 +229,14 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
               }
               reader = replacement
             } catch (error) {
-              settle()
-              if (cancelled) return
-              controller.error(error)
-              return
+              if (cancelled) {
+                settle()
+                return
+              }
+              // Opening the replacement failed: classify it like any other failed attempt so a transient
+              // setup error uses the remaining retries, and a permanent one surfaces unchanged.
+              pendingFailure = { error }
+              continue
             }
             resuming = true
             idMap.clear()

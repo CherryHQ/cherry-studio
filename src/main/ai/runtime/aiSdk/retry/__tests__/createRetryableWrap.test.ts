@@ -551,29 +551,75 @@ it('does not resume an interrupted stream through a model fallback chain', async
   expect(fallbackStream).not.toHaveBeenCalled()
 })
 
-it('does not resume an interrupted stream through another API key', async () => {
-  const interrupted = new Error('connection reset')
-  const primaryStream = vi.fn().mockResolvedValue(
+describe('resuming with an API-key pool', () => {
+  const interruptedStream = () =>
     streamResult([
       { type: 'text-start', id: 'partial' },
-      { type: 'text-delta', id: 'partial', delta: 'partial answer' },
-      { type: 'error', error: interrupted }
+      { type: 'text-delta', id: 'partial', delta: 'partial ' },
+      { type: 'error', error: new Error('connection reset') }
     ])
-  )
-  const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
-  const wrap = createRetryableWrap({
-    fallbacks: [],
-    apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
-    retryPolicy: policy({ maxAttempts: 2 })
-  })!
-  const model = wrap(makeFakeLanguageModel('primary', vi.fn(), primaryStream))
 
-  const result = await model.doStream({ prompt: [] })
-  const parts = await collectStream(result.stream)
+  it('resumes on the key that produced the visible text and never hands it to another key', async () => {
+    vi.useFakeTimers()
+    try {
+      const keyA = vi
+        .fn()
+        .mockResolvedValueOnce(interruptedStream())
+        .mockResolvedValueOnce(
+          streamResult([
+            { type: 'text-start', id: 'cont' },
+            { type: 'text-delta', id: 'cont', delta: 'answer' },
+            { type: 'text-end', id: 'cont' }
+          ])
+        )
+      const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
+      const model = createRetryableWrap({
+        fallbacks: [],
+        apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
+        retryPolicy: policy({ maxAttempts: 2 })
+      })!(makeFakeLanguageModel('primary', vi.fn(), keyA))
 
-  expect(parts).toContainEqual({ type: 'error', error: interrupted })
-  expect(primaryStream).toHaveBeenCalledOnce()
-  expect(keyBStream).not.toHaveBeenCalled()
+      const result = await model.doStream({ prompt: [] })
+      const collected = collectStream(result.stream)
+      await vi.runAllTimersAsync()
+      const parts = (await collected) as Array<{ type: string; delta?: string }>
+
+      expect(parts.filter((p) => p.type === 'text-delta').map((p) => p.delta)).toEqual(['partial ', 'answer'])
+      expect(keyA).toHaveBeenCalledTimes(2)
+      expect(keyBStream).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('surfaces the interruption when the pinned key rejects the continuation', async () => {
+    vi.useFakeTimers()
+    try {
+      const rejected = new APICallError({
+        message: 'rate limited',
+        url: 'https://api.test/v1',
+        requestBodyValues: {},
+        statusCode: 429,
+        isRetryable: false
+      })
+      const keyA = vi.fn().mockResolvedValueOnce(interruptedStream()).mockRejectedValue(rejected)
+      const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
+      const model = createRetryableWrap({
+        fallbacks: [],
+        apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
+        retryPolicy: policy({ maxAttempts: 2 })
+      })!(makeFakeLanguageModel('primary', vi.fn(), keyA))
+
+      const result = await model.doStream({ prompt: [] })
+      const collected = collectStream(result.stream).catch((error) => error)
+      await vi.runAllTimersAsync()
+
+      expect(await collected).toBe(rejected)
+      expect(keyBStream).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 it('does not replay a settled retry status from a late buffered-activity heartbeat', async () => {
