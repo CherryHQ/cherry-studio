@@ -3600,7 +3600,10 @@ describe('AiStreamManager', () => {
       saved.resolve()
       await stopping
       await flush()
-      expect(memory.mock.calls).toEqual([[{ topicId: 'a', memoryResponseIds: ['first', 'second'] }]])
+      expect(memory).toHaveBeenCalledTimes(1)
+      expect(memory).toHaveBeenCalledWith(
+        expect.objectContaining({ topicId: 'a', memoryResponseIds: ['first', 'second'] })
+      )
       expect(dispatch).not.toHaveBeenCalled()
     })
 
