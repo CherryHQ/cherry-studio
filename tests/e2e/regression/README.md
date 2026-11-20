@@ -94,11 +94,15 @@ a full pass.
 
 ## Local streaming failure regression
 
-`chat-stream-failure` (`C-03`, phase `modelsAndAssistants`) needs no external
-provider credentials. It uses the [shared mock chat HTTP server](../../helpers/http/README.md),
-seeds a case-owned provider and assistant through DataApi, and sends a message in
-the real UI. After partial text becomes visible, it destroys the HTTP connection
-without a finish chunk. The case checks that the text remains visible, the stored
+`chat-stream-failure` selects `C-03` (OpenAI Chat Completions) and `C-04`
+(Claude Messages) in the `modelsAndAssistants` phase. Use `claude-stream-failure`
+to select only `C-04`. Both cases run without external provider credentials.
+`C-03` uses the [shared mock chat HTTP server](../../helpers/http/README.md).
+`C-04` uses a case-owned AIMock server and checks the matched requests and
+interruption in its journal. Each case seeds its provider, assistant, and topic
+through DataApi and sends a message in the real UI. After partial text becomes visible,
+the test destroys the HTTP connection without a finish event. It checks that
+the text remains visible, the stored
 message has status `error` with text state `done`, and the same message survives
 an Electron restart. A follow-up message must then complete successfully. The case
 restores topic naming and removes its test resources.
