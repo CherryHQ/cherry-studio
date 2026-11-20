@@ -35,6 +35,8 @@ const toolInvokeInputZod = z.object({
   params: z.record(z.string(), z.unknown()).optional()
 })
 
+type ToolInvokeInput = z.infer<typeof toolInvokeInputZod>
+
 /**
  * Hand-written JSON Schema instead of the zod schema above: the AI SDK's zod
  * conversion (`addAdditionalPropertiesToJsonSchema` in @ai-sdk/provider-utils)
@@ -45,7 +47,7 @@ const toolInvokeInputZod = z.object({
  * reject real calls. `asSchema` passes a pre-wrapped `jsonSchema()` through
  * untouched, so `additionalProperties: true` survives here.
  */
-const toolInvokeInputSchema = jsonSchema<{ name: string; params?: Record<string, unknown> }>(
+const toolInvokeInputSchema = jsonSchema<ToolInvokeInput>(
   {
     type: 'object',
     properties: {
@@ -80,7 +82,7 @@ export function createToolInvokeTool(
   // `toModelOutput` hook below can feed the inner formatter the SAME input `execute` ran on
   // (defaults / coercions applied) — native dispatch keeps execute's and toModelOutput's input
   // identical, and the inner formatter (e.g. kb_list) keys its output off those params.
-  const parsedParamsByCallId = new Map<string, Record<string, unknown>>()
+  const parsedParamsByCallId = new Map<string, unknown>()
   return tool({
     description:
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
@@ -153,12 +155,13 @@ export function createToolInvokeTool(
  * (Zod defaults/coercions applied) on success. Throws with the tool signature
  * on mismatch. Schemas without a validator pass through unchanged.
  */
-async function validateParams(entry: ToolEntry, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- The selected tool's validator may transform its input; execute and formatting must receive that exact value.
+async function validateParams(entry: ToolEntry, params: NonNullable<ToolInvokeInput['params']>): Promise<unknown> {
   const validate = asSchema(entry.tool.inputSchema as Parameters<typeof asSchema>[0]).validate
   if (!validate) return params
 
   const result = await validate(params)
-  if (result.success) return result.value as Record<string, unknown>
+  if (result.success) return result.value
 
   const stub = await buildToolStub(entry)
   throw new Error(`Invalid params for "${entry.name}": ${result.error.message}\n\nExpected signature:\n${stub}`)
