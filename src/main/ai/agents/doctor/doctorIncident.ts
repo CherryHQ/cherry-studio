@@ -93,7 +93,9 @@ export function readIncidentMessage(incident: DoctorAgentIncident): IncidentMess
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored error extensions are unvalidated; selected fields remain opaque until model-bound redaction.
 function projectError(data: Record<string, unknown>): Record<string, unknown> {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Projection limits field names but does not establish types for cause and provider extensions.
   const projected: Record<string, unknown> = {}
   for (const field of ERROR_FIELDS) {
     if (data[field] !== undefined && data[field] !== null) projected[field] = data[field]
@@ -112,8 +114,9 @@ function projectError(data: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** Every `data-error` part of the message, projected for the model. */
-export function incidentErrors(message: IncidentMessage): unknown[] {
+export function incidentErrors(message: IncidentMessage): Serializable[] {
   return (message.data.parts ?? []).flatMap((part) =>
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical message parts are not deep-validated; redaction owns the resulting value contract.
     part.type === 'data-error' ? [untrustedForModel(projectError(part.data as Record<string, unknown>))] : []
   )
 }
@@ -262,10 +265,12 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): Seri
   return untrustedForModel({ count: matches.length, entries })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored provider errors carry arbitrary requestBodyValues; inspect containers and expose content counts/roles instead of conversation text.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Stored request values remain opaque until redaction; this projection only bounds content and selected fields.
 function requestShape(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Counted content is typed locally; retained parameter values still require the caller's model-bound redaction.
   const shape: Record<string, unknown> = { keys: Object.keys(body) }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Measuring JSON length does not parse or validate the retained raw parameter values.
   const params: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(body)) {
     if (CONTENT_KEYS.has(key)) {
@@ -333,6 +338,7 @@ export function incidentRequest(incident: DoctorAgentIncident): Serializable {
   }
   const requests = (message.data.parts ?? []).flatMap((part) => {
     if (part.type !== 'data-error') return []
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical error parts retain arbitrary requestBodyValues and expose only checked origins plus redacted projections.
     const data = part.data as Record<string, unknown>
     const errorOrigin = originOf(data.url)
     const routeOrigin = originOf(route?.baseUrl)
