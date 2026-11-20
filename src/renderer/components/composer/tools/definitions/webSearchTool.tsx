@@ -17,9 +17,21 @@ const webSearchTool = defineTool({
 
   visibleInScopes: WEB_SEARCH_TOOLBAR_MANIFEST.visibleInScopes,
 
+  // The composer-selected knowledge bases add a KB function tool to the request, so the control must see them.
+  dependencies: {
+    state: ['selectedKnowledgeBases'] as const,
+    actions: [] as const
+  },
+
   condition: ({ assistant }) => Boolean(assistant),
   composer: {
-    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+    runtime: ({ context }) => (
+      <WebSearchToolRuntime
+        assistantId={context.assistant!.id}
+        launcher={context.launcher}
+        composerKnowledgeBaseIds={context.state.selectedKnowledgeBases.map((base) => base.id)}
+      />
+    )
   }
 })
 

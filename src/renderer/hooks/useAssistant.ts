@@ -22,6 +22,7 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { useActiveMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledgeToolSignals'
@@ -253,6 +254,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   clientSearchAvailableRef.current = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
   )
+  const activeMcpServersRef = useRef<ReturnType<typeof useActiveMcpServers>>(undefined)
+  activeMcpServersRef.current = useActiveMcpServers()
   const clientFetchAvailableRef = useRef(false)
   clientFetchAvailableRef.current = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultFetchUrlsProvider, 'fetchUrls')
@@ -316,7 +319,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       clientSearchAvailable: clientSearchAvailableRef.current,
       clientFetchAvailable: clientFetchAvailableRef.current,
       // Include scoped KB tools as well as MCP when predicting the Gemini conflict.
-      hasFunctionToolSignals: hasMcpToolSignals(currentAssistant) || scopedKnowledgeToolsRef.current
+      hasFunctionToolSignals:
+        hasMcpToolSignals(currentAssistant, activeMcpServersRef.current) || scopedKnowledgeToolsRef.current
     })
   }, [])
 

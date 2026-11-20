@@ -37,4 +37,14 @@ describe('hasMcpToolSignals', () => {
   it('never counts disabled mode, even with linked servers', () => {
     expect(hasMcpToolSignals(make('disabled', ['s1']))).toBe(false)
   })
+
+  it('uses the loaded active servers: Auto with none, or Manual with no active link, is no signal', () => {
+    const server = (id: string, name = id) => ({ id, name, type: 'stdio' }) as never
+    const browser = { id: 'b', name: '@cherry/browser', type: 'inMemory' } as never
+    expect(hasMcpToolSignals(make('auto', []), [])).toBe(false)
+    expect(hasMcpToolSignals(make('auto', []), [browser])).toBe(false)
+    expect(hasMcpToolSignals(make('auto', []), [server('s1')])).toBe(true)
+    expect(hasMcpToolSignals(make('manual', ['s1']), [server('s2')])).toBe(false)
+    expect(hasMcpToolSignals(make('manual', ['s1']), [server('s1')])).toBe(true)
+  })
 })

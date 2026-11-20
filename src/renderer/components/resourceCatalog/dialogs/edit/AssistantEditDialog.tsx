@@ -34,6 +34,7 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useActiveMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -263,6 +264,7 @@ function AssistantEditDialogContent({
   const clientSearchAvailable = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
   )
+  const activeMcpServers = useActiveMcpServers()
   const clientFetchAvailable = Boolean(
     resolveReadyWebSearchProvider(webSearchProviders, defaultFetchUrlsProvider, 'fetchUrls')
   )
@@ -355,10 +357,13 @@ function AssistantEditDialogContent({
         clientFetchAvailable,
         // MCP signals come from the submitted form: this same PATCH can change the mode or linked servers.
         hasFunctionToolSignals:
-          hasMcpToolSignals({
-            settings: { ...resource.settings, mcpMode: submittedValues.mcpMode },
-            mcpServerIds: submittedValues.mcpServerIds
-          }) || scopedKnowledgeTools
+          hasMcpToolSignals(
+            {
+              settings: { ...resource.settings, mcpMode: submittedValues.mcpMode },
+              mcpServerIds: submittedValues.mcpServerIds
+            },
+            activeMcpServers
+          ) || scopedKnowledgeTools
       })
       if (switched) {
         pending.payload.settings = {
