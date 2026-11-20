@@ -2575,9 +2575,13 @@ export class AiStreamManager extends BaseService {
 function mediaAnalysisSinkFor(messageId: string | undefined) {
   if (!messageId) return undefined
   const key = `message.media_analysis.${messageId}` as const
+  // Every turn ends with `null`; only a turn that showed progress clears (and broadcasts) the key.
+  let shown = false
   return (progress: MediaAnalysisProgress | null) => {
+    if (!progress && !shown) return
     const cache = application.get('CacheService')
     if (progress) cache.setShared(key, progress)
     else cache.deleteShared(key)
+    shown = progress !== null
   }
 }
