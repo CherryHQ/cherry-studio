@@ -39,7 +39,8 @@ const answerSchema = z.object({
   annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
 })
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
-const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
+// Each Durable store numbers its conversations and tasks from the start, so a CallRef is unique only within a session.
+const approvalId = (sessionId: string, call: CallRef) => `behavior:${sessionId}:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
 export async function createPiBehaviorHost(options: HostOptions): Promise<{
@@ -173,7 +174,7 @@ export function createPiInteractionPorts(
     signal.throwIfAborted()
     const presentation = approval.getInteractionState().userResponse
     if (presentation === 'unavailable') return undefined
-    const id = approvalId(call)
+    const id = approvalId(input.sessionId, call)
     const decision = await new Promise<DispatchDecision>((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId: id,
