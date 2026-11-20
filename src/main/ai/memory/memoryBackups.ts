@@ -41,6 +41,7 @@ const batchSchema = z.strictObject({
     .optional(),
   recoveryOf: z.uuid().optional(),
   orderedRecovery: z.boolean().optional(),
+  transferTargets: z.array(z.object({ path: z.string(), hash: hashSchema })).optional(),
   dependencies: z.array(z.object({ path: z.string(), hash: hashSchema })).optional(),
   clearScopeHash: z
     .string()
@@ -56,6 +57,7 @@ export interface MemoryLegacyOriginal {
   content: Buffer
 }
 export interface MemoryFileChange {
+  transferTarget?: boolean
   path: string
   before: Buffer | null
   after: Buffer | null
@@ -139,7 +141,8 @@ export async function createMemoryBackup(
   legacy?: MemoryLegacyOriginal,
   clearScopeHash?: string,
   recoveryOf?: string,
-  activeRoot?: string
+  activeRoot?: string,
+  transferTargets?: MemoryBatch['transferTargets']
 ): Promise<MemoryBatch> {
   if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
     throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
@@ -175,12 +178,17 @@ export async function createMemoryBackup(
     status: 'pending',
     clearScopeHash,
     recoveryOf,
+    transferTargets: transferTargets?.length ? transferTargets : undefined,
     orderedRecovery: parent && hasOrderedRecovery(parent),
     dependencies:
       parent && hasOrderedRecovery(parent)
         ? [
+            ...(parent.transferTargets ?? []),
             ...(parent.dependencies ?? []).filter((dep) => !parent.steps.some((step) => step.path === dep.path)),
-            ...parent.steps.map((step) => ({ path: step.path, hash: step.afterHash }))
+            ...parent.steps.map((step) => ({
+              path: step.path,
+              hash: step.outcome === 'unchanged' ? step.beforeHash : step.afterHash
+            }))
           ]
         : undefined,
     ...(legacy
