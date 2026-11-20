@@ -57,11 +57,12 @@ export const RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT = [
   '- "prompt": a complete system prompt in Markdown: role, goals, working style, and boundaries.',
   '- "knowledgeBaseIds": ids of listed knowledge bases that clearly match the purpose, otherwise [].',
   '- "mcpServerIds": ids of listed MCP servers that the purpose clearly needs, otherwise [].',
-  '- Agent only — "skillIds": ids of listed skills that clearly help with the purpose, otherwise [].',
   '- Agent only — "permissionMode": one of the listed permission modes. Prefer "default" when the purpose only reads or advises.',
   '- Assistant only — "enableWebSearch": true only when the purpose needs current or online information.',
+  '- Agent only — "skillIds": ids of listed skills that clearly help with the purpose, otherwise [].',
   '',
   'Rules:',
+  '- Write the fields in the order listed above.',
   '- Only use ids that appear in the lists; never invent ids.',
   '- When the purpose is (none), infer the role from the name.',
   '- Write "name", "description" and "prompt" in the same language as the purpose, or as the name when there is no purpose.'
@@ -166,5 +167,76 @@ export function parseAutoConfigDraft(
       ? (permissionMode ?? AGENT_RUNTIME_CAPABILITIES[agentType].createDefaults.permissionMode)
       : undefined,
     enableWebSearch: !isAgent && raw.enableWebSearch
+  }
+}
+
+/** How far a streamed auto-config reply has got, read from its JSON before it is complete. */
+export type AutoConfigProgress = {
+  /** The system prompt written so far. */
+  prompt: string
+  promptDone: boolean
+  /** MCP servers, plus the permission mode (Agent) or web search (Assistant). */
+  tools: { done: boolean; mcpServerIds: string[]; permissionMode?: string; enableWebSearch?: boolean }
+  /** Agent only. */
+  skills: { done: boolean; skillIds: string[] }
+}
+
+const keyPattern = (key: string, opener: string) => new RegExp(`"${key}"\\s*:\\s*${opener}`)
+
+/** A JSON string value, as far as it has been written; drops a trailing half-written escape. */
+function readStringValue(text: string, key: string): { value: string; closed: boolean } | undefined {
+  const match = keyPattern(key, '"').exec(text)
+  if (!match) return undefined
+  const start = match.index + match[0].length
+  let end = start
+  while (end < text.length && text[end] !== '"') end += text[end] === '\\' ? 2 : 1
+  const closed = end < text.length
+  const raw = text.slice(start, Math.min(end, text.length))
+  // An unclosed value may end mid-escape (`\\`, `\\u00`); the longest prefix that parses is what is written.
+  for (let cut = 0; cut <= 5 && cut <= raw.length; cut++) {
+    try {
+      return { value: JSON.parse(`"${raw.slice(0, raw.length - cut)}"`) as string, closed }
+    } catch {
+      // Keep trimming.
+    }
+  }
+  return { value: raw, closed }
+}
+
+/** The complete string items of a JSON array value, and whether the array has closed. */
+function readStringArray(text: string, key: string): { items: string[]; closed: boolean } | undefined {
+  const match = keyPattern(key, '\\[').exec(text)
+  if (!match) return undefined
+  const rest = text.slice(match.index + match[0].length)
+  const close = rest.indexOf(']')
+  const body = close < 0 ? rest : rest.slice(0, close)
+  const items = [...body.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(([, item]) => {
+    try {
+      return JSON.parse(`"${item}"`) as string
+    } catch {
+      return item
+    }
+  })
+  return { items, closed: close >= 0 }
+}
+
+/** Reads a partial reply from {@link RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT}, whose fields arrive in order. */
+export function readAutoConfigProgress(text: string, kind: AutoConfigKind): AutoConfigProgress {
+  const prompt = readStringValue(text, 'prompt')
+  const mcp = readStringArray(text, 'mcpServerIds')
+  const skills = readStringArray(text, 'skillIds')
+  const permission = readStringValue(text, 'permissionMode')
+  const webSearch = /"enableWebSearch"\s*:\s*(true|false)/.exec(text)?.[1]
+  const toolsDone = kind === 'agent' ? Boolean(permission?.closed || skills) : webSearch !== undefined
+  return {
+    prompt: prompt?.value ?? '',
+    promptDone: prompt?.closed ?? false,
+    tools: {
+      done: toolsDone,
+      mcpServerIds: mcp?.items ?? [],
+      ...(permission?.closed ? { permissionMode: permission.value } : {}),
+      ...(webSearch === undefined ? {} : { enableWebSearch: webSearch === 'true' })
+    },
+    skills: { done: skills?.closed ?? false, skillIds: skills?.items ?? [] }
   }
 }

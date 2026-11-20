@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +7,7 @@ import { Button, EmojiAvatar } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { ChannelQrLoginDialog } from '@renderer/components/channel/ChannelQrLoginDialog'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
+import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -117,15 +119,72 @@ function ChannelsSummary({ agentId }: { agentId: string }) {
   )
 }
 
-const WORKING_ROW_STAGGER_S = 0.4
+type WorkingStepState = 'active' | 'done'
 
-/** Shown while auto create generates and saves. One request configures every item, so none is marked done first. */
+function WorkingStep({
+  state,
+  label,
+  aside,
+  children
+}: {
+  state: WorkingStepState
+  label: string
+  aside?: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <div className="fade-in-0 slide-in-from-top-1 flex animate-in flex-col gap-1.5 py-0.5 duration-300 motion-reduce:animate-none">
+      <div className="flex min-h-7 items-center gap-2.5 text-[13px]">
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {state === 'done' ? (
+            <Check
+              aria-hidden="true"
+              className="zoom-in-50 fade-in-0 size-3.5 animate-in text-success duration-200 motion-reduce:animate-none"
+              strokeWidth={2.5}
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="size-3.5 animate-spin rounded-full border-[1.5px] border-border border-t-foreground [animation-duration:0.9s] motion-reduce:animate-none"
+            />
+          )}
+        </span>
+        <span className={state === 'done' ? 'text-muted-foreground' : 'text-foreground'}>{label}</span>
+        {aside ? <span className="ml-auto text-foreground-tertiary text-xs tabular-nums">{aside}</span> : null}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function WorkingPicks({ picks }: { picks: string[] }) {
+  if (picks.length === 0) return null
+  return (
+    <div className="ml-[26px] flex flex-wrap gap-1">
+      {picks.map((pick) => (
+        <span
+          key={pick}
+          className="zoom-in-90 fade-in-0 animate-in rounded-md border border-border-subtle bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground leading-4 duration-200 motion-reduce:animate-none">
+          {pick}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Shown while auto create generates and saves. Each step appears once the one before it is written,
+ * with what the model has produced so far: the prompt as it streams, then the picks as they arrive.
+ */
 export function ResourceCreateWorkingView({
   kind,
-  form
+  form,
+  progress
 }: {
   kind: ResourceCreateWizardKind
   form: UseFormReturn<ResourceCreateWizardFormValues>
+  /** `null` until the first streamed text arrives; a model that cannot stream stays there until done. */
+  progress: AutoConfigProgressView | null
 }) {
   const { t } = useTranslation()
   const [avatar, avatarImage, name, purpose] = useWatch({
@@ -133,14 +192,21 @@ export function ResourceCreateWorkingView({
     name: ['avatar', 'avatarImage', 'name', 'description']
   })
   const isAgent = kind === 'agent'
-  const items = [
-    t('library.config.dialogs.create.result.working.prompt'),
-    t('library.config.dialogs.create.result.working.tools'),
-    ...(isAgent ? [t('library.config.dialogs.create.result.working.skills')] : [])
-  ]
   const fallbackName = isAgent
     ? t('library.config.dialogs.create.result.agent_fallback_name')
     : t('library.config.dialogs.create.result.assistant_fallback_name')
+  const prompt = progress?.prompt ?? ''
+  const promptLines = prompt.split('\n').filter((line) => line.trim())
+  const promptDone = progress?.promptDone ?? false
+  const toolsDone = progress?.tools.done ?? false
+  const skillsDone = progress?.skills.done ?? false
+  const toolsLabel = isAgent
+    ? toolsDone
+      ? t('library.config.dialogs.create.result.working.tools_done')
+      : t('library.config.dialogs.create.result.working.tools_active')
+    : toolsDone
+      ? t('library.config.dialogs.create.result.working.assistant_tools_done')
+      : t('library.config.dialogs.create.result.working.assistant_tools_active')
 
   return (
     <div className="flex flex-col gap-5 px-6 pt-6 pb-5">
@@ -151,22 +217,49 @@ export function ResourceCreateWorkingView({
         description={purpose.trim()}
         working
       />
-      <div className="rounded-xl border border-border-subtle px-3.5 py-2">
-        {items.map((item, index) => {
-          // Each row runs a step ahead of the next, so the highlight sweeps down the list.
-          const animationDelay = `${(index - items.length) * WORKING_ROW_STAGGER_S}s`
-          return (
-            <div key={item} className="flex min-h-8 items-center gap-2.5 text-[13px]">
-              <span
-                className="size-1.5 shrink-0 animate-pulse rounded-full bg-muted-foreground/60 motion-reduce:animate-none"
-                style={{ animationDelay }}
-              />
-              <span className="animation-shimmer motion-reduce:animate-none" style={{ animationDelay }}>
-                {item}
-              </span>
+      <div
+        role="status"
+        aria-label={t('library.config.dialogs.create.result.working_title')}
+        className="flex flex-col gap-1 rounded-xl border border-border-subtle px-3.5 py-2.5">
+        <WorkingStep
+          state={promptDone ? 'done' : 'active'}
+          label={
+            promptDone
+              ? t('library.config.dialogs.create.result.working.prompt_done')
+              : t('library.config.dialogs.create.result.working.prompt_active')
+          }
+          aside={
+            prompt
+              ? t('library.config.dialogs.create.result.working.prompt_chars', { count: prompt.length })
+              : undefined
+          }>
+          {!promptDone && promptLines.length > 0 ? (
+            // The newest lines of the prompt as it is written; older ones scroll away above.
+            <div className="mb-1 ml-[26px] flex h-15 flex-col justify-end overflow-hidden rounded-md bg-muted/50 px-2.5 py-1.5 text-muted-foreground text-xs leading-5">
+              {promptLines.slice(-3).map((line, index) => (
+                <div key={`${promptLines.length}-${index}`} className="truncate">
+                  {line}
+                </div>
+              ))}
             </div>
-          )
-        })}
+          ) : null}
+        </WorkingStep>
+        {promptDone ? (
+          <WorkingStep state={toolsDone ? 'done' : 'active'} label={toolsLabel}>
+            <WorkingPicks picks={progress?.tools.picks ?? []} />
+          </WorkingStep>
+        ) : null}
+        {isAgent && toolsDone ? (
+          <WorkingStep
+            state={skillsDone ? 'done' : 'active'}
+            label={
+              skillsDone
+                ? t('library.config.dialogs.create.result.working.skills_done')
+                : t('library.config.dialogs.create.result.working.skills_active')
+            }>
+            <WorkingPicks picks={progress?.skills.picks ?? []} />
+          </WorkingStep>
+        ) : null}
       </div>
     </div>
   )

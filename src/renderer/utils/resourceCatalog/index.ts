@@ -13,6 +13,7 @@ export {
   buildAutoConfigInput,
   getFeaturedMcpName,
   parseAutoConfigDraft,
+  readAutoConfigProgress,
   RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT,
   toFeaturedMcpId
 } from './autoConfigure'

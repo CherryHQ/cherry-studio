@@ -10,7 +10,7 @@ import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
-import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
+import { type AutoConfigProgressView, useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -310,6 +310,7 @@ export function ResourceCreateWizard({
   const [created, setCreated] = useState<CreatedResource | null>(null)
   const [editTarget, setEditTarget] = useState<ResourceEditDialogTarget | null>(null)
   const autoAbortRef = useRef<AbortController | null>(null)
+  const [autoProgress, setAutoProgress] = useState<AutoConfigProgressView | null>(null)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
@@ -539,6 +540,7 @@ export function ResourceCreateWizard({
     const controller = new AbortController()
     const timeout = AbortSignal.timeout(AUTO_CREATE_TIMEOUT_MS)
     autoAbortRef.current = controller
+    setAutoProgress(null)
     setView('working')
     let draft: AutoConfigDraft | null
     try {
@@ -546,7 +548,10 @@ export function ResourceCreateWizard({
         agentType: values.agentType,
         purpose: values.description,
         name: values.name,
-        signal: AbortSignal.any([controller.signal, timeout])
+        signal: AbortSignal.any([controller.signal, timeout]),
+        onProgress: (progress) => {
+          if (!controller.signal.aborted) setAutoProgress(progress)
+        }
       })
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -665,7 +670,7 @@ export function ResourceCreateWizard({
                   />
                 </>
               ) : view === 'working' ? (
-                <ResourceCreateWorkingView kind={kind} form={form} />
+                <ResourceCreateWorkingView kind={kind} form={form} progress={autoProgress} />
               ) : view === 'result' && created ? (
                 <ResourceCreateResultView
                   kind={kind}

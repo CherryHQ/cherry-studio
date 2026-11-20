@@ -3,6 +3,6 @@ export { assistantAdapter, useAssistantMutationsById, useImportAssistantMutation
 export { promptAdapter, usePromptMutations, usePromptMutationsById, usePromptTargetMutations } from './promptAdapter'
 export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
-export { useResourceAutoConfigure } from './useResourceAutoConfigure'
+export { type AutoConfigProgressView, useResourceAutoConfigure } from './useResourceAutoConfigure'
 export { useResourceCatalogController } from './useResourceCatalogController'
 export { useResourceLibrary, type UseResourceLibraryOptions, type UseResourceLibraryResult } from './useResourceLibrary'

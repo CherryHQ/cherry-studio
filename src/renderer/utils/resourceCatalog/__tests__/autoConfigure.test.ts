@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { type AutoConfigCatalogs, buildAutoConfigInput, parseAutoConfigDraft } from '../autoConfigure'
+import {
+  type AutoConfigCatalogs,
+  buildAutoConfigInput,
+  parseAutoConfigDraft,
+  readAutoConfigProgress
+} from '../autoConfigure'
 
 const catalogs: AutoConfigCatalogs = {
   skills: [{ id: 'skill-review', name: 'code-review', description: 'Reviews pull requests' }],
@@ -109,5 +114,54 @@ describe('buildAutoConfigInput', () => {
 
     expect(input).not.toContain('skill-review')
     expect(input).not.toContain('Permission modes')
+  })
+})
+
+// The working view shows these as the reply streams; each case is a reply cut off mid-way.
+describe('readAutoConfigProgress', () => {
+  const promptText = '# Role\nYou review "pull requests".'
+  const reply =
+    `{"name":"Reviewer","emoji":"🔍","description":"Reviews PRs","prompt":${JSON.stringify(promptText)},` +
+    '"knowledgeBaseIds":[],"mcpServerIds":["mcp-github","preset:fetch"],"permissionMode":"default",' +
+    '"skillIds":["skill-review","skill-tdd"]}'
+  const cut = (marker: string, extra = 0) => reply.slice(0, reply.indexOf(marker) + extra)
+
+  it('reads the prompt as written so far, without a half-written escape', () => {
+    const progress = readAutoConfigProgress(cut('pull requests', -1), 'agent')
+
+    expect(progress.prompt).toBe('# Role\nYou review ')
+    expect(progress.promptDone).toBe(false)
+    expect(progress.tools.done).toBe(false)
+  })
+
+  it('finishes the prompt and lists the MCP servers picked so far', () => {
+    const progress = readAutoConfigProgress(cut('"preset:fetch"'), 'agent')
+
+    expect(progress.prompt).toBe(promptText)
+    expect(progress.promptDone).toBe(true)
+    expect(progress.tools).toEqual({ done: false, mcpServerIds: ['mcp-github'] })
+  })
+
+  it('finishes the tools with the permission mode and then the skills', () => {
+    const tools = readAutoConfigProgress(cut('"skillIds"'), 'agent')
+    expect(tools.tools).toMatchObject({ done: true, permissionMode: 'default' })
+    expect(tools.skills).toEqual({ done: false, skillIds: [] })
+
+    const skills = readAutoConfigProgress(cut('"skill-tdd"'), 'agent')
+    expect(skills.skills).toEqual({ done: false, skillIds: ['skill-review'] })
+    expect(readAutoConfigProgress(reply, 'agent').skills).toEqual({
+      done: true,
+      skillIds: ['skill-review', 'skill-tdd']
+    })
+  })
+
+  it("finishes an assistant's tools on its web search choice", () => {
+    const text = '{"prompt":"Translate.","knowledgeBaseIds":[],"mcpServerIds":[],"enableWebSearch":tr'
+    expect(readAutoConfigProgress(text, 'assistant').tools.done).toBe(false)
+    expect(readAutoConfigProgress(`${text}ue}`, 'assistant').tools).toEqual({
+      done: true,
+      mcpServerIds: [],
+      enableWebSearch: true
+    })
   })
 })

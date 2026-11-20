@@ -6,6 +6,7 @@ import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -15,7 +16,15 @@ import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '.
 
 const autoConfigure = vi.hoisted(() => ({
   ready: true,
-  generate: vi.fn<(input: { purpose: string; name: string; signal: AbortSignal }) => Promise<unknown>>(),
+  generate:
+    vi.fn<
+      (input: {
+        purpose: string
+        name: string
+        signal: AbortSignal
+        onProgress?: (progress: AutoConfigProgressView) => void
+      }) => Promise<unknown>
+    >(),
   installFeaturedMcpServers: vi.fn<(ids: string[]) => Promise<string[]>>()
 }))
 
@@ -1478,33 +1487,68 @@ describe('ResourceCreateWizard auto create', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it.each([
-    ['assistant', 2],
-    ['agent', 3]
-  ] as const)(
-    'shows the %s by its name while generating and keeps the purpose as the subtitle',
-    async (kind, stepCount) => {
-      const user = userEvent.setup()
-      autoConfigure.generate.mockReturnValue(new Promise(() => {}))
-      render(
-        <ResourceCreateWizard
-          kind={kind}
-          open
-          onOpenChange={vi.fn()}
-          onStartConversation={vi.fn()}
-          onSubmit={vi.fn()}
-        />
-      )
+  it('shows the Agent by its name while generating and keeps the purpose as the subtitle', async () => {
+    const user = userEvent.setup()
+    autoConfigure.generate.mockReturnValue(new Promise(() => {}))
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
 
-      await describeEntry(user)
-      await user.click(screen.getByRole('button', { name: 'fill model' }))
-      await user.click(screen.getByRole('button', { name: AUTO }))
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
 
-      expect(screen.getByText('PR Reviewer')).toBeVisible()
-      expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
-      expect(screen.getAllByText(new RegExp(`^${RESULT}\\.working\\.`))).toHaveLength(stepCount)
-    }
-  )
+    expect(screen.getByText('PR Reviewer')).toBeVisible()
+    expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
+  })
+
+  // Catches steps shown before the model reached them, or the streamed prompt and picks not reaching the view.
+  it('reveals each step as the streamed reply reaches it, with the prompt and picks it produced', async () => {
+    const user = userEvent.setup()
+    let report: (progress: AutoConfigProgressView) => void = () => {}
+    autoConfigure.generate.mockImplementation((input) => {
+      report = input.onProgress ?? report
+      return new Promise(() => {})
+    })
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+    const idle = { done: false, picks: [] }
+
+    act(() => report({ prompt: '# Role\nYou review pull requests', promptDone: false, tools: idle, skills: idle }))
+    expect(screen.getByText(`${RESULT}.working.prompt_active`)).toBeVisible()
+    expect(screen.getByText('You review pull requests')).toBeVisible()
+    expect(screen.queryByText(`${RESULT}.working.tools_active`)).not.toBeInTheDocument()
+
+    act(() =>
+      report({
+        prompt: '# Role\nYou review pull requests.',
+        promptDone: true,
+        tools: { done: false, picks: ['GitHub'] },
+        skills: idle
+      })
+    )
+    expect(screen.getByText(`${RESULT}.working.prompt_done`)).toBeVisible()
+    expect(screen.queryByText('You review pull requests.')).not.toBeInTheDocument()
+    expect(screen.getByText(`${RESULT}.working.tools_active`)).toBeVisible()
+    expect(screen.getByText('GitHub')).toBeVisible()
+    expect(screen.queryByText(`${RESULT}.working.skills_active`)).not.toBeInTheDocument()
+
+    act(() =>
+      report({
+        prompt: '# Role\nYou review pull requests.',
+        promptDone: true,
+        tools: { done: true, picks: ['GitHub', 'Ask Before Acting'] },
+        skills: { done: false, picks: ['Code review'] }
+      })
+    )
+    expect(screen.getByText(`${RESULT}.working.tools_done`)).toBeVisible()
+    expect(screen.getByText(`${RESULT}.working.skills_active`)).toBeVisible()
+    expect(screen.getByText('Code review')).toBeVisible()
+  })
 
   it('lets the user cancel while generating and abandons the request', async () => {
     const user = userEvent.setup()
