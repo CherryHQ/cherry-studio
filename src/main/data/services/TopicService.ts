@@ -476,7 +476,8 @@ export class TopicService {
         // with an edited name (the first reply was lost) renames it instead of leaving the dialog stuck.
         if (group.name !== dto.name) {
           tx.update(groupTable).set({ name: dto.name }).where(eq(groupTable.id, group.id)).run()
-          group = { ...group, name: dto.name }
+          // Re-read so the returned row carries the stored name and updatedAt, not a hand-built copy.
+          group = groupService.findByIdTx(tx, dto.groupId) ?? group
           renamed = true
         }
       } else {

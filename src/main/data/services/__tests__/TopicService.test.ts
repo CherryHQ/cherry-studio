@@ -1538,6 +1538,7 @@ describe('TopicService', () => {
       const result = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Papers' })
 
       expect(result.group.name).toBe('Papers')
+      expect(result.group.updatedAt).toBe(new Date(topicGroups()[0]?.updatedAt as number).toISOString())
       expect(topicGroups()).toHaveLength(1)
       expect(topicGroups()[0]?.name).toBe('Papers')
       expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
