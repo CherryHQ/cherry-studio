@@ -109,6 +109,8 @@ export interface ModelSelectorActionItem {
   leading?: ReactNode
   trailing?: ReactNode
   detail?: ReactNode
+  /** Same rank as `ModelSelectorPresentation.priority`: higher sorts later in its group. */
+  priority?: number
   onAction: () => void
 }
 
