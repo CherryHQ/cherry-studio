@@ -133,6 +133,20 @@ function batchFilename(batch: MemoryBatch): string {
   return `${batch.createdAt}-${batch.id}.json`
 }
 
+export function hasCompletedRecovery(parent: MemoryBatch, child: MemoryBatch): boolean {
+  return (
+    child.recoveryOf === parent.id &&
+    parent.steps.every(
+      (step) =>
+        step.outcome === 'unchanged' ||
+        child.steps.some(
+          (reverse) =>
+            reverse.path === step.path && reverse.outcome === 'applied' && reverse.afterHash === step.beforeHash
+        )
+    )
+  )
+}
+
 /** The scope owner holds its write lock throughout admission, mutation, and manifest updates. */
 export async function createMemoryBackup(
   root: string,
@@ -158,16 +172,7 @@ export async function createMemoryBackup(
       const parent = existing.find((item) => item.batch.id === child.recoveryOf)?.batch
       if (parent?.status !== 'partial') continue
       await reconcileMemoryBackup(root, activeRoot, child)
-      if (
-        parent.steps.every(
-          (step) =>
-            step.outcome === 'unchanged' ||
-            child.steps.some(
-              (reverse) =>
-                reverse.path === step.path && reverse.outcome === 'applied' && reverse.afterHash === step.beforeHash
-            )
-        )
-      ) {
+      if (hasCompletedRecovery(parent, child)) {
         parent.status = 'completed'
         await saveMemoryBackup(root, parent)
       }
