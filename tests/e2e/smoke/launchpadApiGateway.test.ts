@@ -157,6 +157,20 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await expect(panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })).toHaveValue(
     url
   )
+  const gatewayUrl = await panel
+    .getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
+    .inputValue()
+  await expect
+    .poll(
+      async () => {
+        const response = await fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(1000) }).catch(() => null)
+        if (!response) return null
+        const body = await response.json()
+        return { ok: response.ok, status: response.status, bodyStatus: body.status }
+      },
+      { timeout: 5000, intervals: [100, 250, 500] }
+    )
+    .toEqual({ ok: true, status: 200, bodyStatus: 'ok' })
   await expect(
     panel.getByRole('button', { name: uiLocale['apiGateway.fields.url.copyTooltip'], exact: true })
   ).toBeVisible()
@@ -177,6 +191,7 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
     .toBe(true)
   await panel.getByRole('button', { name: uiLocale['apiGateway.actions.stop'], exact: true }).click()
   await expect(panel.getByText(uiLocale['apiGateway.status.stopped'], { exact: true })).toBeVisible()
+  await expect(fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(5000) })).rejects.toThrow()
   await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), ThemeMode.dark)
   await page.setViewportSize({ width: 460, height: 500 })
   await page.reload()
