@@ -75,15 +75,17 @@ export function parseTomlOrThrow(content: string): TomlTableWithoutBigInt {
   }
 }
 
-export function parseYamlOrThrow(content: string): Record<string, any> {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML tags may produce native values; adapters validate each managed field while preserving foreign fields.
+export function parseYamlOrThrow(content: string): Record<string, unknown> {
   if (!content) return {}
   try {
-    const parsed = parseYaml(content)
+    const parsed: unknown = parseYaml(content)
     if (parsed == null) return {}
     if (typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('invalid YAML root: expected an object')
     }
-    return parsed as Record<string, any>
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The non-array object root is checked above; tagged YAML values remain unknown.
+    return parsed as Record<string, unknown>
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(redactSecretText(rawMessage))
