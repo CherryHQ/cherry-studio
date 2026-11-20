@@ -49,20 +49,19 @@ function navTargetFor(category: ErrorCategory, providerSuffix: string): string |
  * cannot re-derive it: the message crossing IPC is sanitized down to the exit status.
  */
 export function getClaudeCodeExitCategory(error?: SerializedError): ErrorCategory | undefined {
-  const category = (error as Record<string, unknown> | undefined)?.claudeCodeExitCategory
+  const category = error?.claudeCodeExitCategory
   return isErrorCategory(category) ? category : undefined
 }
 
 /** Display payload for a Claude Code exit; absent unless the reference that logs it survived. */
 export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitInfo | undefined {
   const category = getClaudeCodeExitCategory(error)
-  const errorBag = error as Record<string, unknown> | undefined
-  const reference = errorBag?.diagnosticReference
+  const reference = error?.diagnosticReference
   if (!category || typeof reference !== 'string' || !reference) return undefined
 
   const info: ClaudeCodeExitInfo = { category, reference }
-  if (typeof errorBag?.processExitCode === 'number') info.exitCode = errorBag.processExitCode
-  if (typeof errorBag?.processExitSignal === 'string') info.exitSignal = errorBag.processExitSignal
+  if (typeof error?.processExitCode === 'number') info.exitCode = error.processExitCode
+  if (typeof error?.processExitSignal === 'string') info.exitSignal = error.processExitSignal
   return info
 }
 
@@ -166,20 +165,19 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
 
-  const errorBag = error as Record<string, unknown>
-  if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
-    return classify(errorBag.providerErrorCategory)
+  if (isErrorCategory(error.providerErrorCategory) && error.providerErrorCategory !== 'unknown') {
+    return classify(error.providerErrorCategory)
   }
   // Checked before text classification: the unknown-text fallback would reclassify this local
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
   const numStatus = getErrorHttpStatus(error)
 
-  const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
+  const responseBodyText = typeof error.responseBody === 'string' ? error.responseBody : ''
   let dataText = ''
-  if (errorBag.data !== undefined && errorBag.data !== null) {
+  if (error.data !== undefined && error.data !== null) {
     try {
-      dataText = typeof errorBag.data === 'string' ? errorBag.data : JSON.stringify(errorBag.data)
+      dataText = typeof error.data === 'string' ? error.data : JSON.stringify(error.data)
     } catch {
       // Ignore non-serializable provider data.
     }
@@ -188,12 +186,12 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const category = classifyErrorCategory({
     text: [error.message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
     status: numStatus,
-    finishReason: String(errorBag.finishReason ?? '')
+    finishReason: String(error.finishReason ?? '')
   })
   if (
     isSerializedAiSdkRetryError(error) &&
     readStructuredStatus(error) === undefined &&
-    classifyErrorCategory({ finishReason: String(errorBag.finishReason ?? '') }) === 'unknown'
+    classifyErrorCategory({ finishReason: String(error.finishReason ?? '') }) === 'unknown'
   ) {
     const terminal = error.lastError
     const terminalCategory =
