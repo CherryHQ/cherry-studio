@@ -17,6 +17,7 @@ import {
   dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
+  IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE,
   imageInputToPreviewUrl,
   isKatexGeneratedSvg,
   makeSvgSizeAdaptive,
@@ -324,6 +325,23 @@ describe('utils/image', () => {
 
       const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
       expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
+    })
+
+    it('excludes live-only UI marked for exclusion from image capture', async () => {
+      const div = document.createElement('div')
+      const content = document.createElement('div')
+      const liveOnly = document.createElement('span')
+      liveOnly.setAttribute(IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE, '')
+      div.append(content, liveOnly)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.filter?.(liveOnly)).toBe(false)
       expect(captureOptions?.filter?.(content)).toBe(true)
     })
 

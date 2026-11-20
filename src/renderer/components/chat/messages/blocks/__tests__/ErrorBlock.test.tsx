@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE } from '@renderer/utils/image'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -13,8 +14,7 @@ const mocks = vi.hoisted(() => ({
   i18nKeys: new Set<string>(),
   language: 'en',
   translations: new Map<string, string>(),
-  showErrorDetailPopup: vi.fn(),
-  plans: { isPlansReady: false, activePaid: undefined as { id: string } | undefined }
+  showErrorDetailPopup: vi.fn()
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
@@ -36,10 +36,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderById: (providerId?: string) => ({
     provider: providerId === CUSTOM_PROVIDER.id ? CUSTOM_PROVIDER : undefined
   })
-}))
-
-vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
-  useCherryCloudPlans: (enabled = true) => (enabled ? mocks.plans : { isPlansReady: false, activePaid: undefined })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -107,7 +103,6 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
-    mocks.plans = { isPlansReady: false, activePaid: undefined }
     vi.clearAllMocks()
   })
 
@@ -1040,68 +1035,72 @@ required service tier.`
   describe('subscription model entry', () => {
     const SWITCH_LABEL = enUS['error.notice.switch_to_subscription_model']
     const rateLimit = { name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }
-    const renderRegenerateModelPicker: NonNullable<MessageListActions['renderRegenerateModelPicker']> = ({
-      trigger,
-      providerId
-    }) => (
-      <div data-testid="model-picker" data-provider-id={providerId}>
-        {trigger}
-      </div>
-    )
+    const renderSubscriptionModelPicker: NonNullable<MessageListActions['renderSubscriptionModelPicker']> = ({
+      trigger
+    }) => <div data-testid="subscription-model-picker">{trigger}</div>
 
     beforeEach(() => {
       mocks.translations = new Map(Object.entries(enUS))
-      mocks.plans = { isPlansReady: true, activePaid: { id: 'pro' } }
     })
 
-    it('offers subscription models when another provider fails a subscriber, without opening the detail', async () => {
+    it('offers subscription models beside the settings action without opening the detail', async () => {
       const user = userEvent.setup()
       const openErrorDetail = vi.fn()
-      mocks.actions = { navigateErrorTarget: vi.fn(), openErrorDetail, renderRegenerateModelPicker }
+      mocks.actions = { navigateErrorTarget: vi.fn(), openErrorDetail, renderSubscriptionModelPicker }
 
       render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
 
-      expect(screen.getByTestId('model-picker')).toHaveAttribute('data-provider-id', 'cherryai-subscription')
+      const entry = screen.getByRole('button', { name: SWITCH_LABEL })
+      expect(screen.getByTestId('subscription-model-picker')).toContainElement(entry)
       expect(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL })).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: SWITCH_LABEL }))
+      // Image exports drop marked subtrees, so a shared capture never shows the paid-only entry.
+      expect(entry.closest(`[${IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE}]`)).not.toBeNull()
+      await user.click(entry)
       expect(openErrorDetail).not.toHaveBeenCalled()
     })
 
     it.each([
       {
-        case: 'the user has no paid plan',
-        plans: { isPlansReady: true, activePaid: undefined },
-        error: rateLimit,
-        model: message.model
-      },
-      {
-        case: 'the plans are not confirmed yet',
-        plans: { isPlansReady: false, activePaid: { id: 'pro' } },
-        error: rateLimit,
-        model: message.model
-      },
-      {
         case: 'the failing model is already a subscription model',
-        plans: { isPlansReady: true, activePaid: { id: 'pro' } },
         error: rateLimit,
         model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
       },
       {
         case: 'the request itself is too large',
-        plans: { isPlansReady: true, activePaid: { id: 'pro' } },
         error: { name: 'APICallError', message: '413 Request Entity Too Large', stack: null, statusCode: 413 },
         model: message.model
       }
-    ])('does not offer subscription models when $case', ({ plans, error, model }) => {
-      mocks.plans = plans
-      mocks.actions = { renderRegenerateModelPicker }
+    ])('does not offer subscription models when $case', ({ error, model }) => {
+      mocks.actions = { renderSubscriptionModelPicker }
 
       render(<ErrorBlock partId="message-1-part-0" error={error} message={{ ...message, model }} />)
 
       expect(screen.queryByRole('button', { name: SWITCH_LABEL })).toBeNull()
     })
 
-    it('does not offer subscription models where the surface cannot regenerate with another model', () => {
+    it('adds no IPC listeners per card, whether or not the card offers subscription models', () => {
+      const on = vi.spyOn(window.api.ipcApi, 'on')
+      mocks.actions = { renderSubscriptionModelPicker }
+
+      render(
+        <>
+          <ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />
+          <ErrorBlock partId="message-1-part-1" error={rateLimit} message={{ ...message, id: 'message-2' }} />
+          <ErrorBlock
+            partId="message-1-part-2"
+            error={{ name: 'APICallError', message: '413 Request Entity Too Large', stack: null, statusCode: 413 }}
+            message={{ ...message, id: 'message-3' }}
+          />
+        </>
+      )
+
+      expect(screen.getAllByRole('button', { name: SWITCH_LABEL })).toHaveLength(2)
+      expect(on).not.toHaveBeenCalled()
+    })
+
+    it('does not offer subscription models when the surface provides no subscription picker', () => {
+      mocks.actions = { renderRegenerateModelPicker: ({ trigger }) => <>{trigger}</> }
+
       render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
 
       expect(screen.getByText(enUS['error.notice.rate_limit.title'])).toBeInTheDocument()
