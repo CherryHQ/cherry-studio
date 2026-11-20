@@ -1,7 +1,7 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
-import type { Provider } from '@shared/data/types/provider'
+import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
 import { getBaseUrl, getProviderAppHeaders } from '../../utils/provider'
@@ -60,7 +60,10 @@ export async function createVertexModelListRequest(
   provider: Provider,
   options?: { throwOnError?: boolean }
 ): Promise<VertexModelListRequest | undefined> {
-  const failOrSkip = (reason: string, context: Record<string, unknown>): undefined => {
+  const failOrSkip = (
+    reason: string,
+    context: { providerId: string; authType?: AuthConfig['type']; missing?: string[] }
+  ): undefined => {
     if (options?.throwOnError) {
       throw new Error(`Vertex AI model listing failed: ${reason}`)
     }
