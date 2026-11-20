@@ -19,6 +19,15 @@ const row = (modelId: string, apiModelId: string): ProviderModelOffer => ({
   endpointTypes: [...ACCTOKEN_ENDPOINTS]
 })
 
+// None of the three routes can carry a video file part in Cherry (see nativeFileSupport.ts), so an
+// attached video would reach the model as a "can't process" note. Offers whose creator reads video
+// advertise text and image only, which keeps the composer from offering video attachments.
+const noVideo = (offer: ProviderModelOffer): ProviderModelOffer => ({
+  ...offer,
+  inputModalities: ['text', 'image'],
+  capabilities: { remove: ['video-recognition'] }
+})
+
 export default defineProvider({
   id: 'acctoken',
   name: 'ACCTOKEN',
@@ -44,39 +53,39 @@ export default defineProvider({
     row('deepseek-v4-1-flash', 'deepseek-v4.1-flash'),
     row('deepseek-v4-pro', 'deepseek-v4-pro'),
     // Qwen
-    row('qwen3-8-flash', 'qwen3.8-flash'),
-    row('qwen3-8-max', 'qwen3.8-max'),
-    row('qwen3-7-flash', 'qwen3.7-flash'),
-    row('qwen3-7-plus', 'qwen3.7-plus'),
+    noVideo(row('qwen3-8-flash', 'qwen3.8-flash')),
+    noVideo(row('qwen3-8-max', 'qwen3.8-max')),
+    noVideo(row('qwen3-7-flash', 'qwen3.7-flash')),
+    noVideo(row('qwen3-7-plus', 'qwen3.7-plus')),
     row('qwen3-7-max', 'qwen3.7-max'),
     row('qwen3-vl-plus', 'qwen3-vl-plus'),
     // GLM. glm-5.1 is deliberately not mirrored: it is toggle-only and the relay's upstream for it does
     // not accept the generic OpenAI-compatible toggle wire; users who still need it can add it by hand.
     row('glm-5-3', 'glm-5.3'),
-    row('glm-5-3-flash', 'glm-5.3-flash'),
+    noVideo(row('glm-5-3-flash', 'glm-5.3-flash')),
     {
       // Vendor-exclusive fast variant of GLM-5.3-Flash with no creator row; standalone metadata so the
-      // app knows it reads images and video, can call tools, and when to compact long chats. The window
-      // and output cap are the relay's published values; video input was checked against the relay both
-      // as a URL and as a base64 data URL.
+      // app knows it reads images, can call tools, and when to compact long chats. The window and output
+      // cap are the relay's published values. The relay accepts video too, but it is not advertised, for
+      // the same reason as noVideo above.
       ...row('glm-5-3-flashx', 'glm-5.3-flashx'),
       name: 'GLM-5.3-FlashX',
       family: 'glm',
       ownedBy: 'zhipu',
       capabilities: {
-        force: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output']
+        force: ['function-call', 'reasoning', 'image-recognition', 'structured-output']
       },
-      inputModalities: ['text', 'image', 'video'],
+      inputModalities: ['text', 'image'],
       outputModalities: ['text'],
       limits: { contextWindow: 1_048_576, maxOutputTokens: 131_072 }
     },
     row('glm-5-2', 'glm-5.2'),
     // Kimi
-    row('kimi-k3', 'kimi/kimi-k3'),
-    row('kimi-k2-7-code', 'kimi-k2.7-code'),
-    row('kimi-k2-6', 'kimi-k2.6'),
+    noVideo(row('kimi-k3', 'kimi/kimi-k3')),
+    noVideo(row('kimi-k2-7-code', 'kimi-k2.7-code')),
+    noVideo(row('kimi-k2-6', 'kimi-k2.6')),
     // MiniMax
-    row('minimax-m3', 'MiniMax-M3'),
+    noVideo(row('minimax-m3', 'MiniMax-M3')),
     row('minimax-m2-5', 'MiniMax-M2.5')
   ]
 })

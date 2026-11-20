@@ -1624,18 +1624,22 @@
     },
     {
       "apiModelId": "glm-5.3-flash",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "glm-5-3-flash",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "glm-5.3-flashx",
       "capabilities": {
-        "force": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"]
+        "force": ["function-call", "reasoning", "image-recognition", "structured-output"]
       },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "family": "glm",
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["text", "image"],
       "limits": {
         "contextWindow": 1048576,
         "maxOutputTokens": 131072
@@ -1648,19 +1652,31 @@
     },
     {
       "apiModelId": "kimi-k2.6",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "kimi-k2-6",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "kimi-k2.7-code",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "kimi-k2-7-code",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "kimi/kimi-k3",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "kimi-k3",
       "providerId": "acctoken"
     },
@@ -1672,13 +1688,21 @@
     },
     {
       "apiModelId": "MiniMax-M3",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "minimax-m3",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "qwen3.7-flash",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "qwen3-7-flash",
       "providerId": "acctoken"
     },
@@ -1690,19 +1714,31 @@
     },
     {
       "apiModelId": "qwen3.7-plus",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "qwen3-7-plus",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "qwen3.8-flash",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "qwen3-8-flash",
       "providerId": "acctoken"
     },
     {
       "apiModelId": "qwen3.8-max",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
       "modelId": "qwen3-8-max",
       "providerId": "acctoken"
     },
@@ -45573,5 +45609,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c1196e5ab0757165"
+  "version": "fc92033e1da21170"
 }
