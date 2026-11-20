@@ -3868,9 +3868,6 @@ describe('AgentSessionRuntimeService', () => {
       }).getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
       await expect(reader.read()).resolves.toMatchObject({
-        value: { type: 'tool-input-available', toolCallId: 'deferred-call' }
-      })
-      await expect(reader.read()).resolves.toMatchObject({
         value: { type: 'tool-input-available', toolCallId: 'deferred-call', input: { command: 'pwd' } }
       })
       await expect(reader.read()).resolves.toMatchObject({

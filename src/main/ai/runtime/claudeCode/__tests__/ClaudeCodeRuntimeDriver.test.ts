@@ -850,7 +850,12 @@ describe('Claude warm memory handoff', () => {
         return { status: 'confirmed', value: handle }
       },
       shutdown: async () => {
-        await observe?.({ events: [{ type: 'closed', reason: 'shutdown' }], retracted: [], invocations: [] })
+        await observe?.({
+          events: [{ type: 'closed', reason: 'shutdown' }],
+          native: [],
+          retracted: [],
+          invocations: []
+        })
         return { status: 'confirmed' }
       }
     })
