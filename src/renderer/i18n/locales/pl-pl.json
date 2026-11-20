@@ -980,6 +980,7 @@
   "chat.message.new.context": "Nowy kontekst",
   "chat.message.quote": "Cytuj",
   "chat.message.read_aloud.label": "Odczytaj na głos",
+  "chat.message.reply_collapsed": "Odpowiedź zwinięta",
   "chat.message.token_details.cache_read": "Odczyt z pamięci podręcznej (cache read)",
   "chat.message.token_details.cache_write": "Zapis do pamięci podręcznej (cache write)",
   "chat.message.token_details.cost": "Koszt",

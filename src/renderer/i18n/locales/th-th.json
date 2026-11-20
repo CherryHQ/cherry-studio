@@ -966,6 +966,7 @@
   "chat.message.new.context": "คอนเท็กซ์ใหม่",
   "chat.message.quote": "อ้างอิง",
   "chat.message.read_aloud.label": "อ่านออกเสียง",
+  "chat.message.reply_collapsed": "ย่อคำตอบแล้ว",
   "chat.message.token_details.cache_read": "อ่านแคช",
   "chat.message.token_details.cache_write": "เขียนแคช",
   "chat.message.token_details.cost": "ค่าใช้จ่าย",

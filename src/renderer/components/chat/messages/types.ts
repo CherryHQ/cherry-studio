@@ -263,6 +263,7 @@ export interface AnchorMessage {
 }
 
 export interface MessageRenderConfig {
+  allowReplyCollapse?: boolean
   subagentListTitle?: string
   userName: string
   narrowMode: boolean

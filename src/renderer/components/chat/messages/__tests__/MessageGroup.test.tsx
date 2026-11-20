@@ -69,6 +69,11 @@ const mocks = vi.hoisted(() => ({
   )),
   MessageMenuBar: vi.fn((props: ComponentProps<typeof MessageMenuBarComponent>) => (
     <div className="message-menubar" data-message-id={props.message.id}>
+      {props.onCollapse && (
+        <button type="button" onClick={props.onCollapse}>
+          Collapse
+        </button>
+      )}
       menubar
     </div>
   )),
@@ -221,6 +226,7 @@ vi.mock('../MessageListProvider', () => ({
     return {
       userName: '',
       narrowMode: false,
+      allowReplyCollapse: settings.allowReplyCollapse,
       messageStyle: settings.messageStyle,
       messageFont: settings.messageFont,
       fontSize: settings.fontSize,
@@ -332,6 +338,25 @@ describe('MessageGroup', () => {
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
     mocks.scrollByWheel.mockReturnValue(false)
+  })
+
+  it('restores a folded reply in place after the list remounts', () => {
+    mocks.settings.mockReturnValue({ ...mocks.settings(), allowReplyCollapse: true })
+    const message = createMessage('foldable-reply', 0, 'fold')
+    const list = <MessageGroup messages={[message]} />
+    const { unmount } = render(list)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+    expect(screen.queryByTestId('message-parts-content')).toBeNull()
+    const expand = screen.getByRole('button', { name: 'common.expand' })
+    expect(expand).toHaveFocus()
+    expect(expand.closest('.message-header .message-body-content')).not.toBeNull()
+    unmount()
+    const capture = render(<MessageGroup messages={[message]} captureMode />)
+    expect(screen.getByTestId('message-parts-content')).toBeVisible()
+    capture.unmount()
+    render(list)
+    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
+    expect(screen.getByTestId('message-parts-content')).toBeVisible()
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {

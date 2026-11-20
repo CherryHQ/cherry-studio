@@ -423,6 +423,7 @@ const MoreMenuToolbarAction = ({
         onAction={executeAction}
         onOpenChange={handleMenuOpenChange}>
         <MessageActionButton
+          data-message-action="more-menu"
           className="message-action-button"
           aria-label={label}
           onClick={(e) => e.stopPropagation()}

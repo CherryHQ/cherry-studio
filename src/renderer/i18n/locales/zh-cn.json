@@ -966,6 +966,7 @@
   "chat.message.new.context": "清除上下文",
   "chat.message.quote": "引用",
   "chat.message.read_aloud.label": "朗读",
+  "chat.message.reply_collapsed": "回复已折叠",
   "chat.message.token_details.cache_read": "缓存读取",
   "chat.message.token_details.cache_write": "缓存写入",
   "chat.message.token_details.cost": "费用",

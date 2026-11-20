@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next'
 import {
   AtSign,
   Check,
+  ChevronsDownUp,
   CirclePause,
   CopyPlus,
   FilePenLine,
@@ -78,6 +79,7 @@ export interface MessageMenuBarActionContext {
   translateLanguages: TranslateLanguage[]
   translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
+  onCollapse?: () => void
   startEditingMessage?: (messageId: string) => void
   onSelectContext?: (messageId: string) => void
   t: TFunction
@@ -498,6 +500,18 @@ registerToolbarAction({
   label: ({ t }) => t('chat.message.more'),
   icon: <Menu size={19} />,
   availability: toolbarAvailability('more-menu', ({ isUserMessage }) => !isUserMessage)
+})
+
+registerCommand('message.collapse', ({ onCollapse }) => onCollapse?.())
+registerAction({
+  id: 'collapse',
+  commandId: 'message.collapse',
+  label: ({ t }) => t('common.collapse'),
+  icon: <ChevronsDownUp size={15} />,
+  group: 'write',
+  order: 35,
+  surface: 'menu',
+  availability: ({ onCollapse }) => !!onCollapse
 })
 
 registerAction({

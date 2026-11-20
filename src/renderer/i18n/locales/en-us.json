@@ -966,6 +966,7 @@
   "chat.message.new.context": "New Context",
   "chat.message.quote": "Quote",
   "chat.message.read_aloud.label": "Read aloud",
+  "chat.message.reply_collapsed": "Reply collapsed",
   "chat.message.token_details.cache_read": "Cache read",
   "chat.message.token_details.cache_write": "Cache write",
   "chat.message.token_details.cost": "Cost",

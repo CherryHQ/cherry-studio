@@ -966,6 +966,7 @@
   "chat.message.new.context": "Vymazat kontext",
   "chat.message.quote": "Citovat",
   "chat.message.read_aloud.label": "Přečíst nahlas",
+  "chat.message.reply_collapsed": "Odpověď sbalena",
   "chat.message.token_details.cache_read": "Čtení z mezipaměti",
   "chat.message.token_details.cache_write": "Zápis do mezipaměti",
   "chat.message.token_details.cost": "Náklady",

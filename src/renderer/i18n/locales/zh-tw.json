@@ -966,6 +966,7 @@
   "chat.message.new.context": "新上下文",
   "chat.message.quote": "引用",
   "chat.message.read_aloud.label": "朗讀",
+  "chat.message.reply_collapsed": "回覆已摺疊",
   "chat.message.token_details.cache_read": "快取讀取",
   "chat.message.token_details.cache_write": "快取寫入",
   "chat.message.token_details.cost": "成本",

@@ -335,6 +335,7 @@ const MessageGroup = ({
     (message: MessageListItem, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
+        captureMode,
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',

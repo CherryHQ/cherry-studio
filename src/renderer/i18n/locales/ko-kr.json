@@ -966,6 +966,7 @@
   "chat.message.new.context": "새 컨텍스트",
   "chat.message.quote": "인용",
   "chat.message.read_aloud.label": "소리 내어 읽기",
+  "chat.message.reply_collapsed": "답변 접힘",
   "chat.message.token_details.cache_read": "캐시 읽기",
   "chat.message.token_details.cache_write": "캐시 쓰기",
   "chat.message.token_details.cost": "비용",
