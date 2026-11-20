@@ -3476,6 +3476,19 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('restored model', expect.objectContaining({ mentionedModels: [modelB.id] }))
   })
 
+  it('keeps dispatching the visible restored model after history is cleared in place', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const unlinked = { ...topic, assistantId: undefined }
+    const view = render(<ChatHomeComposer topic={unlinked} onSend={onSend} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    // Clearing messages drops the last-used model while the picker keeps showing B.
+    view.rerender(<ChatHomeComposer topic={unlinked} onSend={onSend} lastUsedModelId={null} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'after clear', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith('after clear', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
   it('uses the restored model for assistant-bound attachment capabilities', async () => {
     mocks.lastModelAudio = true
     try {

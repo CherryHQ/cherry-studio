@@ -798,8 +798,15 @@ const ChatComposerInner = ({
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
+  // Without an assistant or topic history, the visible selection can still differ from what the default
+  // dispatch would use (history restored B, then was cleared in place), so the override must follow it.
+  const selectorDiffersFromRuntime =
+    mentionedModelSelectorValue.length > 0 &&
+    (mentionedModelSelectorValue.length !== 1 || mentionedModelSelectorValue[0].id !== runtimeModel?.id)
   const submittedMentionedModels =
-    (assistant || lastUsedModelId) && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+    (assistant || lastUsedModelId || selectorDiffersFromRuntime) && useMentionedModelSelector
+      ? mentionedModelSelectorValue
+      : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
