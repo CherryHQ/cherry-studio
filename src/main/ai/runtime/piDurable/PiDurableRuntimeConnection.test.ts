@@ -385,6 +385,23 @@ describe('desktop Pi Durable connection', () => {
     for (const result of succeeded) expect(content).toContain(result.toolCallId === 'first' ? 'ONE' : 'TWO')
   })
 
+  it('does not recreate a moved file on edit writeback', async () => {
+    const { createDurableEnvironment, runDurableFileMutation } = await import('./durableEnvironment')
+    const env = await createDurableEnvironment({ cwd: directory })
+    const file = join(directory, 'before.md')
+    const moved = join(directory, 'after.md')
+    writeFileSync(file, 'original')
+    await expect(
+      runDurableFileMutation(async () => {
+        expect((await env.readTextFile(file, BACKGROUND_CONTEXT)).ok).toBe(true)
+        await rename(file, moved)
+        await env.writeFile(file, 'edited', BACKGROUND_CONTEXT)
+      })
+    ).rejects.toThrow()
+    expect(existsSync(file)).toBe(false)
+    expect(readFileSync(moved, 'utf8')).toBe('original')
+  })
+
   it('writes through the handle that was checked when the directory entry is replaced', async () => {
     const { NodeExecutionEnv } = await import('@earendil-works/pi-durable/env/node')
     const target = join(directory, 'selected.md')
