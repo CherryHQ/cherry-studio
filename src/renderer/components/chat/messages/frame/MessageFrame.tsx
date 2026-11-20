@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ASSISTANT_REPLY_DISCLOSURE } from '@renderer/services/messageUiStateCache'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
@@ -16,7 +17,8 @@ import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
-import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
+import { useOptionalMessageCaptureLease } from '../list/MessageCaptureLeaseContext'
+import { useRequestScrollReadingControl, useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -119,16 +121,20 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
+  const captureLease = useOptionalMessageCaptureLease()
+  const capturing = captureLease?.leasedMessageIds.includes(message.id)
+  const requestReadingControl = useRequestScrollReadingControl(messageContainerRef)
   const canCollapse = renderConfig.allowReplyCollapse && isAssistantMessage && showMenuBar && !captureMode
   const [expanded, setExpanded] = useMessageDisclosureState(
-    canCollapse ? 'assistant-reply' : undefined,
+    canCollapse ? ASSISTANT_REPLY_DISCLOSURE : undefined,
     true,
     message.id
   )
-  const collapsed = canCollapse && !expanded
+  const collapsed = canCollapse && !capturing && !expanded
   const moveFocus = useRef(false)
   const expandButton = useRef<HTMLButtonElement>(null)
   const setReplyExpanded = (next: boolean) => {
+    requestReadingControl()
     moveFocus.current = true
     setExpanded(next)
   }
@@ -206,6 +212,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!isMultiSelectMode) return
+      if (expandButton.current?.contains(event.target as Node)) return
       if ((event.target as HTMLElement | null)?.closest('[role="checkbox"]')) return
 
       event.preventDefault()
@@ -262,7 +269,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           {messageBody}
         </div>
       )}
-      {isAssistantMessage ? messageTail : <UnsentMessageNotice message={message} />}
+      {!isAssistantMessage && <UnsentMessageNotice message={message} />}
     </>
   )
 
@@ -322,7 +329,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
               isProcessing={isProcessing}
               messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
               onStartEditing={canStartEditing ? handleStartEditing : undefined}
-              onCollapse={canCollapse ? () => setReplyExpanded(false) : undefined}
+              onCollapse={canCollapse && !capturing ? () => setReplyExpanded(false) : undefined}
               onMenuOpenChange={setIsMessageMenuOpen}
               onSelectContext={onSelectContext}
             />
@@ -368,7 +375,12 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
           showModelIdentity={showModelIdentity}
-          contentSlot={replyContent}
+          contentSlot={
+            <>
+              {replyContent}
+              {isAssistantMessage && messageTail}
+            </>
+          }
           footerSlot={userFooter ?? assistantFooter}
         />
       )}

@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, use, useCallback, useMemo, useRef, useState } from 'react'
 
 export interface MessageCaptureLeaseContextValue {
+  leasedMessageIds: readonly string[]
   acquireMessageCaptureLease: (messageId: string) => () => void
   getRenderedMessageElement: (messageId: string) => HTMLElement | null
 }
