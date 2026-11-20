@@ -33,7 +33,8 @@ export interface SplitImageParams<T extends Record<string, unknown>> {
 export function splitParamValues<T extends Record<string, unknown>>(paramValues: T): SplitImageParams<T> {
   const structured: Record<string, T[keyof T] | string> = {}
   const vendorBag: Record<string, T[keyof T]> = {}
-  for (const [key, value] of Object.entries<T[keyof T]>(paramValues)) {
+  // SAFETY: Each own enumerable field's value belongs to the input object's value union.
+  for (const [key, value] of Object.entries(paramValues) as [string, T[keyof T]][]) {
     if (value === undefined || value === '' || value === null) continue
     const binding = nativeBindingFor(key) // numImages → n; aspectRatio normalized once; rest identity
     if (binding) {
