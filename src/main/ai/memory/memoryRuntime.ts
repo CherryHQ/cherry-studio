@@ -11,7 +11,7 @@ import { assertMemoryRuntimeState, hasUnexposedAssistantHistory, type MemoryRunt
 type RuntimeMemoryAuthority = MemoryAuthority & { runtimeOwner?: MemoryRuntimeOwner }
 
 export function runtimeMemoryAuthorities(
-  owner: { agentSessionId: string } | { topicId: string; assistantId: string },
+  owner: { agentSessionId: string } | { topicId: string; assistantId?: string },
   signal: AbortSignal
 ): RuntimeMemoryAuthority[] {
   const turn = {
@@ -47,14 +47,14 @@ export function runtimeMemoryAuthorities(
   }
   const assertAuthorized = (): undefined => {
     signal.throwIfAborted()
-    if (topicService.getById(owner.topicId).assistantId !== owner.assistantId)
+    if ((topicService.getById(owner.topicId).assistantId ?? undefined) !== owner.assistantId)
       throw new Error('Memory conversation owner changed')
-    assistantDataService.getById(owner.assistantId)
+    if (owner.assistantId) assistantDataService.getById(owner.assistantId)
     return undefined
   }
   assertAuthorized()
   if (
-    assistantDataService.getById(owner.assistantId).settings.enableSharedMemory !== true &&
+    (!owner.assistantId || assistantDataService.getById(owner.assistantId).settings.enableSharedMemory !== true) &&
     hasUnexposedAssistantHistory(owner)
   )
     return []

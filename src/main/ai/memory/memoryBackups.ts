@@ -40,6 +40,7 @@ const batchSchema = z.strictObject({
     })
     .optional(),
   recoveryOf: z.uuid().optional(),
+  orderedRecovery: z.boolean().optional(),
   clearScopeHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/)
@@ -118,6 +119,13 @@ async function storedBatches(root: string): Promise<StoredBatch[]> {
   )
 }
 
+export function hasOrderedRecovery(batch: MemoryBatch): boolean {
+  if (batch.orderedRecovery !== undefined) return batch.orderedRecovery
+  if (batch.source === 'dreaming') return batch.steps.some((step) => step.afterHash === null)
+  // Older reverse manifests contain the transfer steps but do not name their dependency.
+  return batch.source === 'recovery' && batch.steps.some((step) => step.beforeHash === null || step.afterHash === null)
+}
+
 function batchFilename(batch: MemoryBatch): string {
   return `${batch.createdAt}-${batch.id}.json`
 }
@@ -157,6 +165,7 @@ export async function createMemoryBackup(
     }
   }
   const reverse = recoveryOf ? existing.findLast((item) => item.batch.recoveryOf === recoveryOf) : undefined
+  const parent = recoveryOf ? existing.find((item) => item.batch.id === recoveryOf)?.batch : undefined
   const batch: MemoryBatch = reverse?.batch ?? {
     version: 1,
     id: randomUUID(),
@@ -165,6 +174,7 @@ export async function createMemoryBackup(
     status: 'pending',
     clearScopeHash,
     recoveryOf,
+    orderedRecovery: parent && hasOrderedRecovery(parent),
     ...(legacy
       ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content) } }
       : {}),

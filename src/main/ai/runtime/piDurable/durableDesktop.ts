@@ -26,7 +26,7 @@ import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import { createDurableEnvironment } from './durableEnvironment'
+import { createDurableEnvironment, runDurableFileMutation } from './durableEnvironment'
 import { createDurableMcp } from './durableMcp'
 import { withDurableShellTimeout } from './durableShellTimeout'
 
@@ -134,6 +134,8 @@ export async function prepareDurableDesktop(
     })
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
+    const edit = tools.createEditTool()
+    const write = tools.createWriteTool()
     const bash = tools.createBashTool({
       commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
@@ -141,7 +143,15 @@ export async function prepareDurableDesktop(
       native.defineExtension({
         ...coding,
         tools: [
-          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          ...(coding.tools ?? []).filter((tool) => !['bash', 'edit', 'write'].includes(tool.name)),
+          {
+            ...edit,
+            execute: (...args: Parameters<typeof edit.execute>) => runDurableFileMutation(() => edit.execute(...args))
+          },
+          {
+            ...write,
+            execute: (...args: Parameters<typeof write.execute>) => runDurableFileMutation(() => write.execute(...args))
+          },
           withDurableShellTimeout(bash),
           ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
         ]
