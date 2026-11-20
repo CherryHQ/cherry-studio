@@ -2,6 +2,7 @@ import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { ShellExecutionActions } from '@renderer/components/terminal/ShellExecutionActions'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
@@ -182,14 +183,17 @@ export function AgentToolCallCard({
     showInlineDetails && renderedItem.children !== undefined && renderedItem.children !== null
 
   return (
-    <AgentToolDisclosure
-      className="w-full max-w-full rounded-none border-0 bg-transparent"
-      defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
-      isStreaming={isStreaming}
-      item={toolContentItem}
-      onOpenDetails={openToolFlow}
-      stateId={toolCallId}
-      showInlineDetails={canShowInlineDetails}
-    />
+    <div className="flex min-w-0 items-start gap-1">
+      <AgentToolDisclosure
+        className="w-full max-w-full rounded-none border-0 bg-transparent"
+        defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
+        isStreaming={isStreaming}
+        item={toolContentItem}
+        onOpenDetails={openToolFlow}
+        stateId={toolCallId}
+        showInlineDetails={canShowInlineDetails}
+      />
+      <ShellExecutionActions toolCallId={toolCallId} />
+    </div>
   )
 }

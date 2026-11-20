@@ -53,6 +53,7 @@ import {
   type RightPanelComponentProps,
   type RightPanelComposition,
   RightPanelHeaderControls,
+  RightPanel,
   RightPanelProvider,
   type RightPanelReadiness,
   RightPanelShortcut,
@@ -70,6 +71,10 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
+import {
+  TerminalResourcesProvider,
+  useOptionalTerminalResources
+} from '@renderer/components/terminal/TerminalResourcesProvider'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
@@ -108,6 +113,7 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import { AgentBrowserView } from './AgentBrowserView'
+import { AgentResourceTabs, AgentResourceHeaderProvider, AgentResourceFileControls } from './AgentResourceTabs'
 import {
   type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
@@ -528,16 +534,19 @@ function AgentRightPaneActionsProvider({
   const activateFileTab = useCallback(
     (tab: ArtifactPaneFileSelection) => {
       invalidatePreviewRequests()
-      requestFileSelection(tab, clearReturnTarget)
+      requestFileSelection(tab, () => {
+        clearReturnTarget()
+        panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
+      })
     },
-    [clearReturnTarget, invalidatePreviewRequests, requestFileSelection]
+    [clearReturnTarget, invalidatePreviewRequests, requestFileSelection, panelActions]
   )
   const closeFileTab = useCallback(
     (tab: ArtifactPaneFileSelection) => {
-      if (isSameFileSelection(previewFileSelection, tab)) closeFilePreview()
+      if (isSameFileSelection(previewFileSelection, tab)) requestFileSelection(null, clearReturnTarget, true)
       else closeInactiveFileTab(tab)
     },
-    [closeFilePreview, closeInactiveFileTab, previewFileSelection]
+    [requestFileSelection, clearReturnTarget, closeInactiveFileTab, previewFileSelection]
   )
   const retainFileTab = useCallback(
     (tab: ArtifactPaneFileSelection | null) => {
@@ -1042,7 +1051,11 @@ function AgentRightPaneStateProvider({
                 setFileTreeExpandedIds={setFileTreeExpandedIds}
                 setFileTreeSearchKeyword={setFileTreeSearchKeyword}
                 workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                <AgentDetailsScope present={present}>{children}</AgentDetailsScope>
+                <TerminalResourcesProvider sessionId={sessionId ?? ''} active={present}>
+                  <AgentResourceHeaderProvider>
+                    <AgentDetailsScope present={present}>{children}</AgentDetailsScope>
+                  </AgentResourceHeaderProvider>
+                </TerminalResourcesProvider>
               </AgentRightPaneActionsProvider>
             </RightPanelProvider>
             <ConfirmDialog
@@ -1151,6 +1164,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     <ArtifactPaneView
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
+      renderHeader={(controls) => <AgentResourceFileControls>{controls}</AgentResourceFileControls>}
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       fileTabs={state.fileTabs}
@@ -1236,6 +1250,7 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
+      header={null}
       onEmpty={panelActions.close}
     />
   )
@@ -1809,7 +1824,29 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
 const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
-  return <RightPanelViewport />
+  const panel = useRightPanelState()
+  const files = useAgentRightPaneFileState()
+  const actions = useAgentRightPaneActions()
+  const unified = ['files', 'browser', 'terminal'].includes(panel.activePanelId ?? '')
+  return (
+    <RightPanelViewport>
+      <div className="flex size-full min-h-0 flex-col">
+        {unified && (
+          <AgentResourceTabs
+            files={files.fileTabs}
+            selectedFile={files.previewFileSelection}
+            dirty={files.fileSession.isDirty}
+            activateFile={actions.activateFileTab}
+            closeFile={actions.closeFileTab}
+            openFile={actions.openFileFromPreview}
+          />
+        )}
+        <div className="min-h-0 flex-1">
+          <RightPanel />
+        </div>
+      </div>
+    </RightPanelViewport>
+  )
 })
 
 const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
@@ -1819,6 +1856,8 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
 }) {
   const { t } = useTranslation()
   const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
+  const terminal = useOptionalTerminalResources()
+  const cleanupWarning = (terminal?.cleanup.data?.count ?? 0) > 0 || terminal?.cleanup.data?.recoveryFailed
 
   return (
     <>
@@ -1836,8 +1875,13 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
       )}
       <RightPanelShortcut
         tab={TERMINAL_PANE_ID}
-        label={t('terminal.title')}
-        icon={<TerminalSquare className="size-3.5" />}
+        label={t(cleanupWarning ? 'terminal.cleanup.unconfirmed' : 'terminal.title')}
+        icon={
+          <span className="relative">
+            <TerminalSquare className="size-3.5" />
+            {cleanupWarning && <span className="absolute -end-1 -top-1 size-1.5 rounded-full bg-warning" />}
+          </span>
+        }
       />
       <AgentSessionDetailsToggle>
         <AgentDetailsContent />
