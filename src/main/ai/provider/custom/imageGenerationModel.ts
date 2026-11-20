@@ -59,6 +59,7 @@ export interface ImageGenerationSubmitInput {
   mask: ImageModelV3CallOptions['mask']
   /** Per-model routing, derived in main from the registry (not a user param). */
   modelDescriptor?: ImageTransportDescriptor
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- In-process custom adapters carry callbacks and upload bytes; each transport interprets its supported fields.
   providerParams: Record<string, unknown>
   /** Per-attempt submit timeout (ms); omitted uses the transport default. */
   requestTimeoutMs?: number
@@ -102,6 +103,8 @@ export function createImageGenerationModel(
         throw createAbortError('Image generation aborted')
       }
 
+      // SAFETY: Custom adapters carry runtime callbacks and upload bytes outside the SDK JSON contract.
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve opaque in-process extensions for transport-specific interpretation.
       const providerParams = (options.providerOptions?.[provider] as Record<string, unknown> | undefined) ?? {}
 
       const onProgress =

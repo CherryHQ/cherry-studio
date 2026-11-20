@@ -1,3 +1,4 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -6,7 +7,7 @@ import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
 /**
  * Payload for the async image-generation job. Carries only what the handler
- * needs to (re)build the submit input after a restart — NO secrets and NO raw
+ * needs to build the submit input — NO secrets and NO raw
  * input-image bytes:
  *
  *   - `uniqueModelId` lets the handler re-resolve the provider/model and read
@@ -16,9 +17,9 @@ import type { ImageTransportDescriptor } from '../imageGenerationModel'
  *     `job_file_ref` rows keep them alive while the job is queued or running —
  *     the cleanup grace window alone does not cover a job that waits out a
  *     backlog (file-entry-cleanup.md §5.1).
- *   - `providerParams` is `imageProviderOptions[sdkConfig.providerId]` — the
- *     exact bag the in-SDK path hands `transport.submit` (JSON-only; the
- *     plugin-chain callbacks like `onProgress` are already stripped).
+ *   - `providerParams` is the canonical vendor bag split from catalog-validated
+ *     `paramValues`. Native options and routing have their own payload fields;
+ *     runtime callbacks are outside this persisted contract.
  */
 export interface ImageGenerationJobPayload {
   uniqueModelId: UniqueModelId
@@ -37,7 +38,7 @@ export interface ImageGenerationJobPayload {
   requestTimeoutMs?: number
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
-  providerParams: Record<string, unknown>
+  providerParams: ParamValues
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
   cleanupPolicy: CleanupPolicy
 }
