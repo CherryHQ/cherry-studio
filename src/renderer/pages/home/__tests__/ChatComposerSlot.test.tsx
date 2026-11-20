@@ -52,6 +52,7 @@ const baseProps = {
   placement: 'docked' as const,
   topic,
   contextUsage: { contextTokens: 42, modelId: 'provider::model' as const },
+  providerQuotaExhausted: false,
   onSend: vi.fn(),
   chatTarget
 }

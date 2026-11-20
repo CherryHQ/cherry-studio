@@ -50,3 +50,10 @@ export function useCherryCloudSubscribeReminder(): boolean {
   const { session, isPlansReady, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
   return remindToSubscribe && (session.status?.phase === 'signed-out' || (isPlansReady && !activePaid && !upcomingPaid))
 }
+
+/** China-edition Subscribe offer for a user without a paid plan, quiet while current-account plans are unknown. */
+export function useCherryCloudSubscriptionOffer(enabled: boolean): boolean {
+  const offer = enabled && getAppEdition() === 'cn'
+  const { session, isPlansReady, activePaid, upcomingPaid } = useCherryCloudPlans(offer)
+  return offer && (session.status?.phase === 'signed-out' || (isPlansReady && !activePaid && !upcomingPaid))
+}

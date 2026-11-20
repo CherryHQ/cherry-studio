@@ -578,6 +578,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   })
 }))
 
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -919,6 +923,31 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(true)
+
+    mocks.topicPending = true
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
+
+    mocks.topicPending = false
+    mocks.model = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
   })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()

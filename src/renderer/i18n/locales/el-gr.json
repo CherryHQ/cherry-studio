@@ -869,6 +869,7 @@
   "chat.input.placeholder": "Πληκτρολογήστε ένα μήνυμα. Πληκτρολογήστε / για εργαλεία και ενέργειες ή @ για αναφορά σε θέματα.",
   "chat.input.quota_notice.model_delisted": "Αυτό το μοντέλο δεν είναι πλέον διαθέσιμο. Επιλέξτε άλλο μοντέλο",
   "chat.input.quota_notice.not_in_plan": "Το πρόγραμμά σας δεν περιλαμβάνει αυτό το μοντέλο",
+  "chat.input.quota_notice.provider_quota": "Ανεπαρκές όριο λογαριασμού. Φορτίστε υπόλοιπο ή αλλάξτε πάροχο, ή εγγραφείτε στο Cherry AI για να συνεχίσετε",
   "chat.input.quota_notice.sign_in_required": "Συνδεθείτε στο Cherry AI για να χρησιμοποιήσετε αυτό το μοντέλο",
   "chat.input.quota_notice.subscription_required": "Γίνετε συνδρομητής για να χρησιμοποιήσετε αυτό το μοντέλο",
   "chat.input.quota_notice.switch_model": "Αλλαγή μοντέλου",

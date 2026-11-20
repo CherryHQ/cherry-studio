@@ -869,6 +869,7 @@
   "chat.input.placeholder": "Escreva uma mensagem. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",
   "chat.input.quota_notice.model_delisted": "Este modelo já não está disponível. Mude para outro modelo",
   "chat.input.quota_notice.not_in_plan": "O seu plano não inclui este modelo",
+  "chat.input.quota_notice.provider_quota": "Quota da conta insuficiente. Carregue saldo ou mude de fornecedor, ou subscreva o Cherry AI para continuar",
   "chat.input.quota_notice.sign_in_required": "Inicie sessão no Cherry AI para usar este modelo",
   "chat.input.quota_notice.subscription_required": "Subscreva para usar este modelo",
   "chat.input.quota_notice.switch_model": "Mudar de modelo",

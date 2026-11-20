@@ -869,6 +869,7 @@
   "chat.input.placeholder": "메시지를 입력하세요. /로 도구와 작업을 찾고 @로 대화를 참조하세요.",
   "chat.input.quota_notice.model_delisted": "이 모델은 더 이상 제공되지 않습니다. 다른 모델로 전환하세요.",
   "chat.input.quota_notice.not_in_plan": "현재 요금제에 이 모델이 포함되어 있지 않습니다",
+  "chat.input.quota_notice.provider_quota": "계정 한도가 부족합니다. 충전하거나 서비스 제공자를 변경하거나, Cherry AI를 구독해 계속 이용하세요",
   "chat.input.quota_notice.sign_in_required": "Cherry AI 요금제 모델을 사용하려면 로그인하세요",
   "chat.input.quota_notice.subscription_required": "이 모델을 사용하려면 구독하세요",
   "chat.input.quota_notice.switch_model": "모델 전환",

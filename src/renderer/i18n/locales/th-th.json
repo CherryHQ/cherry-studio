@@ -869,6 +869,7 @@
   "chat.input.placeholder": "พิมพ์ข้อความ พิมพ์ / สำหรับเครื่องมือและการกระทำ @ เพื่ออ้างอิงหัวข้อ",
   "chat.input.quota_notice.model_delisted": "โมเดลนี้ไม่มีให้ใช้งานแล้ว โปรดเปลี่ยนโมเดล",
   "chat.input.quota_notice.not_in_plan": "แพ็กเกจของคุณไม่รวมโมเดลนี้",
+  "chat.input.quota_notice.provider_quota": "โควตาบัญชีไม่เพียงพอ โปรดเติมเงินหรือเปลี่ยนผู้ให้บริการ หรือสมัครแพ็กเกจ Cherry AI เพื่อใช้งานต่อ",
   "chat.input.quota_notice.sign_in_required": "ลงชื่อเข้าใช้ Cherry AI เพื่อใช้โมเดลนี้",
   "chat.input.quota_notice.subscription_required": "สมัครสมาชิกเพื่อใช้โมเดลนี้",
   "chat.input.quota_notice.switch_model": "เปลี่ยนโมเดล",

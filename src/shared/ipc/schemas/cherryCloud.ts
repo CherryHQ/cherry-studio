@@ -146,7 +146,8 @@ const subscriptionEntrySourceSchema = z.enum([
   'account_panel',
   'settings',
   'quota_notice',
-  'avatar_dot'
+  'avatar_dot',
+  'provider_quota_notice'
 ])
 // A Subscribe click reached through another touchpoint's prompt, e.g. the avatar dot leading into the account panel.
 const subscriptionEntryViaSchema = z.enum(['avatar_dot'])

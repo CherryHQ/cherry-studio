@@ -18,6 +18,7 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -200,6 +201,10 @@ const ChatContentInner: FC<InnerProps> = ({
     }
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
+  const providerQuotaExhausted = useMemo(
+    () => !isHistoryStale && endsWithProviderQuotaError(uiMessages, activeNodeId),
+    [activeNodeId, isHistoryStale, uiMessages]
+  )
 
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
@@ -268,6 +273,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       contextUsage={contextUsage}
+      providerQuotaExhausted={providerQuotaExhausted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -281,6 +287,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       contextUsage={contextUsage}
+      providerQuotaExhausted={providerQuotaExhausted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}

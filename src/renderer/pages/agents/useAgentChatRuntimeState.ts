@@ -42,6 +42,7 @@ import { autoReadService } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
@@ -169,6 +170,8 @@ export interface AgentChatRuntimeState {
   startEditing: (messageId: string) => Promise<void>
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
+  /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
+  providerQuotaExhausted: boolean
 }
 
 interface UseAgentChatRuntimeStateParams {
@@ -575,6 +578,8 @@ export function useAgentChatRuntimeState({
     [toolApprovalComposerOverrides]
   )
 
+  const providerQuotaExhausted = useMemo(() => endsWithProviderQuotaError(displayMessages), [displayMessages])
+
   const errorToasts = useConversationErrorToasts(sessionTopicId, {
     trimContext: canCompact
       ? async () => {
@@ -611,6 +616,7 @@ export function useAgentChatRuntimeState({
     editBusy,
     startEditing,
     cancelEditing,
-    resendEditedMessage
+    resendEditedMessage,
+    providerQuotaExhausted
   }
 }

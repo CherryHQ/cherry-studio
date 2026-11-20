@@ -883,6 +883,7 @@
   "chat.input.placeholder": "Napisz wiadomość. Wpisz /, aby użyć narzędzi i akcji, @ aby odwołać się do tematów.",
   "chat.input.quota_notice.model_delisted": "Ten model nie jest już dostępny. Wybierz inny model",
   "chat.input.quota_notice.not_in_plan": "Twój plan nie obejmuje tego modelu",
+  "chat.input.quota_notice.provider_quota": "Niewystarczający limit konta. Doładuj saldo lub zmień dostawcę albo zasubskrybuj Cherry AI, aby kontynuować",
   "chat.input.quota_notice.sign_in_required": "Zaloguj się do Cherry AI, aby korzystać z tego modelu",
   "chat.input.quota_notice.subscription_required": "Zasubskrybuj, aby korzystać z tego modelu",
   "chat.input.quota_notice.switch_model": "Zmień model",

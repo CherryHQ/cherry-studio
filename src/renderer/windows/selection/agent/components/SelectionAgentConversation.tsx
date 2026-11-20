@@ -203,6 +203,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
             editBusy={runtime.editBusy}
             cancelEditing={runtime.cancelEditing}
             resendEditedMessage={runtime.resendEditedMessage}
+            providerQuotaExhausted={runtime.providerQuotaExhausted}
             steerWhileBusy
           />
         )}

@@ -869,6 +869,7 @@
   "chat.input.placeholder": "输入消息，输入 / 选择工具或操作，输入 @ 引用话题",
   "chat.input.quota_notice.model_delisted": "该模型已下架，请切换模型",
   "chat.input.quota_notice.not_in_plan": "当前套餐不包含该模型",
+  "chat.input.quota_notice.provider_quota": "账户额度不足，请充值、更换服务商，或者订阅 CherryAI 继续使用",
   "chat.input.quota_notice.sign_in_required": "登录 CherryAI 后才能使用此模型",
   "chat.input.quota_notice.subscription_required": "订阅后才能使用该模型",
   "chat.input.quota_notice.switch_model": "切换模型",

@@ -26,7 +26,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
@@ -571,6 +571,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   })
 }))
 
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -1016,6 +1020,39 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+    const composer = (props: { isStreaming: boolean; resolvedModel?: Model }) => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        providerQuotaExhausted
+        {...props}
+      />
+    )
+
+    const { rerender } = render(composer({ isStreaming: false, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(true)
+
+    rerender(composer({ isStreaming: true, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(false)
+
+    const cloudModel = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(composer({ isStreaming: false, resolvedModel: cloudModel }))
+    expect(queueHasNotice()).toBe(false)
   })
   it('receives a screenshot and optional text into the Agent draft without sending', async () => {
     mocks.screenshotEnabled = true
