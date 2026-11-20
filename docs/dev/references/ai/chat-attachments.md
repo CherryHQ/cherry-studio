@@ -195,6 +195,18 @@ existing path.
 `MediaAnalysisService` caches compact chat analysis by file identity/version and
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
+The local stages (transcript, frame plan, per-frame OCR text) are also cached by
+file content (size plus the first and last MiB), so the stored copy a send
+analyzes reuses work done on the picked file. A frame whose OCR fails is retried
+once and otherwise left for the next run; text already read is kept.
+
+Attaching audio or video in the chat composer starts that local pass through
+`file_processing.media.prepare` (no vision calls) and shows a spinner on the
+file card. A send waits for a running pass and then adds only the vision calls.
+While a turn's attachments are analyzed, before the model stream opens, the
+stage is published to the shared cache key `message.media_analysis.<messageId>`,
+and the reply placeholder shows it.
+
 `read_file` reaches the full timestamped analysis through the same service and
 cache key. Its first page (no `offset`) analyzes; later pages reuse that page's
 text for 30 minutes, so a partial analysis, which the service does not cache,
