@@ -6324,7 +6324,6 @@
   "terminal.interrupt": "Interrupt program",
   "terminal.new_terminal": "New terminal",
   "terminal.observing": "Observing",
-  "terminal.other_shells": "Other shells",
   "terminal.output": "Terminal output",
   "terminal.output_only": "Command output",
   "terminal.output_truncated": "Earlier output is no longer retained.",

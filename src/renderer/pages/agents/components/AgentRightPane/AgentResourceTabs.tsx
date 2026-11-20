@@ -21,9 +21,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
@@ -95,7 +92,6 @@ export function AgentResourceTabs({
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
   const pages = useSyncExternalStore(browser.subscribe, () => browser.getPages(terminal.sessionId))
   const page = useSyncExternalStore(browser.subscribe, () => browser.get(terminal.sessionId))
-  const shells = useSWR(menuOpen ? 'terminal-shells' : null, () => ipcApi.request('terminal.shells', {}))
   const cleanup = useSWR(menuOpen ? 'terminal-cleanup-list' : null, () => ipcApi.request('terminal.cleanup.list', {}))
   const warning = (terminal.cleanup.data?.count ?? 0) > 0 || terminal.cleanup.data?.recoveryFailed
   const all: ResourceTab[] = [
@@ -284,21 +280,6 @@ export function AgentResourceTabs({
             <TerminalSquare className="size-4" />
             {t('terminal.new_terminal')}
           </DropdownMenuItem>
-          {!!shells.data?.length && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{t('terminal.other_shells')}</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {shells.data.map((shell) => (
-                  <DropdownMenuItem
-                    key={shell}
-                    disabled={terminal.creating}
-                    onSelect={() => void terminal.create(shell)}>
-                    {shell === 'powershell' ? 'PowerShell' : 'Bash'}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
           {browserEnabled && (
             <DropdownMenuItem
               onSelect={() => {

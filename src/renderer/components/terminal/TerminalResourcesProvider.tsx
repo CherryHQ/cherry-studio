@@ -132,11 +132,15 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     }))
     setClaimId((current) => (current === id ? null : current))
   }
-  const create = async (shell: 'default' | 'bash' | 'powershell' = 'default') => {
+  const create = async () => {
     if (creating) return
     setCreating(true)
     try {
-      const receipt = await ipcApi.request('terminal.create', { sessionId, shell, operationId: crypto.randomUUID() })
+      const receipt = await ipcApi.request('terminal.create', {
+        sessionId,
+        shell: 'default',
+        operationId: crypto.randomUUID()
+      })
       if (receipt.kind !== 'resource')
         throw new Error(
           t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })

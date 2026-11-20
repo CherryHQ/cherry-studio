@@ -6400,7 +6400,6 @@
   "terminal.interrupt": "Przerwij program",
   "terminal.new_terminal": "Nowy terminal",
   "terminal.observing": "Obserwowanie",
-  "terminal.other_shells": "Inne powłoki",
   "terminal.output": "Wyjście terminala",
   "terminal.output_only": "Wyjście polecenia",
   "terminal.output_truncated": "Wcześniejsze dane wyjściowe nie są już przechowywane.",

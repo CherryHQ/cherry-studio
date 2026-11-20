@@ -71,9 +71,14 @@ beforeEach(() => {
       expect(payload).toEqual({ id: record.id })
       return { ok: true, data: { status: 'unavailable' } }
     }
-    if (route === 'terminal.shells') return { ok: true, data: ['bash'] }
-    if (route === 'terminal.create' && rejectCreation)
+    if (route === 'terminal.create' && rejectCreation) {
+      expect(payload).toEqual({
+        sessionId: 'resource-tabs-test',
+        shell: 'default',
+        operationId: expect.any(String)
+      })
       return { ok: true, data: { kind: 'rejected', reason: 'capacity_exceeded' } }
+    }
     if (route === 'terminal.promote') {
       const input = payload as InputFor<'terminal.promote'>
       const resource = resources.find((item) => item.id === input.ref.id)

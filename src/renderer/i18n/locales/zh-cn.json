@@ -6324,7 +6324,6 @@
   "terminal.interrupt": "中断程序",
   "terminal.new_terminal": "新建终端",
   "terminal.observing": "观察中",
-  "terminal.other_shells": "其他 Shell",
   "terminal.output": "终端输出",
   "terminal.output_only": "命令输出",
   "terminal.output_truncated": "较早的输出已不再保留。",

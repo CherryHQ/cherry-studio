@@ -6324,7 +6324,6 @@
   "terminal.interrupt": "ขัดจังหวะโปรแกรม",
   "terminal.new_terminal": "เทอร์มินัลใหม่",
   "terminal.observing": "กำลังสังเกตการณ์",
-  "terminal.other_shells": "เชลล์อื่น",
   "terminal.output": "เอาต์พุตเทอร์มินัล",
   "terminal.output_only": "เอาต์พุตคำสั่ง",
   "terminal.output_truncated": "ไม่ได้เก็บเอาต์พุตก่อนหน้านี้แล้ว",

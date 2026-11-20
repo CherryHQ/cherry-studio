@@ -6324,7 +6324,6 @@
   "terminal.interrupt": "Programı kes",
   "terminal.new_terminal": "Yeni terminal",
   "terminal.observing": "İzleniyor",
-  "terminal.other_shells": "Diğer kabuklar",
   "terminal.output": "Terminal çıktısı",
   "terminal.output_only": "Komut çıktısı",
   "terminal.output_truncated": "Önceki çıktı artık saklanmıyor.",

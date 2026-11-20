@@ -6324,7 +6324,6 @@
   "terminal.interrupt": "中斷程式",
   "terminal.new_terminal": "新增終端機",
   "terminal.observing": "觀察中",
-  "terminal.other_shells": "其他 Shell",
   "terminal.output": "終端機輸出",
   "terminal.output_only": "命令輸出",
   "terminal.output_truncated": "較早的輸出已不再保留。",
