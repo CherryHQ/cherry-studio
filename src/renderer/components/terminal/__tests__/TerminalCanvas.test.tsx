@@ -222,8 +222,8 @@ it('keeps takeover input read-only until the viewport is measured and resize com
   })
   render(<TerminalCanvas resource={current} active onResource={() => {}} />)
   const area = screen.getByRole('textbox')
-  await userEvent.click(screen.getByRole('button', { name: /接管|Take control/ }))
-  await screen.findByRole('button', { name: /交还 Agent|Return to Agent/ })
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  await userEvent.click(screen.getByRole('menuitem', { name: /接管|Take control/ }))
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 150))
   })
@@ -371,12 +371,42 @@ it('keeps committed takeover when an earlier observation arrives afterward', asy
   render(<TerminalCanvas resource={current} active onResource={() => {}} />)
   await waitFor(() => expect(captured).toBe(true))
   const area = screen.getByRole('textbox')
-  fireEvent.click(screen.getByRole('button', { name: /接管|Take control/ }))
-  await waitFor(() => expect(screen.getByRole('button', { name: /交还 Agent|Return to Agent/ })).toBeVisible())
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  await userEvent.click(screen.getByRole('menuitem', { name: /接管|Take control/ }))
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  await screen.findByRole('menuitem', { name: /交还 Agent|Return to Agent/ })
+  await userEvent.keyboard('{Escape}')
   await act(async () => {
     delayed.resolve()
   })
   expect(area).not.toHaveAttribute('readonly')
   fireEvent.input(area, { target: { value: 'after takeover' } })
   await waitFor(() => expect(stdin).toBe('after takeover'))
+})
+
+it('opens terminal operations without sending the menu gesture to the running program', async () => {
+  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const area = await input()
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  expect(screen.getByRole('menuitem', { name: /交还 Agent|Return to Agent/ })).toBeVisible()
+  expect(
+    vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.filter(
+        ([route, payload]) =>
+          route === 'terminal.action' && (payload as InputFor<'terminal.action'>).action.kind === 'mouse'
+      )
+  ).toEqual([])
+  await userEvent.keyboard('{Escape}')
+  expect(area).toHaveFocus()
+  fireEvent.keyDown(area, { key: 'F10', code: 'F10', shiftKey: true })
+  expect(await screen.findByRole('menuitem', { name: /交还 Agent|Return to Agent/ })).toBeVisible()
+  expect(
+    vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.filter(
+        ([route, payload]) =>
+          route === 'terminal.action' && (payload as InputFor<'terminal.action'>).action.kind === 'key'
+      )
+  ).toEqual([])
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, DropdownMenuItem, Textarea } from '@cherrystudio/ui'
+import { Button, ContextMenuItem, Textarea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import type { InputFor } from '@shared/ipc/types'
 import type { GhosttySnapshot, GhosttyTheme, GhosttyMouseInput, TerminalResourceState } from '@shared/types/terminal'
@@ -19,8 +19,8 @@ import {
   loadGhosttyKeyboardLayoutMap,
   type GhosttyKeyboardLayoutMap
 } from './keyCodes'
+import { TerminalContextMenu, useTerminalSettings } from './TerminalContextMenu'
 import { applyTerminalFrame } from './terminalFrames'
-import { TerminalSettingsMenu, useTerminalSettings } from './TerminalSettingsMenu'
 
 type WireAction = InputFor<'terminal.action'>['action']
 type LocalInput<T> = T extends { kind: 'key' | 'paste' } ? Omit<T, 'geometryEpoch'> : T
@@ -574,103 +574,160 @@ export function TerminalCanvas({
           {error || viewError}
         </div>
       )}
-      <div
-        ref={root}
-        className={`relative min-h-0 flex-1 ${controlled ? 'overflow-hidden' : 'overflow-auto'} bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring`}
-        style={{ fontFamily: 'var(--code-font-family)' }}
-        onPointerDown={(event) => {
+      <TerminalContextMenu
+        onCloseAutoFocus={(event) => {
           event.preventDefault()
-          if ((event.metaKey || event.ctrlKey) && view.current) {
-            const at = point(event)
-            void ipcApi
-              .request('terminal.link', {
-                viewId: view.current,
-                revision: viewRevision.current,
-                geometryEpoch: epoch.current,
-                ...at
-              })
-              .then((url) => {
-                if (url) return ipcApi.request('system.shell.open_external_website', url)
-                return undefined
-              })
-              .catch((cause: unknown) => setError(String(cause)))
-            return
-          }
           input.current?.focus({ preventScroll: true })
-          event.currentTarget.setPointerCapture(event.pointerId)
-          const at = point(event)
-          selection.current = { start: at, end: at, epoch: epoch.current }
-          mouseReported.current = false
-          schedule()
-          if (canInput && !event.shiftKey && offset.current === 0)
-            void mouse(event, 'press').then((handled) => {
-              mouseReported.current = handled
-              if (handled) {
-                selection.current = null
-                schedule()
-              }
-            })
         }}
-        onPointerMove={(event) => {
-          if (!event.buttons) return
-          if (mouseReported.current) void mouse(event, 'motion')
-          else if (selection.current) {
-            selection.current.end = point(event)
-            schedule()
-          }
-        }}
-        onPointerUp={(event) => {
-          if (mouseReported.current) void mouse(event, 'release')
-          if (event.currentTarget.hasPointerCapture(event.pointerId))
-            event.currentTarget.releasePointerCapture(event.pointerId)
-        }}>
-        <canvas ref={canvas} aria-hidden="true" className="absolute inset-0 size-full" />
-        <canvas ref={overlay} aria-hidden="true" className="pointer-events-none absolute inset-0 size-full" />
-        <Textarea.Input
-          ref={input}
-          value={inputValue}
-          onValueChange={setInputValue}
-          aria-label={t('terminal.input')}
-          readOnly={!canInput}
-          className="absolute z-10 h-5 min-h-0 w-px resize-none overflow-hidden border-0 bg-transparent p-0 text-transparent caret-transparent opacity-0 shadow-none focus-visible:ring-0"
-          autoCapitalize="off"
-          autoComplete="off"
-          spellCheck={false}
-          onFocus={() => {
-            focus.current = true
-            setFocused(true)
-            schedule()
-          }}
-          onBlur={() => {
-            focus.current = false
-            setFocused(false)
-            schedule()
-          }}
-          onKeyDown={(event) => {
-            if ((event.metaKey || (event.ctrlKey && event.shiftKey)) && event.key.toLowerCase() === 'c') {
-              if (selection.current) {
-                event.preventDefault()
-                copy()
-              }
+        actions={
+          <>
+            <ContextMenuItem
+              disabled={resource.process.kind !== 'running' || controlPending || takeControlOnAttach}
+              onSelect={() => void send({ kind: controlled ? 'return-control' : 'take-control' })}>
+              {t(controlled ? 'terminal.return_control' : 'terminal.take_control')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={copy}>{t('terminal.copy')}</ContextMenuItem>
+            <ContextMenuItem
+              disabled={!canInput}
+              onSelect={() =>
+                void send({
+                  kind: 'key',
+                  event: {
+                    key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
+                    mods: 2,
+                    consumedMods: 0,
+                    composing: false,
+                    unshiftedCodepoint: 99,
+                    text: 'c',
+                    repeat: false
+                  }
+                })
+              }>
+              {t('terminal.interrupt')}
+            </ContextMenuItem>
+            <ContextMenuItem disabled={resource.cleanup === 'confirmed'} onSelect={() => void send({ kind: 'stop' })}>
+              {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close')}
+            </ContextMenuItem>
+          </>
+        }>
+        <div
+          ref={root}
+          role="region"
+          aria-label={t('terminal.title')}
+          className={`relative min-h-0 flex-1 ${controlled ? 'overflow-hidden' : 'overflow-auto'} bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring`}
+          style={{ fontFamily: 'var(--code-font-family)' }}
+          onPointerDown={(event) => {
+            if (event.button === 2) return
+            event.preventDefault()
+            if ((event.metaKey || event.ctrlKey) && view.current) {
+              const at = point(event)
+              void ipcApi
+                .request('terminal.link', {
+                  viewId: view.current,
+                  revision: viewRevision.current,
+                  geometryEpoch: epoch.current,
+                  ...at
+                })
+                .then((url) => {
+                  if (url) return ipcApi.request('system.shell.open_external_website', url)
+                  return undefined
+                })
+                .catch((cause: unknown) => setError(String(cause)))
               return
             }
-            if ((event.metaKey || (event.ctrlKey && event.shiftKey)) && event.key.toLowerCase() === 'v') return
-            if (
-              !canInput ||
-              event.nativeEvent.isComposing ||
-              composing.current ||
-              event.key === 'Dead' ||
-              event.key === 'Process' ||
-              event.keyCode === 229
-            )
-              return
-            if (
-              [...event.key].length === 1 &&
-              !event.ctrlKey &&
-              !event.metaKey &&
-              (!event.altKey || /mac/i.test(navigator.platform))
-            ) {
-              printable.current = {
+            input.current?.focus({ preventScroll: true })
+            event.currentTarget.setPointerCapture(event.pointerId)
+            const at = point(event)
+            selection.current = { start: at, end: at, epoch: epoch.current }
+            mouseReported.current = false
+            schedule()
+            if (canInput && !event.shiftKey && offset.current === 0)
+              void mouse(event, 'press').then((handled) => {
+                mouseReported.current = handled
+                if (handled) {
+                  selection.current = null
+                  schedule()
+                }
+              })
+          }}
+          onPointerMove={(event) => {
+            if (!event.buttons || (event.buttons & 2) !== 0) return
+            if (mouseReported.current) void mouse(event, 'motion')
+            else if (selection.current) {
+              selection.current.end = point(event)
+              schedule()
+            }
+          }}
+          onPointerUp={(event) => {
+            if (event.button === 2) return
+            if (mouseReported.current) void mouse(event, 'release')
+            if (event.currentTarget.hasPointerCapture(event.pointerId))
+              event.currentTarget.releasePointerCapture(event.pointerId)
+          }}>
+          <canvas ref={canvas} aria-hidden="true" className="absolute inset-0 size-full" />
+          <canvas ref={overlay} aria-hidden="true" className="pointer-events-none absolute inset-0 size-full" />
+          <Textarea.Input
+            ref={input}
+            value={inputValue}
+            onValueChange={setInputValue}
+            aria-label={t('terminal.input')}
+            readOnly={!canInput}
+            className="absolute z-10 h-5 min-h-0 w-px resize-none overflow-hidden border-0 bg-transparent p-0 text-transparent caret-transparent opacity-0 shadow-none focus-visible:ring-0"
+            autoCapitalize="off"
+            autoComplete="off"
+            spellCheck={false}
+            onFocus={() => {
+              focus.current = true
+              setFocused(true)
+              schedule()
+            }}
+            onBlur={() => {
+              focus.current = false
+              setFocused(false)
+              schedule()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) return
+              if ((event.metaKey || (event.ctrlKey && event.shiftKey)) && event.key.toLowerCase() === 'c') {
+                if (selection.current) {
+                  event.preventDefault()
+                  copy()
+                }
+                return
+              }
+              if ((event.metaKey || (event.ctrlKey && event.shiftKey)) && event.key.toLowerCase() === 'v') return
+              if (
+                !canInput ||
+                event.nativeEvent.isComposing ||
+                composing.current ||
+                event.key === 'Dead' ||
+                event.key === 'Process' ||
+                event.keyCode === 229
+              )
+                return
+              if (
+                [...event.key].length === 1 &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                (!event.altKey || /mac/i.test(navigator.platform))
+              ) {
+                printable.current = {
+                  kind: 'key',
+                  event: {
+                    key: ghosttyKeyForEvent(event.nativeEvent),
+                    mods: mods(event),
+                    consumedMods: ghosttyConsumedMods(event.nativeEvent),
+                    composing: false,
+                    unshiftedCodepoint: ghosttyUnshiftedCodepoint(event.nativeEvent, layout.current),
+                    text: event.key,
+                    repeat: event.repeat
+                  }
+                }
+                return
+              }
+              if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return
+              event.preventDefault()
+              void send({
                 kind: 'key',
                 event: {
                   key: ghosttyKeyForEvent(event.nativeEvent),
@@ -678,142 +735,77 @@ export function TerminalCanvas({
                   consumedMods: ghosttyConsumedMods(event.nativeEvent),
                   composing: false,
                   unshiftedCodepoint: ghosttyUnshiftedCodepoint(event.nativeEvent, layout.current),
-                  text: event.key,
+                  text: [...event.key].length === 1 ? event.key : '',
                   repeat: event.repeat
                 }
-              }
-              return
-            }
-            if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return
-            event.preventDefault()
-            void send({
-              kind: 'key',
-              event: {
-                key: ghosttyKeyForEvent(event.nativeEvent),
-                mods: mods(event),
-                consumedMods: ghosttyConsumedMods(event.nativeEvent),
-                composing: false,
-                unshiftedCodepoint: ghosttyUnshiftedCodepoint(event.nativeEvent, layout.current),
-                text: [...event.key].length === 1 ? event.key : '',
-                repeat: event.repeat
-              }
-            })
-          }}
-          onInput={(event) => {
-            if (composing.current || (event.nativeEvent as InputEvent).isComposing) return
-            const value = event.currentTarget.value
-            event.currentTarget.value = ''
-            setInputValue('')
-            if (suppressInput.current) return
-            const key = printable.current
-            printable.current = null
-            if (canInput && value)
-              void send(
-                key && key.event.text === value ? { ...key, event: { ...key.event, text: value } } : textKey(value)
-              )
-          }}
-          onPaste={(event) => {
-            event.preventDefault()
-            if (canInput) void send({ kind: 'paste', data: event.clipboardData.getData('text/plain') })
-          }}
-          onCompositionStart={() => {
-            printable.current = null
-            if (canInput && view.current)
-              composing.current = {
-                viewId: view.current,
-                controlRevision: current.current.controlRevision,
-                epoch: epoch.current,
-                operationId: crypto.randomUUID()
-              }
-          }}
-          onCompositionUpdate={(event) => setComposition(event.data)}
-          onCompositionEnd={(event) => {
-            const commit = composing.current
-            composing.current = null
-            setComposition('')
-            event.currentTarget.value = ''
-            setInputValue('')
-            suppressInput.current = true
-            queueMicrotask(() => {
-              suppressInput.current = false
-            })
-            if (
-              !commit ||
-              !canInput ||
-              commit.viewId !== view.current ||
-              commit.controlRevision !== current.current.controlRevision ||
-              commit.epoch !== epoch.current
-            ) {
-              setError(t('terminal.error.view_changed'))
-              return
-            }
-            if (event.data) void send(textKey(event.data), commit.operationId)
-          }}
-        />
-        {composition && (
-          <span
-            className="pointer-events-none absolute z-20 bg-background text-foreground underline"
-            style={{
-              left: 8 + Math.max(0, snapshot.current?.cursorX ?? 0) * metrics.current.width,
-              top: 8 + Math.max(0, snapshot.current?.cursorY ?? 0) * metrics.current.height
-            }}>
-            {composition}
-          </span>
-        )}
-        <pre className="sr-only" role="log" aria-live={focused ? 'polite' : 'off'} aria-label={t('terminal.output')}>
-          {accessible}
-        </pre>
-      </div>
-      <div
-        className="flex min-w-0 shrink-0 items-center gap-2 border-t border-border-subtle px-3 py-1 text-xs text-muted-foreground"
-        data-testid="terminal-footer">
-        <span
-          className="min-w-0 flex-1 truncate"
-          title={resource.shellFacts?.kind === 'prompt' ? resource.shellFacts.cwd : resource.shell}>
-          {resource.shell}
-          {resource.shellFacts?.kind === 'prompt' ? ` · ${resource.shellFacts.cwd}` : ''}
-        </span>
-        <span className="shrink-0">
-          {t(
-            resource.cleanup === 'pending'
-              ? 'terminal.cleanup.pending'
-              : controlled
-                ? 'terminal.user_control'
-                : 'terminal.observing'
-          )}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={resource.process.kind !== 'running' || controlPending || takeControlOnAttach}
-          onClick={() => void send({ kind: controlled ? 'return-control' : 'take-control' })}>
-          {t(controlled ? 'terminal.return_control' : 'terminal.take_control')}
-        </Button>
-        <TerminalSettingsMenu>
-          <DropdownMenuItem onSelect={copy}>{t('terminal.copy')}</DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!canInput}
-            onSelect={() =>
-              void send({
-                kind: 'key',
-                event: {
-                  key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
-                  mods: 2,
-                  consumedMods: 0,
-                  composing: false,
-                  unshiftedCodepoint: 99,
-                  text: 'c',
-                  repeat: false
-                }
               })
-            }>
-            {t('terminal.interrupt')}
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={resource.cleanup === 'confirmed'} onSelect={() => void send({ kind: 'stop' })}>
-            {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close')}
-          </DropdownMenuItem>
-        </TerminalSettingsMenu>
-      </div>
+            }}
+            onInput={(event) => {
+              if (composing.current || (event.nativeEvent as InputEvent).isComposing) return
+              const value = event.currentTarget.value
+              event.currentTarget.value = ''
+              setInputValue('')
+              if (suppressInput.current) return
+              const key = printable.current
+              printable.current = null
+              if (canInput && value)
+                void send(
+                  key && key.event.text === value ? { ...key, event: { ...key.event, text: value } } : textKey(value)
+                )
+            }}
+            onPaste={(event) => {
+              event.preventDefault()
+              if (canInput) void send({ kind: 'paste', data: event.clipboardData.getData('text/plain') })
+            }}
+            onCompositionStart={() => {
+              printable.current = null
+              if (canInput && view.current)
+                composing.current = {
+                  viewId: view.current,
+                  controlRevision: current.current.controlRevision,
+                  epoch: epoch.current,
+                  operationId: crypto.randomUUID()
+                }
+            }}
+            onCompositionUpdate={(event) => setComposition(event.data)}
+            onCompositionEnd={(event) => {
+              const commit = composing.current
+              composing.current = null
+              setComposition('')
+              event.currentTarget.value = ''
+              setInputValue('')
+              suppressInput.current = true
+              queueMicrotask(() => {
+                suppressInput.current = false
+              })
+              if (
+                !commit ||
+                !canInput ||
+                commit.viewId !== view.current ||
+                commit.controlRevision !== current.current.controlRevision ||
+                commit.epoch !== epoch.current
+              ) {
+                setError(t('terminal.error.view_changed'))
+                return
+              }
+              if (event.data) void send(textKey(event.data), commit.operationId)
+            }}
+          />
+          {composition && (
+            <span
+              className="pointer-events-none absolute z-20 bg-background text-foreground underline"
+              style={{
+                left: 8 + Math.max(0, snapshot.current?.cursorX ?? 0) * metrics.current.width,
+                top: 8 + Math.max(0, snapshot.current?.cursorY ?? 0) * metrics.current.height
+              }}>
+              {composition}
+            </span>
+          )}
+          <pre className="sr-only" role="log" aria-live={focused ? 'polite' : 'off'} aria-label={t('terminal.output')}>
+            {accessible}
+          </pre>
+        </div>
+      </TerminalContextMenu>
     </div>
   )
 }
