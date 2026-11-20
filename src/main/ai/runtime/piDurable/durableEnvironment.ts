@@ -40,11 +40,17 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
   return new DesktopEnvironment({
     ...options,
     async authorizeOpenedFile(file, opened) {
+      if (opened.ino === 0n) throw new Error('The file has no verifiable identity')
       if (!opened.isFile() || (await memoryTarget(file)))
         throw new Error('Use the memory editor for managed memory files')
       await assertNotMemoryHardLink(opened)
       const current = await stat(file, { bigint: true })
-      if (current.dev !== opened.dev || current.ino !== opened.ino || current.ctimeNs !== opened.ctimeNs)
+      if (
+        current.dev !== opened.dev ||
+        current.ino !== opened.ino ||
+        current.nlink !== opened.nlink ||
+        current.ctimeNs !== opened.ctimeNs
+      )
         throw new Error('The file changed during authorization; retry the operation')
     }
   })
