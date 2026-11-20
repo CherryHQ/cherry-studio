@@ -2361,7 +2361,7 @@
   "library.config.dialogs.create.auto.configuring": "Se configurează…",
   "library.config.dialogs.create.auto.failed": "Configurarea automată a eșuat. Încearcă din nou sau folosește Creare manuală.",
   "library.config.dialogs.create.auto.manual": "Creare manuală",
-  "library.config.dialogs.create.auto.purpose_label": "Scop",
+  "library.config.dialogs.create.auto.purpose_label": "Scop (opțional)",
   "library.config.dialogs.create.auto.submit": "Creare automată",
   "library.config.dialogs.create.avatar_aria": "Alege avatar",
   "library.config.dialogs.create.avatar_name_label": "Avatar și nume",

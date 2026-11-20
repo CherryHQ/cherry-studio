@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "Configurazione…",
   "library.config.dialogs.create.auto.failed": "Configurazione automatica non riuscita. Riprova oppure usa Crea manualmente.",
   "library.config.dialogs.create.auto.manual": "Crea manualmente",
-  "library.config.dialogs.create.auto.purpose_label": "Scopo",
+  "library.config.dialogs.create.auto.purpose_label": "Scopo (facoltativo)",
   "library.config.dialogs.create.auto.submit": "Crea automaticamente",
   "library.config.dialogs.create.avatar_aria": "Scegli avatar",
   "library.config.dialogs.create.avatar_name_label": "Avatar e nome",

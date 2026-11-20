@@ -1137,6 +1137,13 @@ describe('ResourceCreateWizard auto create', () => {
     await user.type(screen.getByRole('textbox', { name: 'draft description' }), purpose)
   }
 
+  /** Auto create needs a name; the purpose is optional. A name the test already typed is kept. */
+  async function describeEntry(user: ReturnType<typeof userEvent.setup>, purpose = 'Review my GitHub PRs') {
+    const name = screen.getByRole('textbox', { name: 'draft name' })
+    if (!(name as HTMLInputElement).value) await user.type(name, 'PR Reviewer')
+    if (purpose) await describePurpose(user, purpose)
+  }
+
   beforeEach(() => {
     // Generation needs a default model; keeping it out of the selector leaves the model field to each test.
     modelHook.defaultModel = makeModel()
@@ -1145,7 +1152,7 @@ describe('ResourceCreateWizard auto create', () => {
   })
 
   it.each(['assistant', 'agent'] as const)(
-    'opens on the entry and enables Auto create only once purpose and model are set (%s kind)',
+    'opens on the entry and enables Auto create once name and model are set, without a purpose (%s kind)',
     async (kind) => {
       const user = userEvent.setup()
       render(
@@ -1163,9 +1170,11 @@ describe('ResourceCreateWizard auto create', () => {
       expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
 
       await describePurpose(user)
+      await user.click(screen.getByRole('button', { name: 'fill model' }))
       expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
 
-      await user.click(screen.getByRole('button', { name: 'fill model' }))
+      await user.clear(screen.getByRole('textbox', { name: 'draft description' }))
+      await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'PR Reviewer')
       expect(screen.getByRole('button', { name: AUTO })).toBeEnabled()
     }
   )
@@ -1188,7 +1197,7 @@ describe('ResourceCreateWizard auto create', () => {
       <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
 
     expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
@@ -1242,12 +1251,15 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-    expect(autoConfigure.generate.mock.calls[0][0]).toMatchObject({ purpose: 'Review my GitHub PRs', name: '' })
+    expect(autoConfigure.generate.mock.calls[0][0]).toMatchObject({
+      purpose: 'Review my GitHub PRs',
+      name: 'PR Reviewer'
+    })
     expect(onSubmit).toHaveBeenCalledWith({
       ...DEFAULT_AGENT_SETTINGS_PAYLOAD,
       avatar: '🔍',
@@ -1280,7 +1292,7 @@ describe('ResourceCreateWizard auto create', () => {
 
     await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'My Reviewer')
     await user.click(screen.getByRole('button', { name: 'pick avatar' }))
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1313,7 +1325,7 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1336,7 +1348,7 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1358,12 +1370,12 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
-    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('PR Reviewer')
     expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
 
     await user.click(screen.getByRole('button', { name: MANUAL }))
@@ -1403,7 +1415,7 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1427,13 +1439,13 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('npm offline')
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('PR Reviewer')
     expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
     expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
   })
@@ -1454,7 +1466,7 @@ describe('ResourceCreateWizard auto create', () => {
       />
     )
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1467,11 +1479,11 @@ describe('ResourceCreateWizard auto create', () => {
   })
 
   it.each([
-    ['assistant', 'assistant_fallback_name', 2],
-    ['agent', 'agent_fallback_name', 3]
+    ['assistant', 2],
+    ['agent', 3]
   ] as const)(
-    'names an unnamed %s by its kind while generating and keeps the purpose as the subtitle',
-    async (kind, fallbackKey, stepCount) => {
+    'shows the %s by its name while generating and keeps the purpose as the subtitle',
+    async (kind, stepCount) => {
       const user = userEvent.setup()
       autoConfigure.generate.mockReturnValue(new Promise(() => {}))
       render(
@@ -1484,11 +1496,11 @@ describe('ResourceCreateWizard auto create', () => {
         />
       )
 
-      await describePurpose(user)
+      await describeEntry(user)
       await user.click(screen.getByRole('button', { name: 'fill model' }))
       await user.click(screen.getByRole('button', { name: AUTO }))
 
-      expect(screen.getByText(`${RESULT}.${fallbackKey}`)).toBeVisible()
+      expect(screen.getByText('PR Reviewer')).toBeVisible()
       expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
       expect(screen.getAllByText(new RegExp(`^${RESULT}\\.working\\.`))).toHaveLength(stepCount)
     }
@@ -1505,7 +1517,7 @@ describe('ResourceCreateWizard auto create', () => {
     })
     render(<ActivityHostWithSubmit onSubmit={onSubmit} />)
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
     expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.working_title' })).toBeVisible()
@@ -1524,7 +1536,7 @@ describe('ResourceCreateWizard auto create', () => {
     autoConfigure.generate.mockResolvedValue(generated)
     render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1546,7 +1558,7 @@ describe('ResourceCreateWizard auto create', () => {
     autoConfigure.generate.mockResolvedValue({ ...generated, enableWebSearch: true, mcpServerIds: [] })
     render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
 
-    await describePurpose(user)
+    await describeEntry(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
@@ -1758,7 +1770,7 @@ describe('ResourceCreateWizard uploaded avatar', () => {
     render(<ResultHost kind="agent" onSubmit={onSubmit} />)
 
     await user.click(screen.getByRole('button', { name: 'upload avatar' }))
-    await user.type(screen.getByRole('textbox', { name: 'draft description' }), 'Review my GitHub PRs')
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'PR Reviewer')
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 

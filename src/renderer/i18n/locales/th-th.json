@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "กำลังตั้งค่า…",
   "library.config.dialogs.create.auto.failed": "ตั้งค่าอัตโนมัติไม่สำเร็จ ลองอีกครั้ง หรือใช้การสร้างด้วยตนเอง",
   "library.config.dialogs.create.auto.manual": "สร้างด้วยตนเอง",
-  "library.config.dialogs.create.auto.purpose_label": "วัตถุประสงค์",
+  "library.config.dialogs.create.auto.purpose_label": "วัตถุประสงค์ (ไม่บังคับ)",
   "library.config.dialogs.create.auto.submit": "สร้างอัตโนมัติ",
   "library.config.dialogs.create.avatar_aria": "เลือกรูปประจำตัว",
   "library.config.dialogs.create.avatar_name_label": "รูปประจำตัวและชื่อ",

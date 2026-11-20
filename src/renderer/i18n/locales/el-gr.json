@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "Γίνεται ρύθμιση…",
   "library.config.dialogs.create.auto.failed": "Η αυτόματη ρύθμιση απέτυχε. Δοκιμάστε ξανά ή χρησιμοποιήστε τη Χειροκίνητη δημιουργία.",
   "library.config.dialogs.create.auto.manual": "Χειροκίνητη δημιουργία",
-  "library.config.dialogs.create.auto.purpose_label": "Σκοπός",
+  "library.config.dialogs.create.auto.purpose_label": "Σκοπός (προαιρετικό)",
   "library.config.dialogs.create.auto.submit": "Αυτόματη δημιουργία",
   "library.config.dialogs.create.avatar_aria": "Επιλέξτε άβαταρ",
   "library.config.dialogs.create.avatar_name_label": "Άβαταρ και όνομα",

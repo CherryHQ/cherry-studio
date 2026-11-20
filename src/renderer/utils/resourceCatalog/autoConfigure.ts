@@ -43,11 +43,11 @@ export type AutoConfigDraft = {
 }
 
 /**
- * The creator skill: turns a stated purpose into a complete Agent / Assistant
+ * The creator skill: turns a name and an optional purpose into a complete Agent / Assistant
  * configuration. The reply is parsed by {@link parseAutoConfigDraft}.
  */
 export const RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT = [
-  'You configure a new AI assistant or agent in Cherry Studio from the purpose the user describes.',
+  'You configure a new AI assistant or agent in Cherry Studio from the name the user gave and, when given, the purpose they describe.',
   'Reply with exactly one JSON object and nothing else — no Markdown, no code fences, no commentary.',
   '',
   'Fields:',
@@ -63,7 +63,8 @@ export const RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT = [
   '',
   'Rules:',
   '- Only use ids that appear in the lists; never invent ids.',
-  '- Write "name", "description" and "prompt" in the same language as the purpose.'
+  '- When the purpose is (none), infer the role from the name.',
+  '- Write "name", "description" and "prompt" in the same language as the purpose, or as the name when there is no purpose.'
 ].join('\n')
 
 const NONE = '(none)'
@@ -93,7 +94,7 @@ export function buildAutoConfigInput({
 }): string {
   const sections = [
     `Kind: ${kind}`,
-    `Purpose: ${purpose.trim()}`,
+    `Purpose: ${purpose.trim() || NONE}`,
     `Preferred name: ${name?.trim() || NONE}`,
     `Knowledge bases:\n${formatCatalog(catalogs.knowledgeBases)}`,
     `MCP servers:\n${formatCatalog(catalogs.mcpServers)}`

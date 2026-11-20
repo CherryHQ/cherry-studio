@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "Configuring…",
   "library.config.dialogs.create.auto.failed": "Couldn't configure it automatically. Try again, or use Manual create.",
   "library.config.dialogs.create.auto.manual": "Manual create",
-  "library.config.dialogs.create.auto.purpose_label": "Purpose",
+  "library.config.dialogs.create.auto.purpose_label": "Purpose (optional)",
   "library.config.dialogs.create.auto.submit": "Auto create",
   "library.config.dialogs.create.avatar_aria": "Choose avatar",
   "library.config.dialogs.create.avatar_name_label": "Avatar and name",

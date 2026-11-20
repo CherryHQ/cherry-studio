@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "Yapılandırılıyor…",
   "library.config.dialogs.create.auto.failed": "Otomatik yapılandırma başarısız oldu. Yeniden deneyin veya Elle oluştur seçeneğini kullanın.",
   "library.config.dialogs.create.auto.manual": "Elle oluştur",
-  "library.config.dialogs.create.auto.purpose_label": "Amaç",
+  "library.config.dialogs.create.auto.purpose_label": "Amaç (isteğe bağlı)",
   "library.config.dialogs.create.auto.submit": "Otomatik oluştur",
   "library.config.dialogs.create.avatar_aria": "Avatar seç",
   "library.config.dialogs.create.avatar_name_label": "Avatar ve ad",

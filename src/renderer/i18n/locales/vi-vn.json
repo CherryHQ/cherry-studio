@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "Đang cấu hình…",
   "library.config.dialogs.create.auto.failed": "Không thể tự động cấu hình. Hãy thử lại hoặc dùng Tạo thủ công.",
   "library.config.dialogs.create.auto.manual": "Tạo thủ công",
-  "library.config.dialogs.create.auto.purpose_label": "Mục đích",
+  "library.config.dialogs.create.auto.purpose_label": "Mục đích (không bắt buộc)",
   "library.config.dialogs.create.auto.submit": "Tự động tạo",
   "library.config.dialogs.create.avatar_aria": "Chọn hình đại diện",
   "library.config.dialogs.create.avatar_name_label": "Ảnh đại diện và tên",

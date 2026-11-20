@@ -2388,7 +2388,7 @@
   "library.config.dialogs.create.auto.configuring": "Konfigurowanie…",
   "library.config.dialogs.create.auto.failed": "Nie udało się skonfigurować automatycznie. Spróbuj ponownie lub użyj tworzenia ręcznego.",
   "library.config.dialogs.create.auto.manual": "Utwórz ręcznie",
-  "library.config.dialogs.create.auto.purpose_label": "Cel",
+  "library.config.dialogs.create.auto.purpose_label": "Cel (opcjonalnie)",
   "library.config.dialogs.create.auto.submit": "Utwórz automatycznie",
   "library.config.dialogs.create.avatar_aria": "Wybierz awatar",
   "library.config.dialogs.create.avatar_name_label": "Awatar i nazwa",

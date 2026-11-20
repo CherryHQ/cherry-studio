@@ -96,6 +96,14 @@ describe('buildAutoConfigInput', () => {
     expect(input).not.toContain('bypassPermissions')
   })
 
+  // Catches a nameless-purpose request reaching the model as an empty line it cannot read as "not given".
+  it('marks a missing purpose and keeps the name for the model to work from', () => {
+    const input = buildAutoConfigInput({ ...agent, purpose: '  ', name: '法务专家' })
+
+    expect(input).toContain('Purpose: (none)')
+    expect(input).toContain('Preferred name: 法务专家')
+  })
+
   it('does not list skills or permission modes for an assistant', () => {
     const input = buildAutoConfigInput({ ...assistant, purpose: 'Translate' })
 

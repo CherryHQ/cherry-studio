@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "正在設定…",
   "library.config.dialogs.create.auto.failed": "自動設定失敗，請重試，或改用手動建立。",
   "library.config.dialogs.create.auto.manual": "手動建立",
-  "library.config.dialogs.create.auto.purpose_label": "用途",
+  "library.config.dialogs.create.auto.purpose_label": "用途（選填）",
   "library.config.dialogs.create.auto.submit": "自動建立",
   "library.config.dialogs.create.avatar_aria": "選擇頭像",
   "library.config.dialogs.create.avatar_name_label": "頭像和名稱",

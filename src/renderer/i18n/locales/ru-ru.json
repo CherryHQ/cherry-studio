@@ -2362,7 +2362,7 @@
   "library.config.dialogs.create.auto.configuring": "Настройка…",
   "library.config.dialogs.create.auto.failed": "Не удалось настроить автоматически. Попробуйте ещё раз или используйте ручное создание.",
   "library.config.dialogs.create.auto.manual": "Создать вручную",
-  "library.config.dialogs.create.auto.purpose_label": "Назначение",
+  "library.config.dialogs.create.auto.purpose_label": "Назначение (необязательно)",
   "library.config.dialogs.create.auto.submit": "Создать автоматически",
   "library.config.dialogs.create.avatar_aria": "Выберите аватар",
   "library.config.dialogs.create.avatar_name_label": "Аватар и имя",

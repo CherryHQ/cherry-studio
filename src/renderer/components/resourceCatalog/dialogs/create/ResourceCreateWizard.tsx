@@ -139,7 +139,7 @@ function applyAutoConfigDraft(
 type AutoConfigure = Pick<ReturnType<typeof useResourceAutoConfigure>, 'generate' | 'installFeaturedMcpServers'>
 
 /**
- * Entry footer — gates Auto create on purpose + model and owns the catalog queries, in a leaf
+ * Entry footer — gates Auto create on name + model and owns the catalog queries, in a leaf
  * so field edits and catalog loads skip the shell, and nothing is fetched while it is closed.
  */
 function EntryFooter({
@@ -159,10 +159,10 @@ function EntryFooter({
 }) {
   const { t } = useTranslation()
   const { ready: catalogsReady, generate, installFeaturedMcpServers } = useResourceAutoConfigure(kind)
-  const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
+  const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
   const busy = isSubmitting || form.formState.isSubmitting || imagePending
   const rootError = form.formState.errors.root?.message
-  const canAuto = (purpose?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
+  const canAuto = (name?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-5">
@@ -529,7 +529,7 @@ export function ResourceCreateWizard({
 
   const handleAutoCreate = async ({ generate, installFeaturedMcpServers }: AutoConfigure) => {
     const values = form.getValues()
-    if (!values.modelId || !values.description.trim()) return
+    if (!values.modelId || !values.name.trim()) return
     if (!defaultModel && !isDefaultModelLoading) {
       form.setError('root', { message: t('library.config.prompt.no_default_model') })
       return

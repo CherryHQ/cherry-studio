@@ -2360,7 +2360,7 @@
   "library.config.dialogs.create.auto.configuring": "設定中…",
   "library.config.dialogs.create.auto.failed": "自動設定できませんでした。もう一度試すか、手動作成を使ってください。",
   "library.config.dialogs.create.auto.manual": "手動作成",
-  "library.config.dialogs.create.auto.purpose_label": "用途",
+  "library.config.dialogs.create.auto.purpose_label": "用途（任意）",
   "library.config.dialogs.create.auto.submit": "自動作成",
   "library.config.dialogs.create.avatar_aria": "アバターを選択",
   "library.config.dialogs.create.avatar_name_label": "アバターと名前",
