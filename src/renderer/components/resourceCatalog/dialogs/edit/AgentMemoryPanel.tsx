@@ -93,6 +93,7 @@ export function AgentMemoryPanel({
     item.key === 'journal' ? 'agent.memory.journal_readonly' : item.truncated ? 'agent.memory.truncated_readonly' : null
   const readOnlyReason = selected ? readOnlyReasonOf(selected) : null
   const canEdit = !!selected && readOnlyReason === null
+  const shownContent = canEdit && draft ? draft.text : (selected?.content ?? '')
 
   // A file page starts from the saved text; its draft never follows the user back to the list.
   useEffect(() => setDraft(null), [file])
@@ -183,7 +184,7 @@ export function AgentMemoryPanel({
   const copyContent = async () => {
     if (!selected) return
     try {
-      await navigator.clipboard.writeText(selected.content)
+      await navigator.clipboard.writeText(shownContent)
       toast.success(t('agent.memory.copied'))
     } catch {
       toast.error(t('agent.memory.copy_failed'))
@@ -234,7 +235,7 @@ export function AgentMemoryPanel({
     <PromptEditorIconButton
       label={t('agent.memory.copy')}
       icon={<Copy className="size-3" />}
-      disabled={!selected.exists || !selected.content}
+      disabled={!shownContent}
       onClick={() => void copyContent()}
     />
   ) : null
@@ -278,7 +279,7 @@ export function AgentMemoryPanel({
       <PromptEditorField
         label={fileLabel}
         editorLabel={t('agent.memory.editor_label', { name: selected.name })}
-        value={draft?.text ?? selected.content}
+        value={shownContent}
         onChange={changeDraft}
         placeholder={t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
         actions={

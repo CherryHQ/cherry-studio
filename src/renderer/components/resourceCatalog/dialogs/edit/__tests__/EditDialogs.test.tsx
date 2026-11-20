@@ -2940,6 +2940,37 @@ describe('Agent configuration memory', () => {
     )
   })
 
+  // Catches Copy putting the saved revision on the clipboard while the editor shows an unsaved draft.
+  it('copies the text the editor is showing, including a draft of a new file', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'agent.memory.read')
+        return {
+          directory: '/agents/agent-1',
+          files: files.map((file) =>
+            file.key === 'user' ? { ...file, exists: false, size: 0, content: '', version: 'missing' } : file
+          )
+        }
+      return undefined
+    })
+    const user = userEvent.setup()
+    const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Memory' }))
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Edit SOUL.md' }), ' draft')
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
+    expect(writeClipboard).toHaveBeenLastCalledWith('Original persona draft')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(await screen.findByRole('button', { name: 'User profile' }))
+    expect(screen.getByRole('button', { name: 'Copy content' })).toBeDisabled()
+    await user.type(await screen.findByRole('textbox', { name: 'Edit USER.md' }), 'New profile')
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
+    expect(writeClipboard).toHaveBeenLastCalledWith('New profile')
+    writeClipboard.mockRestore()
+  })
+
   // AC11: catches losing an unsaved memory draft when going back to the file list or closing configuration.
   it.each(['back', 'close'] as const)(
     'protects memory drafts on %s and leaves only after explicit discard',
