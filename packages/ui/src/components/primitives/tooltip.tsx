@@ -253,8 +253,31 @@ function setupTooltipOrphanSweeper(): void {
   }
   ensureObserved(document)
 }
+// A menu restores focus to its trigger with a script focus(), which Chromium marks :focus-visible
+// when nothing was focused before it opened, even after a mouse pick; the last input settles it.
+let lastInputWasPointer = false
+
+// Shortcuts and app switching (Cmd/Alt+Tab) are not focus navigation; returning to the window
+// restores focus to the trigger, which must not count as keyboard focus.
+function isNavigationKey(e: KeyboardEvent): boolean {
+  return !(e.metaKey || e.ctrlKey || e.altKey || e.key === 'Shift')
+}
+
+function trackInputModality(): void {
+  const capture = { capture: true, passive: true }
+  document.addEventListener('pointerdown', () => (lastInputWasPointer = true), capture)
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (isNavigationKey(e)) lastInputWasPointer = false
+    },
+    capture
+  )
+}
+
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   setupTooltipOrphanSweeper()
+  trackInputModality()
 }
 
 /** 由 TooltipRoot 提供，让低层 TooltipContent 走同一套挂载接管；无 Provider 时保持原行为。 */
@@ -305,7 +328,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
       onFocus={(e) => {
         onFocus?.(e)
         // Radix composeEventHandlers respects defaultPrevented
-        if (!e.defaultPrevented && !e.target.matches(':focus-visible')) {
+        if (!e.defaultPrevented && (lastInputWasPointer || !e.target.matches(':focus-visible'))) {
           e.preventDefault()
         }
       }}
