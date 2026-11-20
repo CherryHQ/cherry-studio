@@ -5251,7 +5251,6 @@
   "settings.memory.result": "Wyniki dla plików",
   "settings.memory.retention": "Zmiany obejmą tylko wymienione pliki. Kopie zapasowe pozostaną zachowane, a kolidujące zmiany nie zostaną nadpisane.",
   "settings.memory.title": "Pamięć współdzielona",
-  "settings.memory.use": "Używaj pamięci współdzielonej",
   "settings.menuGroups.automation": "Wydajność",
   "settings.menuGroups.builtinTools": "Wbudowane narzędzia",
   "settings.menuGroups.capabilities": "Narzędzia",
