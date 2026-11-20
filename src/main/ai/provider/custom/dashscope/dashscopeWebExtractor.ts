@@ -1,3 +1,5 @@
+import type { JSONObject } from '@ai-sdk/provider'
+
 /**
  * DashScope's `web_extractor` server tool (help.aliyun.com/zh/model-studio/web-extractor) is a
  * Responses tool that fetches full page content. Two constraints shape delivery:
@@ -19,7 +21,7 @@
 export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
   try {
-    const json = JSON.parse(body) as Record<string, unknown>
+    const json = JSON.parse(body) as JSONObject
     if (!Array.isArray(json.tools)) return body
     const tools = json.tools as Array<{ type?: string }>
     const hasTool = (type: string) => tools.some((tool) => tool?.type === type)
@@ -36,7 +38,7 @@ export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): 
 }
 
 /** Whether the request explicitly turned thinking off (responses `reasoning.effort` / chat `enable_thinking`). */
-function isThinkingDisabled(body: Record<string, unknown>): boolean {
+function isThinkingDisabled(body: JSONObject): boolean {
   if (body.enable_thinking === false) return true
   return (body.reasoning as { effort?: unknown } | undefined)?.effort === 'none'
 }

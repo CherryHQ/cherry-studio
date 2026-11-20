@@ -80,6 +80,7 @@ export function initSentry(): void {
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native log entries include opaque context; only validated failure facts and checked error identity fields enter the report.
 export function captureLoggedError(info: Record<string, unknown>): void {
   const context = getSentryLogContext(info)
   if (!context) return
