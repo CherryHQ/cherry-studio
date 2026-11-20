@@ -6,6 +6,7 @@ import { Mutex } from 'async-mutex'
 
 import {
   createMemoryBackup,
+  hasCompletedRecovery,
   hasOrderedRecovery,
   decodeOriginal,
   latestMemoryBackup,
@@ -610,10 +611,13 @@ export class MemoryStore {
         if (batch.recoveryOf) {
           const original = await latestMemoryBackup(this.backupRoot, batch.recoveryOf)
           if (original?.status === 'partial') {
-            if (!resume) return batch
             const completedManifest = { ...structuredClone(original), status: 'completed' as const }
             const confirmed: MemoryFileChange[] = []
             const root = this.backupRoot
+            if (!resume) {
+              if (hasCompletedRecovery(original, batch)) await saveMemoryBackup(root, completedManifest)
+              return batch
+            }
             const predecessor = original.recoveryOf ? await latestMemoryBackup(root, original.recoveryOf) : undefined
             for (const step of original.steps) {
               if (step.outcome === 'unchanged') continue
