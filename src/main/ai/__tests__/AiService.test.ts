@@ -942,6 +942,11 @@ describe('AiService', () => {
       modelId: 'gemini-3-pro-image-preview'
     })
     expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+    expect(error).toMatchObject({ code: 'IMAGE_NO_OUTPUT' })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Image generation returned no images',
+      expect.objectContaining({ uniqueModelId: 'gemini::gemini-3-pro-image-preview', providerId: 'google' })
+    )
   })
 
   it.each(['provider', 'abort'])('preserves %s rejection identity', async (kind) => {

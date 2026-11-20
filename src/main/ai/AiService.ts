@@ -1201,6 +1201,13 @@ export class AiService extends BaseService {
         }
       ).catch((error: unknown) => {
         if (signal?.aborted || !isEmptyImageGenerationError(error)) throw error
+        // The SDK rejects before `result.images` exists for some empty HTTP 200 bodies; log the same request context.
+        logger.warn('Image generation returned no images', {
+          uniqueModelId: request.uniqueModelId,
+          providerId: sdkConfig.providerId,
+          modelId: sdkConfig.modelId,
+          filteredCount: 0
+        })
         throw createEmptyImageError(sdkConfig.providerId, sdkConfig.modelId)
       })
 
