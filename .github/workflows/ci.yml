@@ -185,6 +185,18 @@ jobs:
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
         run: pnpm check --group lint
 
+      - name: Diagnose no-shape-in-symbol-names migration
+        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
+        run: |
+          node --input-type=module <<'JS'
+          import { writeFileSync } from 'node:fs'
+          writeFileSync(`${process.env.RUNNER_TEMP}/anti-slop-symbol-names.json`, JSON.stringify({
+            extends: [`${process.cwd()}/.oxlintrc.json`],
+            rules: { 'anti-slop/no-shape-in-symbol-names': 'error' }
+          }))
+          JS
+          pnpm exec oxlint --config "$RUNNER_TEMP/anti-slop-symbol-names.json" --format json --deny-warnings
+
       - name: Check locale synchronization
         id: i18n-sync
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
