@@ -12,7 +12,7 @@ import { MemoryCandidateSchema, type MemoryExtractionRange } from '@shared/types
 
 import { agentMemoryAuthority, assistantMemoryAuthority } from './memoryAuthority'
 import { DreamingError, resolveDreamingModel } from './memoryDreamingModel'
-import { entriesIn, isMemoryRevision, memoryModelView, parseMemoryEntries, memoryFactText } from './memoryEntries'
+import { entriesIn, isMemoryRevision, memoryModelView, parseMemoryEntries, matchesMemoryQuote } from './memoryEntries'
 import { memoryHash } from './memoryFiles'
 import { memoryDate } from './memoryTime'
 
@@ -97,12 +97,13 @@ export function readExtractionSource(input: ExtractionInput, allowOversized = fa
     messageId: user.id,
     createdAt: user.createdAt,
     hash: turnHash(user, response, entityKey),
+    inputHash: memoryHash(Buffer.from(JSON.stringify(user.data.parts ?? []))),
     text
   }
 }
 
 export type ExtractionSource = ReturnType<typeof readExtractionSource>
-export type ExtractionTicket = Omit<ExtractionSource, 'text' | 'authority'>
+export type ExtractionTicket = Omit<ExtractionSource, 'text' | 'authority' | 'inputHash'> & { inputHash?: string }
 
 export function extractionBranch(input: ExtractionInput, until?: string, requireResponse = true): Set<string> {
   const db = application.get('DbService').getDb()
@@ -425,14 +426,14 @@ export async function extractContextCandidates(
         const existingReferences = proposal.existing.map((reference) => {
           const file = existing.find((file) => file.path === reference.path)
           if (!file?.content || !reference.quote.trim()) throw new Error('Unsupported memory reference')
-          const decodedMatch =
-            proposal.action === 'correct' &&
-            file.content.split('\n').find((line) => memoryFactText(line) === reference.quote)
-          if (decodedMatch) {
-            const quote = memoryFactText(reference.quote) === reference.quote ? reference.quote : decodedMatch
-            return { ...reference, quote, version: file.hash }
-          }
-          if (!file.content.includes(reference.quote)) throw new Error('Unsupported memory reference')
+          if (
+            !file.content.includes(reference.quote) &&
+            !(
+              proposal.action === 'correct' &&
+              file.content.split('\n').some((line) => matchesMemoryQuote(line, reference.quote))
+            )
+          )
+            throw new Error('Unsupported memory reference')
           return { ...reference, version: file.hash }
         })
         const candidate = MemoryCandidateSchema.parse({ ...proposal, evidence, existing: existingReferences })
@@ -442,9 +443,7 @@ export async function extractContextCandidates(
           if (!candidate.correction) throw new Error('Missing correction reason')
           for (const reference of candidate.existing) {
             const text = existing.find((file) => file.path === reference.path)!.content ?? ''
-            if (
-              text.split('\n').filter((line) => memoryFactText(line) === memoryFactText(reference.quote)).length !== 1
-            )
+            if (text.split('\n').filter((line) => matchesMemoryQuote(line, reference.quote)).length !== 1)
               candidate.action = 'conflict'
           }
         }

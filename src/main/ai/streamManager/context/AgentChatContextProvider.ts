@@ -73,6 +73,7 @@ export type ValidatedAgentDispatch = {
   userMessageId: string
   userMessageParts: CherryMessagePart[]
   deliveryMessage?: AgentSessionMessageEntity
+  recordMemorySubmission?: (id: string, parts: readonly unknown[]) => void
   shouldAutoNameInitialTurn: boolean
 }
 
@@ -155,6 +156,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
+    const recordMemorySubmission =
+      !isHeadless && !req.agentDeliveryMessage
+        ? application.get('MemoryDreamingService').authorizeSubmission('agent', sessionId, agentId)
+        : undefined
     await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
@@ -203,6 +208,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
       ...(deliveryMessage ? { deliveryMessage } : {}),
+      recordMemorySubmission,
       shouldAutoNameInitialTurn
     }
   }
@@ -239,6 +245,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       },
       expectedAgent
     )
+    validated.recordMemorySubmission?.(savedMessages[0].id, savedMessages[0].data.parts ?? [])
     return {
       validated,
       assistantMessageId,
@@ -426,6 +433,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
 
+      validated.recordMemorySubmission?.(savedUserMessage.id, savedUserMessage.data.parts ?? [])
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
         trustedNotifyChannels: validated.trustedNotifyChannels,

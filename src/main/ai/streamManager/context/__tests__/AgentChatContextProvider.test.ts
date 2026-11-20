@@ -166,6 +166,7 @@ describe('AgentChatContextProvider', () => {
           editSession: mocks.runtimeEditSession
         }
       }
+      if (name === 'MemoryDreamingService') return { authorizeSubmission: () => undefined }
       if (name === 'DbService') return { getDb: () => ({}), withWriteTx: (fn) => fn({}) }
       throw new Error(`Unexpected application.get(${name})`)
     })

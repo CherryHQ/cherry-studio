@@ -75,6 +75,11 @@ export function memoryFactText(line: string): string {
   }
 }
 
+export function matchesMemoryQuote(line: string, quote: string): boolean {
+  const fact = memoryFactText(line)
+  return line.trim() === quote || fact === quote || fact === memoryFactText(quote)
+}
+
 export function reviseMemory(
   content: string,
   revisions: readonly MemoryRevision[],
@@ -86,13 +91,15 @@ export function reviseMemory(
   for (const revision of revisions) {
     if (!revision.quote.trim() || !revision.text.trim() || revision.quote === revision.text) invalidEntries()
     let matches = 0
+    let replacedText = ''
     for (let index = 0; index < parts.length; index++) {
       const part = parts[index]
       if (typeof part !== 'string') continue
       parts[index] = part
         .split('\n')
         .map((line) => {
-          if (memoryFactText(line) !== memoryFactText(revision.quote)) return line
+          if (!matchesMemoryQuote(line, revision.quote)) return line
+          replacedText = memoryFactText(line)
           matches++
           return `- ${JSON.stringify(revision.text)}`
         })
@@ -105,7 +112,7 @@ export function reviseMemory(
       status: 'expired',
       sources: [],
       derivedFrom: [],
-      text: memoryFactText(revision.quote),
+      text: replacedText,
       retirement: {
         reason: revision.reason,
         replacement: revision.text,
