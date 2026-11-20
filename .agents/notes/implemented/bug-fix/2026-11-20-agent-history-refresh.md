@@ -16,6 +16,8 @@ For a known append, fetch the head page through its previous cursor boundary. Re
 
 The Agent page reconciles the affected assistant rows before completing the stream overlay handoff or refreshing an approval card. The cached branch is revalidated when the stream has no known anchor or a required message is missing from the loaded history.
 
+Backward pagination keeps the expanded head and its cursor. A detail response replaces a row only while the same cached row is still present, so a clock rollback cannot suppress a terminal reply. Session reassignment invalidates history actions for the whole session.
+
 ## Alternatives considered
 
 - Revalidating the page containing a change still deserializes the other message bodies on that page.

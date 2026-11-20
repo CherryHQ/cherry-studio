@@ -93,6 +93,14 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   useEffect(() => {
     stopLoadAll()
   }, [sessionId, stopLoadAll])
+  const listPath = `/agent-sessions/${sessionId}/messages` as const
+  const readCache = useReadCache()
+  const readSessionPages = useCallback(
+    () =>
+      readCache<CursorPaginationResponse<AgentSessionMessageEntity>[]>(listPath, MESSAGE_QUERY, { limit: PAGE_SIZE }),
+    [listPath, readCache]
+  )
+  const hasExpandedHead = (readSessionPages()?.[0]?.items.length ?? 0) > PAGE_SIZE
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
@@ -103,9 +111,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       enabled,
       swrOptions: {
         keepPreviousData: false,
-        // Paging to the end must not revalidate the first page on every step;
-        // restored once the load-all finishes.
-        revalidateFirstPage: !loadAllRequested,
+        // Keep the expanded head and its cursor when paging backward.
+        revalidateFirstPage: !loadAllRequested && !hasExpandedHead,
+        ...(fetchOnMount && hasExpandedHead && { revalidateOnMount: true }),
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -132,13 +140,6 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
   const deleteQueuesRef = useRef(new Map<string, Promise<void>>())
   const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
-  const listPath = `/agent-sessions/${sessionId}/messages` as const
-  const readCache = useReadCache()
-  const readSessionPages = useCallback(
-    () =>
-      readCache<CursorPaginationResponse<AgentSessionMessageEntity>[]>(listPath, MESSAGE_QUERY, { limit: PAGE_SIZE }),
-    [listPath, readCache]
-  )
   const refreshScope = useMemo(() => ({ sessionId, enabled, queue: new Sequencer() }), [sessionId, enabled])
   const refreshState = useRef<typeof refreshScope | undefined>(refreshScope)
   const historyRevalidation = useRef<Promise<void> | undefined>(undefined)
@@ -212,7 +213,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           }
         }
 
-        const loaded = new Set(cached.flatMap((page) => page.items.map((item) => item.id)))
+        const loaded = new Map(cached.flatMap((page) => page.items.map((item) => [item.id, item] as const)))
         const updated = await Promise.all(
           [...changed]
             .filter((id) => loaded.has(id))
@@ -229,7 +230,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           currentPages?.map((page) => {
             const items = page.items.map((item) => {
               const next = byId.get(item.id)
-              return next && next.updatedAt >= item.updatedAt ? { ...next, siblings: item.siblings } : item
+              return next && loaded.get(item.id) === item ? { ...next, siblings: item.siblings } : item
             })
             return items.some((item, index) => item !== page.items[index]) ? { ...page, items } : page
           })

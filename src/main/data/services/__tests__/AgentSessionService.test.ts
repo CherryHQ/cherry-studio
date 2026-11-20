@@ -1330,7 +1330,8 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId: session.id } }
     ])
   })
 
@@ -1365,10 +1366,16 @@ describe('AgentSessionService', () => {
     const session = await createSession('Cross-runtime override')
     agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
 
+    notifyDataApiDataChangeMock.mockClear()
     const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-reassigned' })
 
     expect(updated.agentId).toBe('agent-pi-reassigned')
     expect(updated.model).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId: session.id } }
+      ])
+    )
   })
 
   it.each(['pi', 'pi-durable'] as const)(

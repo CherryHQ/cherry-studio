@@ -989,7 +989,15 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
-    this.notifyReadModelChange([id], 'projection')
+    const effects = agentSessionReadModelEffects([id], 'projection')
+    if (result.reassigned) {
+      effects.push({
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId: id }
+      })
+    }
+    notifyDataApiDataChange(effects)
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
@@ -998,7 +1006,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     id: string,
     patch: UpdateAgentSessionDto
-  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[]; reassigned: boolean } {
     const [current] = tx
       .select({
         agentId: sessionsTable.agentId,
@@ -1009,7 +1017,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [], reassigned: false }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
@@ -1057,7 +1065,7 @@ export class AgentSessionService {
     if (reassigned) {
       tx.update(sessionsTable).set({ agentId: patch.agentId }).where(eq(sessionsTable.ownerSessionId, id)).run()
     }
-    return { row, clearedTaskScheduleIds }
+    return { row, clearedTaskScheduleIds, reassigned }
   }
 
   /**

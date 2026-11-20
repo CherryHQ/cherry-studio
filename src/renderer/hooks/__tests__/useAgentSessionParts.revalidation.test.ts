@@ -71,10 +71,10 @@ it('refreshes a changed message without requesting any loaded history page', asy
   expect(requestedPaths).toEqual([`${listPath}/older`])
 })
 
-it('reads the persisted terminal reply by ID before resolving the stream handoff', async () => {
+it('reads the persisted terminal reply by ID even when the clock moved backward', async () => {
   const pending = { ...message('reply'), status: 'pending' as const }
   const older = message('older')
-  const saved = message('reply', 'persisted final answer', '2026-01-01T00:00:01.000Z')
+  const saved = message('reply', 'persisted final answer', '2025-12-31T23:59:59.000Z')
   const get = vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
     if (path === `${listPath}/reply`) return saved as never
     return (
@@ -96,37 +96,73 @@ it('reads the persisted terminal reply by ID before resolving the stream handoff
   expect(get.mock.calls.map(([path]) => path)).toEqual([`${listPath}/reply`])
 })
 
-it('keeps older pages cached when new messages only extend the head of the selected branch', async () => {
-  const newest = message('newest')
-  const older = message('older')
-  const added = message('added')
-  const requestedCursors: (string | undefined)[] = []
-  vi.spyOn(dataApiService, 'get').mockImplementation(async (_path, options) => {
-    const query = options?.query as { cursor?: string; limit: number }
-    requestedCursors.push(query.cursor)
-    if (query.cursor) return { items: [older] } as never
-    return { items: query.limit === 2 ? [added, newest] : [newest], nextCursor: 'older-page' } as never
+it('keeps a fresher list row when a detail request finishes after a list refresh', async () => {
+  let current = message('reply')
+  const detail = Promise.withResolvers<AgentSessionMessageEntity>()
+  const requested = Promise.withResolvers<void>()
+  vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+    if (path === `${listPath}/reply`) {
+      requested.resolve()
+      return (await detail.promise) as never
+    }
+    return { items: [current] } as never
   })
   const { Wrapper } = createSWRTestWrapper()
   const { result } = renderHook(() => useAgentSessionParts('session-1'), { wrapper: Wrapper })
-  await waitFor(() => expect(result.current.messages.map((row) => row.id)).toEqual(['newest']))
-  act(() => result.current.loadOlder())
-  await waitFor(() => expect(result.current.messages.map((row) => row.id)).toEqual(['older', 'newest']))
-  requestedCursors.length = 0
+  await waitFor(() => expect(result.current.messages[0]?.id).toBe('reply'))
 
+  const refresh = result.current.refreshStreamMessages(['reply'])
+  await requested.promise
+  current = message('reply', 'fresh list reply', '2026-01-01T00:00:01.000Z')
+  await act(async () => {
+    await result.current.refresh()
+  })
+  await act(async () => {
+    detail.resolve(message('reply', 'late detail response', '2026-01-01T00:00:02.000Z'))
+    await refresh
+  })
+
+  expect(result.current.messages[0].parts).toEqual(current.data.parts)
+})
+
+it('keeps all cached messages and loads older rows after the head grows by more than one page', async () => {
+  const initial = Array.from({ length: 200 }, (_, index) => message(`initial-${index}`))
+  const appended = Array.from({ length: 60 }, (_, index) => message(`appended-${index}`))
+  let selected = initial
+  vi.spyOn(dataApiService, 'get').mockImplementation(async (_path, options) => {
+    const { cursor, limit } = (options?.query ?? {}) as { cursor?: string; limit: number }
+    const start = cursor ? selected.findIndex((row) => row.id === cursor) + 1 : 0
+    const items = selected.slice(start, start + limit)
+    return { items, nextCursor: start + limit < selected.length ? items.at(-1)?.id : undefined } as never
+  })
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(() => useAgentSessionParts('session-1'), { wrapper: Wrapper })
+  await waitFor(() => expect(result.current.messages).toHaveLength(50))
+  act(() => result.current.loadOlder())
+  await waitFor(() => expect(result.current.messages).toHaveLength(100))
+
+  selected = [...appended, ...initial]
   await act(async () => {
     MockDataApiUtils.emitDataChange([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
         routeParams: { sessionId: 'session-1' },
-        entityIds: ['added']
+        entityIds: appended.map((row) => row.id)
       }
     ])
   })
+  await waitFor(() => expect(result.current.messages).toHaveLength(160))
 
-  await waitFor(() => expect(result.current.messages.map((row) => row.id)).toEqual(['older', 'newest', 'added']))
-  expect(requestedCursors).toEqual([undefined])
+  act(() => result.current.loadOlder())
+  await waitFor(() =>
+    expect(result.current.messages.map((row) => row.id)).toEqual(
+      selected
+        .slice(0, 210)
+        .reverse()
+        .map((row) => row.id)
+    )
+  )
 })
 
 it('applies a message update received while loading older history without interrupting pagination', async () => {
