@@ -37,6 +37,11 @@ describe('upstream output count provenance', () => {
       { raw: { output_tokens: 25 }, outputTokens: 0 },
       { outputTokens: 25, reasoningTokens: null }
     ],
+    // Compatible stream with an empty iterations array is not an executor total: the wire alias wins.
+    [
+      { raw: { output_tokens: 25, iterations: [] }, outputTokens: 0 },
+      { outputTokens: 25, reasoningTokens: null }
+    ],
     // Canonical and additive (xAI) controls keep the adapter's semantics.
     [
       { raw: { completion_tokens: 10 }, outputTokens: 10 },
