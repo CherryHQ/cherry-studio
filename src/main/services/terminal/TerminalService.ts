@@ -118,28 +118,6 @@ export class TerminalService extends BaseService {
     application.get('UtilityProcessManager').register(definition)
   }
 
-  async availableShells(): Promise<Array<'bash' | 'powershell'>> {
-    const env = await getShellEnv()
-    const configured = path
-      .basename(
-        env.SHELL ||
-          process.env.SHELL ||
-          (process.platform === 'win32' ? 'powershell' : process.platform === 'darwin' ? 'zsh' : 'bash')
-      )
-      .replace(/\.exe$/i, '')
-      .toLowerCase()
-    const bash =
-      process.platform === 'win32'
-        ? (autoDiscoverGitBash() ?? (await findExecutableInEnv('bash', { env })))
-        : await findExecutableInEnv('bash', { env })
-    const powershell =
-      (await findExecutableInEnv('pwsh', { env })) ?? (await findExecutableInEnv('powershell', { env }))
-    return [
-      ...(bash && configured !== 'bash' ? ['bash' as const] : []),
-      ...(powershell && configured !== 'pwsh' && configured !== 'powershell' ? ['powershell' as const] : [])
-    ]
-  }
-
   async createUserTerminal(
     conversationId: string,
     cwd: string,

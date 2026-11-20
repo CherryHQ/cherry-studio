@@ -79,7 +79,6 @@ export const terminalViewAction = z.discriminatedUnion('kind', [
   })
 ])
 export const terminalRequestSchemas = {
-  'terminal.shells': defineRoute({ input: z.object({}).strict(), output: z.array(z.enum(['bash', 'powershell'])) }),
   'terminal.cleanup.status': defineRoute({
     input: z.object({}).strict(),
     output: z.object({ count: revision, recoveryFailed: z.boolean() })
