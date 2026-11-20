@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
@@ -396,8 +397,8 @@ class ComfyuiTransport implements ImageGenerationTransport {
               // transport's life.
               throw new Error(`ComfyUI /system_stats answered ${response.status}`)
             }
-            const stats = (await response.json()) as Record<string, unknown>
-            const verStr = (stats.system as Record<string, unknown>)?.comfyui_version as string | undefined
+            const stats = (await response.json()) as JSONObject
+            const verStr = (stats.system as JSONObject)?.comfyui_version as string | undefined
             if (!verStr) return { targetedInterrupt: false }
 
             const ver = parseVersion(verStr)
@@ -470,11 +471,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * One cancellation write, bounded like every other request the transport makes
    * and best-effort: a stalled or failed POST must not hold `cancel()` open.
    */
-  private async cancelWrite(
-    url: string,
-    body: Record<string, unknown>,
-    headers: Record<string, string>
-  ): Promise<void> {
+  private async cancelWrite(url: string, body: JSONObject, headers: Record<string, string>): Promise<void> {
     await this.withDeadline(
       undefined,
       CANCEL_QUEUE_TIMEOUT_MS,
