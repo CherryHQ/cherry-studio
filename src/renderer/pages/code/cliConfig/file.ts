@@ -4,6 +4,7 @@ import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } fro
 
 import { ipcApi } from '@renderer/ipc'
 import type { OutputFor } from '@shared/ipc/types'
+import type { Serializable } from '@shared/types/serializable'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -47,7 +48,7 @@ export function readValidatedJsonOrNull(
   target: CliConfigTarget,
   files: CliConfigReadFiles,
   label: string
-): Record<string, any> | null {
+): Record<string, Serializable> | null {
   const { path, content } = requireReadFile(target, files)
   return content === null ? null : parseOrThrow(content, label, path, parseJsonOrThrow)
 }
@@ -111,7 +112,7 @@ export function parseYamlDocumentOrThrow(content: string): Document {
   }
 }
 
-export function parseJsonOrThrow(content: string): Record<string, any> {
+export function parseJsonOrThrow(content: string): Record<string, Serializable> {
   if (!content) return {}
   const errors: ParseError[] = []
   const parsed = parseJsonc(content, errors, { allowTrailingComma: true, disallowComments: false })
@@ -121,7 +122,8 @@ export function parseJsonOrThrow(content: string): Record<string, any> {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('invalid JSONC root: expected an object')
   }
-  return parsed as Record<string, any>
+  // SAFETY: JSONC parsing constructs JSON values; the checks above reject parse errors and non-object roots.
+  return parsed as Record<string, Serializable>
 }
 
 export function renderJsonFile(value: Record<string, any>): string {
