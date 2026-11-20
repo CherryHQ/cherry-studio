@@ -138,12 +138,16 @@ export async function createMemoryBackup(
   root: string,
   changes: readonly MemoryFileChange[],
   source: MemoryMutationSource,
-  legacy?: MemoryLegacyOriginal,
-  clearScopeHash?: string,
-  recoveryOf?: string,
-  activeRoot?: string,
-  transferTargets?: MemoryBatch['transferTargets']
+  options: {
+    legacy?: MemoryLegacyOriginal
+    clearScopeHash?: string
+    recoveryOf?: string
+    activeRoot?: string
+    transferTargets?: MemoryBatch['transferTargets']
+    confirmed?: readonly MemoryFileChange[]
+  } = {}
 ): Promise<MemoryBatch> {
+  const { legacy, clearScopeHash, recoveryOf, activeRoot, transferTargets, confirmed = [] } = options
   if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
     throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
   const existing = await storedBatches(root)
@@ -198,24 +202,29 @@ export async function createMemoryBackup(
   }
   batch.status = 'pending'
   const steps = new Map(batch.steps.map((step) => [step.path, step]))
-  for (const change of changes) {
+  for (const change of [...changes, ...confirmed]) {
     const beforeHash = memoryHash(change.before)
     const afterHash = memoryHash(change.after)
     const previous = steps.get(change.path)
     if (previous) {
       if (previous.beforeHash !== beforeHash || previous.afterHash !== afterHash)
         throw new MemoryError('conflict', 'Recovery target differs from its reverse backup')
-      previous.outcome = 'pending'
+      previous.outcome = confirmed.includes(change) ? 'applied' : 'pending'
     } else {
       batch.steps.push({
         path: change.path,
         before: change.before?.toString('base64') ?? null,
         beforeHash,
         afterHash,
-        outcome: 'pending'
+        outcome: confirmed.includes(change) ? 'applied' : 'pending'
       })
     }
   }
+  if (parent && hasOrderedRecovery(parent)) {
+    const order = new Map(parent.steps.toReversed().map((step, index) => [step.path, index]))
+    batch.steps.sort((left, right) => order.get(left.path)! - order.get(right.path)!)
+  }
+  if (confirmed.length && !changes.length) batch.status = memoryBatchStatus(batch)
   let bytes =
     existing.reduce((total, item) => total + item.reservedBytes, 0) +
     reservedBatchBytes(batch) -
@@ -223,7 +232,12 @@ export async function createMemoryBackup(
   let count = existing.length + (reverse ? 0 : 1)
   const latest = existing.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))
   const removable = existing.filter(
-    (item) => item.batch.status === 'completed' && item !== latest && item !== reverse && item.batch.id !== recoveryOf
+    (item) =>
+      item.batch.status === 'completed' &&
+      item !== latest &&
+      item !== reverse &&
+      item.batch.id !== recoveryOf &&
+      !(parent && hasOrderedRecovery(parent) && item.batch.id === parent.recoveryOf)
   )
   const prune: StoredBatch[] = []
   for (const item of removable) {
