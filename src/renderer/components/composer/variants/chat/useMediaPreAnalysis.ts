@@ -27,7 +27,8 @@ export function useMediaPreAnalysis(files: readonly ComposerAttachment[]): void 
         .request('file_processing.media.prepare', { path: file.path })
         // The send reports a real analysis failure; this pass is only a head start.
         .catch((error: unknown) => logger.debug('Media pre-analysis request failed', { error }))
-        .finally(() => cacheService.delete(key))
+        // The file card's useCache hook keeps the key alive, so it is reset rather than deleted.
+        .finally(() => cacheService.set(key, false))
     }
   }, [files])
 }
