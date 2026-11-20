@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "Без ограничений",
   "agent.toolPermission.agent_config.changes": "Изменения",
   "agent.toolPermission.agent_config.error": "Не удаётся показать предпросмотр изменений. Запрошенные значения:",
+  "agent.toolPermission.agent_config.full_text": "Полный текст",
   "agent.toolPermission.agent_config.loading": "Чтение текущих настроек…",
   "agent.toolPermission.agent_config.title.create_agent": "Создать агента",
   "agent.toolPermission.agent_config.title.create_assistant": "Создать ассистента",

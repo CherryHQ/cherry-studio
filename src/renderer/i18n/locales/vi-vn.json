@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "Không giới hạn",
   "agent.toolPermission.agent_config.changes": "Thay đổi",
   "agent.toolPermission.agent_config.error": "Không thể xem trước các thay đổi này. Giá trị được yêu cầu:",
+  "agent.toolPermission.agent_config.full_text": "Toàn văn",
   "agent.toolPermission.agent_config.loading": "Đang đọc cài đặt hiện tại…",
   "agent.toolPermission.agent_config.title.create_agent": "Tạo Agent",
   "agent.toolPermission.agent_config.title.create_assistant": "Tạo trợ lý",

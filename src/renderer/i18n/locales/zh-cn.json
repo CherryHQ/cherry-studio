@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "无限制",
   "agent.toolPermission.agent_config.changes": "更改内容",
   "agent.toolPermission.agent_config.error": "无法预览这些更改。请求的值：",
+  "agent.toolPermission.agent_config.full_text": "完整内容",
   "agent.toolPermission.agent_config.loading": "正在读取当前设置…",
   "agent.toolPermission.agent_config.title.create_agent": "创建智能体",
   "agent.toolPermission.agent_config.title.create_assistant": "创建助手",

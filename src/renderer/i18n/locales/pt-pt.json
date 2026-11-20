@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "Sem limite",
   "agent.toolPermission.agent_config.changes": "Alterações",
   "agent.toolPermission.agent_config.error": "Não é possível pré-visualizar estas alterações. Valores pedidos:",
+  "agent.toolPermission.agent_config.full_text": "Texto completo",
   "agent.toolPermission.agent_config.loading": "A ler as definições atuais…",
   "agent.toolPermission.agent_config.title.create_agent": "Criar agente",
   "agent.toolPermission.agent_config.title.create_assistant": "Criar assistente",

@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "제한 없음",
   "agent.toolPermission.agent_config.changes": "변경 사항",
   "agent.toolPermission.agent_config.error": "이 변경 사항을 미리 볼 수 없습니다. 요청된 값:",
+  "agent.toolPermission.agent_config.full_text": "전체 내용",
   "agent.toolPermission.agent_config.loading": "현재 설정을 읽는 중…",
   "agent.toolPermission.agent_config.title.create_agent": "에이전트 만들기",
   "agent.toolPermission.agent_config.title.create_assistant": "어시스턴트 만들기",

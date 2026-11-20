@@ -594,6 +594,7 @@
   "agent.tasks.timeout.placeholder": "Bez limitu",
   "agent.toolPermission.agent_config.changes": "Zmiany",
   "agent.toolPermission.agent_config.error": "Nie można wyświetlić podglądu tych zmian. Żądane wartości:",
+  "agent.toolPermission.agent_config.full_text": "Pełny tekst",
   "agent.toolPermission.agent_config.loading": "Odczytywanie bieżących ustawień…",
   "agent.toolPermission.agent_config.title.create_agent": "Utwórz agenta",
   "agent.toolPermission.agent_config.title.create_assistant": "Utwórz asystenta",

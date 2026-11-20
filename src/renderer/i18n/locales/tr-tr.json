@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "Sınır yok",
   "agent.toolPermission.agent_config.changes": "Değişiklikler",
   "agent.toolPermission.agent_config.error": "Bu değişiklikler önizlenemiyor. İstenen değerler:",
+  "agent.toolPermission.agent_config.full_text": "Tam metin",
   "agent.toolPermission.agent_config.loading": "Geçerli ayarlar okunuyor…",
   "agent.toolPermission.agent_config.title.create_agent": "Ajan oluştur",
   "agent.toolPermission.agent_config.title.create_assistant": "Asistan oluştur",

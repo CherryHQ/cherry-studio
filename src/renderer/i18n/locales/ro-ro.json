@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "Fără limită",
   "agent.toolPermission.agent_config.changes": "Modificări",
   "agent.toolPermission.agent_config.error": "Aceste modificări nu pot fi previzualizate. Valori solicitate:",
+  "agent.toolPermission.agent_config.full_text": "Text complet",
   "agent.toolPermission.agent_config.loading": "Se citesc setările curente…",
   "agent.toolPermission.agent_config.title.create_agent": "Creează agent",
   "agent.toolPermission.agent_config.title.create_assistant": "Creează asistent",

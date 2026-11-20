@@ -548,6 +548,30 @@ describe('PermissionRequestComposer', () => {
       expect(screen.getByText('LONG_SYSTEM_PROMPT')).toBeInTheDocument()
     })
 
+    // Catches a long prompt edit that can only be checked through its shortened summary line.
+    it('shows the full current and new text of a long field on demand', async () => {
+      const user = userEvent.setup()
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          ok: true,
+          summary: ['System Prompt: …Reply in English. → …Reply in French.'],
+          details: [{ field: 'System Prompt', from: 'FULL_OLD_PROMPT', to: 'FULL_NEW_PROMPT' }]
+        }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-details', 'assistant', 'update_agent', { instructions: 'x' })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      await user.click(await screen.findByRole('button', { name: 'agent.toolPermission.agent_config.full_text' }))
+
+      expect(screen.getByText('FULL_OLD_PROMPT')).toBeInTheDocument()
+      expect(screen.getByText('FULL_NEW_PROMPT')).toBeInTheDocument()
+    })
+
     it('keeps the raw arguments on screen while the preview loads', () => {
       vi.mocked(window.api.ipcApi.request).mockReturnValueOnce(new Promise(() => {}))
       render(

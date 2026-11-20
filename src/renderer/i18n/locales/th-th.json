@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "ไม่มีจำกัด",
   "agent.toolPermission.agent_config.changes": "การเปลี่ยนแปลง",
   "agent.toolPermission.agent_config.error": "ไม่สามารถแสดงตัวอย่างการเปลี่ยนแปลงเหล่านี้ได้ ค่าที่ขอ:",
+  "agent.toolPermission.agent_config.full_text": "ข้อความทั้งหมด",
   "agent.toolPermission.agent_config.loading": "กำลังอ่านการตั้งค่าปัจจุบัน…",
   "agent.toolPermission.agent_config.title.create_agent": "สร้างเอเจนต์",
   "agent.toolPermission.agent_config.title.create_assistant": "สร้างผู้ช่วย",

@@ -38,6 +38,7 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildCreateAssistantDto, DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
@@ -50,6 +51,7 @@ import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import type { AssistantReplyLanguage } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { toAvatarEmoji } from '@shared/utils/emoji'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { isNonChatModel } from '@shared/utils/model'
@@ -330,6 +332,8 @@ type SummaryField =
   | 'description'
   | 'instructions'
   | 'model'
+  | 'planModel'
+  | 'smallModel'
   | 'permissionMode'
   | 'skills'
   | 'knowledgeBases'
@@ -345,6 +349,8 @@ const SUMMARY_FIELDS: readonly SummaryField[] = [
   'description',
   'instructions',
   'model',
+  'planModel',
+  'smallModel',
   'permissionMode',
   'skills',
   'knowledgeBases',
@@ -360,6 +366,8 @@ const FIELD_LABEL: Record<SummaryField, () => string> = {
   description: () => t('agent.config_tool.field.description'),
   instructions: () => t('agent.config_tool.field.instructions'),
   model: () => t('agent.config_tool.field.model'),
+  planModel: () => t('agent.config_tool.field.plan_model'),
+  smallModel: () => t('agent.config_tool.field.small_model'),
   permissionMode: () => t('agent.config_tool.field.permission_mode'),
   skills: () => t('agent.config_tool.field.skills'),
   knowledgeBases: () => t('agent.config_tool.field.knowledge_bases'),
@@ -378,6 +386,19 @@ const PERMISSION_LABEL: Record<AgentPermissionMode, () => string> = {
   bypassPermissions: () => t('agent.config_tool.permission.bypass_permissions')
 }
 
+const REASONING_LABEL: Record<ReasoningEffortOption, () => string> = {
+  default: () => t('agent.config_tool.reasoning.default'),
+  none: () => t('agent.config_tool.reasoning.none'),
+  minimal: () => t('agent.config_tool.reasoning.minimal'),
+  low: () => t('agent.config_tool.reasoning.low'),
+  medium: () => t('agent.config_tool.reasoning.medium'),
+  high: () => t('agent.config_tool.reasoning.high'),
+  xhigh: () => t('agent.config_tool.reasoning.xhigh'),
+  max: () => t('agent.config_tool.reasoning.max'),
+  ultra: () => t('agent.config_tool.reasoning.ultra'),
+  auto: () => t('agent.config_tool.reasoning.auto')
+}
+
 /** What a field compares by: changing the display text alone (a truncated prompt) must still count. */
 function rawValue(field: SummaryField, form: AgentFormState): unknown {
   switch (field) {
@@ -391,6 +412,10 @@ function rawValue(field: SummaryField, form: AgentFormState): unknown {
       return form.instructions
     case 'model':
       return form.model
+    case 'planModel':
+      return form.planModel
+    case 'smallModel':
+      return form.smallModel
     case 'permissionMode':
       return normalizePermissionMode(form.permissionMode)
     case 'skills':
@@ -429,6 +454,25 @@ function safeName(read: () => { name: string }): string | undefined {
   }
 }
 
+function modelName(id: string): string {
+  const { providerId, modelId } = parseUniqueModelId(id as UniqueModelId)
+  return safeName(() => modelService.getByKey(providerId, modelId)) ?? id
+}
+
+/** Around the first difference, for two texts whose shortened forms read the same. */
+function differingExcerpts(before: string, after: string): [string, string] {
+  const a = before.replace(/\s+/g, ' ').trim()
+  const b = after.replace(/\s+/g, ' ').trim()
+  let index = 0
+  while (index < a.length && a[index] === b[index]) index++
+  const start = Math.max(0, index - 20)
+  const excerpt = (text: string) => {
+    const end = start + SUMMARY_TEXT_MAX_LENGTH
+    return `${start > 0 ? '…' : ''}${text.slice(start, end) || t('agent.config_tool.value.none')}${end < text.length ? '…' : ''}`
+  }
+  return [excerpt(a), excerpt(b)]
+}
+
 function displayValue(field: SummaryField, form: AgentFormState): string {
   switch (field) {
     case 'avatar':
@@ -437,11 +481,11 @@ function displayValue(field: SummaryField, form: AgentFormState): string {
     case 'description':
     case 'instructions':
       return shortText(form[field])
-    case 'model': {
-      if (!form.model) return t('agent.config_tool.value.none')
-      const { providerId, modelId } = parseUniqueModelId(form.model)
-      return safeName(() => modelService.getByKey(providerId, modelId)) ?? form.model
-    }
+    case 'model':
+      return form.model ? modelName(form.model) : t('agent.config_tool.value.none')
+    case 'planModel':
+    case 'smallModel':
+      return form[field] ? modelName(form[field]) : t('agent.config_tool.value.follows_model')
     case 'permissionMode':
       return PERMISSION_LABEL[normalizePermissionMode(form.permissionMode)]()
     case 'skills':
@@ -473,14 +517,50 @@ function isChanged(field: SummaryField, before: AgentFormState, after: AgentForm
   return JSON.stringify(rawValue(field, before)) !== JSON.stringify(rawValue(field, after))
 }
 
+/** Each changed field as `field: current → new`, with both sides distinguishable even when they shorten alike. */
 function describeChanges(before: AgentFormState, after: AgentFormState): string[] {
-  return SUMMARY_FIELDS.filter((field) => isChanged(field, before, after)).map((field) =>
+  return SUMMARY_FIELDS.filter((field) => isChanged(field, before, after)).map((field) => {
+    let from = displayValue(field, before)
+    let to = displayValue(field, after)
+    if (from === to && (field === 'name' || field === 'description' || field === 'instructions')) {
+      ;[from, to] = differingExcerpts(before[field], after[field])
+    } else if (from === to && (field === 'model' || field === 'planModel' || field === 'smallModel')) {
+      // Two models can share a display name; their IDs tell them apart.
+      from = `${from} (${before[field]})`
+      to = `${to} (${after[field]})`
+    }
+    return t('agent.config_tool.summary.change', { field: FIELD_LABEL[field](), from, to })
+  })
+}
+
+/** Long texts in full, so an approval can be checked beyond the shortened summary line. */
+function fullTextChanges(before: AgentFormState, after: AgentFormState) {
+  return (['description', 'instructions'] as const)
+    .filter((field) => before[field] !== after[field])
+    .filter((field) => Math.max(before[field].length, after[field].length) > SUMMARY_TEXT_MAX_LENGTH)
+    .map((field) => ({ field: FIELD_LABEL[field](), from: before[field], to: after[field] }))
+}
+
+/** The reasoning effort a model change will make the service store, which no input field shows. */
+function reasoningEffortChange(agent: AgentEntity, before: AgentFormState, after: AgentFormState): string[] {
+  if (!after.model || after.model === before.model) return []
+  const { providerId, modelId } = parseUniqueModelId(after.model)
+  let nextModel: Model | undefined
+  try {
+    nextModel = modelService.getByKey(providerId, modelId)
+  } catch {
+    return []
+  }
+  const current = agent.configuration?.reasoning_effort ?? 'default'
+  const next = resolveReasoningEffortForModel(nextModel, current) ?? 'default'
+  if (next === current) return []
+  return [
     t('agent.config_tool.summary.change', {
-      field: FIELD_LABEL[field](),
-      from: displayValue(field, before),
-      to: displayValue(field, after)
+      field: t('agent.config_tool.field.reasoning_effort'),
+      from: REASONING_LABEL[current](),
+      to: REASONING_LABEL[next]()
     })
-  )
+  ]
 }
 
 /** The card already shows the avatar, name and description; model and permission always matter. */
@@ -686,7 +766,8 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
   if (!diff) throw new Error('Nothing to change: every given value matches the current setting.')
   return {
     dto: diff.dto,
-    summary: describeChanges(baseline, next),
+    summary: [...describeChanges(baseline, next), ...reasoningEffortChange(agent, baseline, next)],
+    details: fullTextChanges(baseline, next),
     replaceAvatarImage: Boolean(agent.avatarFileId) && next.avatar !== baseline.avatar
   }
 }
@@ -727,12 +808,14 @@ export function previewAgentConfigChange(approvalId: string): AgentConfigChangeP
     }
     if (kind === 'update') {
       const { agentId, ...settings } = UpdateAgentToolInputSchema.parse(call.originalInput)
-      return { ok: true, summary: planAgentUpdate(agentId, settings, { self: false }).summary }
+      const { summary, details } = planAgentUpdate(agentId, settings, { self: false })
+      return { ok: true, summary, ...(details.length ? { details } : {}) }
     }
     const { agentId } = agentSessionService.getById(call.sessionId)
     if (!agentId) throw new Error(`Session has no Agent: ${call.sessionId}`)
     const settings = SelfUpdateToolInputSchema.parse(call.originalInput)
-    return { ok: true, summary: planAgentUpdate(agentId, settings, { self: true }).summary }
+    const { summary, details } = planAgentUpdate(agentId, settings, { self: true })
+    return { ok: true, summary, ...(details.length ? { details } : {}) }
   } catch (error) {
     // The tool reports the same refusal to the model when it runs; the user sees the raw arguments.
     logger.warn('Agent config preview failed', { approvalId, error })

@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "No limit",
   "agent.toolPermission.agent_config.changes": "Changes",
   "agent.toolPermission.agent_config.error": "Can't preview these changes. Requested values:",
+  "agent.toolPermission.agent_config.full_text": "Full text",
   "agent.toolPermission.agent_config.loading": "Reading the current settings…",
   "agent.toolPermission.agent_config.title.create_agent": "Create Agent",
   "agent.toolPermission.agent_config.title.create_assistant": "Create Assistant",

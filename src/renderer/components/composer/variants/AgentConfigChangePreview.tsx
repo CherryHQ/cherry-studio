@@ -15,6 +15,7 @@ import { cn } from '@renderer/utils/style'
 export function AgentConfigChangePreview({ approvalId, args }: { approvalId: string; args: ReactNode }) {
   const { t } = useTranslation()
   const [showArgs, setShowArgs] = useState(false)
+  const [showFull, setShowFull] = useState(false)
   // One fetch per approval: a later approval gets its own key, so it never shows stale "current" values.
   const { data, error } = useSWRImmutable(['ai.agent.preview_config_change', approvalId], () =>
     ipcApi.request('ai.agent.preview_config_change', { approvalId })
@@ -38,7 +39,7 @@ export function AgentConfigChangePreview({ approvalId, args }: { approvalId: str
     )
   }
 
-  const { resource, summary = [] } = data
+  const { resource, summary = [], details = [] } = data
   return (
     <div data-testid="agent-config-change-preview">
       {resource ? (
@@ -60,6 +61,34 @@ export function AgentConfigChangePreview({ approvalId, args }: { approvalId: str
               </li>
             ))}
           </ul>
+          {details.length ? (
+            <>
+              <button
+                type="button"
+                aria-expanded={showFull}
+                className="mt-2 flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+                onClick={() => setShowFull((shown) => !shown)}>
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn('size-3 transition-transform', showFull && 'rotate-90')}
+                />
+                {t('agent.toolPermission.agent_config.full_text')}
+              </button>
+              {showFull
+                ? details.map(({ field, from, to }) => (
+                    <div key={field} className="mt-1.5 space-y-1 text-xs">
+                      <div className="font-medium text-muted-foreground">{field}</div>
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted px-2 py-1.5 text-muted-foreground line-through">
+                        {from}
+                      </pre>
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted px-2 py-1.5 text-foreground">
+                        {to}
+                      </pre>
+                    </div>
+                  ))
+                : null}
+            </>
+          ) : null}
         </>
       )}
       <button

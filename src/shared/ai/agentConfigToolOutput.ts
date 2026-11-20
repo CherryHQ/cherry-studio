@@ -28,6 +28,8 @@ export const AgentConfigChangePreviewSchema = z.discriminatedUnion('ok', [
     ok: z.literal(true),
     /** Update: `field: current → new` lines. */
     summary: z.array(z.string()).optional(),
+    /** Update: long texts in full, behind the summary's shortened lines. */
+    details: z.array(z.strictObject({ field: z.string(), from: z.string(), to: z.string() })).optional(),
     /** Create: the resource the call would make. */
     resource: z
       .strictObject({

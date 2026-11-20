@@ -444,6 +444,73 @@ describe('Agent create and configure tools', () => {
       ])
     })
 
+    // Catches an approval whose before and after read the same because the edit sits past the shortened prefix.
+    it('shows a prompt edit past the shortened prefix and offers both full texts', () => {
+      const before = `${'Keep answers short and cite sources. '.repeat(3)}Reply in English.`
+      const after = `${'Keep answers short and cite sources. '.repeat(3)}Reply in French.`
+      seedAgent('target', { instructions: before })
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', instructions: after })
+      )
+
+      expect(preview).toMatchObject({ ok: true, details: [{ field: 'System Prompt', from: before, to: after }] })
+      const [, from, to] = /^System Prompt: (.*) → (.*)$/.exec((preview as { summary: string[] }).summary[0]) ?? []
+      expect(from).toContain('English')
+      expect(to).toContain('French')
+    })
+
+    // Catches a model switch that looks like a no-op because both models share a display name.
+    it('tells apart two models that share a display name', () => {
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'wire::default-model-2',
+          providerId: 'wire',
+          modelId: 'default-model-2',
+          name: 'Default Model',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true,
+          isEnabled: true,
+          orderKey: 'a2',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        })
+        .run()
+      seedAgent('target')
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', model: 'wire::default-model-2' })
+      )
+
+      expect(preview).toMatchObject({
+        ok: true,
+        summary: ['Model: Default Model (wire::default-model) → Default Model (wire::default-model-2)']
+      })
+    })
+
+    // Catches a model change that silently clears saved plan/small models or rewrites the reasoning effort.
+    it('lists the plan model, small model and reasoning effort a model change rewrites', async () => {
+      seedAgent('target', {
+        planModel: OTHER_MODEL,
+        smallModel: OTHER_MODEL,
+        configuration: { avatar: '🦊', permission_mode: 'default', reasoning_effort: 'high' }
+      })
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: 'target', model: OTHER_MODEL })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const agent = agentService.getAgent('target')
+      expect(agent).toMatchObject({ model: OTHER_MODEL, configuration: { reasoning_effort: 'default' } })
+      expect(agent?.planModel).toBeUndefined()
+      expect(agent?.smallModel).toBeUndefined()
+      expect((result.structuredContent as { summary: string[] }).summary).toEqual([
+        'Model: Default Model → Other Model',
+        'Plan model: Other Model → Follow current model',
+        'Small model: Other Model → Follow current model',
+        'Reasoning effort: High → Default'
+      ])
+    })
+
     it.each([
       ['bypassPermissions', { permissionMode: 'bypassPermissions' }],
       ['environment variables', { env_vars: { TOKEN: 'leaked' } }]

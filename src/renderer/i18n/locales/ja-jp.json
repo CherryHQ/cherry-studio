@@ -580,6 +580,7 @@
   "agent.tasks.timeout.placeholder": "制限なし",
   "agent.toolPermission.agent_config.changes": "変更内容",
   "agent.toolPermission.agent_config.error": "変更内容をプレビューできません。要求された値：",
+  "agent.toolPermission.agent_config.full_text": "全文",
   "agent.toolPermission.agent_config.loading": "現在の設定を読み込み中…",
   "agent.toolPermission.agent_config.title.create_agent": "エージェントを作成",
   "agent.toolPermission.agent_config.title.create_assistant": "アシスタントを作成",
