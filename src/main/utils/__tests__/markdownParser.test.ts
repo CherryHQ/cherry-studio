@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import { resolve as resolvePath } from 'node:path'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parsePluginMetadata, parseSkillMetadata } from '../markdownParser'
 
@@ -43,6 +43,10 @@ Body`
       }
       return pluginContent
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('throws an Error with metadata when the skill folder path is invalid', async () => {
@@ -171,7 +175,7 @@ Body`)
       logContext: { filePath: resolvePath('/abs/plugin.md') },
       recoveredName: 'bad-plugin'
     }
-  ])('$api line endings', ({ api, read, malformed, failure, logContext, recoveredName }) => {
+  ])('$api frontmatter', ({ api, read, malformed, failure, logContext, recoveredName }) => {
     function expectNoRecovery() {
       for (const message of [
         'Failed to parse SKILL.md frontmatter, attempting recovery',
@@ -181,6 +185,33 @@ Body`)
         expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(message, expect.any(Object))
       }
     }
+
+    it.each(['javascript', 'js', 'JAVASCRIPT', 'JS'])('does not execute %s frontmatter', async (language) => {
+      const execute = vi.fn(() => 'executed-frontmatter')
+      vi.stubGlobal('__cherryFrontmatterProbe', execute)
+      vi.mocked(fs.promises.readFile).mockResolvedValue(
+        `---${language}\n({ name: globalThis.__cherryFrontmatterProbe(), tools: ['Read'] })\n---\nBody`
+      )
+
+      const metadata = await read()
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(metadata.name).toBe(api === 'skill' ? 'skill' : 'plugin')
+      expect(metadata.tools).toBeUndefined()
+    })
+
+    it.each([
+      { language: 'yaml', block: 'name: data-only\ntools: [Read, Grep]' },
+      { language: 'yml', block: 'name: data-only\ntools: [Read, Grep]' },
+      { language: 'json', block: '{"name":"data-only","tools":["Read","Grep"]}' }
+    ])('continues parsing $language frontmatter', async ({ language, block }) => {
+      vi.mocked(fs.promises.readFile).mockResolvedValue(`---${language}\n${block}\n---\nBody`)
+
+      const metadata = await read()
+
+      expect(metadata).toMatchObject({ name: 'data-only', tools: ['Read', 'Grep'] })
+      expectNoRecovery()
+    })
 
     describe.each([
       { encoding: 'CRLF', eol: '\r\n' },
