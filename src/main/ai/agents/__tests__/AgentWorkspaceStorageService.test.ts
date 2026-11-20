@@ -102,6 +102,55 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     expect(await output()).toBe('recoverable output')
   })
 
+  it('can retry a failed checkpoint only when admission never granted storage access', async () => {
+    vi.spyOn(storage, 'syncWorkspaceStorageDirectory').mockRejectedValueOnce(new Error('disk full'))
+    await expect(
+      service.acquireUsage({ sessionId: workspace.id, cwd: root, owner: { kind: 'runtime', contextId: 'rejected' } })
+    ).rejects.toThrow('disk full')
+    const [record] = await service.listUnconfirmedUsage(workspace.id)
+    expect(await service.cleanupStatus()).toEqual({ count: 1, recoveryFailed: true })
+    expect(await service.discardFailedAdmission(record.id)).toBe(true)
+    expect(await service.cleanupStatus()).toEqual({ count: 0, recoveryFailed: false })
+    const admitted = await service.acquireUsage({
+      sessionId: workspace.id,
+      cwd: root,
+      owner: { kind: 'runtime', contextId: 'retry' }
+    })
+    await service.releaseUsage(admitted)
+    expect(
+      await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    ).toContain(workspace.path)
+  })
+
+  it('keeps repeated cleanup waits pending until the same durable release completes', async () => {
+    const id = await service.acquireUsage({
+      sessionId: workspace.id,
+      cwd: root,
+      owner: { kind: 'runtime', contextId: 'live' }
+    })
+    const entered = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    const sync = storage.syncWorkspaceStorageDirectory
+    vi.spyOn(storage, 'syncWorkspaceStorageDirectory').mockImplementationOnce(async (directory) => {
+      entered.resolve()
+      await finish.promise
+      await sync(directory)
+    })
+    const first = service.releaseUsage(id)
+    await entered.promise
+    let settled = false
+    const second = service.releaseUsage(id).then(() => {
+      settled = true
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+    finish.resolve()
+    await Promise.all([first, second])
+    expect(
+      await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+    ).toContain(workspace.path)
+  })
+
   beforeEach(async () => {
     BaseService.resetInstances()
     service = new AgentWorkspaceStorageService()

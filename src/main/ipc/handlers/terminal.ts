@@ -23,6 +23,22 @@ function resourceRef(input: { host: { conversationId: string; generation: string
 }
 
 export const terminalHandlers: IpcHandlersFor<typeof terminalRequestSchemas> = {
+  'terminal.shells': async (_input, { senderId }) => {
+    owner(senderId)
+    return service().availableShells()
+  },
+  'terminal.cleanup.status': async (_input, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentWorkspaceStorageService').cleanupStatus()
+  },
+  'terminal.cleanup.list': async (_input, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentWorkspaceStorageService').listUnconfirmedUsage()
+  },
+  'terminal.cleanup.retry': async ({ id }, { senderId }) => {
+    owner(senderId)
+    return application.get('AgentLifecycleService').retryWorkspaceCleanup(id)
+  },
   'terminal.list': async ({ sessionId, selectedId }, { senderId }) => {
     owner(senderId)
     agentSessionService.getById(sessionId)

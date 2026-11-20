@@ -3507,6 +3507,17 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
+  async retryWorkspaceCleanup(usageId: string): Promise<boolean> {
+    for (const [sessionId, connections] of this.failedClosures) {
+      for (const connection of connections) {
+        if (this.workspaceUsage.get(connection) !== usageId) continue
+        await this.closeRuntimeConnection(connection, sessionId, true)
+        return true
+      }
+    }
+    return false
+  }
+
   private async closeRuntimeConnection(
     connection: AgentRuntimeConnection | undefined,
     sessionId: string,

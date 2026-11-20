@@ -63,6 +63,34 @@ describe.skipIf(process.platform === 'win32')('native terminal tool adapters', (
     expect(second).toMatchObject({ structuredContent: { exit_code: 0, output: `STATE:absent\n${root}\n` } })
     expect(service.list(tools.conversationId)).toHaveLength(2)
   })
+  it('exposes a pending native Bash call for promotion before its result settles', async () => {
+    const tool = await bash()
+    const abort = new AbortController()
+    let settled = false
+    const result = tool.execute('live-bash', { command: 'printf LIVE; sleep 60' }, abort.signal, undefined, context)
+    void result.finally(() => {
+      settled = true
+    })
+    await vi.waitFor(() =>
+      expect(
+        service.listForView(tools.conversationId).resources.find((item) => item.toolCallId === 'live-bash')?.process
+          .kind
+      ).toBe('running')
+    )
+    expect(settled).toBe(false)
+    const resource = service.list(tools.conversationId)[0]
+    await service.mutate(
+      { host: resource.host, id: resource.id },
+      { kind: 'promote', id: resource.id, context: resource.context, cancelRevision: resource.cancelRevision }
+    )
+    expect(await result).toMatchObject({ structuredContent: { status: 'running', execution_id: resource.id } })
+    abort.abort()
+    expect(service.listForView(tools.conversationId).resources[0]).toMatchObject({
+      toolCallId: 'live-bash',
+      process: { kind: 'running' },
+      retention: { kind: 'session' }
+    })
+  })
   it('returns a typed running receipt and survives cancellation of its former foreground signal', async () => {
     const tool = await bash()
     const abort = new AbortController()

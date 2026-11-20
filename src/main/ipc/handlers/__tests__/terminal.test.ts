@@ -61,6 +61,31 @@ describe.skipIf(process.platform === 'win32')('terminal IPC with native scopes a
     if (receipt.kind !== 'resource') throw new Error('Terminal failed to open')
     return receipt.resource
   }
+  it('keeps old cleanup discoverable and refuses to stop a replacement generation', async () => {
+    const terminal = await open()
+    const storage = application.get('AgentWorkspaceStorageService')
+    const id = await storage.acquireUsage({
+      sessionId: session.id,
+      cwd: session.workspace.path,
+      owner: {
+        kind: 'terminal',
+        resourceId: terminal.id,
+        generation: crypto.randomUUID()
+      }
+    })
+    storage.markUsageUnconfirmed(id)
+    expect(await terminalHandlers['terminal.cleanup.status']({}, owner)).toMatchObject({ count: 1 })
+    expect(await terminalHandlers['terminal.cleanup.list']({}, owner)).toMatchObject([{ id }])
+    await expect(terminalHandlers['terminal.cleanup.retry']({ id }, owner)).resolves.toEqual({ status: 'unavailable' })
+    expect(
+      service.list(terminalConversationId.parse(session.id)).find((item) => item.id === terminal.id)
+    ).toMatchObject({
+      host: terminal.host,
+      process: { kind: 'running' },
+      control: { kind: 'user' }
+    })
+    expect(await terminalHandlers['terminal.cleanup.status']({}, owner)).toMatchObject({ count: 1 })
+  })
   it('switches workspace while preserving the old terminal and protecting both resource scopes', async () => {
     expect(existsSync(session.workspace.path)).toBe(false)
     const terminal = await open()

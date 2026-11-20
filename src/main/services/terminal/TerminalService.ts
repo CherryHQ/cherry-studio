@@ -12,7 +12,7 @@ import { findExecutableInEnv, autoDiscoverGitBash } from '@main/utils/commandRes
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { terminalViewAction } from '@shared/ipc/schemas/terminal'
 import type { WindowId } from '@shared/ipc/types'
-import type { TerminalViewFrame, GhosttyTheme } from '@shared/types/terminal'
+import type { TerminalViewFrame, GhosttyTheme, TerminalResourceView } from '@shared/types/terminal'
 
 import {
   terminalConversationId,
@@ -55,6 +55,7 @@ interface Execution {
   ref: TerminalResourceRef
   kind: TerminalLaunch['kind']
   state?: TerminalResourceState
+  toolCallId?: string
   usageId?: string
   output: TerminalCapture
   ready: Promise<TerminalReceipt>
@@ -115,6 +116,28 @@ export class TerminalService extends BaseService {
   protected onInit(): void {
     this.registerDisposable(this.changes)
     application.get('UtilityProcessManager').register(definition)
+  }
+
+  async availableShells(): Promise<Array<'bash' | 'powershell'>> {
+    const env = await getShellEnv()
+    const configured = path
+      .basename(
+        env.SHELL ||
+          process.env.SHELL ||
+          (process.platform === 'win32' ? 'powershell' : process.platform === 'darwin' ? 'zsh' : 'bash')
+      )
+      .replace(/\.exe$/i, '')
+      .toLowerCase()
+    const bash =
+      process.platform === 'win32'
+        ? (autoDiscoverGitBash() ?? (await findExecutableInEnv('bash', { env })))
+        : await findExecutableInEnv('bash', { env })
+    const powershell =
+      (await findExecutableInEnv('pwsh', { env })) ?? (await findExecutableInEnv('powershell', { env }))
+    return [
+      ...(bash && configured !== 'bash' ? ['bash' as const] : []),
+      ...(powershell && configured !== 'pwsh' && configured !== 'powershell' ? ['powershell' as const] : [])
+    ]
   }
 
   async createUserTerminal(
@@ -346,6 +369,7 @@ export class TerminalService extends BaseService {
     const execution: Execution = {
       ref: { id, host: { conversationId: conversation.id, generation: terminalGeneration.parse(randomUUID()) } },
       kind: launch.kind,
+      ...(launch.kind === 'pipe' && { toolCallId: input.replayKey }),
       output: new TerminalCapture(64 * 1024),
       ready: completion.promise,
       onOutput: input.onOutput
@@ -413,7 +437,7 @@ export class TerminalService extends BaseService {
           host.resources.delete(id)
           await application.get('AgentWorkspaceStorageService').releaseUsage(execution.usageId)
         }
-        this.releaseCleanedUsage(execution)
+        this.updateUsage(execution)
         return receipt
       } catch (error) {
         if (!submitted) {
@@ -536,7 +560,10 @@ export class TerminalService extends BaseService {
   }
 
   listForView(conversationId: TerminalConversationId, selectedId?: string) {
-    const all = this.list(conversationId)
+    const all: TerminalResourceView[] = this.list(conversationId).map((resource) => ({
+      ...resource,
+      toolCallId: this.conversations.get(conversationId)?.executions.get(resource.id)?.toolCallId
+    }))
     const priority = [
       ...all.filter((item) => item.id === selectedId),
       ...all.filter((item) => item.cleanup !== 'confirmed'),
@@ -799,8 +826,11 @@ export class TerminalService extends BaseService {
     return host.instance.request('link', { ...view.ref, viewId, ...input })
   }
 
-  private releaseCleanedUsage(execution: Execution): void {
-    if (execution.state?.cleanup !== 'confirmed' || !execution.usageId) return
+  private updateUsage(execution: Execution): void {
+    if (!execution.usageId) return
+    if (execution.state?.cleanup === 'unconfirmed' || execution.state?.process.kind === 'lost')
+      application.get('AgentWorkspaceStorageService').markUsageUnconfirmed(execution.usageId)
+    if (execution.state?.cleanup !== 'confirmed') return
     const id = execution.usageId
     execution.usageId = undefined
     void application
@@ -838,7 +868,7 @@ export class TerminalService extends BaseService {
         const execution = conversation.executions.get(receipt.resource.id)
         if (execution && (!execution.state || execution.state.revision <= receipt.resource.revision))
           execution.state = receipt.resource
-        if (execution) this.releaseCleanedUsage(execution)
+        if (execution) this.updateUsage(execution)
         this.changes.fire(conversation.id)
       }
       return receipt
@@ -926,7 +956,7 @@ export class TerminalService extends BaseService {
               if (state.host.generation !== identity.generation || state.id !== id)
                 throw new Error('Terminal observation identity mismatch')
               if (!execution.state || execution.state.revision <= state.revision) execution.state = state
-              this.releaseCleanedUsage(execution)
+              this.updateUsage(execution)
               if (state.cleanup === 'confirmed' && state.outputCursor === execution.output.cursor) {
                 if (state.kind === 'pty' && !execution.screen) {
                   try {
@@ -997,6 +1027,7 @@ export class TerminalService extends BaseService {
           revision: execution.state.revision + 1
         }
     }
+    for (const execution of conversation.executions.values()) this.updateUsage(execution)
     logger.error('Terminal Host lost; cleanup remains unconfirmed', { error, host: host.identity })
     this.changes.fire(conversation.id)
     host.retirement = this.retire(conversation, host)
