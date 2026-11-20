@@ -231,6 +231,11 @@ interface WireRegistration {
 }
 ```
 
+The engine and rule callbacks use the catalog-derived `ParamValues` contract.
+The separate vendor passthrough bag stays opaque because it may carry runtime
+callbacks. Its legacy filter removes top-level functions, symbols and undefined;
+it does not recursively validate the remaining extension values.
+
 A profile declares **which** canonical params ride in the body; the **name**
 comes from `wireName`. Delivery (which key(s), passthrough, sibling, nesting) is
 the registration's job — not the profile's, and never a repeated rename. Providers

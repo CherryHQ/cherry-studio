@@ -1,11 +1,10 @@
 import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 
-import { wireName } from '@cherrystudio/provider-registry'
+import { type ParamValues, wireName } from '@cherrystudio/provider-registry'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic parameter bags can include callbacks; omit only the explicit empty sentinels before provider mapping.
-function skipValue(value: unknown): boolean {
+function skipValue(value: ParamValues[keyof ParamValues] | null): value is undefined | null | '' | 'auto' {
   return value === undefined || value === '' || value === null || value === 'auto'
 }
 
@@ -42,24 +41,22 @@ function mergeContribution(body: JSONObject, contribution: JSONObject): void {
  * `aspectRatio`) are routed elsewhere except where a profile re-declares one in
  * the body (silicon duplicates `seed`; google nests `aspectRatio`/`size`).
  */
-export function buildImageRequest(
-  paramValues: Record<string, unknown>,
-  profile: WireProfile
-): Record<string, JSONValue> {
+export function buildImageRequest(paramValues: ParamValues, profile: WireProfile): Record<string, JSONValue> {
+  const values: Record<string, ParamValues[keyof ParamValues]> = paramValues
   const body: Record<string, JSONValue> = {}
   for (const key of profile.forward ?? []) {
-    const value = paramValues[key]
+    const value = values[key]
     if (skipValue(value)) continue
-    body[wireName(key)] = value as JSONValue
+    body[wireName(key)] = value
   }
   for (const [key, rule] of Object.entries(profile.fields ?? {})) {
     if (!rule) continue
-    const value = paramValues[key]
+    const value = values[key]
     if (skipValue(value)) continue
     if (rule.contribute) {
       mergeContribution(body, rule.contribute(value, paramValues))
     } else if (rule.to) {
-      body[rule.to] = rule.map ? rule.map(value, paramValues) : (value as JSONValue)
+      body[rule.to] = rule.map ? rule.map(value, paramValues) : value
     }
   }
   return body
@@ -68,10 +65,11 @@ export function buildImageRequest(
 /**
  * Forward vendor-bag fields the profile doesn't map (SiliconFlow Qwen-Image's
  * `cfg`, …). The bag may also carry non-JSON callbacks that ride the plugin chain
- * off-band (the polling `onProgress`); skip anything not JSON-serializable rather
- * than leak it into the body. Mirrors imageOptions' `jsonBagFields` so the
- * `passthrough` path is byte-identical to the legacy `diffusion` emitter.
+ * off-band (the polling `onProgress`). Skip top-level functions, symbols and
+ * undefined; remaining values keep their downstream SDK/serialization behavior.
+ * Mirrors the legacy `diffusion` emitter's `jsonBagFields` filter.
  */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Vendor extensions may include runtime callbacks; retain the existing top-level filter before downstream serialization.
 function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
   const out: Record<string, JSONValue> = {}
   for (const [k, v] of Object.entries(bag)) {
@@ -83,9 +81,9 @@ function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
 
 /** The vendor-bag entries the profile does NOT map (via `forward` or `fields`) —
  *  what `passthrough` forwards. */
-function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProfile): Record<string, unknown> {
+function passthroughExtras<T>(vendorBag: Record<string, T>, profile: WireProfile): Record<string, T> {
   const mapped = new Set<string>([...(profile.forward ?? []), ...Object.keys(profile.fields ?? {})])
-  const out: Record<string, unknown> = {}
+  const out: Record<string, T> = {}
   for (const [k, v] of Object.entries(vendorBag)) {
     if (!mapped.has(k)) out[k] = v
   }
@@ -109,8 +107,9 @@ function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProf
  */
 export function buildVendorProviderOptions(
   providerId: string,
-  paramValues: Record<string, unknown>,
+  paramValues: ParamValues,
   registration: WireRegistration,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unmapped provider extensions and callbacks stay opaque until the passthrough filter and SDK/serialization boundary.
   vendorBag: Record<string, unknown> = {}
 ): Record<string, Record<string, JSONValue>> {
   const mapped = buildImageRequest(paramValues, registration.profile)

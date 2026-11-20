@@ -14,6 +14,7 @@ import type { JSONValue } from 'ai'
  * {@link WireRegistration} (`dualOpenAI` / `passthrough`) + the adapter
  * (`buildVendorProviderOptions`).
  */
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
@@ -29,13 +30,11 @@ export interface WireRule {
   /** Literal wire field name (overrides `wireName(key)`). Omit when using `contribute`. */
   to?: string
   /** Value transform for the `to` field; may read sibling params via `all`. */
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Canonical parameter bags are dynamically keyed; each provider mapping interprets its field and produces a JSON wire value.
-  map?: (value: unknown, all: Record<string, unknown>) => JSONValue
+  map?: (value: NonNullable<ParamValues[CanonicalParamKey]>, all: ParamValues) => JSONValue
   /** One-to-many / nested escape hatch: return a partial body merged into the
    *  result (nested plain objects are deep-merged, e.g. google's `imageConfig`
    *  assembled from `aspectRatio` + `size`). Mutually exclusive with `to`/`map`. */
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested/one-to-many mappings receive raw canonical values and sibling parameters; a single scalar domain would misrepresent the supported vendor fields.
-  contribute?: (value: unknown, all: Record<string, unknown>) => Record<string, JSONValue>
+  contribute?: (value: NonNullable<ParamValues[CanonicalParamKey]>, all: ParamValues) => Record<string, JSONValue>
 }
 
 export interface WireProfile {
@@ -70,12 +69,11 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   fields: {
     outputFormat: { to: 'outputFormat' },
     frameCount: {
-      contribute: (value, all): Record<string, JSONValue> =>
-        all.outputFormat === 'gif' ? { frameCount: value as JSONValue } : {}
+      contribute: (value, all): Record<string, JSONValue> => (all.outputFormat === 'gif' ? { frameCount: value } : {})
     },
     frameDurationMs: {
       contribute: (value, all): Record<string, JSONValue> =>
-        all.outputFormat === 'gif' ? { frameDurationMs: value as JSONValue } : {}
+        all.outputFormat === 'gif' ? { frameDurationMs: value } : {}
     }
   }
 }
@@ -99,7 +97,7 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
     outputCompression: {
       contribute: (value, all): Record<string, JSONValue> => {
         if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
-          return { output_compression: value as JSONValue }
+          return { output_compression: value }
         }
         return {}
       }
@@ -172,7 +170,7 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
     // Gemini image models expose `imageResolution` (1K/2K/4K); Imagen/legacy expose
     // `size`. Both land in `imageConfig.imageSize`. (A model exposes one or the other.)
     imageResolution: imageResolutionImageConfigRule,
-    size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
+    size: { contribute: (v) => ({ imageConfig: { imageSize: v } }) }
   }
 }
 
