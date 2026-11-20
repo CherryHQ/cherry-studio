@@ -7,6 +7,40 @@ import { createNewApi } from '../newapiProvider'
 const IMAGE = 'data:image/png;base64,iVBORw0KGgo='
 
 describe('image chat history', () => {
+  it('replays a signature-only OpenRouter assistant envelope alongside its image', async () => {
+    const details = [{ type: 'reasoning.text', format: 'google-gemini-v1', signature: 'test-signature' }]
+    const requests: { messages: unknown[] }[] = []
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({
+        id: 'signed-turn',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'Done' }, finish_reason: 'stop' }]
+      })
+    })
+    const model = createOpenRouter({ apiKey: 'test', fetch }).chat('google/gemini-image')
+
+    await model.doGenerate({
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'Draw a cat' }] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'reasoning', text: '', providerOptions: { openrouter: { reasoning_details: details } } },
+            { type: 'file', mediaType: 'image/png', data: new URL(IMAGE) }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'Make its background blue' }] }
+      ]
+    })
+
+    expect(requests[0].messages).toEqual([
+      { role: 'user', content: 'Draw a cat' },
+      { role: 'assistant', content: null, reasoning_details: details },
+      { role: 'user', content: [{ type: 'image_url', image_url: { url: IMAGE } }] },
+      { role: 'user', content: 'Make its background blue' }
+    ])
+  })
+
   it.each(['openrouter', 'newapi'] as const)(
     'keeps tool results adjacent to their %s call when replaying images',
     async (provider) => {

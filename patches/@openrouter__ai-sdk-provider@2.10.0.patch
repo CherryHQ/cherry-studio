@@ -158,7 +158,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..419c5736e31f1997c52c68de39d749e7
 -          annotations: messageAnnotations,
 -          cache_control: getCacheControl(providerOptions)
 -        });
-+        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++        if (text || reasoning || finalReasoningDetails?.length || toolCalls.length > 0 || images.length === 0) {
 +          messages.push({
 +            role: "assistant",
 +            content: text || null,
@@ -353,7 +353,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..ecbb8735062a46d6967f9ce20fa6a886
 -          annotations: messageAnnotations,
 -          cache_control: getCacheControl(providerOptions)
 -        });
-+        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++        if (text || reasoning || finalReasoningDetails?.length || toolCalls.length > 0 || images.length === 0) {
 +          messages.push({
 +            role: "assistant",
 +            content: text || null,

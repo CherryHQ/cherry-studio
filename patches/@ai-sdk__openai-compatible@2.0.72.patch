@@ -81,12 +81,12 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..fa75ab52b8ed49d4fe4c83912fb22001
      }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
-+        const match1 = image.image_url.url.match(/^data:([^;]+)/);
-+        const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++        const match = image.image_url.url.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/i);
++        if (!match) continue;
 +        content.push({
 +          type: 'file',
-+          mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
-+          data: match2 ? match2[1] : image.image_url.url,
++          mediaType: match[1],
++          data: match[2],
 +        });
 +      }
 +    }
@@ -99,12 +99,12 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..fa75ab52b8ed49d4fe4c83912fb22001
              }
 +            if (delta.images) {
 +              for (const image of delta.images) {
-+                const match1 = image.image_url.url.match(/^data:([^;]+)/);
-+                const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++                const match = image.image_url.url.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/i);
++                if (!match) continue;
 +                controller.enqueue({
 +                  type: 'file',
-+                  mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
-+                  data: match2 ? match2[1] : image.image_url.url,
++                  mediaType: match[1],
++                  data: match[2],
 +                });
 +              }
 +            }
@@ -348,12 +348,12 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..1b03039666545b7af2779f391851d509
      }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
-+        const match1 = image.image_url.url.match(/^data:([^;]+)/);
-+        const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++        const match = image.image_url.url.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/i);
++        if (!match) continue;
 +        content.push({
 +          type: 'file',
-+          mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
-+          data: match2 ? match2[1] : image.image_url.url,
++          mediaType: match[1],
++          data: match[2],
 +        });
 +      }
 +    }
@@ -366,12 +366,12 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..1b03039666545b7af2779f391851d509
              }
 +            if (delta.images) {
 +              for (const image of delta.images) {
-+                const match1 = image.image_url.url.match(/^data:([^;]+)/);
-+                const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++                const match = image.image_url.url.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/i);
++                if (!match) continue;
 +                controller.enqueue({
 +                  type: 'file',
-+                  mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
-+                  data: match2 ? match2[1] : image.image_url.url,
++                  mediaType: match[1],
++                  data: match[2],
 +                });
 +              }
 +            }
