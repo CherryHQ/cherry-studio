@@ -1,4 +1,4 @@
-import type { JSONObject, LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { JSONObject, JSONValue, LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { isPlainObject } from 'es-toolkit'
 
@@ -24,10 +24,9 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
   if (!isPlainObject(usage) || !isPlainObject(usage.raw)) return usage
 
   const { raw } = usage
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider-specific raw usage fields are unvalidated; only numeric values enter cache-bucket reconciliation.
-  const toCount = (value: unknown) => (typeof value === 'number' ? value : undefined)
-  const details = isPlainObject(raw.prompt_tokens_details)
-    ? (raw.prompt_tokens_details as Record<string, unknown>)
+  const toCount = (value: JSONValue | undefined) => (typeof value === 'number' ? value : undefined)
+  const details: JSONObject | undefined = isPlainObject(raw.prompt_tokens_details)
+    ? raw.prompt_tokens_details
     : undefined
   const rawRead =
     toCount(raw.cache_read_input_tokens) ?? toCount(details?.cached_tokens) ?? toCount(details?.cache_read_tokens)

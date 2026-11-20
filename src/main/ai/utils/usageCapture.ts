@@ -30,7 +30,7 @@ export interface CreateAiUsageCaptureContextInput {
 
 function deepFreeze<T>(value: T): Readonly<T> {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested)
+    for (const nested of Object.values(value)) deepFreeze(nested)
     Object.freeze(value)
   }
   return value

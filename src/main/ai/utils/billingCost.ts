@@ -1,3 +1,4 @@
+import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import * as z from 'zod'
 
 import { CURRENCY, type Currency, objectValues } from '@shared/data/types/model'
@@ -28,7 +29,7 @@ const ProviderCostSchema = z.union([
   })
 ])
 
-function carriesCurrency(raw: Record<string, unknown> | undefined): boolean {
+function carriesCurrency(raw: LanguageModelV3Usage['raw']): boolean {
   if (!raw) return false
   if ('currency' in raw) return true
   const usage = raw.usage
@@ -36,7 +37,7 @@ function carriesCurrency(raw: Record<string, unknown> | undefined): boolean {
 }
 
 export function extractProviderCostWithCurrency(
-  raw: Record<string, unknown> | undefined,
+  raw: LanguageModelV3Usage['raw'],
   reportedCostCurrency?: Currency | null
 ): { amount: number; currency: Currency } | undefined {
   const withCurrency = ProviderCostWithCurrencySchema.safeParse(raw)
