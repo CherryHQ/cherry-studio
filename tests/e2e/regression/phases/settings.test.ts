@@ -30,7 +30,6 @@ import { ctrlWheelZoom } from '../scenarios/ctrlWheelZoom'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
 import { fontsAndZoom } from '../scenarios/fontsAndZoom'
 import { longUserMessageExpansion } from '../scenarios/longUserMessageExpansion'
-import { mp06SettingsPersistence } from '../scenarios/mp06SettingsPersistence'
 import { networkProxySettings } from '../scenarios/networkProxySettings'
 import { notificationSettings } from '../scenarios/notificationSettings'
 
