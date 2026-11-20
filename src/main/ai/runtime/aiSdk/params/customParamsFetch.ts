@@ -1,3 +1,4 @@
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
 import { isCustomProviderNamespace } from '../../../utils/options'
@@ -5,7 +6,7 @@ import { isCustomProviderNamespace } from '../../../utils/options'
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
 const customParamsFetchCache = new WeakMap<typeof globalThis.fetch, Map<string, typeof globalThis.fetch>>()
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: JSONValue): value is JSONObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
@@ -13,11 +14,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Keep flat custom parameters for HTTP-body passthrough while excluding
  * provider-scoped option bags that only belong inside `providerOptions`.
  */
-export function selectCustomBodyParameters(
-  providerParams: Record<string, unknown>,
+export function selectCustomBodyParameters<T>(
+  providerParams: Record<string, T>,
   providerOptions: ProviderOptions,
   rawProviderId: string
-): Record<string, unknown> {
+): Record<string, T> {
   return Object.fromEntries(
     Object.entries(providerParams).filter(([key]) => !isCustomProviderNamespace(key, providerOptions, rawProviderId))
   )
@@ -29,6 +30,7 @@ export function selectCustomBodyParameters(
  */
 export function createCustomParamsFetch(
   innerFetch: typeof globalThis.fetch,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- JSON.stringify owns omission, toJSON conversion and errors for raw user-defined values.
   customParams: Record<string, unknown>
 ): typeof globalThis.fetch {
   if (Object.keys(customParams).length === 0) return innerFetch
@@ -47,10 +49,12 @@ export function createCustomParamsFetch(
     return cachedFetch
   }
 
+  // SAFETY: Parsed JSON is consumed only as an object-spread source, which also accepts scalar roots.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- A top-level toJSON may return scalar JSON; preserve the existing spread semantics.
   const customParamsSnapshot = JSON.parse(serializedCustomParams) as Record<string, unknown>
   const wrappedFetch: typeof globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method?.toUpperCase() === 'POST' && typeof init.body === 'string') {
-      let body: unknown
+      let body: JSONValue
       try {
         body = JSON.parse(init.body)
       } catch {
