@@ -1,3 +1,4 @@
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -324,6 +325,8 @@ export type SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
+  // Live audio/video analysis stage of a reply whose attachments are being prepared, main -> all windows.
+  'message.media_analysis.${messageId}': MediaAnalysisProgress | null
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -408,6 +411,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': {},
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
+  'message.media_analysis.${messageId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',

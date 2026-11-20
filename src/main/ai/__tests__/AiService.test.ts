@@ -16,6 +16,7 @@ import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as AttachmentRoutingModule from '../messages/attachmentRouting'
+import type { PrepareChatContext } from '../messages/attachmentRouting'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import type { BuiltAgentParams } from '../runtime/aiSdk/params/buildAgentParams'
@@ -2251,6 +2252,45 @@ describe('AiService tool approval', () => {
           }
         })
       )
+    } finally {
+      mockPrepareChatMessages.mockReset()
+    }
+  })
+
+  it('clears the reply media analysis status when preparing an attachment fails', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+    mockPrepareChatMessages.mockImplementation(async (_messages, context: PrepareChatContext) => {
+      context.onMediaProgress?.({ stage: 'transcribing' })
+      throw new Error('unusable_media_analysis')
+    })
+    const statuses: unknown[] = []
+
+    try {
+      await expect(
+        service.streamText({
+          conversation: { id: 'conversation-1', topicId: 'topic-1' },
+          trigger: 'submit-message',
+          messages: [],
+          requestOptions: { signal: new AbortController().signal },
+          mediaAnalysisSink: (progress) => statuses.push(progress)
+        })
+      ).rejects.toThrow('unusable_media_analysis')
+
+      expect(statuses).toEqual([{ stage: 'transcribing' }, null])
     } finally {
       mockPrepareChatMessages.mockReset()
     }

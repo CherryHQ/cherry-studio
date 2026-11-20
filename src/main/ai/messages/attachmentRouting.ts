@@ -37,6 +37,7 @@ import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -143,6 +144,8 @@ export interface PrepareChatContext {
    * has the file reference.
    */
   keepUnroutableFileParts?: boolean
+  /** Live stage of an audio/video analysis, so the reply can show it before the model stream opens. */
+  onMediaProgress?: (progress: MediaAnalysisProgress) => void
   signal?: AbortSignal
 }
 
@@ -220,14 +223,16 @@ async function extractNonNativeText(
   handle: string,
   chatModelId: UniqueModelId | undefined,
   stopOnMediaFailure: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onMediaProgress?: (progress: MediaAnalysisProgress) => void
 ): Promise<{ text: string; continuation: 'full' | 'prefix' }> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     try {
       return {
-        text: await application
-          .get('MediaAnalysisService')
-          .analyzeToCompactText({ kind: 'entry', entryId }, signal, { fallbackVisionModelId: chatModelId }),
+        text: await application.get('MediaAnalysisService').analyzeToCompactText({ kind: 'entry', entryId }, signal, {
+          fallbackVisionModelId: chatModelId,
+          onProgress: onMediaProgress
+        }),
         continuation: 'full'
       }
     } catch (error) {
@@ -410,7 +415,8 @@ async function prepareChatMessage<T extends UIMessage>(
         handle,
         ctx.chatModelId,
         isCurrentTurn,
-        ctx.signal
+        ctx.signal,
+        ctx.onMediaProgress
       )
       defer(kept, pending, handle, extracted.text, extracted.continuation)
     } catch (error) {

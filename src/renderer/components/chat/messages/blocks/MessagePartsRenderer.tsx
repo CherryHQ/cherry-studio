@@ -85,6 +85,7 @@ import { ImportedStatusBlock } from './ImportedStatusBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import MessageCompactionStatus from './MessageCompactionStatus'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
+import MessageMediaAnalysisStatus from './MessageMediaAnalysisStatus'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -1831,7 +1832,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // back to it otherwise.
       return (
         <AnimatePresence mode="sync">
-          <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
+          <MessageCompactionStatus
+            messageId={message.id}
+            fallback={
+              <MessageMediaAnalysisStatus
+                messageId={message.id}
+                fallback={<ActiveTurnStatusView fallback={placeholder} />}
+              />
+            }
+          />
         </AnimatePresence>
       )
     }
