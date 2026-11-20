@@ -359,6 +359,32 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
+  it('retains each successful edit through parallel hard-link aliases', async () => {
+    const target = join(directory, 'parallel.md')
+    const alias = join(directory, 'alias.md')
+    writeFileSync(target, 'one two')
+    linkSync(target, alias)
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('first', 'edit', { path: target, edits: [{ oldText: 'one', newText: 'ONE' }] }),
+          toolCallPart('second', 'edit', { path: alias, edits: [{ oldText: 'two', newText: 'TWO' }] })
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Edit both paths') })
+    await done(events)
+    const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+    expect(results).toHaveLength(2)
+    const content = readFileSync(target, 'utf8')
+    const succeeded = results.filter((result) => !result.isError)
+    expect(succeeded.length).toBeGreaterThan(0)
+    for (const result of succeeded) expect(content).toContain(result.toolCallId === 'first' ? 'ONE' : 'TWO')
+  })
+
   it('writes through the handle that was checked when the directory entry is replaced', async () => {
     const { NodeExecutionEnv } = await import('@earendil-works/pi-durable/env/node')
     const target = join(directory, 'selected.md')

@@ -1,11 +1,26 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { Context } from '@earendil-works/chord/context'
 import type { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
+import { Mutex } from 'async-mutex'
 
 import { assertNotMemoryHardLink, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { canonicalizePathForContainment } from '@main/utils/file'
+
+type Mutation = { identity?: string; release?: () => void }
+const mutation = new AsyncLocalStorage<Mutation>()
+const fileLocks = new Map<string, Mutex>()
+
+export async function runDurableFileMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const state: Mutation = {}
+  try {
+    return await mutation.run(state, operation)
+  } finally {
+    state.release?.()
+  }
+}
 
 /** Check the actual file used by native read, write and edit, after Pi selects its filename variant. */
 export async function createDurableEnvironment(options: ConstructorParameters<typeof NodeExecutionEnv>[0]) {
@@ -43,6 +58,21 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
       if (opened.ino === 0n) throw new Error('The file has no verifiable identity')
       if (!opened.isFile() || (await memoryTarget(file)))
         throw new Error('Use the memory editor for managed memory files')
+      const active = mutation.getStore()
+      if (active) {
+        const identity = `${opened.dev}:${opened.ino}`
+        if (active.identity && active.identity !== identity) throw new Error('File identity changed during edit')
+        if (!active.identity) {
+          const lock = fileLocks.get(identity) ?? new Mutex()
+          fileLocks.set(identity, lock)
+          const release = await lock.acquire()
+          active.identity = identity
+          active.release = () => {
+            release()
+            if (!lock.isLocked()) fileLocks.delete(identity)
+          }
+        }
+      }
       await assertNotMemoryHardLink(opened)
       const current = await stat(file, { bigint: true })
       if (

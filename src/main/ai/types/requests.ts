@@ -89,6 +89,7 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   /** Minted only by the persistent chat owner; absent for temporary, auxiliary, and headless requests. */
+  memoryHistoryTopicId?: string
   memoryContext?: { topicId: string; assistantId: string }
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
