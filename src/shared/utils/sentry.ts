@@ -15,6 +15,7 @@ export function getSentryBuildContext(name: string, version: string, edition: Ap
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Log entries carry arbitrary error/context values; failure facts and selected report tags are validated below.
 export function getSentryLogContext(info: Record<string, unknown>) {
   const data = Array.isArray(info.data) ? info.data : []
   const failure = parseFailureFacts(info.failure ?? data.find((item) => item?.failure)?.failure)

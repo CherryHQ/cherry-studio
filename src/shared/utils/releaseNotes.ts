@@ -1,5 +1,7 @@
 import { rcompare as compareSemverDescending, valid } from 'semver'
 
+import type { Serializable } from '../types/serializable'
+
 const RELEASE_NOTE_MARKERS = {
   english: '<!--LANG:en-->',
   chinese: '<!--LANG:zh-CN-->',
@@ -25,7 +27,7 @@ function hasCompleteLanguageMarkers(releaseNotes: string): boolean {
 }
 
 export function parseReleaseHistory(source: string): ReleaseNotesEntry[] {
-  let value: unknown
+  let value: Serializable
   try {
     value = JSON.parse(source)
   } catch {
@@ -47,7 +49,7 @@ export function parseReleaseHistory(source: string): ReleaseNotesEntry[] {
       throw new Error(`release-history.json entry ${index} must contain only version and releaseNotes`)
     }
 
-    const { releaseNotes, version } = entry as Record<string, unknown>
+    const { releaseNotes, version } = entry
     if (typeof version !== 'string' || !STABLE_RELEASE_VERSION_PATTERN.test(version)) {
       throw new Error(`release-history.json entry ${index} must have a stable semantic version`)
     }
