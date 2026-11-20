@@ -348,6 +348,22 @@ describe('serializeError', () => {
     expect(serialized.providerErrorCategory).toBe('rate_limit')
   })
 
+  it('keeps rate-limit text over an adapter fallback 500 and still reports a genuine 500', () => {
+    const limited = serializeError({ message: 'Too many requests', code: null, statusCode: 500 })
+    expect(limited.statusCode).toBeUndefined()
+    expect(limited.providerErrorCategory).toBe('rate_limit')
+    const genuine = serializeError({ message: 'Internal server error', code: null, statusCode: 500 })
+    expect(genuine.statusCode).toBe(500)
+    expect(genuine.providerErrorCategory).toBe('server')
+  })
+
+  it('classifies a context-limit message longer than 500 characters despite a fallback 500', () => {
+    const message = `Input exceeds the context window of this model. ${'x'.repeat(600)}`
+    const serialized = serializeError({ message, code: null, statusCode: 500 })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
   it('keeps a safety classification when the adapter assigned its fallback 500', () => {
     const serialized = serializeError({
       message: 'Your request was rejected by the content policy',

@@ -141,9 +141,12 @@ function plainErrorFacts(error: unknown): Partial<Pick<SerializedError, 'statusC
   const record = error as Record<string, unknown>
   const nested =
     typeof record.error === 'object' && record.error !== null ? (record.error as Record<string, unknown>) : undefined
-  const texts = [record.message, nested?.message, record.code, nested?.code, record.type, nested?.type].filter(
-    (value): value is string => typeof value === 'string' && value.length <= 500
+  const allTexts = [record.message, nested?.message, record.code, nested?.code, record.type, nested?.type].filter(
+    (value): value is string => typeof value === 'string'
   )
+  // Status extraction stays on short texts, but classification sees the whole message: a recognized cause
+  // (a context-limit message over 500 characters) must not be dropped before it is classified.
+  const texts = allTexts.filter((value) => value.length <= 500)
   const numeric = [record.statusCode, record.status, nested?.statusCode, nested?.status].find(
     (value): value is number => typeof value === 'number' && value >= 400 && value <= 599
   )
@@ -152,13 +155,15 @@ function plainErrorFacts(error: unknown): Partial<Pick<SerializedError, 'statusC
   const wrapperStatus = texts.map(wrapperTextStatus).find((value) => value !== undefined)
   // The adapter assigns 500 to a `response.failed` frame whose code it does not map. When the text itself
   // names a safety or context-limit failure, that 500 is a fallback and must not override the classification.
-  const textCategory = classifyErrorCategory({ text: texts.join('\n') })
-  const fallbackStatus = numeric === 500 && (textCategory === 'content' || textCategory === 'context_length')
+  const textCategory = classifyErrorCategory({ text: allTexts.join('\n') })
+  const fallbackStatus =
+    numeric === 500 &&
+    (textCategory === 'content' || textCategory === 'context_length' || textCategory === 'rate_limit')
   const status =
     wrapperStatus ??
     (fallbackStatus ? undefined : numeric) ??
     texts.map(labelledTextStatus).find((value) => value !== undefined)
-  const category = classifyErrorCategory({ text: texts.join('\n'), status })
+  const category = classifyErrorCategory({ text: allTexts.join('\n'), status })
   return {
     ...(status === undefined ? {} : { statusCode: status }),
     ...(category === 'unknown' ? {} : { providerErrorCategory: category })
