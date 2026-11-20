@@ -7,7 +7,9 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { messageService } from '@data/services/MessageService'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import { createUniqueModelId, type Model } from '@shared/data/types/model'
+import { createUniqueModelId } from '@shared/data/types/model'
+
+import { makeModel } from '../../../__tests__/fixtures/model'
 
 const { resolveSettings } = vi.hoisted(() => ({ resolveSettings: vi.fn() }))
 vi.mock('../../../contextBuild/resolveRequestContextSettings', () => ({
@@ -81,7 +83,7 @@ describe('persistent compaction overflow', () => {
       contextSettings: DEFAULT_CONTEXT_SETTINGS,
       compressionModel: { languageModel: compressor, contextWindow: 16_000 }
     })
-    const model = { id: createUniqueModelId('test', 'chat'), providerId: 'test', contextWindow: 4000 } as Model
+    const model = makeModel({ id: createUniqueModelId('test', 'chat'), providerId: 'test', contextWindow: 4000 })
     const provider = new PersistentChatContextProvider()
     const result = await provider['resolveCompactedHistory']('u2', 'topic', [model], undefined)
 
