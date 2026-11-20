@@ -1,3 +1,5 @@
+import type { BigIntStats } from 'node:fs'
+import { opendir, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -5,6 +7,9 @@ import { canonicalizePathForContainment, isPathInside } from '@main/utils/file'
 import type { MemoryScope } from '@shared/types/memory'
 
 import { assertMemoryTarget } from './memoryFiles'
+
+const privateMemoryName = /^(?:MEMORY\.md|\.memories|memory)$/i
+const scratchName = /^cherry-memory-native-[a-z\d]+$/i
 
 export interface MemoryTarget {
   scope: MemoryScope
@@ -28,12 +33,12 @@ export async function memoryTarget(absolutePath: string, canonicalPath?: string)
         if (index === 2) throw new Error('Memory recovery backups are not available to conversation tools')
         const parts = path.relative(root, candidate).split(path.sep)
         if (index === 3) {
-          if (/^cherry-memory-native-[a-z\d]+$/i.test(parts[0] ?? ''))
+          if (scratchName.test(parts[0] ?? ''))
             throw new Error('Memory working copies are internal; use the original memory path')
           continue
         }
         const agentId = index === 1 ? parts.shift() : undefined
-        if (index === 1 && !/^(?:MEMORY\.md|\.memories|memory)$/i.test(parts[0] ?? '')) continue
+        if (index === 1 && !privateMemoryName.test(parts[0] ?? '')) continue
         const target = parts.join('/')
         assertMemoryTarget(target)
         const scope: MemoryScope = agentId ? { kind: 'private', agentId } : { kind: 'shared' }
@@ -63,13 +68,43 @@ export async function memorySearchTarget(directory: string): Promise<boolean> {
         if (!isPathInside(candidate, root)) continue
         const parts = path.relative(root, candidate).split(path.sep)
         if (index === 3) {
-          if (/^cherry-memory-native-[a-z\d]+$/i.test(parts[0] ?? '')) return true
+          if (scratchName.test(parts[0] ?? '')) return true
           continue
         }
         if (index !== 1) return true
-        if (parts.length === 1 || /^(?:MEMORY\.md|\.memories|memory)$/i.test(parts[1] ?? '')) return true
+        if (parts.length === 1 || privateMemoryName.test(parts[1] ?? '')) return true
       }
     }
   }
   return false
+}
+
+/** A second name is only sensitive when its open file identity occurs under a managed root. */
+export async function assertNotMemoryHardLink(opened: BigIntStats): Promise<void> {
+  if (opened.nlink < 2n) return
+  if (opened.ino === 0n) throw new Error('The hard-linked file has no verifiable identity')
+  const missing = (error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error
+    return undefined
+  }
+  async function scan(directory: string, scope: 'managed' | 'agents' | 'agent' | 'temp'): Promise<void> {
+    // Managed storage rejects nested symlinks. Walk only its actual files and directories.
+    const entries = await opendir(directory).catch(missing)
+    if (!entries) return
+    for await (const entry of entries) {
+      if (scope === 'temp' && !scratchName.test(entry.name)) continue
+      if (scope === 'agent' && !privateMemoryName.test(entry.name)) continue
+      const target = path.join(directory, entry.name)
+      if (entry.isDirectory()) await scan(target, scope === 'agents' ? 'agent' : 'managed')
+      else if (scope !== 'agents' && entry.isFile()) {
+        const file = await stat(target, { bigint: true }).catch(missing)
+        if (file?.dev === opened.dev && file.ino === opened.ino)
+          throw new Error('Use the memory editor for managed memory files')
+      }
+    }
+  }
+  await scan(application.getPath('feature.memory.data'), 'managed')
+  await scan(application.getPath('feature.memory.backups'), 'managed')
+  await scan(application.getPath('feature.agents.data'), 'agents')
+  await scan(application.getPath('app.temp'), 'temp')
 }
