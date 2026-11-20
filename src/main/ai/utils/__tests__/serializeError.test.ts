@@ -341,4 +341,20 @@ describe('serializeError', () => {
     expect(serialized.providerErrorCategory).toBe('rate_limit')
     expect(serialized.message).toBeNull()
   })
+
+  it('prefers an explicit "429 null" wrapper over an SDK-synthesized 500', () => {
+    const serialized = serializeError({ message: '429 null', code: null, statusCode: 500 })
+    expect(serialized.statusCode).toBe(429)
+    expect(serialized.providerErrorCategory).toBe('rate_limit')
+  })
+
+  it('does not read a token count in a statusless context-limit message as an HTTP status', () => {
+    const serialized = serializeError({ message: 'Input exceeds the context limit by 500 tokens' })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
+  it('still recovers a labelled status from statusless text', () => {
+    expect(serializeError({ message: 'upstream failed with HTTP 503' }).statusCode).toBe(503)
+  })
 })
