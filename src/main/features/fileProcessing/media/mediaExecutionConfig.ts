@@ -11,6 +11,7 @@ import { describeVoiceModel } from '@main/ai/voice/localAdapters'
 import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
 import { isTranscriptionModelId, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
 import { isVideoVisionSelectableModel } from '@shared/utils/model'
@@ -50,6 +51,7 @@ export interface MediaVisionExecutionConfig {
 export interface MediaAnalysisOptions {
   /** Analyzes frames when no Video Vision model is selected; used only if it is a selectable vision model. */
   fallbackVisionModelId?: UniqueModelId
+  onProgress?: (progress: MediaAnalysisProgress) => void
 }
 
 export interface MediaExecutionConfig {
