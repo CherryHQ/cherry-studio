@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "ป้อนชื่อผู้เขียน",
   "marketplace.theme.background_hint": "ให้ภาพหน้าจอมีพื้นหลังรอบหน้าต่างด้วย",
   "marketplace.theme.code_hint": "วางโค้ด CSS…",
+  "marketplace.theme.colors_only": "การแสดงตัวอย่างและการบันทึกจะใช้เฉพาะสีที่รองรับ หากต้องการสไตล์ชีตทั้งหมด ให้คัดลอก CSS",
   "marketplace.theme.css_required": "ป้อน CSS ของธีม",
   "marketplace.theme.image_hint": "ใช้ JPG, PNG, GIF หรือ WebP ที่เล็กกว่า 2 MB แนะนำสัดส่วน 16:9 เว็บไซต์จะครอบตัดสัดส่วนอื่น",
   "marketplace.theme.image_required": "อัปโหลดภาพตัวอย่างสำหรับโหมด {{mode}}",

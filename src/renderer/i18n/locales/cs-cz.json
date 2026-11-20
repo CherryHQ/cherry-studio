@@ -2474,6 +2474,7 @@
   "marketplace.theme.author_hint": "Zadejte jméno autora",
   "marketplace.theme.background_hint": "Na snímku ponechte pozadí kolem okna.",
   "marketplace.theme.code_hint": "Vložte kód CSS…",
+  "marketplace.theme.colors_only": "Při náhledu a uložení se použijí jen podporované barvy. Pro úplný styl zkopírujte CSS.",
   "marketplace.theme.css_required": "Zadejte CSS motivu.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF nebo WebP do 2 MB (výhradně). Doporučený poměr je 16:9. Jiné poměry web ořízne.",
   "marketplace.theme.image_required": "Nahrajte náhled pro režim {{mode}}.",

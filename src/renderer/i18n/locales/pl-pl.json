@@ -2497,6 +2497,7 @@
   "marketplace.theme.author_hint": "Wpisz nazwę autora",
   "marketplace.theme.background_hint": "Uwzględnij tło wokół okna.",
   "marketplace.theme.code_hint": "Wklej kod CSS…",
+  "marketplace.theme.colors_only": "Podgląd i zapis stosują tylko obsługiwane kolory. Skopiuj CSS, aby uzyskać pełny arkusz stylów.",
   "marketplace.theme.css_required": "Wprowadź CSS motywu.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF lub WebP poniżej 2 MB. Zalecane proporcje to 16:9. Inne proporcje są przycinane na stronie.",
   "marketplace.theme.image_required": "Dodaj podgląd dla trybu {{mode}}.",

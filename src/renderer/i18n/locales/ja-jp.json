@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "作者名を入力",
   "marketplace.theme.background_hint": "ウィンドウの外側の背景も画像に含めてください。",
   "marketplace.theme.code_hint": "CSS コードを貼り付け…",
+  "marketplace.theme.colors_only": "プレビューと保存では対応する配色のみを適用します。完全なスタイルシートは CSS をコピーして取得できます。",
   "marketplace.theme.css_required": "テーマの CSS を入力してください。",
   "marketplace.theme.image_hint": "2 MB 未満の JPG、PNG、GIF、WebP に対応。推奨比率は 16:9 です。他の比率はサイトで切り抜かれます。",
   "marketplace.theme.image_required": "{{mode}}のプレビュー画像を追加してください。",

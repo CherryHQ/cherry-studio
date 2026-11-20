@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "Enter the author’s name",
   "marketplace.theme.background_hint": "Include some background outside the window in your screenshot.",
   "marketplace.theme.code_hint": "Paste your CSS code…",
+  "marketplace.theme.colors_only": "Preview and save apply supported colors only. Copy the CSS for the full stylesheet.",
   "marketplace.theme.css_required": "Enter your theme CSS.",
   "marketplace.theme.image_hint": "Use JPG, PNG, GIF or WebP under 2 MB. A 16:9 image is recommended. Other ratios are cropped on the website.",
   "marketplace.theme.image_required": "Upload a preview for {{mode}} mode.",

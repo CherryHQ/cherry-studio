@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "Εισαγάγετε το όνομα του δημιουργού",
   "marketplace.theme.background_hint": "Συμπεριλάβετε το φόντο γύρω από το παράθυρο.",
   "marketplace.theme.code_hint": "Επικολλήστε τον κώδικα CSS…",
+  "marketplace.theme.colors_only": "Η προεπισκόπηση και η αποθήκευση εφαρμόζουν μόνο τα υποστηριζόμενα χρώματα. Αντιγράψτε το CSS για το πλήρες φύλλο στυλ.",
   "marketplace.theme.css_required": "Εισαγάγετε το CSS του θέματος.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF ή WebP κάτω από 2 MB. Προτείνεται αναλογία 16:9. Οι άλλες αναλογίες περικόπτονται στον ιστότοπο.",
   "marketplace.theme.image_required": "Ανεβάστε εικόνα για τη λειτουργία {{mode}}.",

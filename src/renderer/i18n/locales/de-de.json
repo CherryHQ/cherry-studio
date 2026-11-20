@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "Namen des Autors eingeben",
   "marketplace.theme.background_hint": "Auch den Hintergrund um das Fenster zeigen.",
   "marketplace.theme.code_hint": "CSS-Code einfügen…",
+  "marketplace.theme.colors_only": "Vorschau und Speichern übernehmen nur unterstützte Farben. Für das vollständige Stylesheet kopiere das CSS.",
   "marketplace.theme.css_required": "Gib das CSS für dein Theme ein.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF oder WebP unter 2 MB. Empfohlen wird 16:9. Andere Formate werden auf der Website beschnitten.",
   "marketplace.theme.image_required": "Vorschaubild für {{mode}} hochladen.",

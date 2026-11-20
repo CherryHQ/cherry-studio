@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "Yazar adını girin",
   "marketplace.theme.background_hint": "Ekran görüntüsünde pencerenin çevresindeki arka planı da gösterin.",
   "marketplace.theme.code_hint": "CSS kodunuzu yapıştırın…",
+  "marketplace.theme.colors_only": "Önizleme ve kaydetme yalnızca desteklenen renkleri uygular. Stil sayfasının tamamı için CSS kodunu kopyalayın.",
   "marketplace.theme.css_required": "Tema CSS kodunu girin.",
   "marketplace.theme.image_hint": "2 MB altı JPG, PNG, GIF veya WebP kullanın. 16:9 önerilir. Diğer oranlar sitede kırpılır.",
   "marketplace.theme.image_required": "{{mode}} için bir önizleme yükleyin.",

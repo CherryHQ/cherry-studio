@@ -1,16 +1,27 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import i18next from 'i18next'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import type { MarketplaceTheme } from '@shared/ipc/schemas/theme'
 
+import { extractMarketplaceThemeColors } from '../marketplaceThemeColors'
 import { MarketplaceThemes } from '../MarketplaceThemes'
 
 vi.mock('@cherrystudio/ui', async (original) => original())
 
+// jsdom implements insertRule but not the constructable stylesheet's replaceSync.
+beforeEach(() => {
+  Object.defineProperty(CSSStyleSheet.prototype, 'replaceSync', {
+    configurable: true,
+    value(this: CSSStyleSheet, source: string) {
+      this.insertRule(source)
+    }
+  })
+})
 afterEach(() => {
+  Reflect.deleteProperty(CSSStyleSheet.prototype, 'replaceSync')
   cleanup()
   vi.useRealTimers()
 })
@@ -23,7 +34,7 @@ it('restarts the ten-second window on a second preview and restores the original
   const items: MarketplaceTheme[] = ['red', 'green'].map((color) => ({
     id: color,
     name: color,
-    code: `body { color: ${color} }`,
+    code: `body { color: ${color}; display: block }`,
     author: '',
     title: [],
     description: '',
@@ -65,9 +76,22 @@ it('restarts the ten-second window on a second preview and restores the original
   act(() => {
     vi.advanceTimersByTime(9999)
   })
-  expect(css()).toBe(items[1].code)
+  expect(css()).toBe('body { color: green; }')
   act(() => {
     vi.advanceTimersByTime(1)
   })
   expect(css()).toBe(original)
+  preview('green')
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(MockUsePreferenceUtils.getPreferenceValue('ui.custom_css')).toBe('body { color: green; }')
+})
+
+it('builds color rules only for known theme scopes and discards indirect values and at-rules', () => {
+  expect(
+    extractMarketplaceThemeColors(
+      ':root { --primary: #123456; --accent: var(--brand); background-image: url(texture.png) }'
+    )
+  ).toBe(':root { --primary: #123456; }')
+  expect(extractMarketplaceThemeColors('.custom-card { color: red }')).toBe('')
+  expect(extractMarketplaceThemeColors('@media print { body { color: blue } }')).toBe('')
 })

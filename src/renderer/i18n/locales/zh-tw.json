@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "請輸入作者名稱",
   "marketplace.theme.background_hint": "預覽圖應保留視窗外的背景。",
   "marketplace.theme.code_hint": "請貼上您的 CSS 程式碼…",
+  "marketplace.theme.colors_only": "試用與儲存僅套用支援的配色。需要完整樣式時，可複製 CSS。",
   "marketplace.theme.css_required": "請輸入主題 CSS。",
   "marketplace.theme.image_hint": "支援 JPG、PNG、GIF 和 WebP。單張圖片須小於 2 MB，建議使用 16:9，其他比例在官網顯示時會被裁切。",
   "marketplace.theme.image_required": "請上傳{{mode}}模式預覽圖。",

@@ -1,5 +1,5 @@
 import { Clock3, Copy, ImageIcon, Link2, Moon, Sun } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
 
@@ -16,6 +16,7 @@ import {
   MarketplaceDetailFooter,
   MarketplaceLoadState
 } from './MarketplaceComponents'
+import { extractMarketplaceThemeColors } from './marketplaceThemeColors'
 import { ThemeSubmissionDialog } from './ThemeSubmissionDialog'
 
 const PAGE_SIZE = 6
@@ -49,13 +50,14 @@ export function MarketplaceThemes({
   const { t } = useTranslation()
   const [, save] = usePreference('ui.custom_css')
   const [selected, select] = useState<MarketplaceTheme | null>(null)
+  const previewCss = useMemo(() => (selected ? extractMarketplaceThemeColors(selected.code) : ''), [selected])
   const [dark, setDark] = useState(false)
-  const [trial, setTrial] = useState<{ theme: MarketplaceTheme; until: number } | null>(null)
+  const [trial, setTrial] = useState<{ name: string; css: string; until: number } | null>(null)
   const [remaining, setRemaining] = useState(10)
   const [status, setStatus] = useState('')
   useEffect(() => {
     if (!trial) return
-    previewCustomCss(trial.theme.code)
+    previewCustomCss(trial.css)
     const tick = () => {
       const seconds = Math.ceil((trial.until - Date.now()) / 1000)
       if (seconds <= 0) setTrial(null)
@@ -80,7 +82,7 @@ export function MarketplaceThemes({
     if (!trial || Date.now() >= trial.until) return
     setTrial(null)
     try {
-      await save(trial.theme.code)
+      await save(trial.css)
     } catch {
       setStatus(t('common.save_failed'))
     }
@@ -100,7 +102,7 @@ export function MarketplaceThemes({
           <Clock3 aria-hidden className="size-4 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">
-              {trial.theme.name} <span className="ms-1 tabular-nums">{remaining}s</span>
+              {trial.name} <span className="ms-1 tabular-nums">{remaining}s</span>
             </div>
             <p className="text-xs text-muted-foreground">{t('marketplace.theme.preview_timeout')}</p>
           </div>
@@ -236,6 +238,7 @@ export function MarketplaceThemes({
                   {status}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">{t('marketplace.theme.colors_only')}</p>
             </MarketplaceDetailBody>
             <MarketplaceDetailFooter>
               <div className="flex flex-wrap gap-1">
@@ -251,10 +254,10 @@ export function MarketplaceThemes({
                 )}
               </div>
               <Button
-                disabled={!selected.code}
+                disabled={!previewCss}
                 onClick={() => {
                   setStatus('')
-                  setTrial({ theme: selected, until: Date.now() + 10000 })
+                  setTrial({ name: selected.name, css: previewCss, until: Date.now() + 10000 })
                   setRemaining(10)
                   select(null)
                 }}>

@@ -2474,6 +2474,7 @@
   "marketplace.theme.author_hint": "Introdu numele autorului",
   "marketplace.theme.background_hint": "Include fundalul din jurul ferestrei.",
   "marketplace.theme.code_hint": "Lipește codul CSS…",
+  "marketplace.theme.colors_only": "Previzualizarea și salvarea aplică doar culorile acceptate. Copiază codul CSS pentru foaia de stil completă.",
   "marketplace.theme.css_required": "Introdu codul CSS al temei.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF sau WebP sub 2 MB. Se recomandă 16:9. Alte proporții sunt decupate pe site.",
   "marketplace.theme.image_required": "Încarcă o imagine pentru modul {{mode}}.",

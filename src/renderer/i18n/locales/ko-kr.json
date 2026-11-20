@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "작성자 이름 입력",
   "marketplace.theme.background_hint": "스크린샷에 창 바깥의 배경도 포함하세요.",
   "marketplace.theme.code_hint": "CSS 코드를 붙여넣으세요…",
+  "marketplace.theme.colors_only": "미리보기와 저장에는 지원되는 색상만 적용됩니다. 전체 스타일시트가 필요하면 CSS를 복사하세요.",
   "marketplace.theme.css_required": "테마 CSS를 입력하세요.",
   "marketplace.theme.image_hint": "2 MB 미만의 JPG, PNG, GIF, WebP를 지원합니다. 16:9를 권장하며 다른 비율은 웹사이트에서 잘립니다.",
   "marketplace.theme.image_required": "{{mode}} 미리보기 이미지를 업로드하세요.",

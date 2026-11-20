@@ -2475,6 +2475,7 @@
   "marketplace.theme.author_hint": "Введите имя автора",
   "marketplace.theme.background_hint": "Оставьте на снимке немного фона вокруг окна.",
   "marketplace.theme.code_hint": "Вставьте код CSS…",
+  "marketplace.theme.colors_only": "При просмотре и сохранении применяются только поддерживаемые цвета. Чтобы получить полную таблицу стилей, скопируйте CSS.",
   "marketplace.theme.css_required": "Введите CSS темы.",
   "marketplace.theme.image_hint": "JPG, PNG, GIF или WebP размером менее 2 МБ. Рекомендуется 16:9. Другие пропорции на сайте обрезаются.",
   "marketplace.theme.image_required": "Загрузите изображение для режима «{{mode}}».",

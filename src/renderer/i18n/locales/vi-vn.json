@@ -2473,6 +2473,7 @@
   "marketplace.theme.author_hint": "Nhập tên tác giả",
   "marketplace.theme.background_hint": "Chụp cả phần nền xung quanh cửa sổ.",
   "marketplace.theme.code_hint": "Dán mã CSS…",
+  "marketplace.theme.colors_only": "Khi xem trước hoặc lưu, chỉ những màu được hỗ trợ mới được áp dụng. Hãy sao chép CSS để lấy toàn bộ biểu định kiểu.",
   "marketplace.theme.css_required": "Nhập CSS của chủ đề.",
   "marketplace.theme.image_hint": "Dùng JPG, PNG, GIF hoặc WebP dưới 2 MB. Nên dùng tỉ lệ 16:9. Ảnh có tỉ lệ khác sẽ bị cắt trên trang web.",
   "marketplace.theme.image_required": "Tải ảnh xem trước cho chế độ {{mode}}.",
