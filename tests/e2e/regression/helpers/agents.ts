@@ -15,7 +15,7 @@ import {
 } from '../../../../scripts/e2e/regression/builtinAgents'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import type { RegressionApp } from '../RegressionApp'
-import { selectSidebarApp } from './navigation'
+import { selectConversationListOption, selectSidebarApp } from './navigation'
 import { revealVirtualized } from './virtualList'
 
 /**
@@ -44,10 +44,8 @@ async function showAgentList(page: Page): Promise<Locator> {
   await expect(view).toHaveCount(1, { timeout: 30_000 })
   const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
   if (await showSidebar.isVisible()) await showSidebar.click()
-  const displayMode = view.getByRole('button', { name: 'Display mode', exact: true })
-  if (await displayMode.isVisible()) {
-    await displayMode.click()
-    await page.locator('[data-slot="menu-item"]').getByText('Agent', { exact: true }).click()
+  if ((await page.evaluate(() => window.api.preference.get('agent.session.display_mode'))) !== 'agent') {
+    await selectConversationListOption(view, 'Group by', 'Agent')
   }
   return view
 }

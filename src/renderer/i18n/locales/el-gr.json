@@ -5754,6 +5754,7 @@
   "settings.provider.oauth.cherryIn.logged_in": "Σύνδεση μέσω OAuth",
   "settings.provider.oauth.cherryIn.login_button": "Εξουσιοδότηση με CherryIN",
   "settings.provider.oauth.cherryIn.logout_button": "Αποσύνδεση",
+  "settings.provider.oauth.cherryIn.missing_keys": "Η εξουσιοδότηση ολοκληρώθηκε. Δεν υπάρχει διαθέσιμο κλειδί API. Δημιουργήστε ένα κλειδί στην ομάδα default και εξουσιοδοτήστε ξανά την πρόσβαση.",
   "settings.provider.oauth.cherryIn.not_logged_in": "Δεν έχετε συνδεθεί",
   "settings.provider.oauth.cherryIn.register_account": "Δημιουργία λογαριασμού",
   "settings.provider.oauth.cherryIn.service_attribution": "Αυτή η υπηρεσία παρέχεται από το <link>open.cherryin.ai</link>",
