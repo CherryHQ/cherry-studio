@@ -1,4 +1,10 @@
-import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
+import {
+  APICallError,
+  type ImageModelV3,
+  type ImageModelV3CallOptions,
+  type JSONObject,
+  type SharedV3Warning
+} from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
 
 import { mergeHeaders } from '@main/utils/http'
@@ -64,8 +70,8 @@ export class SiliconImageModel implements ImageModelV3 {
 
     // `silicon` matches `providerOptionsKey` derived from
     // `siliconProvider.ts` (`SILICON_PROVIDER_NAME = 'silicon'`).
-    const bag = (providerOptions?.silicon ?? providerOptions?.openai ?? {}) as Record<string, unknown>
-    const body: Record<string, unknown> = {
+    const bag = providerOptions?.silicon ?? providerOptions?.openai ?? {}
+    const body: JSONObject = {
       model: this.modelId,
       prompt: prompt ?? ''
     }

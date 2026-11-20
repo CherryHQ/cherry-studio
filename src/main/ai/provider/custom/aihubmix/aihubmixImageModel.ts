@@ -257,8 +257,8 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
 
 /** Build the Doubao `/images/generations` body from native options + the
  *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
-function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): Record<string, unknown> {
-  const bag = (options.providerOptions?.aihubmix ?? {}) as Record<string, unknown>
+function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): JSONObject {
+  const bag = options.providerOptions?.aihubmix ?? {}
   const parsed = DoubaoParamsSchema.parse({
     size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
     n: options.n,
@@ -269,7 +269,7 @@ function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): Rec
     responseFormat: bag.responseFormat
   })
 
-  const body: Record<string, unknown> = {
+  const body: JSONObject = {
     model: modelId,
     prompt: options.prompt ?? '',
     response_format: parsed.responseFormat
@@ -362,10 +362,9 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // call options.
     if (ASYNC_FLUX_MODELS.has(modelId)) {
       const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
-      // The transport reads `aspect_ratio` from the bag; AI SDK has already
-      // normalized `ASPECT_X_Y` → `X:Y` on `options.aspectRatio`, so stamp it
-      // in alongside the user's other params.
-      const transportBag: Record<string, unknown> = { ...(bag as Record<string, unknown>) }
+      // The transport reads aspect_ratio from the bag after the SDK normalizes the native option.
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve legacy upload bytes and other opaque extensions; the FLUX transport checks the fields it reads.
+      const transportBag: Record<string, unknown> = { ...bag }
       if (typeof aspectRatio === 'string') transportBag.aspect_ratio = aspectRatio
       const { taskId } = await transport.submit({
         modelId,
@@ -556,7 +555,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
       }
       const form = new FormData()
-      const imageRequest: Record<string, any> = {
+      const imageRequest = {
         prompt,
         model: modelId,
         aspect_ratio: v1v2Aspect,
@@ -577,7 +576,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
       }
       const form = new FormData()
-      const imageRequest: Record<string, any> = {
+      const imageRequest = {
         prompt,
         resemblance: bag.resemblance,
         detail: bag.detail,
