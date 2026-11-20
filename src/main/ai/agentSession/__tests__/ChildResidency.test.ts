@@ -42,6 +42,8 @@ function fixture() {
   const handleReleases = new Map<string, number>()
   /** One-shot hooks run when a child's observation drains. */
   const drains = new Map<string, () => void>()
+  /** The native revision each child's archive reads report. */
+  const revisions = new Map<string, number>()
 
   const child = (parentContextId: string, id: string): Child => {
     const context = contexts.child(parentContextId, id, `call-${id}`, id)
@@ -65,12 +67,13 @@ function fixture() {
     },
     release: async () => {}
   })
-  const relation = (target: Child, parent: Thread, work: Subagent['work']): Subagent => ({
+  const relation = (target: Child, parent: Thread, work: Subagent['work'], revision?: number): Subagent => ({
     id: runtimeId(target.thread.id),
     parent,
     child: target.thread,
     origin: { toolCallId: `call-${target.thread.id}` },
-    work
+    work,
+    revision
   })
   const open = (target: Child, parent: Thread, granted?: { release(): Promise<void> }) => () =>
     residency.open(target.key, {
@@ -91,16 +94,17 @@ function fixture() {
             const read = (reads.get(target.thread.id) ?? 0) + 1
             reads.set(target.thread.id, read)
             await gates.get(`${target.thread.id}:${read}`)
-            return { messages: [], aliases: {} }
+            return { messages: [], aliases: {}, revision: revisions.get(target.thread.id) }
           }
         )
         return { relation: relation(target, parent, undefined), projection }
       }
     })
-  const relate = (target: Child, parent: Thread, work: Subagent['work']) =>
-    residency.relate(relation(target, parent, work), open(target, parent))
+  const relate = (target: Child, parent: Thread, work: Subagent['work'], revision?: number) =>
+    residency.relate(relation(target, parent, work, revision), open(target, parent))
   const loaded = async (target: Child) => (await residency.resource(target.key)) !== undefined
   const settled = (target: Child) => contexts.context(target.contextId).checkpointMapping?.child?.settled === true
+  const savedRevision = (target: Child) => contexts.context(target.contextId).checkpointMapping?.child?.settledRevision
   return {
     root,
     rootThread,
@@ -112,11 +116,13 @@ function fixture() {
     failures,
     handleReleases,
     drains,
+    revisions,
     child,
     open,
     relate,
     loaded,
-    settled
+    settled,
+    savedRevision
   }
 }
 
@@ -369,11 +375,12 @@ it('returns the current child when it releases while a redundant handle closes',
   const target = child(root.id, 'target')
   relate(target, rootThread, 'running')
   await expect.poll(() => loaded(target)).toBe(true)
-  let closeHandle!: () => void
+  let closeHandle: (() => void) | undefined
   const granted = { release: () => new Promise<void>((resolve) => (closeHandle = resolve)) }
   const opened = open(target, rootThread, granted)()
+  await expect.poll(() => closeHandle).toBeDefined()
   relate(target, rootThread, 'idle')
-  closeHandle()
+  closeHandle!()
   const current = await opened
   expect(current).toBeDefined()
   expect(await residency.resource(target.key)).toBe(current)
@@ -407,4 +414,40 @@ it('shares one retry of a failed release flush between opens and reports a repea
   expect(await second).toBe(reopened)
   expect(attaches).toEqual(['target', 'target'])
   expect(handleReleases.get('target')).toBe(1)
+})
+
+// Catches a child whose history grew after its final flush staying released with stale saved rows.
+it('reloads a released child when a relationship reports a newer revision than its final flush read', async () => {
+  const { root, rootThread, attaches, revisions, child, relate, loaded, savedRevision } = fixture()
+  const target = child(root.id, 'target')
+  revisions.set('target', 4)
+  relate(target, rootThread, 'running', 2)
+  await expect.poll(() => loaded(target)).toBe(true)
+  relate(target, rootThread, 'idle', 4)
+  await expect.poll(() => savedRevision(target)).toBe(4)
+  relate(target, rootThread, 'idle', 4)
+  await new Promise((resolve) => setImmediate(resolve))
+  expect(attaches).toEqual(['target'])
+  revisions.set('target', 6)
+  relate(target, rootThread, 'idle', 6)
+  await expect.poll(() => savedRevision(target)).toBe(6)
+  expect(attaches).toEqual(['target', 'target'])
+  expect(await loaded(target)).toBe(false)
+})
+
+// Catches a cold reopen trusting a settled marker that is older than the child's native history.
+it('restores a settled child on reopen only when its native revision is newer than the saved one', async () => {
+  const { root, rootThread, residency, attaches, revisions, child, relate, savedRevision } = fixture()
+  const current = child(root.id, 'current')
+  const stale = child(root.id, 'stale')
+  contexts.settleChild(current.contextId, true, 3)
+  contexts.settleChild(stale.contextId, true, 3)
+  residency.restoreReleased(root.id)
+  revisions.set('stale', 5)
+  relate(current, rootThread, 'idle', 3)
+  relate(stale, rootThread, 'idle', 5)
+  await expect.poll(() => savedRevision(stale)).toBe(5)
+  await residency.drain()
+  expect(attaches).toEqual(['stale'])
+  expect(savedRevision(current)).toBe(3)
 })

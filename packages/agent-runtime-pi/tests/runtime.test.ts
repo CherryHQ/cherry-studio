@@ -590,7 +590,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
   await expect.poll(() => parentEvents.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
-  const { work: created, ...identity } = relation.subagent
+  const { work: created, revision: spawned, ...identity } = relation.subagent
   expect(created).toBe('running')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const second = confirmed(await runtime.open(child.thread))
@@ -668,6 +668,10 @@ it('continues an observed child through its owner, keeps one relationship, and r
   expect(after[0]).toMatchObject({ type: 'snapshot', subagents: [identity] })
   if (after[0].type !== 'snapshot') throw new Error('Missing parent snapshot')
   expect(after[0].subagents).toHaveLength(1)
+  // The continued run reports the child's grown history, which its archive read covers.
+  const continued = after[0].subagents![0].revision!
+  expect(continued).toBeGreaterThan(spawned!)
+  expect(second.pi.archive().revision).toBeGreaterThanOrEqual(continued)
   expect(
     manager
       .getBranch()

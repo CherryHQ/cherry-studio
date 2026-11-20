@@ -859,9 +859,10 @@ it('restores child relations on reopen and refuses a child without its live owne
   })
   const rootAgain = confirmed(await reopened.open(root.thread))
   const restored = await observe(rootAgain)
-  await expect
-    .poll(() => restored[0])
-    .toMatchObject({ type: 'snapshot', subagents: [{ ...relation.subagent, work: 'idle' }] })
+  // A loaded child reports its revision; a root reopen replays relationships of unloaded children without one.
+  const { revision, ...identity } = relation.subagent
+  expect(revision).toBeGreaterThan(0)
+  await expect.poll(() => restored[0]).toMatchObject({ type: 'snapshot', subagents: [{ ...identity, work: 'idle' }] })
   expect(await reopened.open(relation.subagent.child)).toMatchObject({
     status: 'rejected',
     error: { code: 'child-owner-unavailable' }

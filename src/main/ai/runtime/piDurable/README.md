@@ -112,7 +112,7 @@ cancellation and ownership semantics.
   same write barrier and holds new input until resume. Each child has one `ChildResidency`
   record; failed attachment can retry, and failed final flush retains its writer. A child releases
   once its relationship reports `work: 'idle'`. A reopen leaves settled children unloaded until a
-  viewer, a message or a relationship reporting it running asks for one.
+  viewer, a message, or a relationship reporting it running or a newer `revision` asks for one.
 - Reopening restores the same backend and conversation, rebinds child models, applies
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.

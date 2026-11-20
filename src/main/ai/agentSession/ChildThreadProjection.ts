@@ -33,6 +33,8 @@ type CommittedHistory = {
   aliases: Readonly<Record<string, string>>
   removed?: readonly string[]
   legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
+  /** The native history revision this read reflects (`Subagent.revision`). */
+  revision?: number
 }
 type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
@@ -554,6 +556,11 @@ export class ChildThreadProjection {
 
   get thread(): Thread {
     return this.handle.thread
+  }
+
+  /** The native history revision of the latest archive read; after `stop`, the revision the saved rows hold. */
+  get revision(): number | undefined {
+    return this.history?.revision
   }
 }
 

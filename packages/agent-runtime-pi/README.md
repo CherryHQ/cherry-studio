@@ -64,7 +64,8 @@ as required by the behavior adapter's request accounting.
 - Subagent relations are projected onto the parent; each live child can be opened, observed and
   released independently. A relation's `work` follows the child's live state at every run start and end: `idle` once no run
   is active and nothing is queued. Relations replayed when a root opens read `idle`, because runs end with the
-  process that ran them. Releasing a handle stops its observations. Shutdown closes the shared
+  process that ran them. Relations of loaded children and child archive reads carry `revision`, the child's branch
+  length; relations replayed when a root opens omit it, because those children are not loaded. Releasing a handle stops its observations. Shutdown closes the shared
   behavior instance, all native sessions and projections.
 
 `pi.settled()` waits for admitted native work, including the shared root,

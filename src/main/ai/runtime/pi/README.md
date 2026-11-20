@@ -142,7 +142,8 @@ that writes have ended. A failed archive flush rejects the drain and can be retr
 Reopening a parent restores identity-checked child files without starting work. Missing owners leave
 saved child output readable. A child releases once its relationship reports `work: 'idle'`; Pi child
 activity can read idle mid-run, so residency does not use it. A reopen leaves settled children unloaded
-until a viewer, a message, a completion, usage attribution or a relationship reporting it running asks for one. A restored parent's stop policy still applies to child continuation;
+until a viewer, a message, a completion, usage attribution, or a relationship reporting it running or a newer
+`revision` asks for one. A restored parent's stop policy still applies to child continuation;
 an independent archive is never a writable root. Shutdown quiesces native execution, reconciles
 committed child history while its access remains readable, and releases access after archive flush.
 

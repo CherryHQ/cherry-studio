@@ -845,7 +845,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               messages: archive.value.content,
               legacy: archive.value.legacy,
               removed: archive.value.retracted,
-              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id]))
+              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id])),
+              revision: archive.value.revision
             }
           },
           metadata.decorate

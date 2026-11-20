@@ -106,6 +106,8 @@ export interface ClaudeArchive {
   readonly legacy: Readonly<Record<string, { messageId: string; parts: number[] }>>
   /** Explicit native retractions; absence from the selected view is not a deletion. */
   readonly retracted: readonly string[]
+  /** The child's raw transcript entry count at this read, as `Subagent.revision`. */
+  readonly revision?: number
 }
 
 export interface ClaudeThreadHandle extends ThreadHandle {

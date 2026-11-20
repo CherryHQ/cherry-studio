@@ -175,10 +175,14 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       onError: report,
       onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
       onWork: (thread, work) => {
+        const revision = owned.find((entry) => entry.ref.id === thread)?.session.sessionManager.getBranch().length
         for (const parent of owned) {
           const relation = parent.projection.feed.snapshot.subagents?.find((child) => child.child?.id === thread)
           if (relation && relation.work !== work)
-            parent.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...relation, work } })
+            parent.projection.feed.publish({
+              type: 'subagent.upsert',
+              subagent: { ...relation, work, ...(revision !== undefined && { revision }) }
+            })
         }
       },
       openSession: async ({ sessionManager, extension, child }) => {
@@ -247,6 +251,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               parent: parent.ref,
               child: entry.ref,
               origin: { toolCallId: nativeCallId!, description: child.origin.description },
+              revision: sessionManager.getBranch().length,
               ...(child.reopened ? known?.work && { work: known.work } : { work: 'running' as const })
             }
           })

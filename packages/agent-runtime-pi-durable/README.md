@@ -132,7 +132,8 @@ record, so origin lookups stop there and keep the result; the adapter keeps no o
 cache or task graph watch. It does keep each child's committed run and queued-input state, which commit observation updates
 from the child's live and inbox documents. A relationship's `work` is `running` while a run is committed or input
 is queued, and for a child created in this process until its first run ends; otherwise it is `idle`. A change
-publishes `subagent.upsert` on the loaded parent. Relationship IDs use the native child
+publishes `subagent.upsert` on the loaded parent. Relationships and archive reads carry `revision`, the newest entry
+ID visible from the child conversation. Relationship IDs use the native child
 conversation ID within the parent, so subsequent inputs retain the same relationship.
 They carry evidenced creation `origin` and no assignment completion status. Behavior lineage preserves
 the original creation call across continuation; cold recovery also reads stored child relationships.

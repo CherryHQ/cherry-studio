@@ -93,6 +93,8 @@ export class ClaudeOwner {
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
+  /** Each child's raw transcript entry count at the latest archive read; transcripts only append. */
+  private readonly revisions = new Map<string, number>()
   private reading?: Promise<void>
   private buffered?: SDKMessage[]
 
@@ -360,6 +362,7 @@ export class ClaudeOwner {
     if (!task.agent || task.parentId === undefined) return
     const parent = this.projection(task.sessionId, task.parentId ?? undefined)
     const child = this.projection(task.sessionId, id)
+    const revision = child.liveSinceRead ? undefined : this.revisions.get(child.thread.id)
     parent.publish([
       {
         type: 'subagent.upsert',
@@ -368,7 +371,8 @@ export class ClaudeOwner {
           parent: parent.thread,
           child: child.thread,
           ...(task.origin && { origin: task.origin }),
-          work: task.terminal ? 'idle' : 'running'
+          work: task.terminal ? 'idle' : 'running',
+          ...(revision !== undefined && { revision })
         }
       }
     ])
@@ -739,7 +743,8 @@ export class ClaudeOwner {
       for (const native of archive.children) {
         const child = this.projection(sessionId, native.agentId)
         const entries = entriesFor(native.agentId)
-        this.archives.set(child.thread.id, child.restore(native.messages, entries))
+        this.revisions.set(child.thread.id, entries.length)
+        this.archives.set(child.thread.id, { ...child.restore(native.messages, entries), revision: entries.length })
       }
       const spawnCall = (view: ClaudeProjection, toolCallId: string) => {
         const call = view.feed.snapshot.messages

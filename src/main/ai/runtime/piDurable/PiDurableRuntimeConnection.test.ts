@@ -143,6 +143,14 @@ beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode:
 const APPROVAL_WAIT = { timeout: 10_000 } as const
 // Native child scheduling and archive projection can exceed the one-second poll default on Windows CI.
 const CHILD_WAIT = { timeout: 10_000 } as const
+/** The connection's released children and loaded children. */
+const residency = (connection: PiDurableRuntimeConnection) => {
+  const children = [...connection['children']['children'].values()]
+  return {
+    released: children.flatMap((child) => (child.phase === 'released' && child.saved ? [child.saved] : [])),
+    loaded: children.flatMap((child) => (child.resource ? [child.resource] : []))
+  }
+}
 
 describe('desktop Pi Durable connection', () => {
   const dbh = setupTestDatabase()
@@ -2070,7 +2078,7 @@ describe('desktop Pi Durable connection', () => {
         'Final child output'
       )
       // The finished, unwatched child then releases and records that it settled.
-      await expect.poll(() => connection['children']['released'].size, CHILD_WAIT).toBe(1)
+      await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
       const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
       await new Promise((resolve) => setTimeout(resolve, 160))
       expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
@@ -2269,7 +2277,7 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
     await expect
-      .poll(() => [connection['children']['released'].size, connection['children']['entries'].size], CHILD_WAIT)
+      .poll(() => [residency(connection).released.length, residency(connection).loaded.length], CHILD_WAIT)
       .toEqual([1, 0])
     return connection
   }
@@ -2407,12 +2415,8 @@ describe('desktop Pi Durable connection', () => {
     await answering.reached
     await done(events)
     const view = (await connection.childProjection('spawn'))!
-    const [child] = (
-      connection as unknown as {
-        children: { entries: Map<string, { resource: { projection: { projection: ThreadMessageProjection } } }> }
-      }
-    ).children.entries.values()
-    const childMessages = child.resource.projection.projection
+    const [child] = residency(connection).loaded
+    const childMessages = child.projection['projection']
     const accept = ThreadMessageProjection.prototype.accept
     let failed = false
     const fault = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
@@ -2829,9 +2833,9 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
-    await expect.poll(() => connection['children']['released'].size, CHILD_WAIT).toBe(1)
+    await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
     expect(await connection['children'].resources()).toEqual([])
-    const [released] = connection['children']['released'].values()
+    const [released] = residency(connection).released
     expect(contexts.context(released.contextId).checkpointMapping?.child?.settled).toBe(true)
     expect(JSON.stringify(savedChildView(contexts.context(released.contextId)).messages)).toContain(
       'child final answer'
@@ -2863,8 +2867,8 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
-    await expect.poll(() => connection['children']['released'].size, CHILD_WAIT).toBe(1)
-    const [released] = connection['children']['released'].values()
+    await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
+    const [released] = residency(connection).released
     childId = released.thread.id
     const attached: string[] = []
     const attach = ChildThreadProjection.prototype.attach

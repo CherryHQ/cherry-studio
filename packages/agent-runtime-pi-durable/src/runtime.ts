@@ -110,6 +110,8 @@ export interface PiDurableArchive {
   readonly messages: readonly RuntimeMessage[]
   /** Proven committed-to-live identities within this observation source. */
   readonly aliases: Readonly<Record<string, string>>
+  /** The newest visible entry ID this read covers, as `Subagent.revision`; entry IDs only grow. */
+  readonly revision?: number
 }
 export interface PiDurableRuntime extends AgentRuntime {
   /** Native transactions share this owner's mutation line; callers must retain their backend access. */
@@ -218,6 +220,7 @@ export async function createPiDurableRuntime(
               while (pending.size) await Promise.allSettled([...pending])
               for (const entry of live.values()) {
                 const content = new ContentProjection()
+                let revision: number | undefined
                 let cursor: Cursor | undefined
                 do {
                   const page = await owned.scanEntries(
@@ -226,15 +229,18 @@ export async function createPiDurableRuntime(
                     cursor,
                     context
                   )
-                  for (const record of page.items)
+                  for (const record of page.items) {
+                    revision = record.id
                     if (record.conversationId === entry.conversation.id) content.entry(record)
+                  }
                   cursor = page.next
                 } while (cursor)
                 archives.set(entry.conversation.id, {
                   messages: content.messages,
                   responseIds: content.responseIds,
                   legacy: content.legacy,
-                  aliases: { ...entry.projection.aliases }
+                  aliases: { ...entry.projection.aliases },
+                  revision
                 })
               }
             } finally {
@@ -350,12 +356,16 @@ export async function createPiDurableRuntime(
     childWork.set(id, state)
     return workOf(state)
   }
+  async function readChildState(tx: Tx, id: ConversationId) {
+    const revision = await tx.latestEntryId(id)
+    return { work: await readWork(tx, id), ...(revision !== undefined && { revision }) }
+  }
   const readChildren = async (tx: Tx, parent: ConversationId) => {
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
     const relations = await Promise.all(
       children.map(async (child) => {
         const relation = await readRelation(tx, child)
-        return relation && { ...relation, work: await readWork(tx, child.id) }
+        return relation && { ...relation, ...(await readChildState(tx, child.id)) }
       })
     )
     return relations.filter((child) => child !== undefined)
@@ -378,13 +388,17 @@ export async function createPiDurableRuntime(
         break
       }
     }
+    const revision = await native.commit((tx) => tx.latestEntryId(id as ConversationId), context)
     // Read after the awaits above, so a child that finished during them is not left running.
     const state = childWork.get(id)
     if (!state) return
     for (const entry of live.values()) {
       const listed = entry.projection.feed.snapshot.subagents?.find((relation) => relation.child?.id === String(id))
       if (listed && listed.work !== workOf(state))
-        entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...listed, work: workOf(state) } })
+        entry.projection.feed.publish({
+          type: 'subagent.upsert',
+          subagent: { ...listed, work: workOf(state), ...(revision !== undefined && { revision }) }
+        })
     }
   }
   // `advance` must not call the Session, so its Session reads start after it returns.
@@ -711,7 +725,7 @@ export async function createPiDurableRuntime(
             native.commit(async (tx) => {
               const record = await tx.conversation(entry.conversation.id)
               const relation = record && (await readRelation(tx, record))
-              return relation && { ...relation, work: await readWork(tx, record.id) }
+              return relation && { ...relation, ...(await readChildState(tx, record.id)) }
             }, context)
           ),
         async openChild(toolCallId, signal) {
@@ -874,7 +888,8 @@ export async function createPiDurableRuntime(
                   messages: [...content.messages],
                   responseIds: { ...content.responseIds },
                   legacy: content.legacy,
-                  aliases
+                  aliases,
+                  revision: head.id
                 }
               }
             } catch (cause) {

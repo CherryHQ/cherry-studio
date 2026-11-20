@@ -305,6 +305,10 @@ it.each([false, true])(
       // An archive read replays the relation; a finished task, or one from a previous process, is not running.
       confirmed(await root.claude.archive())
       await expect.poll(() => view.snapshot.subagents?.[0]?.work).toBe('idle')
+      // The replay reports the transcript the read covered, as the child's own archive read does.
+      const settled = view.snapshot.subagents![0].revision!
+      expect(settled).toBeGreaterThan(0)
+      expect(confirmed(await child.claude.archive()).revision).toBe(settled)
       await root.input!.submit({ inputId: inputId(), text: 'Continue the child', whenBusy: 'steer' })
       const followup = await test.request()
       followup.reply.block({
@@ -343,6 +347,12 @@ it.each([false, true])(
       if (next.type !== 'system' || next.subtype !== 'task_started') throw new Error('Missing new run')
       expect(next.run_id! > task.run_id!).toBe(true)
       await expect.poll(() => view.snapshot.subagents![0].work).toBe('idle')
+      // Live frames since the last read leave the revision unknown until the next archive read reports it.
+      expect(view.snapshot.subagents![0].revision).toBeUndefined()
+      expect(confirmed(await child.claude.archive({ refresh: false })).revision).toBeUndefined()
+      const continued = confirmed(await child.claude.archive()).revision!
+      expect(continued).toBeGreaterThan(settled)
+      await expect.poll(() => view.snapshot.subagents![0].revision).toBe(continued)
       expect(child.thread).toEqual(childThread)
       expect(textOf(childView.snapshot)).toContain('Original child answer')
       expect(

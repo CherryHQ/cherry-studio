@@ -79,6 +79,11 @@ export interface Subagent {
    * one, `idle` once it has run and nothing remains. Absent when the owner has no evidence. Not an assignment outcome.
    */
   readonly work?: 'running' | 'idle'
+  /**
+   * A count that grows with the child's committed native history. A later archive read of the child reports at least
+   * the revision an earlier relationship carried. Absent when the owner cannot read it without loading the child.
+   */
+  readonly revision?: number
 }
 export interface Activity {
   readonly state: 'active' | 'idle' | 'unknown'
