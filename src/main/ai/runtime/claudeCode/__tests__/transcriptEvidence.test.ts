@@ -83,6 +83,26 @@ describe('readClaudeTranscriptEvidence', () => {
     expect(events).toEqual([expect.objectContaining({ kind: 'api_error_message' })])
   })
 
+  it('skips non-object JSON lines without losing subsequent diagnostic events', async () => {
+    writeTranscript('-Users-me-workspace', SESSION, [
+      JSON.stringify(entries[1]),
+      'null',
+      '42',
+      'true',
+      '"ignored"',
+      '[]',
+      '{broken',
+      JSON.stringify(entries[3])
+    ])
+
+    const events = await readClaudeTranscriptEvidence(root, SESSION, 50)
+
+    expect(events).toEqual([
+      { kind: 'assistant', at: 't2', model: 'glm-4.6', stopReason: 'tool_use', tools: ['Read'] },
+      expect.objectContaining({ kind: 'system', subtype: 'api_error', at: 't4', retryAttempt: 3 })
+    ])
+  })
+
   it('returns undefined for a missing transcript or a token that is not a session id', async () => {
     expect(await readClaudeTranscriptEvidence(root, '11111111-2222-3333-4444-555555555555', 10)).toBeUndefined()
     expect(await readClaudeTranscriptEvidence(root, '../../etc/passwd', 10)).toBeUndefined()

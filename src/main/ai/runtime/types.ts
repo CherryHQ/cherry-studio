@@ -338,6 +338,7 @@ export interface AgentSessionRuntimeDriver {
    * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
    * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
    */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime-native diagnostic values remain opaque until Doctor redacts them for model use.
   readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
 }
 

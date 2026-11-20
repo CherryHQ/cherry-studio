@@ -139,7 +139,10 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   /** Pure filesystem work like the sweep above, so it never loads the implementation either. */
-  readTranscriptEvidence(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined> {
+  readTranscriptEvidence(
+    resumeToken: string,
+    maxEntries: number
+  ): ReturnType<NonNullable<AgentSessionRuntimeDriver['readTranscriptEvidence']>> {
     return readClaudeTranscriptEvidence(application.getPath('feature.agents.claude.projects'), resumeToken, maxEntries)
   }
 
