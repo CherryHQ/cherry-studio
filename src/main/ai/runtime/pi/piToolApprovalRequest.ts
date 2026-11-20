@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -45,7 +47,7 @@ export async function requestPiToolApproval(request: {
               transport: PI_TRANSPORT,
               toolName: name,
               ...(parentToolCallId ? { parentToolCallId } : {}),
-              ...(details === undefined ? {} : { commandPolicy: details })
+              ...(details === undefined ? {} : { commandPolicy: z.json().parse(details) })
             }
           }
         }
