@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Creează",
   "chat.topics.subject.create_title": "Grup nou de subiecte",
   "chat.topics.subject.delete": "Șterge grupul",
+  "chat.topics.subject.delete_confirm_description": "Subiectele din acest grup, inclusiv cele arhivate, se păstrează și sunt mutate la „Fără grup”.",
   "chat.topics.subject.error": "Nu s-a putut salva grupul de subiecte",
   "chat.topics.subject.move_to_group": "Mută în grup",
   "chat.topics.subject.name_placeholder": "Nume grup",

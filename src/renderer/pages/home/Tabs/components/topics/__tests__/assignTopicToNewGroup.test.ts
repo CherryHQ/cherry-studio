@@ -22,3 +22,13 @@ describe('assignTopicToNewGroup', () => {
     expect(submit).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('assignTopicToNewGroup draft id', () => {
+  it('reuses the draft group id for every submission of that draft', async () => {
+    const submit = vi.fn().mockRejectedValueOnce(new Error('x')).mockRejectedValueOnce(new Error('x'))
+    await expect(assignTopicToNewGroup({ submit, groupId: 'draft-1' })).rejects.toThrow('x')
+    submit.mockResolvedValueOnce('ok')
+    await expect(assignTopicToNewGroup({ submit, groupId: 'draft-1' })).resolves.toBe('ok')
+    expect(submit.mock.calls.map(([id]) => id)).toEqual(['draft-1', 'draft-1', 'draft-1'])
+  })
+})

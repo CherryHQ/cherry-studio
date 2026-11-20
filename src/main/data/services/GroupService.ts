@@ -218,7 +218,12 @@ export class GroupService {
 
     const effects: DataApiDataChangeEffect[] = [{ endpoint: '/groups', kind: 'membership', entityIds: [id] }]
     if (affectedTopicIds.length > 0) {
-      effects.push({ endpoint: '/topics', kind: 'projection', entityIds: affectedTopicIds })
+      effects.push(
+        { endpoint: '/topics', kind: 'projection', entityIds: affectedTopicIds },
+        // Mounted scalar queries match exact endpoints, so they need their own entries to drop the deleted group id.
+        { endpoint: '/topics/:id', entityIds: affectedTopicIds },
+        { endpoint: '/topics/latest' }
+      )
     }
     if (affectedAssistantIds.length > 0) {
       effects.push({ endpoint: '/assistants', kind: 'projection', entityIds: affectedAssistantIds })

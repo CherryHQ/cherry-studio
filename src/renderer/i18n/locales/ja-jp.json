@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "作成",
   "chat.topics.subject.create_title": "新しいトピックグループ",
   "chat.topics.subject.delete": "グループを削除",
+  "chat.topics.subject.delete_confirm_description": "このグループ内のトピック（アーカイブ済みを含む）は削除されず、「未分類」に移動します。",
   "chat.topics.subject.error": "トピックグループの保存に失敗しました",
   "chat.topics.subject.move_to_group": "グループに移動",
   "chat.topics.subject.name_placeholder": "グループ名",

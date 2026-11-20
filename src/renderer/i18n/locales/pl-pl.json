@@ -1174,6 +1174,7 @@
   "chat.topics.subject.create": "Utwórz",
   "chat.topics.subject.create_title": "Nowa grupa tematów",
   "chat.topics.subject.delete": "Usuń grupę",
+  "chat.topics.subject.delete_confirm_description": "Tematy z tej grupy, także zarchiwizowane, zostaną zachowane i przeniesione do „Bez grupy”.",
   "chat.topics.subject.error": "Nie udało się zapisać grupy tematów",
   "chat.topics.subject.move_to_group": "Przenieś do grupy",
   "chat.topics.subject.name_placeholder": "Nazwa grupy",

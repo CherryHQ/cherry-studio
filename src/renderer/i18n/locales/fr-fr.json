@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Créer",
   "chat.topics.subject.create_title": "Nouveau groupe de sujets",
   "chat.topics.subject.delete": "Supprimer le groupe",
+  "chat.topics.subject.delete_confirm_description": "Les sujets de ce groupe, y compris archivés, sont conservés et déplacés vers « Sans groupe ».",
   "chat.topics.subject.error": "Échec de l'enregistrement du groupe de sujets",
   "chat.topics.subject.move_to_group": "Déplacer vers le groupe",
   "chat.topics.subject.name_placeholder": "Nom du groupe",

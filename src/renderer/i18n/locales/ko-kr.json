@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "만들기",
   "chat.topics.subject.create_title": "새 주제 그룹",
   "chat.topics.subject.delete": "그룹 삭제",
+  "chat.topics.subject.delete_confirm_description": "이 그룹의 주제(보관된 주제 포함)는 삭제되지 않고 '그룹 없음'으로 이동합니다.",
   "chat.topics.subject.error": "주제 그룹 저장에 실패했습니다",
   "chat.topics.subject.move_to_group": "그룹으로 이동",
   "chat.topics.subject.name_placeholder": "그룹 이름",

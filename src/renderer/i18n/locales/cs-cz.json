@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Vytvořit",
   "chat.topics.subject.create_title": "Nová skupina témat",
   "chat.topics.subject.delete": "Smazat skupinu",
+  "chat.topics.subject.delete_confirm_description": "Témata v této skupině, včetně archivovaných, se zachovají a přesunou do části „Bez skupiny“.",
   "chat.topics.subject.error": "Skupinu témat se nepodařilo uložit",
   "chat.topics.subject.move_to_group": "Přesunout do skupiny",
   "chat.topics.subject.name_placeholder": "Název skupiny",

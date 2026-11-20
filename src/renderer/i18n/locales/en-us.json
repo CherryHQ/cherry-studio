@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Create",
   "chat.topics.subject.create_title": "New Topic Group",
   "chat.topics.subject.delete": "Delete Group",
+  "chat.topics.subject.delete_confirm_description": "Topics in this group, including archived ones, are kept and moved to Ungrouped.",
   "chat.topics.subject.error": "Failed to save topic group",
   "chat.topics.subject.move_to_group": "Move to Group",
   "chat.topics.subject.name_placeholder": "Group name",

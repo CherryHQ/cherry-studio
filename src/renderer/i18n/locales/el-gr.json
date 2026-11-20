@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Δημιουργία",
   "chat.topics.subject.create_title": "Νέα ομάδα θεμάτων",
   "chat.topics.subject.delete": "Διαγραφή ομάδας",
+  "chat.topics.subject.delete_confirm_description": "Τα θέματα αυτής της ομάδας, συμπεριλαμβανομένων των αρχειοθετημένων, διατηρούνται και μετακινούνται στο «Χωρίς ομάδα».",
   "chat.topics.subject.error": "Αποτυχία αποθήκευσης ομάδας θεμάτων",
   "chat.topics.subject.move_to_group": "Μετακίνηση σε ομάδα",
   "chat.topics.subject.name_placeholder": "Όνομα ομάδας",

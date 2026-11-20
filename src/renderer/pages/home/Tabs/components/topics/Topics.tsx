@@ -2,7 +2,7 @@ import { MoreHorizontal, Plus, Unlink } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
@@ -344,7 +344,7 @@ export function Topics({
     refreshOnDelete: ['/topics']
   })
   const [topicSubjectNameDialog, setTopicSubjectNameDialog] = useState<
-    { kind: 'create'; topic: Topic } | { kind: 'rename'; groupId: string; name: string } | null
+    { kind: 'create'; topic: Topic; groupId: string } | { kind: 'rename'; groupId: string; name: string } | null
   >(null)
   const topicSubjectById = useMemo(
     () => new Map(topicGroups.map((group) => [group.id, { id: group.id, name: group.name }])),
@@ -370,7 +370,8 @@ export function Topics({
     [patchTopic, t]
   )
   const handleRequestNewTopicSubject = useCallback((topic: Topic) => {
-    setTopicSubjectNameDialog({ kind: 'create', topic })
+    // One group id per dialog draft: a resubmit after a lost reply resolves to the committed group.
+    setTopicSubjectNameDialog({ kind: 'create', topic, groupId: crypto.randomUUID() })
   }, [])
   const handleSubmitTopicSubjectName = useCallback(
     async (name: string) => {
@@ -380,10 +381,14 @@ export function Topics({
         return
       }
       const topicId = topicSubjectNameDialog.topic.id
-      await assignTopicToNewGroup({ submit: (groupId) => createGroupAndAssign(topicId, { groupId, name }) })
+      await assignTopicToNewGroup({
+        groupId: topicSubjectNameDialog.groupId,
+        submit: (groupId) => createGroupAndAssign(topicId, { groupId, name })
+      })
     },
     [createGroupAndAssign, topicSubjectNameDialog, updateTopicGroup]
   )
+  const [deletingTopicSubjectId, setDeletingTopicSubjectId] = useState<string | null>(null)
   const handleDeleteTopicSubject = useCallback(
     async (groupId: string) => {
       try {
@@ -1197,7 +1202,7 @@ export function Topics({
             id: 'topic.subject.delete',
             label: t('chat.topics.subject.delete'),
             destructive: true,
-            onSelect: () => void handleDeleteTopicSubject(subject.id)
+            onSelect: () => setDeletingTopicSubjectId(subject.id)
           }
         ]
 
@@ -1652,6 +1657,22 @@ export function Topics({
 
   return (
     <>
+      <ConfirmDialog
+        open={deletingTopicSubjectId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTopicSubjectId(null)
+        }}
+        title={t('chat.topics.subject.delete')}
+        description={t('chat.topics.subject.delete_confirm_description')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          const groupId = deletingTopicSubjectId
+          setDeletingTopicSubjectId(null)
+          if (groupId) await handleDeleteTopicSubject(groupId)
+        }}
+      />
       <TopicGroupNameDialog
         open={topicSubjectNameDialog !== null}
         title={

@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Tạo",
   "chat.topics.subject.create_title": "Nhóm chủ đề mới",
   "chat.topics.subject.delete": "Xóa nhóm",
+  "chat.topics.subject.delete_confirm_description": "Các chủ đề trong nhóm này, kể cả chủ đề đã lưu trữ, sẽ được giữ lại và chuyển sang “Chưa phân nhóm”.",
   "chat.topics.subject.error": "Không lưu được nhóm chủ đề",
   "chat.topics.subject.move_to_group": "Chuyển đến nhóm",
   "chat.topics.subject.name_placeholder": "Tên nhóm",

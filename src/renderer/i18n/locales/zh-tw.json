@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "建立",
   "chat.topics.subject.create_title": "新增話題群組",
   "chat.topics.subject.delete": "刪除群組",
+  "chat.topics.subject.delete_confirm_description": "此群組中的話題（包括已封存的話題）將被保留，並移至「未分組」。",
   "chat.topics.subject.error": "儲存話題群組失敗",
   "chat.topics.subject.move_to_group": "移至群組",
   "chat.topics.subject.name_placeholder": "群組名稱",

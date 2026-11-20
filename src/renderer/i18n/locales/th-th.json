@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "สร้าง",
   "chat.topics.subject.create_title": "กลุ่มหัวข้อใหม่",
   "chat.topics.subject.delete": "ลบกลุ่ม",
+  "chat.topics.subject.delete_confirm_description": "หัวข้อในกลุ่มนี้ รวมถึงที่เก็บถาวร จะถูกเก็บไว้และย้ายไปที่ “ไม่มีกลุ่ม”",
   "chat.topics.subject.error": "บันทึกกลุ่มหัวข้อไม่สำเร็จ",
   "chat.topics.subject.move_to_group": "ย้ายไปยังกลุ่ม",
   "chat.topics.subject.name_placeholder": "ชื่อกลุ่ม",

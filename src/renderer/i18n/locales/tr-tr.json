@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Oluştur",
   "chat.topics.subject.create_title": "Yeni Konu Grubu",
   "chat.topics.subject.delete": "Grubu Sil",
+  "chat.topics.subject.delete_confirm_description": "Bu gruptaki konular, arşivlenenler dahil, korunur ve “Grupsuz” bölümüne taşınır.",
   "chat.topics.subject.error": "Konu grubu kaydedilemedi",
   "chat.topics.subject.move_to_group": "Gruba Taşı",
   "chat.topics.subject.name_placeholder": "Grup adı",

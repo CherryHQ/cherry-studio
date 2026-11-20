@@ -272,7 +272,9 @@ describe('GroupService', () => {
 
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
-        { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] }
+        { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
       ])
     })
 

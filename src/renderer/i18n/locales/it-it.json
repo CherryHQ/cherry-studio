@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Crea",
   "chat.topics.subject.create_title": "Nuovo gruppo di argomenti",
   "chat.topics.subject.delete": "Elimina gruppo",
+  "chat.topics.subject.delete_confirm_description": "Gli argomenti di questo gruppo, anche quelli archiviati, vengono conservati e spostati in «Senza gruppo».",
   "chat.topics.subject.error": "Impossibile salvare il gruppo di argomenti",
   "chat.topics.subject.move_to_group": "Sposta nel gruppo",
   "chat.topics.subject.name_placeholder": "Nome del gruppo",

@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "创建",
   "chat.topics.subject.create_title": "新建话题分组",
   "chat.topics.subject.delete": "删除分组",
+  "chat.topics.subject.delete_confirm_description": "此分组中的话题（包括已归档的话题）将被保留，并移至“未分组”。",
   "chat.topics.subject.error": "保存话题分组失败",
   "chat.topics.subject.move_to_group": "移至分组",
   "chat.topics.subject.name_placeholder": "分组名称",

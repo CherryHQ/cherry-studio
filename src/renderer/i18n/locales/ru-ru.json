@@ -1160,6 +1160,7 @@
   "chat.topics.subject.create": "Создать",
   "chat.topics.subject.create_title": "Новая группа тем",
   "chat.topics.subject.delete": "Удалить группу",
+  "chat.topics.subject.delete_confirm_description": "Темы из этой группы, включая архивные, сохранятся и будут перемещены в «Без группы».",
   "chat.topics.subject.error": "Не удалось сохранить группу тем",
   "chat.topics.subject.move_to_group": "Переместить в группу",
   "chat.topics.subject.name_placeholder": "Название группы",

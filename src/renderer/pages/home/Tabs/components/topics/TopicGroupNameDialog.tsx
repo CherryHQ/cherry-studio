@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogTitle, FieldError, Input, Label } from '@cherrystudio/ui'
@@ -28,8 +28,13 @@ export function TopicGroupNameDialog({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // Each opened draft gets a number; a save that finishes after the draft was replaced must not touch the new one.
+  const draftRef = useRef(0)
+
   useEffect(() => {
     if (!open) return
+    draftRef.current += 1
+    setIsSubmitting(false)
     setName(initialName)
     setHasAttemptedSubmit(false)
     setSubmitError(null)
@@ -42,20 +47,23 @@ export function TopicGroupNameDialog({
     setSubmitError(null)
     if (!normalizedName) return
 
+    const draft = draftRef.current
     setIsSubmitting(true)
     try {
       await onSubmit(normalizedName)
-      onOpenChange(false)
+      if (draft === draftRef.current) onOpenChange(false)
     } catch (error) {
-      setSubmitError(formatErrorMessageWithPrefix(error, t('chat.topics.subject.error')))
+      if (draft === draftRef.current) {
+        setSubmitError(formatErrorMessageWithPrefix(error, t('chat.topics.subject.error')))
+      }
     } finally {
-      setIsSubmitting(false)
+      if (draft === draftRef.current) setIsSubmitting(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeOnOverlayClick={false} size="sm">
+      <DialogContent closeLabel={t('common.close')} closeOnOverlayClick={false} size="sm">
         <DialogTitle>{title}</DialogTitle>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

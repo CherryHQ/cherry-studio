@@ -7,9 +7,11 @@
  */
 export async function assignTopicToNewGroup<T>(input: {
   submit: (groupId: string) => Promise<T>
+  /** The draft's id, reused by every submission of the same dialog draft. */
+  groupId?: string
   newGroupId?: () => string
 }): Promise<T> {
-  const groupId = (input.newGroupId ?? (() => crypto.randomUUID()))()
+  const groupId = input.groupId ?? (input.newGroupId ?? (() => crypto.randomUUID()))()
   try {
     return await input.submit(groupId)
   } catch {
