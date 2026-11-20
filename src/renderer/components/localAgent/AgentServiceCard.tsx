@@ -20,7 +20,7 @@ export function AgentServiceCard({
   children: ReactNode
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-border-subtle bg-card">
+    <section className="overflow-hidden rounded-xl border border-border-subtle">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
         <div className="flex min-w-48 flex-1 items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center">{icon}</div>
@@ -42,7 +42,7 @@ export function AgentServiceCard({
         <div className="flex flex-wrap items-center gap-2 empty:hidden">{actions}</div>
         {trailing && <div className="ml-auto flex shrink-0 items-center gap-1.5">{trailing}</div>}
       </header>
-      <div className="space-y-2.5 border-t border-border-subtle bg-muted/20 px-5 py-3">{children}</div>
+      <div className="space-y-2.5 border-t border-border-subtle px-5 py-3">{children}</div>
     </section>
   )
 }
