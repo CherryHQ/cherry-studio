@@ -292,6 +292,15 @@ describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google
     })
   })
 
+  it('does not send the unsupported transparent + jpeg pair', () => {
+    const out = engine('dmxapi', { outputFormat: 'jpeg', background: 'transparent', numImages: 1 }) as any
+    expect(out.openai.background).toBe('transparent')
+    expect(out.openai).not.toHaveProperty('outputFormat')
+    expect(engine('dmxapi', { outputFormat: 'webp', background: 'transparent', numImages: 1 })).toMatchObject({
+      openai: { outputFormat: 'webp', background: 'transparent' }
+    })
+  })
+
   it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
     expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })

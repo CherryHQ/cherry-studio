@@ -3339,7 +3339,7 @@
   "paintings.output_format_delivery": "URL ve base64, görüntü kodlamasını değil yanıtın iletim şeklini seçer. Görüntü kodlamasını sağlayıcı belirler; yerel dönüştürme yapılmaz.",
   "paintings.output_format_fixed": "Çıktı biçimini sağlayıcı belirler. Bu modelde biçim seçilemez ve yerel dönüştürme yoktur; dosya sağlayıcının biçiminde kalır.",
   "paintings.output_format_selectable": "Desteklenen çıktı biçimleri: {{formats}}. Biçim sağlayıcı tarafından üretilir, yerel dönüştürme yapılmaz; kalite, saydamlık ve meta veriler sağlayıcının çıktısına göre belirlenir.",
-  "paintings.output_format_transform_exception": "İstisna: Bir görseli “Farklı Kaydet” öncesinde döndürür veya çevirirseniz PNG olarak dışa aktarılır.",
+  "paintings.output_format_transform_exception": "İstisna: Bir durağan görseli “Farklı Kaydet” öncesinde döndürür veya çevirirseniz PNG olarak dışa aktarılır. GIF dosyaları özgün baytlarını korur; döndürme veya çevirme uygulanmaz.",
   "paintings.person_generation": "İnsan oluştur",
   "paintings.person_generation_options.allow_adult": "Yetişkinlere izin ver",
   "paintings.person_generation_options.allow_all": "Tümüne izin ver",

@@ -3339,7 +3339,7 @@
   "paintings.output_format_delivery": "URL y base64 seleccionan cómo se entrega la respuesta, no la codificación de la imagen. El proveedor elige la codificación; no se realiza ninguna conversión local.",
   "paintings.output_format_fixed": "El proveedor decide el formato de salida. Este modelo no permite elegir formato ni conversión local; el archivo conserva el formato del proveedor.",
   "paintings.output_format_selectable": "Formatos de salida admitidos: {{formats}}. El proveedor genera el formato sin conversión local; la calidad, la transparencia y los metadatos dependen de su salida.",
-  "paintings.output_format_transform_exception": "Excepción: si giras o volteas una imagen antes de «Guardar como», se exporta como PNG.",
+  "paintings.output_format_transform_exception": "Excepción: si giras o volteas una imagen fija antes de «Guardar como», se exporta como PNG. Los GIF conservan sus bytes originales y no se aplica el giro ni el volteo.",
   "paintings.person_generation": "Generar personas",
   "paintings.person_generation_options.allow_adult": "Permitir adultos",
   "paintings.person_generation_options.allow_all": "Permitir todos",

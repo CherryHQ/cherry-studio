@@ -3340,7 +3340,7 @@
   "paintings.output_format_delivery": "URL a base64 volí způsob doručení odpovědi, nikoli kódování obrázku. Kódování obrázku volí poskytovatel; nepoužívá se žádná místní konverze.",
   "paintings.output_format_fixed": "Výstupní formát volí poskytovatel. Tento model nemá žádný volitelný formát ani místní konverzi; uložený soubor zachovává formát poskytovatele.",
   "paintings.output_format_selectable": "Podporované výstupní formáty: {{formats}}. Formát vytváří poskytovatel; nepoužívá se žádná místní konverze, takže kvalita, průhlednost a metadata odpovídají výstupu poskytovatele.",
-  "paintings.output_format_transform_exception": "Výjimka: pokud obrázek před „Uložit jako“ otočíte nebo převrátíte, exportuje se jako PNG.",
+  "paintings.output_format_transform_exception": "Výjimka: pokud statický obrázek před „Uložit jako“ otočíte nebo převrátíte, exportuje se jako PNG. GIF si ponechá původní data a otočení ani převrácení se neuplatní.",
   "paintings.person_generation": "Generování osob",
   "paintings.person_generation_options.allow_adult": "Povolit dospělé",
   "paintings.person_generation_options.allow_all": "Povolit vše",

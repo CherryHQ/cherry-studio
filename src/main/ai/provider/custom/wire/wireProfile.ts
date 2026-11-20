@@ -189,7 +189,15 @@ export const DMXAPI_WIRE_PROFILE: WireProfile = {
 /** dmxapi's OpenAI-routed block (gpt-image / dall-e): the OpenAI image fields, delivered under `openai`. */
 export const DMXAPI_OPENAI_PROFILE: WireProfile = {
   forward: ['quality', 'background', 'moderation'],
-  fields: { outputFormat: { to: 'outputFormat' } }
+  fields: {
+    // Transparency needs PNG or WebP. A transparent background with JPEG would be
+    // rejected or silently flattened, so drop the JPEG format and let the provider
+    // return its default (PNG) instead of sending the unsupported pair.
+    outputFormat: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        value === 'jpeg' && all.background === 'transparent' ? {} : { outputFormat: value as JSONValue }
+    }
+  }
 }
 
 /** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag

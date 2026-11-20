@@ -3339,7 +3339,7 @@
   "paintings.output_format_delivery": "URL と base64 は応答の受け取り方を選択するもので、画像のエンコード形式ではありません。画像の形式はプロバイダーが決定します。ローカルでの変換は行いません。",
   "paintings.output_format_fixed": "出力形式はプロバイダーが決定します。このモデルでは形式を選択できず、ローカル変換も行いません。保存されるファイルはプロバイダーの形式のままです。",
   "paintings.output_format_selectable": "対応する出力形式：{{formats}}。形式はプロバイダーが生成し、ローカル変換は行いません。画質・透明度・メタデータはプロバイダーの出力に従います。",
-  "paintings.output_format_transform_exception": "例外：「名前を付けて保存」の前に画像を回転または反転すると、PNG として書き出されます。",
+  "paintings.output_format_transform_exception": "例外：「名前を付けて保存」の前に静止画を回転または反転すると、PNG として書き出されます。GIF は元のデータのまま保存され、回転や反転は適用されません。",
   "paintings.person_generation": "人を生成する",
   "paintings.person_generation_options.allow_adult": "許可する",
   "paintings.person_generation_options.allow_all": "許可する",
