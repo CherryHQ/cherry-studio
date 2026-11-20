@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
@@ -72,7 +73,7 @@ interface DashScopeTaskOutput {
 export interface DashScopeTaskResult {
   output: DashScopeTaskOutput
   request_id?: string
-  usage?: Record<string, unknown>
+  usage?: JSONObject
 }
 
 /**
@@ -187,12 +188,12 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
  * Family C — flat `input.prompt` body for text2image/image-synthesis
  * (qwen-image / qwen-image-plus / wanx2.x-t2i-* / wanx-v1).
  */
-function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
-  const inputBlock: Record<string, unknown> = {}
+function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+  const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
 
-  const parameters: Record<string, unknown> = {}
+  const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
@@ -217,12 +218,12 @@ function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopePr
  * `prompt: { text, images }` → `options.files`). DashScope accepts both
  * `https?:` URLs and `data:` base64 URLs in `content[].image`.
  */
-function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
+function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
   const content: Array<{ text?: string; image?: string }> = []
   if (input.prompt) content.push({ text: input.prompt })
   for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
-  const parameters: Record<string, unknown> = {}
+  const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
@@ -245,14 +246,14 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  * user attaches an image, it goes on `input.ref_image`; `style` /
  * `ref_strength` / `ref_mode` live on `parameters.*`.
  */
-function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
-  const inputBlock: Record<string, unknown> = {}
+function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+  const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
   const refFile = input.files?.[0]
   if (refFile) inputBlock.ref_image = fileToDataUrl(refFile)
 
-  const parameters: Record<string, unknown> = {}
+  const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
@@ -272,15 +273,15 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
  * Family D1 — wan2.5-i2i-preview's image2image body. `input.images` is an
  * array (up to 3 per docs); the canonical `input.files` carries them.
  */
-function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
-  const inputBlock: Record<string, unknown> = {}
+function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+  const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
   if (input.files && input.files.length > 0) {
     inputBlock.images = input.files.map((f) => fileToDataUrl(f))
   }
 
-  const parameters: Record<string, unknown> = {}
+  const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
@@ -300,11 +301,8 @@ function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  * prompt; `input.image_url` + `source_lang` + `target_lang` are the only
  * required fields (pipeline must thread `requirePrompt: false`).
  */
-function buildQwenMtImageBody(
-  input: ImageGenerationSubmitInput,
-  bag: DashScopeProviderParams
-): Record<string, unknown> {
-  const inputBlock: Record<string, unknown> = {}
+function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+  const inputBlock: JSONObject = {}
   const firstFile = input.files?.[0]
   if (firstFile) inputBlock.image_url = fileToDataUrl(firstFile)
   if (bag.sourceLang) inputBlock.source_lang = bag.sourceLang
@@ -319,18 +317,15 @@ function buildQwenMtImageBody(
  * function-specific param that's set on the bag and let DashScope ignore
  * the irrelevant ones per its documented behavior.
  */
-function buildWanxImageEditBody(
-  input: ImageGenerationSubmitInput,
-  bag: DashScopeProviderParams
-): Record<string, unknown> {
-  const inputBlock: Record<string, unknown> = {}
+function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+  const inputBlock: JSONObject = {}
   if (bag.function) inputBlock.function = bag.function
   if (input.prompt) inputBlock.prompt = input.prompt
   const baseFile = input.files?.[0]
   if (baseFile) inputBlock.base_image_url = fileToDataUrl(baseFile)
   if (input.mask) inputBlock.mask_image_url = fileToDataUrl(input.mask)
 
-  const parameters: Record<string, unknown> = {}
+  const parameters: JSONObject = {}
   if (input.n && input.n > 1) parameters.n = input.n
   if (typeof input.seed === 'number') parameters.seed = input.seed
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
@@ -349,10 +344,7 @@ function buildWanxImageEditBody(
   }
 }
 
-function buildRequestBody(
-  input: ImageGenerationSubmitInput,
-  descriptor: DashScopeModelDescriptor
-): Record<string, unknown> {
+function buildRequestBody(input: ImageGenerationSubmitInput, descriptor: DashScopeModelDescriptor): JSONObject {
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
   // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
   // what built-in listings resolve to) and the vendor `apiModelId` (what manually
@@ -532,7 +524,7 @@ class DashScopeTransport implements ImageGenerationTransport {
   private async request<T>(
     path: string,
     method: 'POST' | 'GET',
-    body: Record<string, unknown> | undefined,
+    body: JSONObject | undefined,
     options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
   ): Promise<T> {
     const timeout = options.timeout ?? DEFAULT_TIMEOUT

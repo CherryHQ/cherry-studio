@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
@@ -130,7 +131,7 @@ class PpioTransport implements ImageGenerationTransport {
 
   private async request<T>(
     endpoint: string,
-    body: Record<string, unknown>,
+    body: JSONObject,
     method: 'POST' | 'GET' = 'POST',
     requestOptions?: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
@@ -234,9 +235,9 @@ class PpioTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     painting: PpioProviderParams,
     descriptor: PpioModelDescriptor
-  ): Record<string, unknown> {
+  ): JSONObject {
     const modelId = descriptor.id
-    const params: Record<string, unknown> = {}
+    const params: JSONObject = {}
 
     if (input.prompt) {
       params.prompt = input.prompt
@@ -270,8 +271,8 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
-    const params: Record<string, unknown> = {
+  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+    const params: JSONObject = {
       prompt: input.prompt,
       use_pre_llm: painting.usePreLlm ?? true,
       seed: painting.ppioSeed ?? -1
@@ -294,7 +295,7 @@ class PpioTransport implements ImageGenerationTransport {
     return params
   }
 
-  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -303,10 +304,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildQwenTxt2ImgParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildQwenTxt2ImgParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -314,10 +312,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildQwenEditParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildQwenEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     const firstFile = input.files?.[0]
     return {
       prompt: input.prompt,
@@ -328,7 +323,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size || '1280x1280',
@@ -337,7 +332,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -345,10 +340,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildZImageLoraParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildZImageLoraParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -357,10 +349,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildSeedreamDrawParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildSeedreamDrawParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
     return {
       prompt: input.prompt,
       size: painting.size || '2048x2048',
@@ -373,7 +362,7 @@ class PpioTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     painting: PpioProviderParams,
     modelId: string
-  ): Record<string, unknown> {
+  ): JSONObject {
     const firstFile = input.files?.[0]
     const rawImage = firstFile ? fileToDataUrl(firstFile) : ''
     if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {
