@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs'
 
 import { render } from '@testing-library/react'
-import postcss, { type Rule } from 'postcss'
-import { expect, it, vi } from 'vitest'
+import postcss from 'postcss'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import CodeViewer from '../CodeViewer'
 
@@ -21,31 +21,72 @@ vi.mock('@renderer/hooks/useCodeHighlight', () => ({
 const highlightLines = async () => {}
 const resetHighlight = () => {}
 
-it('keeps ligature suppression on the class the fenced-code renderer actually emits', () => {
-  const { container } = render(<CodeViewer value={'x =~ 42\ny <= 10 -> z'} language="text" expanded={false} />)
-  const element = container.firstElementChild!
-  const matchingRules: Rule[] = []
-  const css = readFileSync('src/renderer/assets/styles/markdown.css', 'utf8')
+const originalDescriptors = Object.getOwnPropertyDescriptors(HTMLElement.prototype)
+beforeEach(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    offsetWidth: { configurable: true, get: () => 640 },
+    offsetHeight: { configurable: true, get: () => 300 }
+  })
+})
+afterEach(() => {
+  for (const key of ['offsetWidth', 'offsetHeight']) {
+    Object.defineProperty(HTMLElement.prototype, key, originalDescriptors[key])
+  }
+})
 
-  postcss.parse(css).walkRules((rule) => {
-    if (
-      rule.selectors.some((selector) => {
-        try {
-          return element.matches(selector)
-        } catch {
-          return false
+const stylesheet = postcss.parse(readFileSync('src/renderer/assets/styles/markdown.css', 'utf8'))
+
+function resolveStyle(element: Element, property: string): string | null {
+  let winner: { value: string; priority: number[] } | null = null
+  stylesheet.walkRules((rule) => {
+    for (const selector of rule.selectors) {
+      try {
+        if (!element.matches(selector)) continue
+      } catch {
+        continue
+      }
+      const unwrapped = selector.replace(/:is\(([^()]*)\)/g, '$1')
+      const ids = unwrapped.match(/#[\w-]+/g)?.length ?? 0
+      const classes = unwrapped.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g)?.length ?? 0
+      const types =
+        unwrapped
+          .replace(/#[\w-]+|\.[\w-]+|\[[^\]]+\]|:{1,2}[\w-]+(?:\([^)]*\))?/g, '')
+          .match(/(?:^|[\s>+~])([a-zA-Z][\w-]*)/g)?.length ?? 0
+      rule.walkDecls(property, (declaration) => {
+        const priority = [Number(declaration.important), ids, classes, types]
+        if (
+          !winner ||
+          priority.some(
+            (part, i) => part > winner!.priority[i] && priority.slice(0, i).every((v, j) => v === winner!.priority[j])
+          ) ||
+          priority.every((part, i) => part === winner!.priority[i])
+        ) {
+          winner = { value: declaration.value, priority }
         }
       })
-    ) {
-      matchingRules.push(rule)
     }
   })
+  const result = winner as { value: string } | null
+  return result?.value ?? (element.parentElement ? resolveStyle(element.parentElement, property) : null)
+}
 
-  // Fenced blocks must retain the stylesheet's ligature suppression without replacing inherited features.
-  expect(matchingRules.some((rule) => rule.selectors.includes('.shiki'))).toBe(true)
-  const declarations = matchingRules.flatMap((rule) => rule.nodes.filter((node) => node.type === 'decl'))
-  expect(
-    declarations.some((declaration) => declaration.prop === 'font-variant-ligatures' && declaration.value === 'none')
-  ).toBe(true)
-  expect(declarations.some((declaration) => declaration.prop === 'font-feature-settings')).toBe(false)
+it('resolves ligature suppression on the elements that render code', () => {
+  const { container } = render(<CodeViewer value={'x =~ 42\ny <= 10 -> z'} language="text" expanded={false} />)
+  const root = container.querySelector('.shiki')!
+  const textElement =
+    container.querySelector('.shiki .line-content') ??
+    Array.from(root.querySelectorAll('*'))
+      .reverse()
+      .find((element) => element.textContent?.includes('<='))!
+
+  // The contract is that .markdown code matches inline code, regardless of its producer.
+  const inline = render(
+    <div className="markdown">
+      <code>x &lt;= y</code>
+      <p>plain text</p>
+    </div>
+  )
+  expect(resolveStyle(textElement, 'font-variant-ligatures')).toBe('none')
+  expect(resolveStyle(inline.container.querySelector('code')!, 'font-variant-ligatures')).toBe('none')
+  expect(resolveStyle(inline.container.querySelector('p')!, 'font-variant-ligatures')).toBeNull()
 })
