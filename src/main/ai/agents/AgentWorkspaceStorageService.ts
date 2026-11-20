@@ -230,13 +230,16 @@ class AgentWorkspaceStorageService {
    * `pack` replaces the inline compression of an archived workspace: callers
    * that must keep packing inside the archive queue's concurrency cap (the
    * trash sweep, per AC6) pass a callback that enqueues the pack instead of
-   * running it here. Restore-record recovery always stays inline.
+   * running it here. The callback fires only after this workspace's storage
+   * reservation is released, so an idle worker never sees the reservation it
+   * would report as contention. Restore-record recovery always stays inline.
    */
   async reconcileWorkspace(
     workspace: Workspace,
     lifecycle: 'active' | 'archived',
     options: { pack?: () => Promise<void> } = {}
   ): Promise<void> {
+    let packNeeded = false
     await this.withSystemWorkspaceStorage(workspace.path, async () => {
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
@@ -245,9 +248,12 @@ class AgentWorkspaceStorageService {
       if (state.record?.operation === 'restore') {
         const record = await this.restore(root, workspace)
         if (record && lifecycle === 'active') await this.commitRestore(root, workspace.path, record)
-      } else if (lifecycle === 'archived') await this.archive(root, workspace, options.pack)
+      } else if (lifecycle === 'archived') packNeeded = await this.archive(root, workspace, options.pack !== undefined)
       else throw new Error('Active session has an unfinished workspace storage operation')
     })
+    // Enqueue only after the reservation is released: a worker starting before
+    // release would read it as contention and spend a retry without packing.
+    if (packNeeded && options.pack) await options.pack()
   }
 
   async purgeWorkspace(workspace: Workspace): Promise<void> {
@@ -287,18 +293,19 @@ class AgentWorkspaceStorageService {
     return state
   }
 
-  private async archive(root: string, workspace: Workspace, pack?: () => Promise<void>): Promise<void> {
+  /** Returns true when packing was deferred to the caller's queue callback. */
+  private async archive(root: string, workspace: Workspace, deferPack?: boolean): Promise<boolean> {
     const state = await this.inspect(root, workspace)
-    if (!state) return
+    if (!state) return false
     let record = state.record
     if (record && record.operation !== 'archive') throw new Error('Workspace has another pending storage operation')
-    if (pack) {
+    if (deferPack) {
       // Pack work exists only when an interrupted pack resumes or unpacked
       // content remains; an already-packed workspace needs nothing enqueued.
-      if (!record && !state.directory && !state.pending) return
+      if (!record && !state.directory && !state.pending) return false
       if (!record && (state.archive || (state.directory && state.pending)))
         throw new Error('Workspace storage has unverified copies')
-      return pack()
+      return true
     }
     if (!record) {
       if (!state.directory && !state.pending) return
@@ -318,6 +325,7 @@ class AgentWorkspaceStorageService {
       await storage.writeWorkspaceStorageRecord(workspace.path, record)
     }
     await this.finishArchive(root, workspace.path, record)
+    return false
   }
 
   private async finishArchive(root: string, workspace: string, initial: ArchiveRecord): Promise<void> {
