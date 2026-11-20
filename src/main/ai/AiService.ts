@@ -42,6 +42,7 @@ import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
   isSeedream5xTargetModel,
@@ -324,6 +325,8 @@ export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
    * manager supplies it because only it can reach the turn's chunk sink.
    */
   compactionSink?: CompactionSink
+  /** Live audio/video analysis stage while attachments are prepared; `null` once preparation ends. */
+  mediaAnalysisSink?: (progress: MediaAnalysisProgress | null) => void
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -706,6 +709,7 @@ export class AiService extends BaseService {
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      onMediaProgress: request.mediaAnalysisSink,
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
@@ -725,7 +729,7 @@ export class AiService extends BaseService {
             })) ?? undefined)
           : undefined,
       signal
-    })
+    }).finally(() => request.mediaAnalysisSink?.(null))
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.

@@ -12,6 +12,7 @@ import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveNativeFileSupport, type NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
@@ -30,7 +31,7 @@ const { getByIdMock, mediaAnalysisMock, probeMock, ocrMock } = vi.hoisted(() => 
       (
         file: { kind: 'entry'; entryId: string },
         signal?: AbortSignal,
-        options?: { fallbackVisionModelId?: string }
+        options?: { fallbackVisionModelId?: string; onProgress?: (progress: MediaAnalysisProgress) => void }
       ) => Promise<string>
     >(),
   probeMock: vi.fn<
@@ -78,7 +79,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { collectFileAttachments, type PrepareChatContext, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -123,7 +124,12 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
-  opts: { isToolCapable?: boolean; cap?: number; chatModelId?: UniqueModelId } = {}
+  opts: {
+    isToolCapable?: boolean
+    cap?: number
+    chatModelId?: UniqueModelId
+    onMediaProgress?: PrepareChatContext['onMediaProgress']
+  } = {}
 ) => {
   const messages = [userMessage(parts)] as UIMessage[]
   return prepareChatMessages(messages, {
@@ -131,6 +137,7 @@ const run = (
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
     chatModelId: opts.chatModelId,
+    onMediaProgress: opts.onMediaProgress,
     budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
   })
 }
@@ -325,6 +332,19 @@ describe('prepareChatMessages — routing', () => {
     expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
       fallbackVisionModelId: 'openai::gpt-4.1-mini'
     })
+  })
+
+  it('reports the media analysis stage to the reply while it prepares the attachment', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockImplementationOnce(async (_file, _signal, options) => {
+      options?.onProgress?.({ stage: 'reading_frames', done: 1, total: 4 })
+      return '[0:00] a slide'
+    })
+    const progress: MediaAnalysisProgress[] = []
+
+    await run([fileWithEntry('e1', 'talk.mp4', 'video/mp4')], NONE, { onMediaProgress: (p) => progress.push(p) })
+
+    expect(progress).toEqual([{ stage: 'reading_frames', done: 1, total: 4 }])
   })
 
   it.each(['probe failed', 'unusable_media_analysis'])(
