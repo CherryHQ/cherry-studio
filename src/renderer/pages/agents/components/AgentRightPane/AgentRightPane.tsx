@@ -113,7 +113,7 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import { AgentBrowserView } from './AgentBrowserView'
-import { AgentResourceTabs, AgentResourceHeaderProvider, AgentResourceFileControls } from './AgentResourceTabs'
+import { AgentResourceTabs, AgentResourceHeaderProvider, AgentResourceHeaderControls } from './AgentResourceTabs'
 import {
   type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
@@ -1164,7 +1164,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     <ArtifactPaneView
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
-      renderHeader={(controls) => <AgentResourceFileControls>{controls}</AgentResourceFileControls>}
+      renderHeader={(controls) => <AgentResourceHeaderControls panelId="files">{controls}</AgentResourceHeaderControls>}
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       fileTabs={state.fileTabs}
@@ -1795,7 +1795,13 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
     component: ({ active, scope }) =>
       scope.meta.sessionId ? (
         <Suspense fallback={null}>
-          <TerminalPane sessionId={scope.meta.sessionId} active={active} />
+          <TerminalPane
+            sessionId={scope.meta.sessionId}
+            active={active}
+            renderHeader={(controls) => (
+              <AgentResourceHeaderControls panelId="terminal">{controls}</AgentResourceHeaderControls>
+            )}
+          />
         </Suspense>
       ) : null,
     resolve: (scope) => ({

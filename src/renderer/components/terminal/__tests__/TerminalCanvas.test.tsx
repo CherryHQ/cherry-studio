@@ -410,3 +410,17 @@ it('opens terminal operations without sending the menu gesture to the running pr
       )
   ).toEqual([])
 })
+
+it('keeps menu dismissal focused on terminal input and stops from the header menu', async () => {
+  const user = userEvent.setup()
+  render(<TerminalCanvas resource={current} active onResource={() => {}} renderHeader={(controls) => controls} />)
+  const area = await input()
+  await user.click(screen.getByRole('button', { name: /更多|More/ }))
+  await user.keyboard('{Escape}')
+  expect(area).toHaveFocus()
+  await user.keyboard('echo ready')
+  await waitFor(() => expect(stdin).toBe('echo ready'))
+  await user.click(screen.getByRole('button', { name: /更多|More/ }))
+  await user.click(screen.getByRole('menuitem', { name: /关闭终端|Close terminal/ }))
+  await waitFor(() => expect(alive).toBe(false))
+})

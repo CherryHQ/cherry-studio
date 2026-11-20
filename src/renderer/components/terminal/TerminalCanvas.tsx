@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ContextMenuItem, Textarea } from '@cherrystudio/ui'
+import { Button, Textarea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import type { InputFor } from '@shared/ipc/types'
 import type { GhosttySnapshot, GhosttyTheme, GhosttyMouseInput, TerminalResourceState } from '@shared/types/terminal'
@@ -19,7 +19,12 @@ import {
   loadGhosttyKeyboardLayoutMap,
   type GhosttyKeyboardLayoutMap
 } from './keyCodes'
-import { TerminalContextMenu, useTerminalSettings } from './TerminalContextMenu'
+import {
+  TerminalContextMenu,
+  TerminalDropdownMenu,
+  useTerminalSettings,
+  type TerminalMenuAction
+} from './TerminalContextMenu'
 import { applyTerminalFrame } from './terminalFrames'
 
 type WireAction = InputFor<'terminal.action'>['action']
@@ -42,13 +47,15 @@ export function TerminalCanvas({
   active,
   onResource,
   takeControlOnAttach = false,
-  onAttached
+  onAttached,
+  renderHeader
 }: {
   resource: TerminalResourceState
   active: boolean
   onResource: (state: TerminalResourceState) => void
   takeControlOnAttach?: boolean
   onAttached?: () => void
+  renderHeader?: (controls: ReactNode) => ReactNode
 }) {
   const { t } = useTranslation()
   const [settings] = useTerminalSettings()
@@ -559,8 +566,43 @@ export function TerminalCanvas({
   }
   const controlled = controlling && resource.control.kind === 'user' && resource.process.kind === 'running'
   const canInput = controlled && geometryReady
+  const menuActions: TerminalMenuAction[] = [
+    {
+      label: t(controlled ? 'terminal.return_control' : 'terminal.take_control'),
+      disabled: resource.process.kind !== 'running' || controlPending || takeControlOnAttach,
+      onSelect: () => void send({ kind: controlled ? 'return-control' : 'take-control' })
+    },
+    { label: t('terminal.copy'), onSelect: copy },
+    {
+      label: t('terminal.interrupt'),
+      disabled: !canInput,
+      onSelect: () =>
+        void send({
+          kind: 'key',
+          event: {
+            key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
+            mods: 2,
+            consumedMods: 0,
+            composing: false,
+            unshiftedCodepoint: 99,
+            text: 'c',
+            repeat: false
+          }
+        })
+    },
+    {
+      label: t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close'),
+      disabled: resource.cleanup === 'confirmed',
+      onSelect: () => void send({ kind: 'stop' })
+    }
+  ]
+  const restoreInputFocus = (event: Event) => {
+    event.preventDefault()
+    if (active) input.current?.focus({ preventScroll: true })
+  }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {renderHeader?.(<TerminalDropdownMenu actions={menuActions} onCloseAutoFocus={restoreInputFocus} />)}
       {(resource.cleanup === 'unconfirmed' || resource.process.kind === 'lost') && (
         <div role="alert" className="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-warning">
           <span className="flex-1">{t('terminal.cleanup.protected')}</span>
@@ -574,42 +616,7 @@ export function TerminalCanvas({
           {error || viewError}
         </div>
       )}
-      <TerminalContextMenu
-        onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          input.current?.focus({ preventScroll: true })
-        }}
-        actions={
-          <>
-            <ContextMenuItem
-              disabled={resource.process.kind !== 'running' || controlPending || takeControlOnAttach}
-              onSelect={() => void send({ kind: controlled ? 'return-control' : 'take-control' })}>
-              {t(controlled ? 'terminal.return_control' : 'terminal.take_control')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={copy}>{t('terminal.copy')}</ContextMenuItem>
-            <ContextMenuItem
-              disabled={!canInput}
-              onSelect={() =>
-                void send({
-                  kind: 'key',
-                  event: {
-                    key: ghosttyKeyForEvent({ code: 'KeyC', key: 'c' }),
-                    mods: 2,
-                    consumedMods: 0,
-                    composing: false,
-                    unshiftedCodepoint: 99,
-                    text: 'c',
-                    repeat: false
-                  }
-                })
-              }>
-              {t('terminal.interrupt')}
-            </ContextMenuItem>
-            <ContextMenuItem disabled={resource.cleanup === 'confirmed'} onSelect={() => void send({ kind: 'stop' })}>
-              {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close')}
-            </ContextMenuItem>
-          </>
-        }>
+      <TerminalContextMenu onCloseAutoFocus={restoreInputFocus} actions={menuActions}>
         <div
           ref={root}
           role="region"

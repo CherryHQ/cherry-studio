@@ -50,9 +50,16 @@ export function AgentResourceHeaderProvider({ children }: { children: ReactNode 
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   return <HeaderSlotContext value={{ element, setElement }}>{children}</HeaderSlotContext>
 }
-export function AgentResourceFileControls({ children }: { children: ReactNode }) {
+export function AgentResourceHeaderControls({
+  children,
+  panelId
+}: {
+  children: ReactNode
+  panelId: 'files' | 'terminal'
+}) {
   const slot = use(HeaderSlotContext)
-  return slot?.element ? createPortal(children, slot.element) : null
+  const panel = useRightPanelState()
+  return slot?.element && panel.activePanelId === panelId ? createPortal(children, slot.element) : null
 }
 
 type ResourceTab = RightPaneTab &
@@ -260,10 +267,7 @@ export function AgentResourceTabs({
         onActivate={activate}
         onClose={close}
       />
-      <div
-        ref={slot?.setElement}
-        className={panel.activePanelId === 'files' ? 'flex shrink-0 items-center gap-1' : 'hidden'}
-      />
+      <div ref={slot?.setElement} className="flex shrink-0 items-center gap-1" />
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <Tooltip content={t('agent.resources.open_create')}>
           <DropdownMenuTrigger asChild>

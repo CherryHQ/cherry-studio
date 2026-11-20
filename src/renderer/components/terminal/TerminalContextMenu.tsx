@@ -1,10 +1,13 @@
-import type { ComponentProps, ReactElement, ReactNode } from 'react'
+import { MoreHorizontal } from 'lucide-react'
+import type { ComponentProps, ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Button,
   ContextMenu,
   ContextMenuCheckboxItem,
   ContextMenuContent,
+  ContextMenuItem,
   ContextMenuPortal,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
@@ -12,7 +15,20 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-  ContextMenuTrigger
+  ContextMenuTrigger,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  Tooltip
 } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 
@@ -31,17 +47,18 @@ export function useTerminalSettings() {
   return useMultiplePreferences(SETTING_KEYS)
 }
 
+export type TerminalMenuAction = { label: string; disabled?: boolean; onSelect: () => void }
+type TerminalMenuProps = {
+  actions?: TerminalMenuAction[]
+  onCloseAutoFocus?: ComponentProps<typeof ContextMenuContent>['onCloseAutoFocus']
+}
+
 export function TerminalContextMenu({
   children,
   actions,
   onCloseAutoFocus
-}: {
-  children: ReactElement
-  actions?: ReactNode
-  onCloseAutoFocus?: ComponentProps<typeof ContextMenuContent>['onCloseAutoFocus']
-}) {
+}: TerminalMenuProps & { children: ReactElement }) {
   const { t } = useTranslation()
-  const [settings, setSettings] = useTerminalSettings()
 
   return (
     <ContextMenu>
@@ -50,41 +67,97 @@ export function TerminalContextMenu({
         className="w-56"
         aria-label={t('terminal.settings.title')}
         onCloseAutoFocus={onCloseAutoFocus}>
-        {actions && (
-          <>
-            {actions}
-            <ContextMenuSeparator />
-          </>
-        )}
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            {t('terminal.settings.cursor_style')}
-            <span className="ml-auto pl-4 text-muted-foreground">{t(CURSOR_LABELS[settings.cursorStyle])}</span>
-          </ContextMenuSubTrigger>
-          <ContextMenuPortal>
-            <ContextMenuSubContent>
-              <ContextMenuRadioGroup
-                value={settings.cursorStyle}
-                onValueChange={(value) => {
-                  const style = CURSOR_STYLES.find((style) => style === value)
-                  if (style) void setSettings({ cursorStyle: style })
-                }}>
-                {CURSOR_STYLES.map((style) => (
-                  <ContextMenuRadioItem key={style} value={style}>
-                    {t(CURSOR_LABELS[style])}
-                  </ContextMenuRadioItem>
-                ))}
-              </ContextMenuRadioGroup>
-            </ContextMenuSubContent>
-          </ContextMenuPortal>
-        </ContextMenuSub>
-        <ContextMenuCheckboxItem
-          checked={settings.cursorBlink}
-          onCheckedChange={(checked) => void setSettings({ cursorBlink: checked === true })}
-          onSelect={(event) => event.preventDefault()}>
-          {t('terminal.settings.cursor_blink')}
-        </ContextMenuCheckboxItem>
+        <TerminalMenuItems kind="context" actions={actions} />
       </ContextMenuContent>
     </ContextMenu>
+  )
+}
+
+export function TerminalDropdownMenu({ actions, onCloseAutoFocus }: TerminalMenuProps) {
+  const { t } = useTranslation()
+  return (
+    <DropdownMenu>
+      <Tooltip content={t('common.more')}>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon-sm" variant="ghost" aria-label={t('common.more')} className="shrink-0">
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={onCloseAutoFocus}>
+        <TerminalMenuItems kind="dropdown" actions={actions} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function TerminalMenuItems({ kind, actions }: Pick<TerminalMenuProps, 'actions'> & { kind: 'context' | 'dropdown' }) {
+  const { t } = useTranslation()
+  const [settings, setSettings] = useTerminalSettings()
+  const Menu =
+    kind === 'context'
+      ? {
+          Item: ContextMenuItem,
+          Separator: ContextMenuSeparator,
+          Sub: ContextMenuSub,
+          SubTrigger: ContextMenuSubTrigger,
+          Portal: ContextMenuPortal,
+          SubContent: ContextMenuSubContent,
+          RadioGroup: ContextMenuRadioGroup,
+          RadioItem: ContextMenuRadioItem,
+          CheckboxItem: ContextMenuCheckboxItem
+        }
+      : {
+          Item: DropdownMenuItem,
+          Separator: DropdownMenuSeparator,
+          Sub: DropdownMenuSub,
+          SubTrigger: DropdownMenuSubTrigger,
+          Portal: DropdownMenuPortal,
+          SubContent: DropdownMenuSubContent,
+          RadioGroup: DropdownMenuRadioGroup,
+          RadioItem: DropdownMenuRadioItem,
+          CheckboxItem: DropdownMenuCheckboxItem
+        }
+  return (
+    <>
+      {actions && (
+        <>
+          {actions.map((action) => (
+            <Menu.Item key={action.label} disabled={action.disabled} onSelect={action.onSelect}>
+              {action.label}
+            </Menu.Item>
+          ))}
+          <Menu.Separator />
+        </>
+      )}
+      <Menu.Sub>
+        <Menu.SubTrigger>
+          {t('terminal.settings.cursor_style')}
+          <span className="ml-auto pl-4 text-muted-foreground">{t(CURSOR_LABELS[settings.cursorStyle])}</span>
+        </Menu.SubTrigger>
+        <Menu.Portal>
+          <Menu.SubContent>
+            <Menu.RadioGroup
+              value={settings.cursorStyle}
+              onValueChange={(value) => {
+                const style = CURSOR_STYLES.find((style) => style === value)
+                if (style) void setSettings({ cursorStyle: style })
+              }}>
+              {CURSOR_STYLES.map((style) => (
+                <Menu.RadioItem key={style} value={style}>
+                  {t(CURSOR_LABELS[style])}
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.SubContent>
+        </Menu.Portal>
+      </Menu.Sub>
+      <Menu.CheckboxItem
+        checked={settings.cursorBlink}
+        onCheckedChange={(checked) => void setSettings({ cursorBlink: checked === true })}
+        onSelect={(event) => event.preventDefault()}>
+        {t('terminal.settings.cursor_blink')}
+      </Menu.CheckboxItem>
+    </>
   )
 }

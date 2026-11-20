@@ -1,5 +1,5 @@
 import { TerminalSquare } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
@@ -10,7 +10,14 @@ import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 import { TerminalCanvas } from './TerminalCanvas'
 import { useTerminalResources } from './TerminalResourcesProvider'
 
-export function TerminalPane({ active }: { sessionId: string; active: boolean }) {
+export function TerminalPane({
+  active,
+  renderHeader
+}: {
+  sessionId: string
+  active: boolean
+  renderHeader?: (controls: ReactNode) => ReactNode
+}) {
   const { t } = useTranslation()
   const terminal = useTerminalResources()
   const resource = terminal.resources.find((item) => item.id === terminal.tabs.selectedTerminalId)
@@ -47,6 +54,7 @@ export function TerminalPane({ active }: { sessionId: string; active: boolean })
               onResource={terminal.update}
               takeControlOnAttach={terminal.claimId === resource.id}
               onAttached={terminal.clearClaim}
+              renderHeader={renderHeader}
             />
           ) : (
             <TerminalOutput key={resource.id} resource={resource} active={active} onResource={terminal.update} />
