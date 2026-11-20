@@ -7,7 +7,7 @@
   "agent.session.fork.execution_not_inherited": "분기된 이 세션에는 실행 상태가 상속되지 않았습니다.",
   "agent.session.new": "새 작업",
   "agent.session.pi.legacy_tool_policy_unresolved": "이전 런타임에서 비활성화된 일부 도구를 연결할 수 없습니다. 실행하기 전에 이 에이전트의 도구 접근 권한을 다시 설정하세요.",
-  "agent.session.pi.output_limit_diagnostic": "응답이 잘렸습니다 (stopReason: length). 설정된 최대 출력: {{configured}}토큰, 제공업체가 보고한 출력 토큰: {{output}}{{reasoning}}. 응답이 불완전하거나 비어 있을 수 있습니다. 턴을 계속하거나 설정 > 제공업체 > 모델 편집 > 최대 출력 토큰을 확인하세요. 이 모델 설정을 변경하면 이를 사용하는 모든 세션에 영향을 주며 비용과 지연이 늘어날 수 있으니 제공업체가 지원하는 한도를 사용하세요. 출력 한도는 자동으로 늘어나지 않았습니다.",
+  "agent.session.pi.output_limit_diagnostic": "응답이 잘렸습니다 (stopReason: length). 설정된 최대 출력: {{configured}}토큰, 제공업체가 보고한 출력 토큰: {{output}}{{reasoning}}. 응답이 불완전하거나 비어 있을 수 있습니다. 턴을 계속하거나 설정 > 모델 제공자 > 모델 편집 > 최대 출력 토큰을 확인하세요. 이 모델 설정을 변경하면 이를 사용하는 모든 세션에 영향을 주며 비용과 지연이 늘어날 수 있으니 제공업체가 지원하는 한도를 사용하세요. 출력 한도는 자동으로 늘어나지 않았습니다.",
   "agent.session.pi.output_limit_reasoning": "; 제공업체가 보고한 추론 토큰: {{count}}",
   "agent.session.pi.output_limit_unknown": "알 수 없음",
   "agent.session.run_status.busy": "에이전트 세션이 사용 중입니다. 잠시 후 다시 시도하세요.",

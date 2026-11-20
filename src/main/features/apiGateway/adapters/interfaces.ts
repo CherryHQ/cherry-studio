@@ -121,6 +121,11 @@ export interface StreamAdapterOptions {
   inputTokens?: number
   /** Restore a provider-safe tool name to the identity expected by the API client. */
   toClientToolName?: (toolName: string) => string
+  /**
+   * Private object transports only: surface upstream count provenance on emitted events. The public
+   * HTTP gateway keeps its normalized usage payloads unchanged.
+   */
+  exposeReportedOutputUsage?: boolean
 }
 
 /**

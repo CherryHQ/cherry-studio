@@ -1635,6 +1635,7 @@
   "error.ocr_detail_failed": "Nastavený procesor OCR selhal: {{reason}} Zkontrolujte nebo přepněte procesor OCR v Nastavení → Zpracování souborů.",
   "error.originalError": "Původní chyba",
   "error.originalMessage": "Původní zpráva",
+  "error.output_token_limit_detail": "{{detail}}",
   "error.output_token_limit_reached": "Odpověď dosáhla limitu výstupních tokenů dříve, než byla dokončena. Do tohoto limitu se počítá i uvažování. Zvyšte výstupní limit modelu nebo snižte úsilí o uvažování a zkuste to znovu.",
   "error.parameter": "Parametr",
   "error.prompt": "Prompt",

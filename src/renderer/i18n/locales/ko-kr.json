@@ -1635,6 +1635,7 @@
   "error.ocr_detail_failed": "설정된 OCR 처리기에서 오류가 발생했습니다: {{reason}} 설정 → 파일 처리에서 OCR 처리기를 확인하거나 변경하세요.",
   "error.originalError": "원래 오류",
   "error.originalMessage": "원래 메시지",
+  "error.output_token_limit_detail": "{{detail}}",
   "error.output_token_limit_reached": "응답이 완료되기 전에 출력 토큰 한도에 도달했습니다. 추론도 이 한도에 포함됩니다. 모델의 출력 한도를 늘리거나 추론 수준을 낮춘 후 다시 시도하세요.",
   "error.parameter": "매개변수",
   "error.prompt": "프롬프트",

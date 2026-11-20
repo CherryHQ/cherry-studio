@@ -1655,6 +1655,7 @@
   "error.ocr_detail_failed": "Skonfigurowany procesor OCR zgłosił błąd: {{reason}} Sprawdź lub zmień procesor OCR w Ustawienia → Przetwarzanie plików.",
   "error.originalError": "Pierwotny błąd",
   "error.originalMessage": "Pierwotna wiadomość",
+  "error.output_token_limit_detail": "{{detail}}",
   "error.output_token_limit_reached": "Odpowiedź osiągnęła limit tokenów wyjściowych przed zakończeniem. Rozumowanie również wlicza się do tego limitu. Zwiększ limit wyjściowy modelu lub zmniejsz intensywność rozumowania, a następnie spróbuj ponownie.",
   "error.parameter": "Parametr",
   "error.prompt": "Prompt",

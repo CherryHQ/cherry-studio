@@ -76,7 +76,13 @@ export function nativeOutcomeError(input: Pick<InputState, 'outcome' | 'error'>)
     reason: input.error?.code,
     ...(input.error?.code === 'output-truncated' && {
       finishReason: 'length',
-      i18nKey: 'output_token_limit_reached'
+      i18nKey: 'output_token_limit_reached',
+      // The runtime's localized diagnostic carries the counts and recovery steps; the card must show
+      // it, not only the generic headline.
+      ...(input.error.message && {
+        detailI18nKey: 'output_token_limit_detail',
+        detailI18nValues: { detail: input.error.message }
+      })
     })
   })
 }

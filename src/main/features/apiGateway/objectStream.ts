@@ -194,7 +194,7 @@ async function openObjectMessage<T>(
     throw objectGatewayError(error, serializeError(error), config.outputFormat ?? 'anthropic')
   })
   config.signal?.throwIfAborted()
-  const adapter = createAdapter(request.adapterOptions)
+  const adapter = createAdapter({ ...request.adapterOptions, exposeReportedOutputUsage: true })
   const usageContext = config.agentContext?.resolveUsage(adapter.getMessageId())
   const manager = application.get('AiStreamManager')
   const streamId = `gateway-object-${randomUUID()}`

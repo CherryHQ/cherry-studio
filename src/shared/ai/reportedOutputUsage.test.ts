@@ -12,8 +12,34 @@ describe('upstream output count provenance', () => {
     ],
     [{ raw: { completion_tokens: 0 } }, { outputTokens: 0, reasoningTokens: null }],
     [
-      { raw: { output_tokens: 25, output_tokens_details: { reasoning_tokens: 0 } } },
+      { raw: { output_tokens: 25, output_tokens_details: { reasoning_tokens: 0 } }, outputTokens: 25 },
       { outputTokens: 25, reasoningTokens: 0 }
+    ],
+    // Anthropic: message_start's initial zero is merged into raw; no terminal count means unknown.
+    [{ raw: { output_tokens: 0 } }, { outputTokens: null, reasoningTokens: null }],
+    // Anthropic: an explicit terminal zero is a reported zero.
+    [
+      { raw: { output_tokens: 0 }, outputTokens: 0 },
+      { outputTokens: 0, reasoningTokens: null }
+    ],
+    // Anthropic: executor counts supplied through iterations alone are complete.
+    [
+      { raw: { iterations: [{ type: 'message', output_tokens: 3 }] }, outputTokens: 5 },
+      { outputTokens: 5, reasoningTokens: null }
+    ],
+    // Compatible Chat Completions: only the alias is on the wire; the adapter normalizes to zero.
+    [
+      { raw: { output_tokens: 25 }, outputTokens: 0 },
+      { outputTokens: 25, reasoningTokens: null }
+    ],
+    // Canonical and additive (xAI) controls keep the adapter's semantics.
+    [
+      { raw: { completion_tokens: 10 }, outputTokens: 10 },
+      { outputTokens: 10, reasoningTokens: null }
+    ],
+    [
+      { raw: { completion_tokens: 10, completion_tokens_details: { reasoning_tokens: 4 } }, outputTokens: 14 },
+      { outputTokens: 14, reasoningTokens: 4 }
     ],
     [{ raw: { candidatesTokenCount: 3, thoughtsTokenCount: 2 } }, { outputTokens: 5, reasoningTokens: 2 }],
     [

@@ -12,7 +12,9 @@ describe('nativeOutcomeError', () => {
       message: 'Response truncated: cap 8192, output 8192',
       reason: 'output-truncated',
       finishReason: 'length',
-      i18nKey: 'output_token_limit_reached'
+      i18nKey: 'output_token_limit_reached',
+      detailI18nKey: 'output_token_limit_detail',
+      detailI18nValues: { detail: 'Response truncated: cap 8192, output 8192' }
     })
   })
 

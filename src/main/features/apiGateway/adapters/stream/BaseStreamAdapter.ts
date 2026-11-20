@@ -31,11 +31,13 @@ import type {
 export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<TOutputEvent> {
   protected state: AdapterState
   protected reportedOutputUsage?: ProviderReportedOutputUsage
+  private readonly exposeReportedOutputUsage: boolean
   /** Events produced by the current `processChunk`/`finalize`, drained by the active driver. */
   private pendingEvents: TOutputEvent[] = []
   private transformStream: TransformStream<UIMessageChunk, TOutputEvent>
 
   constructor(options: StreamAdapterOptions) {
+    this.exposeReportedOutputUsage = options.exposeReportedOutputUsage === true
     this.state = this.createInitialState(options)
     this.transformStream = this.createTransformStream()
   }
@@ -115,7 +117,8 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
     }
     if (chunk.type === 'message-metadata' || chunk.type === 'finish') {
       const metadata = chunk.messageMetadata as GatewayUsageMetadata | undefined
-      if (metadata?.reportedOutputUsage) this.reportedOutputUsage = { ...metadata.reportedOutputUsage }
+      if (this.exposeReportedOutputUsage && metadata?.reportedOutputUsage)
+        this.reportedOutputUsage = { ...metadata.reportedOutputUsage }
     }
     this.emitMessageStart()
     this.processChunk(chunk)

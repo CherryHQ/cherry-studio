@@ -17,7 +17,7 @@ function geminiProjection(output: number | undefined, reasoning: number | undefi
     outputTokenDetails: { reasoningTokens: reasoning },
     raw
   })
-  const adapter = new AiSdkToGeminiSse({ model: 'fixture' })
+  const adapter = new AiSdkToGeminiSse({ model: 'fixture', exposeReportedOutputUsage: true })
   adapter.transformChunk({
     type: 'message-metadata',
     messageMetadata: {
