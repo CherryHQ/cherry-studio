@@ -27,6 +27,11 @@ describe('upstream output count provenance', () => {
       { raw: { iterations: [{ type: 'message', output_tokens: 3 }] }, outputTokens: 5 },
       { outputTokens: 5, reasoningTokens: null }
     ],
+    // Anthropic max_tokens stop: the merged initial count is 0 but the executor iterations total 5.
+    [
+      { raw: { output_tokens: 0, iterations: [{ type: 'message', output_tokens: 5 }] }, outputTokens: 5 },
+      { outputTokens: 5, reasoningTokens: null }
+    ],
     // Compatible Chat Completions: only the alias is on the wire; the adapter normalizes to zero.
     [
       { raw: { output_tokens: 25 }, outputTokens: 0 },

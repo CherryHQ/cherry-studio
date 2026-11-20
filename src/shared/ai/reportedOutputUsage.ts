@@ -34,8 +34,9 @@ export function providerReportedOutputUsage(usage: {
   const normalized = count(usage.outputTokens)
   const rawOutput = canonical ?? alias ?? (candidates === null ? null : candidates + (thoughts ?? 0))
   let outputTokens: number | null
-  if (Array.isArray(wire.iterations) && rawOutput === null && normalized !== null) {
-    // Anthropic reports executor totals through iterations alone; the adapter already summed them.
+  if (Array.isArray(wire.iterations) && canonical === null && normalized !== null) {
+    // Anthropic reports executor totals through iterations; the adapter already summed them. A merged
+    // initial output_tokens (often 0) is not the terminal count, so the normalized total wins.
     outputTokens = normalized
   } else if (canonical === null && alias !== null) {
     // Streams merge message_start's initial count into raw usage. An adapter that found no terminal
