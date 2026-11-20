@@ -67,7 +67,7 @@ function buildProviderOptions(
     providerOptionsKey: context.providerOptionsKey,
     endpointType: context.endpointType,
     reasoning
-  }) as ProviderOptions
+  })
 }
 
 /** Emit a native effort only when the resolved wire carries an effort field, projected through the descriptor pipeline. */
