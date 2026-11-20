@@ -311,6 +311,15 @@ describe('inLoopCompactionFeature', () => {
     expect(compressorOutputLimits[0]).toBeLessThan(4_095)
   })
 
+  it('skips reactive overflow recovery instead of throwing when the compressor window is unusable', () => {
+    const featureScope = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      compressionModel: { languageModel: {} as LanguageModelV3, contextWindow: 2 }
+    })
+    expect(inLoopCompactionFeature.contributeModelAdapters!(featureScope)).toEqual([])
+  })
+
   // --- contributeHooks: prepareStep ---
 
   const getPrepareStep = (customScope?: ReturnType<typeof scope>) => {

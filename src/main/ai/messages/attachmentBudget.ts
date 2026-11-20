@@ -180,6 +180,9 @@ export function resolveAttachmentBudgetContextWindow(input: {
   return resolveMinContextWindow(windows) ?? undefined
 }
 
+/** Fixed per-tool framing charged when pricing a converted SDK call. */
+const TOOL_DEFINITION_OVERHEAD = 10
+
 export interface AttachmentBudgetInput {
   provider: Provider
   model: Model
@@ -226,8 +229,12 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
   } catch {
     return null
   }
-  spent += tokenizer.count(input.system ?? '')
+  // Charge system text and tool definitions exactly as the dispatch guard does: the system prompt is a
+  // message (with its overhead) and every tool carries a fixed framing cost.
+  if (input.system)
+    spent += estimateModelMessagesSync([{ role: 'system', content: input.system }], { dialect, tokenizer })
   spent += await countToolSetTokens(input.tools, tokenizer)
+  spent += Object.keys(input.tools ?? {}).length * TOOL_DEFINITION_OVERHEAD
 
   const usable = Math.floor(resolveInputRoom(window, input.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
   return { tokens: Math.max(0, usable - spent) }
@@ -305,7 +312,7 @@ async function priceCallCapacity(
     (call.tools ?? []).reduce(
       (total, tool) =>
         total +
-        10 +
+        TOOL_DEFINITION_OVERHEAD +
         countToolTokens(
           {
             name: tool.type === 'function' ? tool.name : tool.id,

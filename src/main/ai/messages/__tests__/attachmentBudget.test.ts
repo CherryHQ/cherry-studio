@@ -731,8 +731,38 @@ describe('resolveAttachmentBudget pricing of the existing prompt', () => {
   it('prices the prompt by UTF-8 bytes when the window is memory-capped, like the dispatch guard', async () => {
     const uncapped = await price(32_768)
     const capped = await price(4_096)
-    // 100 two-byte characters: 100 tokens by the estimator, 200 by bytes.
-    expect(Math.floor(32_768 * 0.9) - uncapped!.tokens).toBe(100)
-    expect(Math.floor(4_096 * 0.9) - capped!.tokens).toBe(200)
+    // 100 two-byte characters plus 3 tokens of message overhead: 103 by the estimator, 203 by bytes.
+    expect(Math.floor(32_768 * 0.9) - uncapped!.tokens).toBe(103)
+    expect(Math.floor(4_096 * 0.9) - capped!.tokens).toBe(203)
+  })
+})
+
+describe('resolveAttachmentBudget framing parity with the dispatch guard', () => {
+  it('charges system message overhead and per-tool framing like the converted call', async () => {
+    const tools = { lookup: { description: 'find', inputSchema: { type: 'object', properties: {} } } } as never
+    const base = {
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 32_768
+      } satisfies Model,
+      requestContextWindow: 32_768,
+      maxOutputTokens: undefined,
+      messages: [],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    }
+    const plain = await resolveAttachmentBudget({ ...base, system: undefined, tools: undefined })
+    const withSystem = await resolveAttachmentBudget({ ...base, system: 'x'.repeat(50), tools: undefined })
+    const withTool = await resolveAttachmentBudget({ ...base, system: undefined, tools })
+    // One char per token in this suite: 50 text + 3 message overhead.
+    expect(plain!.tokens - withSystem!.tokens).toBe(53)
+    // The tool costs its definition plus the 10-token framing the dispatch guard adds.
+    expect(plain!.tokens - withTool!.tokens).toBeGreaterThanOrEqual(10)
   })
 })

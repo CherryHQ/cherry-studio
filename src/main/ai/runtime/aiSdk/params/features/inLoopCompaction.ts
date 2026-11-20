@@ -156,7 +156,19 @@ export const inLoopCompactionFeature: RequestFeature = {
       resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
     if (!compressor || !window) return []
     // Same budget as the turn-start and in-loop paths, so a capped compressor is not asked to reserve nearly its whole window for output.
-    const { maxOutputTokens, maxInputTokens: compressionInputBudget } = resolveCompressionBudget(window)
+    let budget: ReturnType<typeof resolveCompressionBudget>
+    try {
+      budget = resolveCompressionBudget(window)
+    } catch (error) {
+      // Invalid compressor metadata (a one- or two-token window) must not disable the rest of the request's
+      // features: skip reactive recovery and leave the chat to fail normally on a real overflow.
+      logger.warn('overflow recovery disabled: compressor window cannot hold a summary budget', {
+        window,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
+    }
+    const { maxOutputTokens, maxInputTokens: compressionInputBudget } = budget
     const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
       const history = fromAISDK(prompt)
       const conversation = history.filter((message) => message.role !== 'system')

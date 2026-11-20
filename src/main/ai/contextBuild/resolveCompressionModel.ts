@@ -8,7 +8,7 @@
  * null as "compression off" so a misconfigured model never breaks the chat.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
+import { APICallError, defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
@@ -108,9 +108,7 @@ export async function resolveCompressionModel(
                   digitAware: true
                 }))
               ) {
-                throw new Error(
-                  'The summary prompt and output reservation exceed the Ollama compression context window. History was not folded.'
-                )
+                throw compressionWindowOverflowError()
               }
               return {
                 ...params,
@@ -139,4 +137,19 @@ export async function resolveCompressionModel(
     })
     return null
   }
+}
+
+/**
+ * Local rejection of an over-window summary prompt. Shaped as a context-overflow so the chunk planner
+ * splits the input into smaller chunks instead of abandoning the whole fold.
+ */
+export function compressionWindowOverflowError(): APICallError {
+  return new APICallError({
+    message:
+      'The summary prompt and output reservation exceed the Ollama compression context window. History was not folded.',
+    statusCode: 400,
+    url: 'cherry://compression-window-guard',
+    requestBodyValues: {},
+    isRetryable: false
+  })
 }

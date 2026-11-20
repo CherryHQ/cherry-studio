@@ -3,13 +3,13 @@ import os from 'node:os'
 import { generateText } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { summarizeModelMessages } from '@cherrystudio/ai-core'
+import { isContextOverflowError, summarizeModelMessages } from '@cherrystudio/ai-core'
 import type * as AiCoreModule from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionBudget } from '../resolveCompressionBudget'
-import { resolveCompressionModel } from '../resolveCompressionModel'
+import { compressionWindowOverflowError, resolveCompressionModel } from '../resolveCompressionModel'
 
 const { providerLookup, modelLookup, providerConfig, compressionExecutor, defaultExecutor } = vi.hoisted(() => ({
   providerLookup: vi.fn(),
@@ -254,5 +254,11 @@ describe('Ollama compressor request window', () => {
       })
     ).rejects.toThrow(/summary prompt.*output reservation.*exceed/)
     expect(doGenerate).not.toHaveBeenCalled()
+  })
+})
+
+describe('compression window guard rejection', () => {
+  it('is a context-overflow signal the chunk planner splits on', () => {
+    expect(isContextOverflowError(compressionWindowOverflowError())).toBe(true)
   })
 })
