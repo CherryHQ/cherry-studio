@@ -5,12 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { CustomSelectionAction, SelectionAction } from '@shared/types/selection'
 
 const state = vi.hoisted(() => ({
   readAloud: vi.fn(async () => undefined),
   assistant: undefined as { id: string } | undefined,
   fallbackAssistant: undefined as { id: string } | undefined,
+  fallbackModel: undefined as Pick<Model, 'id' | 'capabilities' | 'endpointTypes'> | undefined,
+  defaultModel: undefined as Pick<Model, 'id' | 'capabilities' | 'endpointTypes'> | undefined,
   quickAssistantId: '' as string,
   isFallbackLoading: false as boolean,
   isChosenLoading: false as boolean,
@@ -60,10 +64,15 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: (id: string) => {
-    if (!id) return { assistant: undefined, isLoading: false }
+  useAssistant: (id: string, options?: { loadDefaultModel?: boolean }) => {
+    if (!id)
+      return {
+        assistant: undefined,
+        isLoading: false,
+        model: options?.loadDefaultModel === false ? undefined : state.defaultModel
+      }
     if (id === state.quickAssistantId) {
-      return { assistant: state.fallbackAssistant, isLoading: state.isFallbackLoading }
+      return { assistant: state.fallbackAssistant, model: state.fallbackModel, isModelPending: state.isFallbackLoading }
     }
     return { assistant: state.assistant, isLoading: state.isChosenLoading }
   }
@@ -155,6 +164,8 @@ describe('ActionGeneral', () => {
   beforeEach(() => {
     state.assistant = undefined
     state.fallbackAssistant = undefined
+    state.fallbackModel = { id: createUniqueModelId('openai', 'gpt-5'), capabilities: [] }
+    state.defaultModel = { id: createUniqueModelId('anthropic', 'claude-sonnet'), capabilities: [] }
     state.quickAssistantId = ''
     state.isFallbackLoading = false
     state.isChosenLoading = false
@@ -189,8 +200,42 @@ describe('ActionGeneral', () => {
   it('leases a no-assistant temporary topic and sends for default model actions', async () => {
     render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
 
-    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'selection.action.prompt.summary:en-UShello' },
+        { body: { mentionedModels: [state.defaultModel?.id] } }
+      )
+    )
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('blocks a built-in text action when the bound assistant now uses a dedicated image model', () => {
+    state.quickAssistantId = 'quick'
+    state.fallbackAssistant = { id: 'quick' }
+    state.fallbackModel = {
+      id: createUniqueModelId('openai', 'gpt-image-1'),
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-image-generation']
+    }
+
+    render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
+
+    expect(screen.getByText('selection.action.agent_issue.no_model:')).toBeVisible()
+    expect(state.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('blocks a built-in summary when a deleted quick assistant falls back to a dedicated image model', () => {
+    state.quickAssistantId = 'deleted-id'
+    state.defaultModel = {
+      id: createUniqueModelId('openai', 'gpt-image-1'),
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-image-generation']
+    }
+
+    render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
+
+    expect(screen.getByText('selection.action.agent_issue.no_model:')).toBeVisible()
+    expect(state.sendMessage).not.toHaveBeenCalled()
   })
 
   it('interpolates selected text literally into every custom prompt placeholder', async () => {
@@ -245,6 +290,7 @@ describe('ActionGeneral', () => {
   it('waits for fallback assistant when quickAssistant is configured but not yet loaded', async () => {
     state.quickAssistantId = 'fallback-1'
     state.fallbackAssistant = undefined
+    state.fallbackModel = undefined
     state.isFallbackLoading = true
 
     const { rerender } = render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
@@ -254,6 +300,7 @@ describe('ActionGeneral', () => {
 
     state.isFallbackLoading = false
     state.fallbackAssistant = { id: 'fallback-1' }
+    state.fallbackModel = { id: createUniqueModelId('openai', 'gpt-5'), capabilities: [] }
     rerender(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
@@ -278,6 +325,7 @@ describe('ActionGeneral', () => {
   it('degrades to no-assistant when fallback assistant is stale (not found)', async () => {
     state.quickAssistantId = 'deleted-id'
     state.fallbackAssistant = undefined
+    state.fallbackModel = undefined
     state.isFallbackLoading = false
 
     render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
