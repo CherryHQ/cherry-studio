@@ -25,7 +25,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
   const usageContext = config.requestHeaders
-    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
+    ? application
+        .get('ApiGatewayService')
+        .resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId(), request.modelString)
     : undefined
 
   const promptOptions = gatewayPromptOptions(request, usageContext)

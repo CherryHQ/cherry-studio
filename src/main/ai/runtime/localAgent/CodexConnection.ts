@@ -8,6 +8,7 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
@@ -89,6 +90,7 @@ export class CodexConnection extends LocalConnection {
   private threadId?: string
   private turnId?: string
   private compacting = false
+  private gatewayLease?: { dispose: () => void }
   private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
@@ -136,6 +138,7 @@ export class CodexConnection extends LocalConnection {
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
+    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
       cwd,
@@ -337,7 +340,7 @@ export class CodexConnection extends LocalConnection {
         nativeSessionId: this.threadId,
         model: this.localSessionInfo.activeModel?.id ?? null,
         reportedAt: Date.now(),
-        correlation: 'unknown',
+        correlation: this.gatewayLease ? 'gateway' : 'unknown',
         usage: {
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
@@ -622,5 +625,10 @@ export class CodexConnection extends LocalConnection {
     this.rejectPending(new Error('Codex connection closed'))
     this.lines?.close()
     await this.stopProcess(this.process)
+  }
+  protected override dispose() {
+    this.gatewayLease?.dispose()
+    this.gatewayLease = undefined
+    super.dispose()
   }
 }

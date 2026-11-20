@@ -720,7 +720,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response', 'openai:gpt-4')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)

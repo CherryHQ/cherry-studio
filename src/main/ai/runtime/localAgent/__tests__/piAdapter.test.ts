@@ -40,9 +40,29 @@ it.skipIf(process.platform === 'win32')(
         connection.agent.request('session/prompt', { sessionId: session.sessionId, prompt: [{ type: 'text', text }] })
       await expect(prompt('request-error')).rejects.toThrow('Fixture RPC rejected prompt')
       await expect(prompt('error')).rejects.toThrow('Fixture provider rejected the model')
-      await expect(prompt('retry-success')).resolves.toMatchObject({ stopReason: 'end_turn' })
+      await expect(prompt('retry-success')).resolves.toMatchObject({
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 5526,
+          outputTokens: 150,
+          totalTokens: 5676,
+          cachedReadTokens: 0,
+          cachedWriteTokens: 5523,
+          thoughtTokens: 116
+        }
+      })
       await expect(prompt('length')).resolves.toMatchObject({ stopReason: 'max_tokens' })
-      await expect(prompt('normal')).resolves.toMatchObject({ stopReason: 'end_turn' })
+      await expect(prompt('normal')).resolves.toMatchObject({
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 5526,
+          outputTokens: 150,
+          totalTokens: 5676,
+          cachedReadTokens: 0,
+          cachedWriteTokens: 5523,
+          thoughtTokens: 116
+        }
+      })
       const running = new Promise<void>((resolve) => {
         onRunning = resolve
       })

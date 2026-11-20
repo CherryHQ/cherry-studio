@@ -101,4 +101,143 @@ describe('connection-local gateway attribution', () => {
     expect(env).toEqual(before)
     expect(mocks.create.mock.calls).toEqual([])
   })
+
+  it('binds grok-build, pi-acp, poolside, and cline gateway routes to the session', async () => {
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'grok-config',
+        content: [
+          '[models]',
+          'default = "cherry-gateway"',
+          '',
+          '[model.cherry-gateway]',
+          'model = "provider:model"',
+          'base_url = "http://127.0.0.1:23333/v1"',
+          'api_key = "public"',
+          'api_backend = "responses"'
+        ].join('\n')
+      }
+    ])
+    const grokConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'grok-build',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'cherry-gateway',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(grokConfig, 'session-grok', {})).toBeDefined()
+
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'pi-models',
+        content: JSON.stringify({
+          providers: {
+            'cherry-gateway': {
+              baseUrl: 'http://127.0.0.1:23333',
+              api: 'anthropic-messages',
+              apiKey: 'public',
+              models: [{ id: 'provider:model' }]
+            }
+          }
+        })
+      },
+      {
+        target: 'pi-settings',
+        content: JSON.stringify({ defaultProvider: 'cherry-gateway', defaultModel: 'provider:model' })
+      }
+    ])
+    const piConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'pi-acp',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'cherry-gateway/provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(piConfig, 'session-pi', {})).toBeDefined()
+
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'poolside-settings',
+        content: [
+          'pool:',
+          '  default_agent_server: cherry-poolside',
+          'agent_servers:',
+          '  cherry-poolside:',
+          '    env:',
+          '      POOLSIDE_API_KEY: public',
+          '      POOLSIDE_STANDALONE_BASE_URL: http://127.0.0.1:23333/v1',
+          '      POOLSIDE_STANDALONE_MODEL: provider:model',
+          '    default_config_options:',
+          '      model: provider:model'
+        ].join('\n')
+      }
+    ])
+    const poolsideConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'poolside',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    const poolsideEnv: NodeJS.ProcessEnv = {
+      POOLSIDE_API_KEY: 'public',
+      POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:23333/v1',
+      POOLSIDE_STANDALONE_MODEL: 'provider:model'
+    }
+    expect(await bindLocalGatewayUsage(poolsideConfig, 'session-poolside', poolsideEnv)).toBeDefined()
+    expect(poolsideEnv).toMatchObject({
+      POOLSIDE_API_KEY: 'session-poolside',
+      POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:12345/v1'
+    })
+
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'cline-settings',
+        content: JSON.stringify({ model: 'provider:model', provider: 'cherry-gateway' })
+      },
+      {
+        target: 'cline-providers',
+        content: JSON.stringify({
+          providers: {
+            'cherry-gateway': {
+              baseUrl: 'http://127.0.0.1:23333',
+              apiKey: 'public',
+              api: 'anthropic',
+              model: 'provider:model'
+            }
+          }
+        })
+      }
+    ])
+    const clineConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'cline',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', {})).toBeDefined()
+
+    expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
+      { path: '/v1/responses', model: 'provider:model', agentSessionId: 'session-grok' },
+      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-pi' },
+      { path: '/v1/chat/completions', model: 'provider:model', agentSessionId: 'session-poolside' },
+      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-cline' }
+    ])
+
+    mocks.create.mockClear()
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'grok-config',
+        content:
+          '[models]\ndefault = "custom"\n[model.custom]\nmodel = "x"\nbase_url = "https://example.com"\napi_key = "other"\n'
+      }
+    ])
+    expect(await bindLocalGatewayUsage(grokConfig, 'session-unmatched', {})).toBeUndefined()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
 })

@@ -132,7 +132,15 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     model: `${provider.id}:${modelId}`,
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   }
-  return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
+  return {
+    ...request,
+    messages,
+    convertedMessages,
+    callOverrides,
+    adapterOptions,
+    internal,
+    modelString: request.modelString
+  }
 }
 
 export function gatewayPromptOptions(

@@ -53,6 +53,26 @@ const LegacyModelsSchema = z.object({
   currentModelId: z.string(),
   availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
 })
+const XaiSessionUpdateSchema = z.object({
+  sessionId: z.string(),
+  update: z
+    .object({
+      sessionUpdate: z.string(),
+      usage: z
+        .object({
+          inputTokens: z.number(),
+          outputTokens: z.number(),
+          totalTokens: z.number(),
+          cachedReadTokens: z.number().nullish(),
+          cachedWriteTokens: z.number().nullish(),
+          cacheCreationTokens: z.number().nullish(),
+          thoughtTokens: z.number().nullish(),
+          reasoningTokens: z.number().nullish()
+        })
+        .optional()
+    })
+    .passthrough()
+})
 type SessionResponse = (NewSessionResponse | LoadSessionResponse | ResumeSessionResponse) & { models?: unknown }
 
 type Terminal = {
@@ -85,6 +105,7 @@ export class AcpConnection extends LocalConnection {
   private legacyMode?: NonNullable<NewSessionResponse['modes']>
   private readonly compactions = new Map<string, boolean>()
   private planId?: string
+  private turnUsage?: NonNullable<PromptResponse['usage']>
   private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
@@ -165,6 +186,21 @@ export class AcpConnection extends LocalConnection {
           )
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
+      })
+      .onNotification('_x.ai/session/update', XaiSessionUpdateSchema, ({ params }) => {
+        if (this.loading || params.sessionId !== this.nativeId) return
+        if (params.update.sessionUpdate !== 'turn_completed' || !params.update.usage) return
+        const usage = params.update.usage
+        const cachedWriteTokens = usage.cachedWriteTokens ?? usage.cacheCreationTokens
+        const thoughtTokens = usage.thoughtTokens ?? usage.reasoningTokens
+        this.turnUsage = {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+          ...(usage.cachedReadTokens != null ? { cachedReadTokens: usage.cachedReadTokens } : {}),
+          ...(cachedWriteTokens != null ? { cachedWriteTokens } : {}),
+          ...(thoughtTokens != null ? { thoughtTokens } : {})
+        }
       })
       .onRequest('elicitation/create', async ({ params, signal: requestSignal }) => {
         if (params.mode !== 'form') throw RequestError.invalidParams('Unsupported elicitation mode')
@@ -825,12 +861,14 @@ export class AcpConnection extends LocalConnection {
     try {
       if (!this.connection || !this.nativeId) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
+      this.turnUsage = undefined
       const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
         sessionId: this.nativeId,
         prompt,
         ...(this.config.presetId === 'openclaw' ? { _meta: { prefixCwd: false } } : {})
       })
-      const usage = response.usage
+      const usage = response.usage ?? this.turnUsage
+      this.turnUsage = undefined
       if (usage) {
         // ACP reports the inclusive totals and the cache detail separately (glm-acp-agent@1.17.0
         // forwards provider prompt/completion tokens verbatim), so details must not be added again.

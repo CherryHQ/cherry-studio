@@ -742,6 +742,37 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }
       })
     }
+    if (scenario === 'xai-usage') {
+      if (turn === 1) {
+        emit({
+          method: '_x.ai/session/update',
+          params: {
+            sessionId: 'native-session',
+            update: {
+              sessionUpdate: 'turn_completed',
+              usage: {
+                inputTokens: 100,
+                outputTokens: 20,
+                totalTokens: 120,
+                cachedReadTokens: 40,
+                cacheCreationTokens: 10,
+                reasoningTokens: 5
+              }
+            }
+          }
+        })
+      }
+      emit({
+        method: '_x.ai/session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: {
+            sessionUpdate: 'turn_completed',
+            usage: { inputTokens: 999, outputTokens: 1, totalTokens: 1000 }
+          }
+        }
+      })
+    }
     if (scenario === 'config-extra') update({ sessionUpdate: 'config_option_update', configOptions: [] })
     if (scenario === 'session-title') {
       update({ sessionUpdate: 'session_info_update', title: 'Native updated title' })

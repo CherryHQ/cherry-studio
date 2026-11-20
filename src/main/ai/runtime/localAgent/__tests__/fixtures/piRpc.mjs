@@ -29,7 +29,18 @@ for await (const line of createInterface({ input: process.stdin })) {
     const end = (stopReason) =>
       emit({
         type: 'agent_end',
-        messages: [{ role: 'assistant', stopReason, errorMessage: 'Fixture provider rejected the model' }]
+        messages: [
+          {
+            role: 'assistant',
+            stopReason,
+            ...(stopReason === 'stop'
+              ? {
+                  usage: { input: 3, output: 150, cacheRead: 0, cacheWrite: 5523, totalTokens: 5676, reasoning: 116 }
+                }
+              : {}),
+            errorMessage: 'Fixture provider rejected the model'
+          }
+        ]
       })
     if (outcome === 'retry-success') end('error')
     end(outcome === 'error' || outcome === 'cancel' ? 'error' : outcome === 'length' ? 'length' : 'stop')

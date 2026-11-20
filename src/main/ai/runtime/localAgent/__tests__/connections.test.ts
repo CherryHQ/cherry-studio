@@ -831,6 +831,27 @@ describe('local protocol processes', () => {
     expect(events.filter((event) => event.type === 'usage')).toEqual([])
   })
 
+  it('captures _x.ai/session/update turn_completed usage when prompt response omits usage and resets between turns', async () => {
+    const { connection, events, drained } = create('acp', 'xai-usage')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
+    expect(invocations).toHaveLength(1)
+    expect(invocations[0].usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 20,
+      totalTokens: 120,
+      noCacheTokens: 50,
+      reasoningTokens: 5,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10
+    })
+    expect(events.filter((event) => event.type === 'usage')).toEqual([])
+  })
+
   it('keeps Codex usage scoped to the turn without counting history or duplicate notifications', async () => {
     const { connection, events, drained } = create('codex', 'codex-usage')
     await connection.start(cwd, 'native-session')

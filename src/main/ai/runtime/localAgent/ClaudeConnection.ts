@@ -9,6 +9,7 @@ import { AsyncEventQueue } from '@shared/utils/async'
 
 import { ClaudeCodeStreamAdapter } from '../claudeCode'
 import type { AgentRuntimeUserInput } from '../types'
+import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
@@ -66,6 +67,7 @@ export class ClaudeConnection extends LocalConnection {
   private resume?: string
   private cwd = ''
   private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
+  private gatewayLease?: { dispose: () => void }
   private dynamicCommandsLoaded = false
 
   override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
@@ -90,6 +92,7 @@ export class ClaudeConnection extends LocalConnection {
     this.cwd = cwd
     this.resume = resume
     this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
+    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
     this.abort.signal.throwIfAborted()
     if (probe) {
       const input = new AsyncEventQueue<SDKUserMessage>()
@@ -257,5 +260,10 @@ export class ClaudeConnection extends LocalConnection {
     }
     this.query?.close()
     await Promise.all([...this.processes].map((child) => this.stopProcess(child)))
+  }
+  protected override dispose() {
+    this.gatewayLease?.dispose()
+    this.gatewayLease = undefined
+    super.dispose()
   }
 }

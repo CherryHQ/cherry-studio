@@ -82,12 +82,15 @@ create invocation records or change the SQLite schema.
 - Settings > Usage and message details present the separate observation scopes.
   Native summaries are never added to provider-token or billing totals.
 
-OpenCode and Kilo gateway connections can bind requests through a temporary
-process-local configuration overlay. A scoped internal credential fixes the
-Cherry session, generation endpoint and wire model; connection disposal revokes
-it. The native global configuration is unchanged. Modified endpoints/credentials,
-unsupported SDK routes and other Agents retain unknown request attribution.
-A connected gateway does not imply that every native request is observable.
+Gateway-configured Local Agents bind a session credential lease on connection
+start while the saved native default matches Cherry's gateway configuration;
+connection disposal revokes it. OpenCode, Kilo, and Poolside isolate that lease
+through a process-local credential overlay, while shared-file CLIs correlate
+public-key requests matching the bound model to a unique active session turn.
+Modified endpoints/credentials, concurrent active turns sharing one public-key
+model, unsupported SDK routes, and other Agents retain unknown request
+attribution. A connected gateway does not imply that every native request is
+observable.
 
 ## Invariants and ownership
 
