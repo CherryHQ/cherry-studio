@@ -77,12 +77,7 @@ export async function enableClaudeScopedSettings(ctx: ClaudeScopeTransitionConte
   }
   const scrub = await getAdapter(CodeCli.CLAUDE_CODE)!.buildClearFiles(false)
   const draft = await buildSelection(ctx, true)
-  await commit(
-    draft.map(({ target, content }) => ({ target, content })),
-    true,
-    ctx.currentProviderId
-  )
-  if (scrub.length) await commit(scrub, true, ctx.currentProviderId)
+  await commit([...draft.map(({ target, content }) => ({ target, content })), ...scrub], true, ctx.currentProviderId)
 }
 
 export async function disableClaudeScopedSettings(ctx: ClaudeScopeTransitionContext): Promise<void> {
@@ -100,10 +95,17 @@ export async function disableClaudeScopedSettings(ctx: ClaudeScopeTransitionCont
   for (const key of ['permissions', 'env']) {
     if (key in global || key in overlay) merged[key] = { ...asRecord(global[key]), ...asRecord(overlay[key]) }
   }
+  for (const key of ['allow', 'deny', 'ask']) {
+    const globalList = asRecord(global.permissions)[key]
+    const overlayList = asRecord(overlay.permissions)[key]
+    if (Array.isArray(globalList) && Array.isArray(overlayList)) {
+      asRecord(merged.permissions)[key] = [...new Set([...globalList, ...overlayList])]
+    }
+  }
   const base = [makeDraftFile('claude-settings', renderJsonFile(merged), read)]
   const draft = ctx.selection ? await buildSelection(ctx, false, base) : base
   await commit(
-    [...draft.map(({ target, content }) => ({ target, content })), { target: 'claude-scoped-settings', delete: true }],
+    [{ target: 'claude-scoped-settings', delete: true }, ...draft.map(({ target, content }) => ({ target, content }))],
     false,
     ctx.currentProviderId
   )
