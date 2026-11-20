@@ -271,13 +271,21 @@ async function priceCallCapacity(
     : digitAware
       ? {
           // Models such as Qwen2 tokenize every digit separately; a heuristic can price a
-          // long digit run as one token. Count digits individually, everything else as estimated.
+          // long digit run as one token. Count digits individually. Astral symbols (emoji)
+          // can fall back to one token per UTF-8 byte, which a heuristic prices far lower, so
+          // count their bytes. Everything else is counted as estimated.
           id: 'digit-aware',
           count: (text) => {
-            const digits = text.match(/\p{Nd}/gu)?.length ?? 0
-            return digits === 0
+            let digits = 0
+            let astralBytes = 0
+            const rest = text.replace(/\p{Nd}|[\u{10000}-\u{10FFFF}]/gu, (symbol) => {
+              if (symbol.length === 1 || /\p{Nd}/u.test(symbol)) digits += 1
+              else astralBytes += 4
+              return ' '
+            })
+            return digits + astralBytes === 0
               ? estimatedTokenizer.count(text)
-              : digits + estimatedTokenizer.count(text.replace(/\p{Nd}+/gu, ' '))
+              : digits + astralBytes + estimatedTokenizer.count(rest.replace(/ {2,}/g, ' '))
           }
         }
       : estimatedTokenizer

@@ -529,6 +529,27 @@ describe('actual SDK fallback capacity', () => {
     expect(await isFallbackCallWithinWindow({ ...base, call: callOf('1234567890'.repeat(20)) })).toBe(true)
   })
 
+  it('rejects an emoji-heavy compression chunk that a heuristic would under-count', async () => {
+    // Emoji can tokenize to several byte-fallback tokens each; 1,600 of them overflow a 4,096 window.
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({ id: 'ollama::gpt-oss', providerId: 'ollama', contextWindow: 4096 })
+    const callOf = (text: string) =>
+      ({
+        prompt: [{ role: 'user', content: [{ type: 'text', text }] }],
+        maxOutputTokens: 512
+      }) as LanguageModelV3CallOptions
+    const base = { fallbackProvider: provider, fallbackModel: model, digitAware: true }
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('\u{1F9EA}'.repeat(1600)) })).toBe(false)
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('\u{1F9EA}'.repeat(40) + ' plain text') })).toBe(
+      true
+    )
+  })
+
   it('prices prompt-only calls, system, later tool results, retained schemas and output reservation', async () => {
     const provider = makeProvider({ id: 'openai' })
     const model = makeModel({ id: 'openai::small', providerId: 'openai', contextWindow: 1000 })
