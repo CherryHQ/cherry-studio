@@ -34,7 +34,7 @@ export interface PaintingGenerateErrorOptions {
   presentation?: 'modal' | 'toast'
   severity?: 'error' | 'warning'
   /** i18n interpolation values for the translated message. */
-  translationValues?: Record<string, string>
+  values?: Record<string, string>
 }
 
 export class PaintingGenerateError extends Error {
