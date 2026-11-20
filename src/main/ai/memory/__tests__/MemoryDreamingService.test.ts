@@ -1202,12 +1202,31 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(await readFile(target, 'utf8')).toContain('forgotten')
   })
 
+  it('defers dispatch when the service stops during recovery reconciliation', async () => {
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    vi.spyOn(extractionState, 'withReconciledExtractionHistory').mockImplementationOnce(async (run) => {
+      started.resolve()
+      await release.promise
+      return run()
+    })
+    const before = readDreamingState(scope)
+    const dispatch = dreaming.execute(job())
+    await started.promise
+    const stop = dreaming._doStop()
+    release.resolve()
+    await expect(dispatch).resolves.toEqual({ deferred: true })
+    await stop
+    expect(readDreamingState(scope)).toEqual(before)
+  })
+
   it('requires completed admissions for each turn of an explicit preview after restart', async () => {
     const { chat, range, admit } = previewFixture()
     await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
     admit()
     extractionState.invalidateExtractions(`assistant/${chat.assistantId}`)
     await dreaming._doStop()
+    BaseService.resetInstances()
     dreaming = new MemoryDreamingService()
     await dreaming._doInit()
     await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
