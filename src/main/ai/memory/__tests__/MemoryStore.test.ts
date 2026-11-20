@@ -720,6 +720,30 @@ describe('limits, access, and recovery', () => {
     }
   )
 
+  it('keeps the restored source when an unchanged transfer destination loses its content', async () => {
+    const source = '.memories/source.md'
+    const target = '.memories/target.md'
+    await save(source, 'Full source')
+    await save(target, 'Already includes Full source')
+    const destination = await store.read(caller, target)
+    const original = await store.read(caller, source)
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: destination.receipt, content: destination.content!, transferTarget: true },
+        { kind: 'delete', receipt: original.receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await writeFile(path.join(root, target), 'External change')
+    const redo = (await store.previewRecovery(caller))!
+    expect(redo.files.find((file) => file.path === source)?.conflict).toBe(true)
+    await store.recover(caller, redo.token, approve)
+    expect((await store.read(caller, source)).content).toBe('Full source')
+  })
+
   it('extends the same reverse backup after an external conflict clears', async () => {
     const topics = ['.memories/a.md', '.memories/b.md']
     const reads = await Promise.all(topics.map((target) => store.read(caller, target)))
