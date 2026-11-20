@@ -3,35 +3,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { assignTopicToNewGroup } from '../assignTopicToNewGroup'
 
 describe('assignTopicToNewGroup', () => {
-  it('keeps the group when the topic is assigned', async () => {
-    const deleteGroup = vi.fn()
-    const assign = vi.fn().mockResolvedValue(undefined)
-    await assignTopicToNewGroup({ createGroup: async () => ({ id: 'g1' }), deleteGroup, assign })
-    expect(assign).toHaveBeenCalledWith('g1')
-    expect(deleteGroup).not.toHaveBeenCalled()
+  it('submits once with a fresh group id', async () => {
+    const submit = vi.fn().mockResolvedValue('ok')
+    await expect(assignTopicToNewGroup({ submit, newGroupId: () => 'g1' })).resolves.toBe('ok')
+    expect(submit).toHaveBeenCalledExactlyOnceWith('g1')
   })
 
-  it('deletes the new group and rethrows when the topic can no longer be assigned', async () => {
-    const deleteGroup = vi.fn().mockResolvedValue(undefined)
-    const failure = new Error('topic is archived')
-    await expect(
-      assignTopicToNewGroup({
-        createGroup: async () => ({ id: 'g2' }),
-        deleteGroup,
-        assign: vi.fn().mockRejectedValue(failure)
-      })
-    ).rejects.toBe(failure)
-    expect(deleteGroup).toHaveBeenCalledExactlyOnceWith('g2')
+  it('retries a lost reply with the SAME group id so the server can replay the committed result', async () => {
+    const submit = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce('committed')
+    await expect(assignTopicToNewGroup({ submit, newGroupId: () => 'g2' })).resolves.toBe('committed')
+    expect(submit.mock.calls).toEqual([['g2'], ['g2']])
   })
 
-  it('still surfaces the assignment error when cleanup fails', async () => {
+  it('surfaces the rejection when the topic can no longer be assigned, without any client-side cleanup', async () => {
     const failure = new Error('topic is archived')
-    await expect(
-      assignTopicToNewGroup({
-        createGroup: async () => ({ id: 'g3' }),
-        deleteGroup: vi.fn().mockRejectedValue(new Error('delete failed')),
-        assign: vi.fn().mockRejectedValue(failure)
-      })
-    ).rejects.toBe(failure)
+    const submit = vi.fn().mockRejectedValue(failure)
+    await expect(assignTopicToNewGroup({ submit, newGroupId: () => 'g3' })).rejects.toBe(failure)
+    expect(submit).toHaveBeenCalledTimes(2)
   })
 })

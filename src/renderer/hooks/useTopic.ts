@@ -38,7 +38,13 @@ import { conversationListSortQuery, getConversationListSortLocale } from '@rende
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  CreateTopicGroupDto,
+  CreateTopicGroupResult,
+  DeleteTopicsResult,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
 import type { ConversationListSort } from '@shared/data/types/conversationList'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -424,6 +430,9 @@ export function useTopicMutations() {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
+  const { trigger: createGroupAndAssignTrigger } = useMutation('POST', '/topics/:id/group', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`, '/groups']
+  })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id')
   const { trigger: restoreTrigger } = useMutation('POST', '/topics/:id/restore', {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
@@ -547,6 +556,13 @@ export function useTopicMutations() {
    * Rethrows on failure after reconciling caches with server truth when the
    * server write may have committed.
    */
+  /** Create a topic group and assign the topic in one main-process transaction (replay-safe by `groupId`). */
+  const createGroupAndAssign = useCallback(
+    (topicId: string, dto: CreateTopicGroupDto): Promise<CreateTopicGroupResult> =>
+      createGroupAndAssignTrigger({ params: { id: topicId }, body: dto }),
+    [createGroupAndAssignTrigger]
+  )
+
   const moveTopic = useCallback(
     async (
       topicId: string,
@@ -602,6 +618,7 @@ export function useTopicMutations() {
     deleteTopics,
     deleteTopicsByAssistantId,
     moveTopic,
+    createGroupAndAssign,
     batchUpdateTopics,
     refreshTopics,
     isCreating,

@@ -1462,6 +1462,70 @@ describe('TopicService', () => {
     })
   })
 
+  describe('createGroupAndAssign', () => {
+    const GROUP_ID = '3f2b7c1e-5a4d-4e8f-9b6a-1c2d3e4f5a6b'
+    const seedTopic = async (values: Partial<typeof topicTable.$inferInsert> = {}) => {
+      await dbh.db.insert(topicTable).values({ id: 'cg-topic', name: 'T', orderKey: 'a0', ...values })
+    }
+    const topicGroups = () => dbh.db.select().from(groupTable).where(eq(groupTable.entityType, 'topic')).all()
+
+    it('creates the group and assigns the topic with a single post-commit broadcast', async () => {
+      await seedTopic()
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(result.group).toMatchObject({ id: GROUP_ID, name: 'Research', entityType: 'topic' })
+      expect(result.topic.groupId).toBe(GROUP_ID)
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      // One broadcast for the group, one for the topic read model: both after commit.
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('commits and publishes nothing when the topic was archived in another window', async () => {
+      await seedTopic({ deletedAt: 100 })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })).toThrow()
+
+      expect(topicGroups()).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('is replay-safe: a retry after a lost reply returns the committed group without a second one', async () => {
+      await seedTopic()
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const replay = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(replay.group.id).toBe(GROUP_ID)
+      expect(replay.topic.groupId).toBe(GROUP_ID)
+      expect(topicGroups()).toHaveLength(1)
+    })
+
+    it('never removes memberships another window committed into the group', async () => {
+      await seedTopic()
+      await seedTopic({ id: 'cg-other', orderKey: 'a1' })
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      // Another window moves a different topic into the new group, then the first request is replayed.
+      topicService.update('cg-other', { groupId: GROUP_ID })
+
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(topicService.getById('cg-other').groupId).toBe(GROUP_ID)
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      expect(topicGroups()).toHaveLength(1)
+    })
+
+    it('rejects reusing a group id for a different name', async () => {
+      await seedTopic()
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Other' })).toThrow()
+    })
+  })
+
   describe('create', () => {
     it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       notifyDataApiDataChangeMock.mockClear()

@@ -225,6 +225,7 @@ export function Topics({
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
     moveTopic,
+    createGroupAndAssign,
     refreshTopics,
     restoreTopic
   } = useTopicMutations()
@@ -339,11 +340,9 @@ export function Topics({
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const { groups: topicGroups } = useGroups('topic', { enabled: dataEnabled })
-  const {
-    createGroup: createTopicGroup,
-    updateGroup: updateTopicGroup,
-    deleteGroup: deleteTopicGroup
-  } = useGroupMutations('topic', { refreshOnDelete: ['/topics'] })
+  const { updateGroup: updateTopicGroup, deleteGroup: deleteTopicGroup } = useGroupMutations('topic', {
+    refreshOnDelete: ['/topics']
+  })
   const [topicSubjectNameDialog, setTopicSubjectNameDialog] = useState<
     { kind: 'create'; topic: Topic } | { kind: 'rename'; groupId: string; name: string } | null
   >(null)
@@ -381,13 +380,9 @@ export function Topics({
         return
       }
       const topicId = topicSubjectNameDialog.topic.id
-      await assignTopicToNewGroup({
-        createGroup: () => createTopicGroup(name),
-        deleteGroup: deleteTopicGroup,
-        assign: (groupId) => patchTopic(topicId, { groupId })
-      })
+      await assignTopicToNewGroup({ submit: (groupId) => createGroupAndAssign(topicId, { groupId, name }) })
     },
-    [createTopicGroup, deleteTopicGroup, patchTopic, topicSubjectNameDialog, updateTopicGroup]
+    [createGroupAndAssign, topicSubjectNameDialog, updateTopicGroup]
   )
   const handleDeleteTopicSubject = useCallback(
     async (groupId: string) => {

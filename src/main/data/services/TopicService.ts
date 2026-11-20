@@ -10,6 +10,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
@@ -22,6 +23,8 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type {
   CreateTopicDto,
+  CreateTopicGroupDto,
+  CreateTopicGroupResult,
   DeleteTopicsResult,
   DuplicateTopicDto,
   LatestTopicQuery,
@@ -434,6 +437,54 @@ export class TopicService {
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
     return topic
+  }
+
+  /**
+   * Create a topic group and move the topic into it in one transaction, then publish once after commit.
+   * The caller supplies `groupId`, so a replay after a lost reply finds the committed group and
+   * (re)applies the assignment instead of creating a second group.
+   */
+  createGroupAndAssign(id: string, dto: CreateTopicGroupDto): CreateTopicGroupResult {
+    const dbService = application.get('DbService')
+    let created = false
+
+    const result = dbService.withWriteTx((tx) => {
+      const [existing] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
+
+      let group = groupService.findByIdTx(tx, dto.groupId)
+      if (group) {
+        if (group.entityType !== 'topic' || group.name !== dto.name) {
+          throw DataApiErrorFactory.validation({ groupId: [`Group id already in use: ${dto.groupId}`] })
+        }
+      } else {
+        insertWithOrderKey(
+          tx,
+          groupTable,
+          { id: dto.groupId, entityType: 'topic', name: dto.name },
+          { pkColumn: groupTable.id, scope: eq(groupTable.entityType, 'topic') }
+        )
+        group = groupService.findByIdTx(tx, dto.groupId)
+        created = true
+      }
+      if (!group) throw DataApiErrorFactory.notFound('Group', dto.groupId)
+
+      const [row] = tx.update(topicTable).set({ groupId: group.id }).where(eq(topicTable.id, id)).returning().all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return { group, topic: rowToTopic(row) }
+    })
+
+    if (created) {
+      notifyDataApiDataChange([{ endpoint: '/groups', kind: 'membership', entityIds: [result.group.id] }])
+    }
+    this.notifyReadModelChange([id], 'projection')
+    logger.info('Created topic group and assigned topic', { id, groupId: result.group.id, replay: !created })
+    return result
   }
 
   /** Atomically update a topic's assistant and global order. */
