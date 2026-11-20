@@ -5201,7 +5201,6 @@
   "settings.memory.result": "File results",
   "settings.memory.retention": "Only the listed files will change. Recovery backups are kept, and conflicting edits will not be overwritten.",
   "settings.memory.title": "Shared memory",
-  "settings.memory.use": "Use shared memory",
   "settings.menuGroups.automation": "Efficiency",
   "settings.menuGroups.builtinTools": "Built-in Tools",
   "settings.menuGroups.capabilities": "Tools",

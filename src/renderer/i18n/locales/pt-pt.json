@@ -5201,7 +5201,6 @@
   "settings.memory.result": "Resultados dos ficheiros",
   "settings.memory.retention": "Apenas os ficheiros indicados serão alterados. As cópias de recuperação são mantidas e as edições em conflito não são substituídas.",
   "settings.memory.title": "Memória partilhada",
-  "settings.memory.use": "Usar memória partilhada",
   "settings.menuGroups.automation": "Eficiência",
   "settings.menuGroups.builtinTools": "Ferramentas integradas",
   "settings.menuGroups.capabilities": "Ferramentas",

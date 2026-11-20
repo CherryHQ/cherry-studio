@@ -361,15 +361,7 @@ describe('purity (AC7)', () => {
     )
   )
   add('answerVerdict', { kind: 'granted' as const, args: { path: 'y' } }, (a) => answerVerdict(a, { path: 'x' }))
-  add('decideApproval', host, (h) =>
-    decideApproval(
-      { key: call('k'), thread: 'parent' as never, tool: 'x', args: {}, nested: false },
-      h,
-      'default',
-      'stream',
-      undefined
-    )
-  )
+  add('decideApproval', host, (h) => decideApproval({ tool: 'x' }, h, 'default', 'stream', undefined))
   add('decideAskUser', question, (q) => decideAskUser({ kind: 'root' }, q))
   add('decideTodos', { todos: [{ content: 'a', status: 'pending' }] }, (t) => decideTodos(t))
   add('recallText', drive(4).history, (h) => recallText(h, { query: 'text' }))

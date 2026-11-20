@@ -5203,7 +5203,6 @@
   "settings.memory.result": "Результаты для файлов",
   "settings.memory.retention": "Изменятся только перечисленные файлы. Резервные копии сохраняются, а конфликтующие изменения не перезаписываются.",
   "settings.memory.title": "Общая память",
-  "settings.memory.use": "Использовать общую память",
   "settings.menuGroups.automation": "Эффективность",
   "settings.menuGroups.builtinTools": "Встроенные инструменты",
   "settings.menuGroups.capabilities": "Инструменты",

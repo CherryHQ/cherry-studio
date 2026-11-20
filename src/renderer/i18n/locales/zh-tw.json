@@ -5201,7 +5201,6 @@
   "settings.memory.result": "檔案結果",
   "settings.memory.retention": "僅修改列出的檔案。復原備份會保留，發生衝突的編輯不會被覆寫。",
   "settings.memory.title": "共用記憶",
-  "settings.memory.use": "使用共用記憶",
   "settings.menuGroups.automation": "效率",
   "settings.menuGroups.builtinTools": "內建工具",
   "settings.menuGroups.capabilities": "工具",
