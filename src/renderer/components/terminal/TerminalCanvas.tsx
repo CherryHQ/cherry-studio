@@ -204,7 +204,16 @@ export function TerminalCanvas({
       const work = queue.current
         .then(async () => {
           if (view.current !== viewId) throw new Error(t('terminal.error.view_changed'))
-          const receipt = await ipcApi.request('terminal.action', { viewId, operationId, controlRevision, action })
+          const submitted =
+            action.kind === 'resize'
+              ? { ...action, geometryEpoch: current.current.geometryEpoch ?? epoch.current }
+              : action
+          const receipt = await ipcApi.request('terminal.action', {
+            viewId,
+            operationId,
+            controlRevision,
+            action: submitted
+          })
           if (receipt.kind !== 'resource')
             throw new Error(
               t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
@@ -567,7 +576,7 @@ export function TerminalCanvas({
       )}
       <div
         ref={root}
-        className="relative min-h-0 flex-1 overflow-auto bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring"
+        className={`relative min-h-0 flex-1 ${controlled ? 'overflow-hidden' : 'overflow-auto'} bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring`}
         style={{ fontFamily: 'var(--code-font-family)' }}
         onPointerDown={(event) => {
           event.preventDefault()
