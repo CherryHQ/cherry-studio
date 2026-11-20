@@ -1478,8 +1478,13 @@ describe('TopicService', () => {
       expect(result.group).toMatchObject({ id: GROUP_ID, name: 'Research', entityType: 'topic' })
       expect(result.topic.groupId).toBe(GROUP_ID)
       expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
-      // One broadcast for the group, one for the topic read model: both after commit.
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      // One post-commit broadcast carries the group effect and every affected topic read model.
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      const effects = notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string }>
+      expect(effects[0]).toEqual({ endpoint: '/groups', kind: 'membership', entityIds: [GROUP_ID] })
+      expect(effects.map((effect) => effect.endpoint)).toEqual(
+        expect.arrayContaining(['/topics', '/topics/:id', '/topics/latest'])
+      )
     })
 
     it('commits and publishes nothing when the topic was archived in another window', async () => {
@@ -1502,6 +1507,13 @@ describe('TopicService', () => {
       expect(replay.group.id).toBe(GROUP_ID)
       expect(replay.topic.groupId).toBe(GROUP_ID)
       expect(topicGroups()).toHaveLength(1)
+      // A replay publishes only the topic read model, in one broadcast.
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(
+        (notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string }>).some(
+          (effect) => effect.endpoint === '/groups'
+        )
+      ).toBe(false)
     })
 
     it('never removes memberships another window committed into the group', async () => {

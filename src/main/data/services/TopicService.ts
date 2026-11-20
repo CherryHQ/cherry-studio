@@ -145,7 +145,16 @@ export class TopicService {
     kind: 'membership' | 'projection',
     options: { deleted?: boolean } = {}
   ): void {
-    if (topicIds.length === 0) return
+    notifyDataApiDataChange(this.readModelEffects(topicIds, kind, options))
+  }
+
+  /** The topic read-model effects of a change, for callers that publish them with other effects in one broadcast. */
+  private readModelEffects(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: { deleted?: boolean } = {}
+  ): DataApiDataChangeEffect[] {
+    if (topicIds.length === 0) return []
     const entityIds = [...new Set(topicIds)]
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
@@ -154,12 +163,12 @@ export class TopicService {
       options.deleted && entityIds.length === 1
         ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
         : [{ endpoint: '/topics/:id', entityIds }]
-    notifyDataApiDataChange([
+    return [
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
       { endpoint: '/topics/latest' }
-    ])
+    ]
   }
 
   notifyPurged(topicIds: readonly string[]): void {
@@ -479,10 +488,10 @@ export class TopicService {
       return { group, topic: rowToTopic(row) }
     })
 
-    if (created) {
-      notifyDataApiDataChange([{ endpoint: '/groups', kind: 'membership', entityIds: [result.group.id] }])
-    }
-    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([
+      ...(created ? [{ endpoint: '/groups', kind: 'membership' as const, entityIds: [result.group.id] }] : []),
+      ...this.readModelEffects([id], 'projection')
+    ])
     logger.info('Created topic group and assigned topic', { id, groupId: result.group.id, replay: !created })
     return result
   }
