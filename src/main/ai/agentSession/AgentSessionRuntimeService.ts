@@ -2109,6 +2109,9 @@ export class AgentSessionRuntimeService extends BaseService {
             logger.warn('Failed to connect child subscriber', { sessionId, error, attempt })
           }
           if (entry && this.entries.get(sessionId) !== entry) return null
+          // Retry only when priming dropped its own idle entry (no entry left to connect), and never
+          // once the service is stopping: a retry would otherwise create an owner outside the close sweep.
+          if (entry || this.isShuttingDown) break
         }
         if (entry && this.entries.get(sessionId) !== entry) return null
         const child = await connection?.childProjection?.(toolCallId)

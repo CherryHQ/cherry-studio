@@ -406,6 +406,15 @@ it('retries one failed connection so the original attachment still receives live
   expect(received).toEqual([update])
 })
 
+// Catches the bounded retry multiplying connection attempts when startup keeps failing.
+it('stops after one retry and returns the saved child when every connection attempt fails', async () => {
+  const f = fixture()
+  f.connect.mockImplementation(() => Promise.reject(new Error('startup keeps failing')))
+  const view = await f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
+  expect(view).toMatchObject({ available: false })
+  expect(f.connect.mock.calls.length).toBeLessThanOrEqual(2)
+})
+
 // Catches losing readable persisted output when the native owner cannot be opened.
 it('returns the saved read-only child when connection fails', async () => {
   const f = fixture()
