@@ -1,12 +1,63 @@
-import { type EventSourceMessage, EventSourceParserStream } from '@ai-sdk/provider-utils'
+import { type EventSourceMessage, EventSourceParserStream, readResponseWithSizeLimit } from '@ai-sdk/provider-utils'
 
 type ImageContent = { content?: unknown; images?: unknown[] }
 type ImageChoice = { index?: number; message?: ImageContent; delta?: ImageContent; finish_reason?: string | null }
 
 class DataImageParser {
-  private phase: 'text' | 'bang' | 'label' | 'prefix' | 'mime' | 'base64' | 'payload' = 'text'
+  private phase: 'text' | 'bang' | 'label' | 'label-bang' | 'prefix' | 'mime' | 'base64' | 'payload' = 'text'
   private parts: string[] = []
   private position = 0
+  private labelDepth = 0
+  private labelEscaped = false
+  private lineIndent = 0
+  private escaped = false
+  private code: { marker: string; length: number; fenced: boolean } | undefined
+  private delimiter: { marker: string; length: number; atLineStart: boolean } | undefined
+  private fenceEnd = false
+
+  private inCode(char: string): boolean {
+    const atLineStart = this.lineIndent >= 0 && this.lineIndent <= 3
+    if (char === '\n') this.lineIndent = 0
+    else if (char === ' ' && this.lineIndent >= 0) this.lineIndent++
+    else this.lineIndent = -1
+
+    if (this.delimiter?.marker === char) {
+      this.delimiter.length++
+      return true
+    }
+    if (this.delimiter) {
+      const { marker, length, atLineStart } = this.delimiter
+      if (!this.code && (marker === '`' || length >= 3)) {
+        this.code = { marker, length, fenced: atLineStart && length >= 3 }
+      } else if (this.code?.marker === marker) {
+        if (this.code.fenced && atLineStart && length >= this.code.length) this.fenceEnd = true
+        if (!this.code.fenced && length === this.code.length) this.code = undefined
+      }
+      this.delimiter = undefined
+    }
+
+    if (this.fenceEnd) {
+      if (char === '\n') this.code = undefined
+      if (char !== ' ' && char !== '\t' && char !== '\r') this.fenceEnd = false
+      return true
+    }
+    if (this.code) {
+      if (char === this.code.marker && (!this.code.fenced || atLineStart)) {
+        this.delimiter = { marker: char, length: 1, atLineStart }
+      }
+      return true
+    }
+    if (this.escaped) {
+      this.escaped = false
+      return true
+    }
+    if (char === '\\') this.escaped = true
+    if (char === '`' || (char === '~' && atLineStart)) {
+      this.delimiter = { marker: char, length: 1, atLineStart }
+      return true
+    }
+    return false
+  }
 
   feed(delta: string, final = false): { content: string; images: unknown[] } {
     const text: string[] = []
@@ -17,20 +68,40 @@ class DataImageParser {
       let valid = true
       switch (this.phase) {
         case 'text':
-          if (char !== '!') continue
+          if (this.inCode(char) || char !== '!') continue
           text.push(delta.slice(start, index))
           start = index
           this.phase = 'bang'
           continue
         case 'bang':
           valid = char === '['
-          if (valid) this.phase = 'label'
+          if (valid) {
+            this.phase = 'label'
+            this.labelDepth = 1
+            this.labelEscaped = false
+          }
           break
         case 'label':
-          if (char === ']') {
+          valid = char !== '\n'
+          if (this.labelEscaped) this.labelEscaped = false
+          else if (char === '\\') this.labelEscaped = true
+          else if (char === '[') this.labelDepth++
+          else if (char === ']' && --this.labelDepth === 0) {
             this.phase = 'prefix'
             this.position = 0
+          } else if (char === '!') this.phase = 'label-bang'
+          break
+        case 'label-bang':
+          this.phase = 'label'
+          if (char !== '[') {
+            index--
+            continue
           }
+          const prefix = this.parts.join('') + delta.slice(start, index)
+          text.push(prefix.slice(0, -1))
+          this.parts = ['!']
+          start = index
+          this.labelDepth = 1
           break
         case 'prefix':
           valid = char === '(data:image/'[this.position++]
@@ -59,7 +130,7 @@ class DataImageParser {
           if (char === ')' && this.position > 0) {
             this.parts.push(delta.slice(start, index + 1))
             const markdown = this.parts.join('')
-            const url = markdown.slice(markdown.indexOf('](') + 2, -1).replace(/\s+/g, '')
+            const url = markdown.slice(markdown.lastIndexOf('](') + 2, -1).replace(/\s+/g, '')
             images.push({ type: 'image_url', image_url: { url } })
             this.parts = []
             this.phase = 'text'
@@ -91,7 +162,7 @@ class DataImageParser {
 }
 
 function normalizeJson(body: string, pending?: Map<number, DataImageParser>): string {
-  if (!pending?.size && !body.includes('!')) return body
+  if (!pending && !body.includes('!')) return body
   try {
     const value = JSON.parse(body) as { choices?: ImageChoice[] }
     for (const choice of Array.isArray(value?.choices) ? value.choices : []) {
@@ -127,7 +198,10 @@ export async function normalizeNewApiDataImages(response: Response): Promise<Res
   headers.delete('content-length')
   headers.delete('content-encoding')
   const init = { status: response.status, statusText: response.statusText, headers }
-  if (contentType.includes('application/json')) return new Response(normalizeJson(await response.text()), init)
+  if (contentType.includes('application/json')) {
+    const body = await readResponseWithSizeLimit({ response, url: response.url })
+    return new Response(normalizeJson(new TextDecoder().decode(body)), init)
+  }
 
   const pending = new Map<number, DataImageParser>()
   const encoder = new TextEncoder()

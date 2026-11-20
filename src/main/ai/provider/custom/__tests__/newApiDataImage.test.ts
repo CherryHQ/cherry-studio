@@ -39,6 +39,41 @@ describe('New API data-image compatibility', () => {
     expect(await result.text).toBe('Hello')
   })
 
+  it.each(['json', 'sse'])('preserves Markdown examples and extracts real images in %s', async (format) => {
+    const example = `\`\`\`markdown\n![example](${INLINE_PNG})\n\`\`\`\n`
+    const literal = `Use \`![inline](${INLINE_PNG})\` here. ![Unclosed label before `
+    const content = `${example}${literal}![real [image]](${INLINE_PNG})`
+    const response =
+      format === 'json'
+        ? jsonResponse(content)
+        : new Response([...content].map(event).join('') + finishEvent(), {
+            headers: { 'content-type': 'text/event-stream' }
+          })
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response)
+    const model = createNewApi({ apiKey: 'test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
+
+    if (format === 'json') {
+      const result = await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'draw' }] }] })
+      expect(result.content).toEqual([
+        { type: 'text', text: example + literal },
+        { type: 'file', mediaType: 'image/png', data: 'iVBORw0KGgo=' }
+      ])
+    } else {
+      const result = streamText({ model, prompt: 'draw', maxRetries: 0 })
+      await result.consumeStream()
+      expect(await result.text).toBe(example + literal)
+      expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
+    }
+  })
+
+  it('rejects oversized upstream JSON before reading the body', async () => {
+    const response = new Response('{}', {
+      headers: { 'content-type': 'application/json', 'content-length': String(3 * 1024 ** 3) }
+    })
+
+    await expect(normalizeNewApiDataImages(response)).rejects.toThrow(/exceeded maximum size/)
+  })
+
   it('turns a Markdown data image in a JSON response into an SDK file part', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse(`Here: ![result](${INLINE_PNG})`))
     const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
@@ -49,6 +84,37 @@ describe('New API data-image compatibility', () => {
       { type: 'text', text: 'Here: ' },
       { type: 'file', mediaType: 'image/png', data: 'iVBORw0KGgo=' }
     ])
+  })
+
+  it.each(['json', 'sse'])('does not turn an external image URL into corrupt file data in %s', async (format) => {
+    const content = {
+      content: 'Caption',
+      images: [
+        { type: 'image_url', image_url: { url: 'https://cdn.test/cat.png' } },
+        { type: 'image_url', image_url: { url: INLINE_PNG } }
+      ]
+    }
+    const response =
+      format === 'json'
+        ? Response.json({ choices: [{ message: { role: 'assistant', ...content } }] })
+        : new Response(`data: ${JSON.stringify({ choices: [{ delta: content }] })}\n\n${finishEvent()}`, {
+            headers: { 'content-type': 'text/event-stream' }
+          })
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response)
+    const model = createNewApi({ apiKey: 'test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
+
+    if (format === 'json') {
+      const result = await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'draw' }] }] })
+      expect(result.content).toEqual([
+        { type: 'text', text: 'Caption' },
+        { type: 'file', mediaType: 'image/png', data: 'iVBORw0KGgo=' }
+      ])
+    } else {
+      const result = streamText({ model, prompt: 'draw', maxRetries: 0 })
+      await result.consumeStream()
+      expect(await result.text).toBe('Caption')
+      expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
+    }
   })
 
   it('extracts an SSE data image split across chunks without exposing base64 as text', async () => {
@@ -80,7 +146,7 @@ describe('New API data-image compatibility', () => {
     expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
   })
 
-  it.each(['result', 'a!b', 'a![b'])('reassembles a text-prefixed data image with alt %s', async (alt) => {
+  it.each(['result', 'a!b', 'a[b]'])('reassembles a text-prefixed data image with alt %s', async (alt) => {
     const body = `${event(`Here: ![${alt}](data:image/png;base64,iVBO`)}${event('Rw0KGgo=)')}${finishEvent()}data: [DONE]\n\n`
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -106,7 +172,7 @@ describe('New API data-image compatibility', () => {
     expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
   })
 
-  it.each(['result', 'a!b', 'a![b', '![long'.repeat(1000)])(
+  it.each(['result', 'a!b', 'a[b]', '[long'.repeat(1000) + ']'.repeat(1000)])(
     'handles long and punctuated labels across single-character deltas: %.20s',
     async (alt) => {
       const markdown = `Here: ![${alt}](${INLINE_PNG}) done`
