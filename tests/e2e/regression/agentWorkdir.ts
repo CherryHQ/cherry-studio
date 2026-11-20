@@ -1,10 +1,11 @@
 import { realpathSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -18,9 +19,17 @@ export async function agentWorkdir(app: RegressionApp, initialPage: Page, info: 
   let page = initialPage
   const server = await startMockChatServer()
   const providerId = `mp49-${Date.now()}`
-  const name = 'QA-Agent-20261117'
+  const name = app.resourceName('QA-Agent')
   const prompt = 'Help with the selected working directory.'
-  const workspacePath = realpathSync(resolve('test-assets/code'))
+  // A clean checkout has no directory to point at, so the case owns one under the run workspace.
+  const caseWorkspace = join(app.paths.workspace, 'code')
+  await mkdir(caseWorkspace, { recursive: true })
+  const workspacePath = realpathSync(caseWorkspace)
+  const preferences = await page.evaluate(async () => ({
+    menu: await window.api.preference.get('menu.presentation_mode'),
+    display: await window.api.preference.get('agent.session.display_mode')
+  }))
+  let agentId: string | undefined
   const model = createUniqueModelId(providerId, server.modelId)
   info.annotations.push({
     type: 'uncovered',
@@ -109,6 +118,7 @@ export async function agentWorkdir(app: RegressionApp, initialPage: Page, info: 
       (item) => item.name === name
     )
     expect(agent).toMatchObject({ name, model })
+    agentId = agent!.id
     const sessions = await page.evaluate(() =>
       window.api.dataApi.request({
         id: 'mp49-sessions',
@@ -145,5 +155,24 @@ export async function agentWorkdir(app: RegressionApp, initialPage: Page, info: 
     await page.keyboard.press('Escape')
   } finally {
     await server.close()
+    // This case creates an agent, its sessions and a provider inside a reused profile: remove them
+    // so a repeat in the same profile cannot collide with its own leftovers.
+    await page.evaluate(
+      async ({ agentId, providerId, preferences }) => {
+        await window.api.preference.setMultiple({
+          'menu.presentation_mode': preferences.menu,
+          'agent.session.display_mode': preferences.display
+        })
+        if (agentId) {
+          const result = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+            agentId,
+            deleteSessions: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!result.ok || !result.data.deleted) throw new Error('cleanup left the case agent readable')
+        }
+        await window.api.dataApi.request({ id: 'mp49-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
+      },
+      { agentId, providerId, preferences }
+    )
   }
 }
