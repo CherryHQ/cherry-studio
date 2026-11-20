@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -140,6 +141,48 @@ describe('buildAgentParams provider resolution', () => {
     } finally {
       registry.deregister(toolId)
     }
+  })
+
+  it('requests native Vertex image output without a linked assistant', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google-vertex', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'vertex',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' } }
+    })
+    const model = makeModel({
+      id: 'vertex::gemini-2.5-flash-image',
+      providerId: 'vertex',
+      apiModelId: 'gemini-2.5-flash-image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: ['image', 'text']
+    })
+    const params = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model
+    })
+    let requestBody: unknown
+    const vertex = createVertex({
+      apiKey: 'test',
+      fetch: async (_url, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        return Response.json({
+          candidates: [{ content: { role: 'model', parts: [{ text: 'Done' }] }, finishReason: 'STOP' }]
+        })
+      }
+    })
+
+    await vertex(params.sdkConfig.modelId).doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Draw a cat' }] }],
+      providerOptions: params.options.providerOptions
+    })
+
+    expect(requestBody).toMatchObject({ generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } })
   })
 
   it('fills the conversation header a provider declares from the request conversation', async () => {

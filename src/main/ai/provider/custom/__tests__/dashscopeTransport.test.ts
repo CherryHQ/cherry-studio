@@ -47,6 +47,38 @@ const neverSettles: typeof fetch = (_input, init) =>
     })
   })
 
+describe('DashScope task cancellation', () => {
+  it('POSTs the submitted task ID to the provider cancellation endpoint', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ output: { task_id: 'task/1', task_status: 'PENDING' } }))
+      .mockResolvedValueOnce(Response.json('cancel-request-id'))
+    const transport = createDashScopeTransport({ apiKey: 'test', imageBaseURL: 'https://dashscope.test', fetch })
+    const { taskId } = await transport.submit({
+      ...baseInput,
+      modelId: 'qwen-image',
+      prompt: 'a fox',
+      modelDescriptor: { ...descriptor, isSync: false }
+    })
+
+    await transport.cancel(taskId!)
+
+    expect(fetch.mock.calls[1]).toEqual([
+      'https://dashscope.test/api/v1/tasks/task%2F1/cancel',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer test' }) })
+    ])
+  })
+
+  it('reports a rejected cancellation for an already-running task', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ code: 'UnsupportedOperation' }, { status: 400 }))
+    const transport = createDashScopeTransport({ apiKey: 'test', imageBaseURL: 'https://dashscope.test', fetch })
+
+    await expect(transport.cancel('running-task')).rejects.toThrow(/400.*UnsupportedOperation/)
+  })
+})
+
 describe('DashScope submit timeout', () => {
   beforeEach(() => {
     vi.useFakeTimers()

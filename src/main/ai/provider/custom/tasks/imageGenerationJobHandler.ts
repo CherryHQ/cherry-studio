@@ -66,7 +66,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
     const { config, credentialReceipt, endpointType } = await resolveProviderAiSdkConfig(provider, model, {
-      intent: 'image'
+      intent: (input.mode ?? input.modelDescriptor?.mode) === 'edit' ? 'image-edit' : 'image'
     })
     const sdkConfig = {
       ...config,
@@ -184,14 +184,21 @@ async function pollUntilDone(
   if (!transport.poll) {
     throw new Error('Image transport returned a task id but does not implement polling')
   }
-  const cancelRemote = transport.cancel ? () => void transport.cancel?.(taskId).catch(() => {}) : undefined
-  if (cancelRemote) {
-    if (ctx.signal.aborted) {
-      cancelRemote()
-      throw createAbortError('Image generation aborted')
+  const cancelRemote = () => {
+    if (!transport.cancel) {
+      logger.info('Stopped image polling locally; provider cancellation is unavailable', { taskId })
+      return
     }
-    ctx.signal.addEventListener('abort', cancelRemote, { once: true })
+    void transport.cancel(taskId).then(
+      () => logger.info('Provider cancelled the image task', { taskId }),
+      (error) => logger.warn('Stopped image polling locally; provider cancellation failed', { taskId, error })
+    )
   }
+  if (ctx.signal.aborted) {
+    cancelRemote()
+    throw createAbortError('Image generation aborted')
+  }
+  ctx.signal.addEventListener('abort', cancelRemote, { once: true })
   try {
     return await transport.poll(taskId, {
       signal: ctx.signal,
@@ -201,7 +208,7 @@ async function pollUntilDone(
       modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
-    if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
+    ctx.signal.removeEventListener('abort', cancelRemote)
   }
 }
 

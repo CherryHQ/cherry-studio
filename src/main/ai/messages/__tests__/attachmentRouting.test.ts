@@ -265,14 +265,12 @@ describe('prepareChatMessages — routing', () => {
     expect(resolveMock).not.toHaveBeenCalled()
   })
 
-  // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
-  // classifies it — the note above would drop the only usable reference to the file.
   it('keeps an unlisted-extension attachment as a file part for a path-forwarding caller', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
-    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+    getByIdMock.mockResolvedValueOnce({ ext: 'unknown' })
+    const part = fileWithEntry('e1', 'file.unknown', 'application/octet-stream')
 
     const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
-      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      attachments: [{ fileEntryId: 'e1', handle: 'file.unknown', displayName: 'file.unknown' }],
       nativeSupport: ALL,
       isToolCapable: true,
       keepUnroutableFileParts: true
@@ -280,6 +278,16 @@ describe('prepareChatMessages — routing', () => {
 
     expect(out.parts).toEqual([part])
     expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('materializes a managed HEIC image for a vision-capable model', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'heic' })
+    const url = 'data:image/heic;base64,AAAA'
+    resolveMock.mockImplementationOnce(async (part) => ({ ...part, url }))
+
+    const [out] = await run([fileWithEntry('e1', 'photo.heic', 'image/heic')], ALL)
+
+    expect(out.parts).toMatchObject([{ type: 'file', mediaType: 'image/heic', url }])
   })
 
   it('degrades a native file to a note when materialization returns null', async () => {

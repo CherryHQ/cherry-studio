@@ -728,6 +728,112 @@ describe('AiService', () => {
     ).rejects.toMatchObject({ i18nKey: 'image_edit_unsupported' })
   })
 
+  it.each([
+    ['embedding', ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+    ['rerank', ENDPOINT_TYPE.JINA_RERANK]
+  ] as const)('keeps the declared %s host for a model that also serves chat', async (operation, endpointType) => {
+    const service = createService()
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const baseURL = 'https://non-chat.test/v1'
+    const provider = makeProvider({
+      endpointConfigs: {
+        [endpointType]: { baseUrl: baseURL, adapterFamily: 'openai-compatible' },
+        [chat]: { baseUrl: 'https://chat.test/v1', adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({
+      id: 'test-provider::test-model',
+      providerId: provider.id,
+      endpointTypes: [endpointType, chat]
+    })
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockModelGetByKey.mockReturnValue(model)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? defaultServiceInstances.PreferenceService : undefined
+    )
+    mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
+    mockRerank.mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
+
+    if (operation === 'embedding') {
+      await service.embedMany({ uniqueModelId: model.id, values: ['word'] })
+      expect(mockEmbedMany.mock.lastCall?.[1]).toMatchObject({ baseURL })
+    } else {
+      await service.rerank({ uniqueModelId: model.id, query: 'word', documents: ['word'] })
+      expect(mockRerank.mock.lastCall?.[1]).toMatchObject({ baseURL })
+    }
+  })
+
+  it('uses distinct configured hosts for image generation and edits', async () => {
+    const service = createService()
+    const generation = ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    const edit = ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    const provider = makeProvider({
+      endpointConfigs: {
+        [generation]: { baseUrl: 'https://generate.test/v1', adapterFamily: 'openai-compatible' },
+        [edit]: { baseUrl: 'https://edit.test/v1', adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({
+      id: 'test-provider::test-model',
+      providerId: provider.id,
+      endpointTypes: [generation, edit]
+    })
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockModelGetByKey.mockReturnValue(model)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? defaultServiceInstances.PreferenceService : undefined
+    )
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    const request = { uniqueModelId: model.id, prompt: 'Draw a cat', paramValues: {}, cleanupPolicy: 'manual' as const }
+
+    await service.generateImage(request)
+    await service.generateImage({ ...request, mode: 'edit', inputImages: ['data:image/png;base64,iVBORw0KGgo='] })
+
+    expect(mockGenerateImage.mock.calls.map(([, settings]) => settings.baseURL)).toEqual([
+      'https://generate.test/v1',
+      'https://edit.test/v1'
+    ])
+  })
+
+  it.each([
+    { endpoint: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, reference: false, i18nKey: 'image_input_required' },
+    { endpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, reference: true, i18nKey: 'image_edit_unsupported' }
+  ])('checks the declared $endpoint contract for a custom New API model', async ({ endpoint, reference, i18nKey }) => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'relay', presetProviderId: 'newapi' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'relay::custom-image',
+        providerId: 'relay',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: ['text', 'image'],
+        endpointTypes: [endpoint]
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce(null)
+
+    await expect(
+      service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        uniqueModelId: 'relay::custom-image',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            parts: [
+              { type: 'text', text: 'Make the sky blue' },
+              ...(reference
+                ? [{ type: 'file' as const, mediaType: 'image/png', url: 'data:image/png;base64,iVBORw0KGgo=' }]
+                : [])
+            ]
+          }
+        ],
+        requestOptions: { signal: new AbortController().signal }
+      })
+    ).rejects.toMatchObject({ i18nKey })
+  })
+
   it('reports an empty dedicated image result as a stream error', async () => {
     const service = createService()
     mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'test-provider' }))

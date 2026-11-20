@@ -7,22 +7,23 @@ import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 import { readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import type { FileUrlString } from '@shared/types/file'
+import { isBase64ImageDataUrl } from '@shared/utils/dataUrl'
 
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from '../messages/composerFileParts'
 
 export interface ImageTurnInput {
   prompt: string
-  inputImageIds: string[]
+  imageReferences: string[]
   mode: Extract<ImageGenerationMode, 'generate' | 'edit'>
 }
 
-function imageIds(message: UIMessage): string[] {
+function imageReferences(message: UIMessage): string[] {
   const composerFileTokenIds = collectComposerFileTokenIds(message)
   return message.parts.flatMap((part) => {
     if (part.type !== 'file' || !part.mediaType.startsWith('image/')) return []
     if (!isActiveManagedFilePart(part, composerFileTokenIds)) return []
     const id = readCherryMeta(part)?.fileEntryId
-    return id ? [id] : []
+    return id ? [id] : isBase64ImageDataUrl(part.url) ? [part.url] : []
   })
 }
 
@@ -63,22 +64,22 @@ export function collectImageTurnInput(
     .join('\n')
     .trim()
 
-  const currentImages = imageIds(user)
-  // Only an edit-capable model inherits a reference from the branch above the current prompt.
-  const inherited = support?.modes.edit
-    ? messages
-        ?.slice(0, messages.lastIndexOf(user))
-        .findLast((message) => message.role === 'assistant' && imageIds(message).length > 0)
-    : undefined
-  const referenceIds = currentImages.length > 0 ? currentImages : inherited ? imageIds(inherited) : []
-  const mode = resolveMode(referenceIds.length > 0, support, inherited !== undefined)
+  const currentImages = imageReferences(user)
+  const previousImage =
+    currentImages.length === 0 && support?.modes.edit
+      ? messages
+          ?.slice(0, messages.lastIndexOf(user))
+          .findLast((message) => message.role === 'assistant' && imageReferences(message).length > 0)
+      : undefined
+  const references = previousImage ? imageReferences(previousImage) : currentImages
+  const mode = resolveMode(references.length > 0, support, previousImage !== undefined)
   assertModeSupported(mode, support)
   if (!prompt && support?.modes[mode]?.requirePrompt !== false)
     throw Object.assign(new Error('Image generation requires a text prompt.'), { i18nKey: 'image_prompt_required' })
   // An undeclared maximum imposes no local input-image limit.
-  const uniqueIds = [...new Set(referenceIds)]
+  const uniqueIds = [...new Set(references)]
   const limit = support?.modes[mode]?.maxInputImages
-  return { prompt, inputImageIds: limit ? uniqueIds.slice(0, limit) : uniqueIds, mode }
+  return { prompt, imageReferences: limit ? uniqueIds.slice(0, limit) : uniqueIds, mode }
 }
 
 /** Materialize a mode's registry defaults — the only parameter source a chat-started image request has. */

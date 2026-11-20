@@ -14,7 +14,7 @@
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, ParameterSupport, RuntimeParameterSupport } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -46,7 +46,11 @@ export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
 export function supportsImageGenerationReference(model: Model, support = model.imageGeneration): boolean {
-  if (!support) return isVisionModel(model)
+  if (!support) {
+    if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)) return true
+    if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)) return false
+    return isVisionModel(model)
+  }
   const { edit, generate } = support.modes
   return !!edit || (!!generate && (generate.maxInputImages !== undefined || isVisionModel(model)))
 }

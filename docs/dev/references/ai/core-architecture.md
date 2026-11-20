@@ -66,8 +66,11 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    owns tool execution and continuation; SDK message rules, provider adapters,
    middleware, tracing, and usage capture remain shared.
    Dedicated image APIs take a separate branch before parameter building:
-   `openImageTurnStream` calls `generateImage` for the latest user prompt, then
-   returns a `messages` source containing the resulting file parts. The turn
+   `openImageTurnStream` calls `generateImage` with the latest user prompt and
+   eligible image references, then returns a `messages` source containing the
+   resulting file parts. Persistent chat selects references from the active
+   branch after applying explicit clears and message windows. Durable text
+   summaries affect only the language-model requests in a turn. The image turn
    still enters the same persistence and projection pipeline described below.
    Native image-chat protocols continue through the normal chat Agent.
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`

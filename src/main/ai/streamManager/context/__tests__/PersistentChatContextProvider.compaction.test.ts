@@ -16,10 +16,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as AiCore from '@cherrystudio/ai-core'
 import type * as MessageServiceModule from '@data/services/MessageService'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { createClearContextPart } from '@shared/data/types/uiParts'
 
 import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import { collectImageTurnInput } from '../../../imageTurn/imageTurn'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
@@ -259,10 +261,12 @@ async function makeHistory(
   anchorId: string,
   models = [DEFAULT_MODEL_ID],
   /** Patch the resolved Model rows (e.g. drop or widen `contextWindow`). */
-  modelPatch?: Partial<ReturnType<typeof makeModel>>
+  modelPatch?: Partial<Model> | ((id: UniqueModelId) => Partial<Model>)
 ) {
   const { resolveModels } = await import('../modelResolution')
-  vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => ({ ...makeModel(id), ...modelPatch })))
+  vi.mocked(resolveModels).mockReturnValueOnce(
+    models.map((id) => ({ ...makeModel(id), ...(typeof modelPatch === 'function' ? modelPatch(id) : modelPatch) }))
+  )
   // Mock createUserMessageWithPlaceholders so prepareDispatch doesn't need a real DB.
   const { messageService } = await import('@main/data/services/MessageService')
   vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
@@ -299,6 +303,72 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     })
     // Owned tool-output blob entry → passes resolveOwnedBlobPath's isToolOutputBlobEntry gate.
     mockFindFileEntryById.mockReturnValue({ origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' })
+  })
+
+  it.each(['image-only', 'mixed', 'windowed', 'cleared'] as const)(
+    'keeps dedicated image references independent of text compaction (%s)',
+    async (scenario) => {
+      const imageModelId = createUniqueModelId('openai', 'gpt-image-1')
+      const output = {
+        ...fakeMsg('a1', 'assistant', '', 'OLDER_TURN_SUMMARY'),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              url: 'file:///last.png',
+              providerMetadata: { cherry: { fileEntryId: 'last-image' } }
+            }
+          ]
+        }
+      }
+      const plot = 'token '.repeat(3500)
+      const clear = { ...fakeMsg('clear', 'user', ''), data: { parts: [createClearContextPart()] } }
+      mockGetPathToNode.mockReturnValue([
+        fakeMsg('u1', 'user', plot),
+        output,
+        ...(scenario === 'cleared' ? [clear] : []),
+        fakeMsg('u2', 'user', 'Make it lighter')
+      ])
+      if (scenario === 'windowed') maxMessagesOn(1)
+      else compressionOn()
+
+      const { prepared } = await makeHistory(
+        'u2',
+        scenario === 'mixed' ? [imageModelId, DEFAULT_MODEL_ID] : [imageModelId],
+        (id) =>
+          id === imageModelId ? { capabilities: ['image-generation'], endpointTypes: ['openai-image-generation'] } : {}
+      )
+      const input = collectImageTurnInput(prepared.models[0].request.messages, {
+        modes: { generate: { supports: {} }, edit: { supports: {} } }
+      })
+
+      const canInherit = scenario === 'image-only' || scenario === 'mixed'
+      expect(input).toEqual({
+        mode: canInherit ? 'edit' : 'generate',
+        prompt: 'Make it lighter',
+        imageReferences: canInherit ? ['last-image'] : []
+      })
+      if (scenario === 'mixed') {
+        expect(JSON.stringify(prepared.models[1].request.messages)).toContain('OLDER_TURN_SUMMARY')
+      }
+      expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not summarize over-budget history when only an image model is selected', async () => {
+    const long = 'token '.repeat(4000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', long),
+      fakeMsg('a1', 'assistant', long),
+      fakeMsg('u2', 'user', 'Draw a cat')
+    ])
+    compressionOn()
+
+    const { messages } = await makeHistory('u2', undefined, { capabilities: ['image-generation'] })
+
+    expect(messages.at(-1)?.parts).toEqual([{ type: 'text', text: 'Draw a cat' }])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {

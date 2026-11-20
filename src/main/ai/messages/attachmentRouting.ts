@@ -26,6 +26,7 @@
 
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
+import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -130,7 +131,7 @@ export interface PrepareChatContext {
   budget?: AttachmentBudget
   /**
    * Path-forwarding caller (agent runtime): keep a first-party part whose extension is
-   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF/HEIC image) as a file part instead of
+   * unlisted (`FILE_TYPE.OTHER`) as a file part instead of
    * replacing it with an unsupported-type note, so the caller's local-path fallback still
    * has the file reference.
    */
@@ -274,7 +275,9 @@ async function prepareChatMessage<T extends UIMessage>(
     const displayName = ref?.displayName ?? handle
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      const fileType = mime.getType(`file.${bareExt}`)?.startsWith('image/')
+        ? FILE_TYPE.IMAGE
+        : getFileTypeByExt(bareExt)
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {

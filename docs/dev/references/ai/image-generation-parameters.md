@@ -267,6 +267,11 @@ The native OpenAI SDK reads camelCase image options. Its profile therefore maps
 
 When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
 
+Stopping a job ends local polling. DashScope also receives a remote cancel
+request for a submitted task. DashScope can cancel queued tasks and rejects
+cancellation after processing starts. The job logs whether the provider
+confirmed the cancellation.
+
 The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
 Unlike the SDK path (whose bag IS the body), a transport builds its **own** per-model
