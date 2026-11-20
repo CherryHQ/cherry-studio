@@ -1,4 +1,4 @@
-import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import type { CanUseTool, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
 
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
@@ -10,7 +10,7 @@ import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
  */
 export function decisionToPermissionResult(
   decision: DispatchDecision,
-  originalInput: Record<string, unknown>
+  originalInput: Parameters<CanUseTool>[1]
 ): PermissionResult {
   return decision.approved
     ? { behavior: 'allow', updatedInput: decision.updatedInput ?? originalInput }

@@ -45,6 +45,7 @@ export function makeEntitiesCodec({ contentKey }: { contentKey: string }): ToolO
       for (let index = 0; index < value.length; index++) {
         const item = value[index]
         if (typeof item !== 'object' || item === null || Array.isArray(item)) return null
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Probe the configured text field before validating the complete opaque entity as JSON metadata.
         const content = (item as Record<string, unknown>)[contentKey]
         if (typeof content !== 'string') return null
         blobs.push({ key: `/${index}/${contentKey}`, text: content })
@@ -71,6 +72,7 @@ export function makeTextFieldCodec({ textKey }: { textKey: string }): ToolOutput
   return {
     deflate(value) {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The selected field is checked first; acceptsJsonMetadata establishes the skeleton's JSON contract afterward.
       const text = (value as Record<string, unknown>)[textKey]
       if (typeof text !== 'string') return null
       return acceptsJsonMetadata(value) ? { skeleton: value, blobs: [{ key: `/${textKey}`, text }] } : null
