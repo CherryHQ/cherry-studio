@@ -40,7 +40,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
                                        ▼   (model routing is dynamic; paramValues validated + coerced by the catalog imageParamsSchema)
 ┌─ MAIN · AiService.generateImage ───────────────────────────────────────────────┐
 │   splitParamValues(paramValues)  ──via AI_SDK_NATIVE_BINDINGS──▶                │
-│        structured = { n, size, seed, aspectRatio, … }   (typed ParamValues & {n})│
+│        structured = { n, size, seed, aspectRatio, … }   (binding-derived types) │
 │        vendorBag  = { the non-native canonical params, camelCase }              │
 │                                                                                 │
 │   resolveImageTransport(provider, model)?                                       │
@@ -211,8 +211,8 @@ The public catalog retains API capabilities. Main projects support through each 
 
 [`AiService.generateImage`](../../../../src/main/ai/AiService.ts) calls `splitParamValues` ([`src/main/ai/utils/imageOptions.ts`](../../../../src/main/ai/utils/imageOptions.ts)), which uses `AI_SDK_NATIVE_BINDINGS` ([`src/main/ai/utils/aiSdkNativeBindings.ts`](../../../../src/main/ai/utils/aiSdkNativeBindings.ts)) to split the bag:
 
-- **native** (`numImages→n`, `size`, `seed`, `aspectRatio` normalized once) → `structured` (typed `ParamValues & { n?: number }`), the AI SDK call options.
-- **everything else** → `vendorBag` (canonical camelCase).
+- **native** (`numImages→n`, `size`, `seed`, `aspectRatio` normalized once) → `structured` (typed `SplitImageParams<ParamValues>['structured']`), the AI SDK call options. Keys and normalization results derive from the binding table; identity fields retain their input types.
+- **everything else** → `vendorBag` (canonical camelCase, preserving input value types).
 
 Blank / `null` / `undefined` are dropped here (the byte-identical-wire guard); the
 `'auto'` sentinel survives and is resolved to "omit the field" at the wire layer.
@@ -265,6 +265,10 @@ via `providerParams` (the `vendorBag`). No wire-naming, no casing probes: each
 transport reads `params.negativePrompt`, `params.promptExtend`, … and places them
 into its structure (`input.*` / `parameters.*` / `messages[]`) with the field name
 its API wants. See [`imageGenerationModel.ts`](../../../../src/main/ai/provider/custom/imageGenerationModel.ts) for the `ImageGenerationTransport` contract and each `<vendor>/<vendor>Transport.ts`.
+
+The job payload's provider parameters use the catalog-derived `ParamValues`
+contract. The in-process submit interface also serves custom adapters with
+callbacks or upload bytes, so those extension values remain opaque there.
 
 ### 5. Routing — `modelDescriptor` (derived in main)
 

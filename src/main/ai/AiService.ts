@@ -1194,8 +1194,8 @@ export class AiService extends BaseService {
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
-    structured: SplitImageParams['structured'],
-    providerParams: Record<string, unknown>,
+    structured: SplitImageParams<ParamValues>['structured'],
+    providerParams: ParamValues,
     signal: AbortSignal | undefined,
     source: SourceSnapshot | undefined
   ): Promise<AiImageResult> {
