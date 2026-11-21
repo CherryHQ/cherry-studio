@@ -71,7 +71,7 @@ const AboutSettings: FC = () => {
 
     void navigate({
       to: location.pathname,
-      search: (previous: Record<string, unknown>) => {
+      search: (previous: typeof search) => {
         const remaining = { ...previous }
         delete remaining[DOCTOR_OPEN_QUERY_PARAM]
         return remaining
