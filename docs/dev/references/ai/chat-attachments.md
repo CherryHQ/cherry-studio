@@ -129,9 +129,15 @@ per-request attachment allow-list from the tool-call context.
   entry ids, and can only read files attached to the current conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
   filename-level messages; details are logged, not returned.
-- Exposed to tool-capable models whenever the request carries first-party file
-  attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
-  everything inlines within the cap the model simply never needs to call it.
+- Registered for tool-capable models whenever the request carries first-party file
+  attachments (`applies: scope.hasFileAttachments`), then filtered per request in
+  `AiService.streamText`. It stays exposed when an attachment was truncated, when an
+  attachment was folded out of the served history, or while in-loop compaction is
+  active, either the LLM compaction hook or the sliding-window fallback used when no
+  compressor resolves and the model has a known context window (a later fold can summarize an inline attachment away, and the reader is the
+  only path back to the exact contents). When every attachment is fully inline and
+  none of those hold, the tool is removed so the model is not nudged into needless
+  calls. A caller-owned `read_file` (gateway `callOverrides.tools`) is never filtered.
 - Claude Code exposes the same read operation through the Cherry Assistant-only
   `assistant-files` MCP server. Its model-facing handles are stable, opaque
   hashes of FileEntry ids. The server rebuilds its allow-list from the current
