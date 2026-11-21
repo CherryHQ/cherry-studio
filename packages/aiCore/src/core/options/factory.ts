@@ -12,7 +12,7 @@ function deepMergeObjects(target: ProviderOptionObject, source: ProviderOptionOb
   const result: ProviderOptionObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
     const merged =
-      Object.hasOwn(result, key) && isPlainObject(value) && isPlainObject(result[key])
+      Object.prototype.hasOwnProperty.call(result, key) && isPlainObject(value) && isPlainObject(result[key])
         ? deepMergeObjects(result[key], value)
         : value
     Object.defineProperty(result, key, { value: merged, enumerable: true, configurable: true, writable: true })
@@ -54,7 +54,7 @@ export function mergeProviderOptions(...optionsMap: Partial<TypedProviderOptions
         return
       }
       const merged =
-        Object.hasOwn(acc, providerId) && acc[providerId]
+        Object.prototype.hasOwnProperty.call(acc, providerId) && acc[providerId]
           ? deepMergeObjects(acc[providerId], providerOptions)
           : providerOptions
       Object.defineProperty(acc, providerId, { value: merged, enumerable: true, configurable: true, writable: true })

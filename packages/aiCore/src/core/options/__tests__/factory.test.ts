@@ -22,8 +22,8 @@ describe('mergeProviderOptions', () => {
         '{"__proto__":{"nested":{"left":1,"right":2}},"custom":{"__proto__":{"left":1,"right":2},"constructor":{"left":1,"right":2}}}'
       )
     )
-    expect(Object.hasOwn(merged, '__proto__')).toBe(true)
-    expect(Object.hasOwn(merged.custom, '__proto__')).toBe(true)
+    expect(Object.prototype.hasOwnProperty.call(merged, '__proto__')).toBe(true)
+    expect(Object.prototype.hasOwnProperty.call(merged.custom, '__proto__')).toBe(true)
     expect(Object.getPrototypeOf(merged)).toBe(Object.prototype)
     expect(Object.getPrototypeOf(merged.custom)).toBe(Object.prototype)
     expect(first).toEqual(JSON.parse(firstText))
