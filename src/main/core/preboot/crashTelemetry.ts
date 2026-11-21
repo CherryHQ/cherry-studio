@@ -5,6 +5,7 @@ import { app, crashReporter } from 'electron'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { isSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
+import type { AppErrorContext } from '@shared/types/appError'
 
 const logger = loggerService.withContext('CrashTelemetry')
 
@@ -45,10 +46,80 @@ function startCrashReporter(): void {
 }
 
 /**
- * In production, observe uncaught exceptions without suppressing Node's
- * default exit, and log unhandled rejections. In dev, leave both unset so
- * errors propagate to the terminal with their full, unswallowed stack traces.
+ * Production process-error boundary.
+ *
+ * `uncaughtExceptionMonitor` only logs. It must not present UI and must not
+ * call `preventDefault` — Node still exits, and that exit is the noninteractive
+ * fatal boundary. A second renderer crash inside the force-exit window is the
+ * same kind of boundary: the process leaves, so no fault is queued.
+ * `unhandledRejection` leaves the process alive. Identical reasons are suppressed
+ * for a short interval; a different fault, or the same fault after the interval,
+ * can still be presented. Ordinary logger calls are not events. Preboot only logs
+ * and dedupes; the services tier that owns the main window registers the presenter.
  */
+export const UNHANDLED_REJECTION_DEDUP_MS = 60_000
+const UNHANDLED_REJECTION_RECENT_LIMIT = 50
+const recentUnhandledRejections = new Map<string, number>()
+
+/** Returns whether the fault reached a visible surface. */
+export type HandedOffErrorPresenter = (context: AppErrorContext) => boolean
+let handedOffErrorPresenter: HandedOffErrorPresenter | null = null
+
+/** Register (or clear with `null`) the surface for production unhandled rejections. */
+export function setHandedOffErrorPresenter(presenter: HandedOffErrorPresenter | null): void {
+  handedOffErrorPresenter = presenter
+}
+
+function rejectionMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  if (typeof reason === 'string') return reason
+  return 'Unhandled promise rejection'
+}
+
+function rejectionSignature(reason: unknown): string {
+  if (reason instanceof Error) return `${reason.name}:${reason.message}`.slice(0, 240)
+  return rejectionMessage(reason).slice(0, 240)
+}
+
+function rememberPresentedRejection(signature: string, now: number): void {
+  recentUnhandledRejections.delete(signature)
+  recentUnhandledRejections.set(signature, now)
+  for (const [key, at] of recentUnhandledRejections) {
+    if (now - at >= UNHANDLED_REJECTION_DEDUP_MS) recentUnhandledRejections.delete(key)
+  }
+  while (recentUnhandledRejections.size > UNHANDLED_REJECTION_RECENT_LIMIT) {
+    const oldest = recentUnhandledRejections.keys().next().value
+    if (oldest === undefined) break
+    recentUnhandledRejections.delete(oldest)
+  }
+}
+
+/** Returns whether the registered presenter accepted the fault. Deduped reasons return false. */
+export function presentProductionUnhandledRejection(reason: unknown, now = Date.now()): boolean {
+  const presenter = handedOffErrorPresenter
+  if (!presenter) return false
+  const signature = rejectionSignature(reason)
+  const last = recentUnhandledRejections.get(signature)
+  if (last !== undefined && now - last < UNHANDLED_REJECTION_DEDUP_MS) return false
+  try {
+    const message = rejectionMessage(reason).slice(0, 4000)
+    const context: AppErrorContext = {
+      id: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+      source: 'main',
+      operation: 'process.unhandledRejection',
+      message,
+      ...(reason instanceof Error ? { name: reason.name, ...(reason.stack ? { stack: reason.stack } : {}) } : {})
+    }
+    if (!presenter(context)) return false
+    rememberPresentedRejection(signature, now)
+    return true
+  } catch (error) {
+    logger.error('Unhandled rejection could not be presented', error as Error)
+    return false
+  }
+}
+
 function installProcessErrorHandlers(): void {
   if (isDev) return
 
@@ -58,6 +129,7 @@ function installProcessErrorHandlers(): void {
 
   process.on('unhandledRejection', (reason, promise) => {
     logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
+    presentProductionUnhandledRejection(reason)
   })
 }
 

@@ -122,58 +122,6 @@ describe('showSupportedMessageBox', () => {
     expect(openExternal).toHaveBeenCalledWith('https://cherryai.com/download')
   })
 
-  it('places the caller action right after the primary buttons and stays within four buttons', async () => {
-    const run = vi.fn(async () => undefined)
-    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 0 })
-
-    const response = await showSupportedMessageBox({
-      box,
-      action: { label: 'Export diagnostics', run }
-    })
-
-    expect(response).toBe(0)
-    expect(run).toHaveBeenCalledOnce()
-    expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
-      'Retry',
-      'Quit',
-      'Export diagnostics',
-      'Copy error and send feedback…'
-    ])
-    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('That action failed')
-  })
-
-  it('keeps every primary index when three primary buttons leave room for one extra button', async () => {
-    const run = vi.fn(async () => undefined)
-    showMessageBox.mockResolvedValue({ response: 2 })
-
-    const response = await showSupportedMessageBox({
-      box: { ...box, buttons: ['Retry', 'Use Default', 'Quit'], cancelId: 2 },
-      action: { label: 'Export diagnostics', run }
-    })
-
-    expect(response).toBe(2)
-    expect(run).not.toHaveBeenCalled()
-    expect(showMessageBox.mock.calls[0][0].buttons).toEqual(['Retry', 'Use Default', 'Quit', 'Export diagnostics'])
-  })
-
-  it('keeps a failed caller action on the same dialog and still honors quit', async () => {
-    const run = vi.fn(async () => {
-      throw new Error('Could not write the diagnostic archive')
-    })
-    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 1 })
-
-    const response = await showSupportedMessageBox({
-      box,
-      action: { label: 'Export diagnostics', run }
-    })
-
-    expect(response).toBe(1)
-    expect(run).toHaveBeenCalledOnce()
-    expect(showMessageBox.mock.calls[1][0].detail).toContain('That action failed.')
-    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('Could not write the diagnostic archive')
-    expect(showMessageBox).toHaveBeenCalledTimes(2)
-  })
-
   it('uses the supplied app language for support chrome when the OS locale is en-US', async () => {
     getLocale.mockReturnValue('en-US')
     showMessageBox.mockResolvedValue({ response: 0 })

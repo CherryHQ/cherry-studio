@@ -1,9 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { RelocationProgress } from '@shared/types/userDataRelocation'
+import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 
 import RelocationApp from '../RelocationApp'
+
+const invoke = vi.fn()
 
 const { useRelocationProgressMock } = vi.hoisted(() => ({ useRelocationProgressMock: vi.fn() }))
 const restartMock = vi.fn()
@@ -13,7 +15,16 @@ vi.mock('../hooks/useRelocationProgress', () => ({ useRelocationProgress: useRel
 
 beforeEach(() => {
   restartMock.mockReset()
+  invoke.mockReset().mockResolvedValue(true)
   useRelocationProgressMock.mockReturnValue({ progress: null, restart: restartMock })
+  vi.spyOn(window, 'open').mockReturnValue(null)
+  ;(window as unknown as { electron: { ipcRenderer: { invoke: typeof invoke } } }).electron = {
+    ipcRenderer: { invoke }
+  }
+})
+
+afterEach(() => {
+  vi.mocked(window.open).mockRestore()
 })
 
 describe('RelocationApp', () => {
@@ -52,20 +63,91 @@ describe('RelocationApp', () => {
     expect(restartMock).toHaveBeenCalledOnce()
   })
 
-  it('shows the failure detail and offers continuing with the previous directory', () => {
+  it('shows only the localized failure and the restart action until Details is opened', () => {
     useRelocationProgressMock.mockReturnValue({
-      progress: makeProgress('failed', { error: 'disk full' }),
+      progress: makeProgress('failed', { error: 'EACCES: permission denied, open /new/data/x.db' }),
       restart: restartMock
     })
 
     render(<RelocationApp />)
-    fireEvent.click(screen.getByRole('button', { name: 'relocation.restart_failure' }))
 
-    expect(screen.getByText('disk full')).toBeInTheDocument()
+    expect(screen.getByText('relocation.failed.title')).toBeInTheDocument()
     expect(screen.getByText('relocation.failed.description')).toBeInTheDocument()
+    expect(screen.queryByText(/EACCES/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.copy' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.feedback' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.download' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'relocation.restart_failure' }))
     expect(restartMock).toHaveBeenCalledOnce()
+
+    openDetails()
+    expect(screen.getByText('EACCES: permission denied, open /new/data/x.db')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeInTheDocument()
+  })
+
+  it('asks main to open feedback and the download page and keeps retry available when the open fails', async () => {
+    useRelocationProgressMock.mockReturnValue({
+      progress: makeProgress('failed', { error: 'disk full' }),
+      restart: restartMock
+    })
+    invoke.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    render(<RelocationApp />)
+    openDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'relocation.support.feedback' }))
+
+    expect(await screen.findByText('relocation.support.open_failed')).toBeInTheDocument()
+    expect(invoke).toHaveBeenCalledWith(UserDataRelocationIpcChannels.OpenSupportLink, 'feedback')
+    expect(window.open).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'relocation.support.download' }))
+    await waitFor(() => {
+      expect(screen.queryByText('relocation.support.open_failed')).not.toBeInTheDocument()
+    })
+
+    expect(invoke).toHaveBeenLastCalledWith(UserDataRelocationIpcChannels.OpenSupportLink, 'download')
+    expect(window.open).not.toHaveBeenCalled()
+  })
+
+  it('shows a copy failure after clipboard denial and confirms the copy when retry succeeds', async () => {
+    useRelocationProgressMock.mockReturnValue({
+      progress: makeProgress('failed', { error: 'disk full' }),
+      restart: restartMock
+    })
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
+    const clipboard = navigator.clipboard
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+
+    try {
+      render(<RelocationApp />)
+      openDetails()
+      fireEvent.click(screen.getByRole('button', { name: 'relocation.support.copy' }))
+
+      expect(await screen.findByText('relocation.support.copy_failed')).toBeInTheDocument()
+      expect(screen.queryByText('relocation.support.copied')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'relocation.support.copy' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'relocation.support.copy' }))
+      expect(await screen.findByRole('status')).toHaveTextContent('relocation.support.copied')
+      expect(screen.queryByText('relocation.support.copy_failed')).not.toBeInTheDocument()
+
+      expect(writeText).toHaveBeenNthCalledWith(1, 'disk full')
+      expect(writeText).toHaveBeenNthCalledWith(2, 'disk full')
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
+    }
   })
 })
+
+function openDetails() {
+  fireEvent.click(screen.getByRole('button', { name: 'relocation.support.details' }))
+}
 
 function makeProgress(
   stage: RelocationProgress['stage'],

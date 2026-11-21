@@ -14,6 +14,15 @@ export const relocationLocales = {
           title: 'Migration failed',
           description: 'Cherry Studio will keep using the previous data directory.'
         },
+        support: {
+          copied: 'Copied',
+          copy: 'Copy error',
+          copy_failed: 'Could not copy the error. Try again.',
+          details: 'Details',
+          download: 'Open download page',
+          feedback: 'Send feedback',
+          open_failed: 'Could not open the link. Try again.'
+        },
         restart_success: 'Restart Cherry Studio',
         restart_failure: 'Continue with Previous Directory',
         from: 'Current directory',
@@ -36,6 +45,15 @@ export const relocationLocales = {
           title: '迁移失败',
           description: 'Cherry Studio 将继续使用原数据目录。'
         },
+        support: {
+          copied: '已复制',
+          copy: '复制错误',
+          copy_failed: '无法复制错误，请重试。',
+          details: '详情',
+          download: '打开官网下载页',
+          feedback: '发送反馈',
+          open_failed: '无法打开链接，请重试。'
+        },
         restart_success: '重启 Cherry Studio',
         restart_failure: '继续使用原数据目录',
         from: '当前目录',
@@ -57,6 +75,15 @@ export const relocationLocales = {
         failed: {
           title: '遷移失敗',
           description: 'Cherry Studio 將繼續使用原資料目錄。'
+        },
+        support: {
+          copied: '已複製',
+          copy: '複製錯誤',
+          copy_failed: '無法複製錯誤，請再試一次。',
+          details: '詳情',
+          download: '開啟官網下載頁',
+          feedback: '傳送意見回饋',
+          open_failed: '無法開啟連結，請再試一次。'
         },
         restart_success: '重新啟動 Cherry Studio',
         restart_failure: '繼續使用原資料目錄',
