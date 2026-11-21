@@ -6,10 +6,10 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
 })
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliConfigFileDraft, CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -181,18 +181,18 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
   gatewayExpectedModel: () => undefined,
   gatewayModelIdFromAddress: () => undefined,
-  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+  getClaudeContextModelId: (providerId: string, config: NonNullable<CliConfigWriteArgs['configBlob']>) => {
     const env = config.env as Record<string, string> | undefined
     return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
   },
-  hasClaudeDetailedModels: (config: Record<string, unknown>) => {
+  hasClaudeDetailedModels: (config: NonNullable<CliConfigWriteArgs['configBlob']>) => {
     const env = config.env as Record<string, string> | undefined
     return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
   },
   readCliConfigDraft: (...args: unknown[]) => readCliConfigDraftMock(...args),
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
-  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {},
-  stripClaudeDetailedModels: (config: Record<string, unknown>) => {
+  sanitizeCliConfigBlob: (_cliTool: string, config: CliConfigWriteArgs['configBlob']) => config ?? {},
+  stripClaudeDetailedModels: (config: NonNullable<CliConfigWriteArgs['configBlob']>) => {
     const env = { ...(config.env as Record<string, string> | undefined) }
     delete env.ANTHROPIC_DEFAULT_FABLE_MODEL
     delete env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME
@@ -217,12 +217,7 @@ vi.mock('../tools/ClaudeConfigFields', () => ({
     onChange,
     onSettingsNavigate,
     section = 'all'
-  }: {
-    config: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    onSettingsNavigate?: (navigate: () => void) => void
-    section?: string
-  }) => {
+  }: ComponentProps<typeof import('../tools/ClaudeConfigFields').ClaudeConfigFields>) => {
     const env = config.env as Record<string, string> | undefined
     return (
       <div data-testid={`claude-config-fields-${section}`}>
@@ -258,11 +253,7 @@ vi.mock('../tools/OpenCodeConfigFields', () => ({
     config,
     onChange,
     section = 'all'
-  }: {
-    config: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    section?: string
-  }) =>
+  }: ComponentProps<typeof import('../tools/OpenCodeConfigFields').OpenCodeConfigFields>) =>
     section === 'advanced' ? null : (
       <button type="button" onClick={() => onChange({ ...config, autoCompact: true })}>
         toggle opencode auto compact
