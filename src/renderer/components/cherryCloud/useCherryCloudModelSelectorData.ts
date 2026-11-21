@@ -11,6 +11,7 @@ import {
 import { getModelDisplayTags, MODEL_DISPLAY_CAPABILITY_TAGS } from '@renderer/components/tags/Model'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -35,9 +36,27 @@ export const isCherryCloudChatOffer: CherryCloudOfferFilter = (offer) =>
 export function useCherryCloudModelSelectorPolicy({
   enabled = true,
   includeAgentOnlyModels = false,
-  filter
-}: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter'>) {
+  filter,
+  prioritizedProviderIds = []
+}: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter' | 'prioritizedProviderIds'>) {
   const availability = useCherryCloudModelAvailability(enabled)
+  const { activePaid, upcomingPaid } = useCherryCloudPlans(enabled)
+  const { providers } = useProviders({ enabled: true }, { enabled })
+  const hasPaidPlan = Boolean(activePaid || upcomingPaid)
+  const orderedProviderIds = useMemo(() => {
+    const otherProviderIds = prioritizedProviderIds.filter(
+      (id) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((cloudId) => cloudId === id)
+    )
+    return hasPaidPlan
+      ? [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...otherProviderIds]
+      : [
+          ...otherProviderIds,
+          ...providers
+            .filter((provider) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((id) => id === provider.id))
+            .map((provider) => provider.id),
+          ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS
+        ]
+  }, [hasPaidPlan, prioritizedProviderIds, providers])
   const { isModelHidden, isModelFree, getModelDescription, isModelUnavailable } = availability
   const modelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) => !isModelHidden(model, includeAgentOnlyModels) && (filter?.(model, provider) ?? true),
@@ -56,12 +75,13 @@ export function useCherryCloudModelSelectorPolicy({
     },
     [getModelDescription, isModelFree, isModelUnavailable]
   )
-  return { availability, modelFilter, getModelPresentation }
+  return { availability, modelFilter, getModelPresentation, prioritizedProviderIds: orderedProviderIds }
 }
 
 /** Cloud-aware resolution for consumers that classify saved selections without rendering a picker. */
 export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOptions) {
-  const { availability, modelFilter, getModelPresentation } = useCherryCloudModelSelectorPolicy(options)
+  const { availability, modelFilter, getModelPresentation, prioritizedProviderIds } =
+    useCherryCloudModelSelectorPolicy(options)
   const composition = useMemo(
     () => ({
       getModelPresentation,
@@ -72,7 +92,7 @@ export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOpt
   const data = useModelSelectorData({
     ...options,
     filter: modelFilter,
-    prioritizedProviderIds: [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(options.prioritizedProviderIds ?? [])],
+    prioritizedProviderIds,
     composition
   })
   return {
@@ -82,6 +102,9 @@ export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOpt
   }
 }
 
+/** What a locked row asks of the user: sign in for a free model, subscribe, or authorize AMD. */
+export type CherryCloudOfferKind = 'sign_in' | 'subscription' | 'amd'
+
 export function useCherryCloudModelSelectorOffers(
   enabled: boolean,
   includeAgentOnlyModels: boolean,
@@ -89,6 +112,7 @@ export function useCherryCloudModelSelectorOffers(
   showOffers: boolean
 ) {
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady } = useCherryCloudPlans(enabled)
+  const { amdActivationRequiredModels, signInRequiredModels } = useCherryCloudModelAvailability(enabled)
   const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
   const livePlanModels = useMemo(
     () =>
@@ -108,43 +132,51 @@ export function useCherryCloudModelSelectorOffers(
     () => ipcApi.request('cherry_cloud.public_plans.get'),
     { shouldRetryOnError: false }
   )
-  const publicPlanModels = useMemo(
-    () =>
-      publicPlans &&
-      uniqBy(
-        publicPlans.plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models),
-        (model) => model.id
-      ),
-    [publicPlans]
-  )
   const paidPlan = activePaid ?? upcomingPaid
   const canOfferSubscription = showOffers && (signedOut || (isPlansReady && !paidPlan))
   const offers = useMemo(() => {
-    const planModels = canOfferSubscription
+    const publicModels = (free: boolean) =>
+      publicPlans?.plans.filter((plan) => plan.is_free === free).flatMap((plan) => plan.models)
+    const subscriptionModels = canOfferSubscription
       ? signedOut
-        ? (publicPlanModels ?? cachedPlanModels)
+        ? (publicModels(false) ?? cachedPlanModels)
         : (livePlanModels ?? [])
       : []
-    return planModels
-      .filter((model) => {
-        const features = new Set(model.available_features)
+    const candidates: { kind: CherryCloudOfferKind; offer: CherryCloudPlanModel }[] = showOffers
+      ? [
+          ...[...(signedOut ? (publicModels(true) ?? []) : []), ...signInRequiredModels].map((offer) => ({
+            kind: 'sign_in' as const,
+            offer
+          })),
+          ...subscriptionModels.map((offer) => ({ kind: 'subscription' as const, offer })),
+          ...amdActivationRequiredModels.map((offer) => ({ kind: 'amd' as const, offer }))
+        ]
+      : []
+    // A model in a free plan is offered as free, never as a reason to subscribe.
+    return uniqBy(candidates, ({ offer }) => offer.id)
+      .filter(({ offer }) => {
+        const features = new Set(offer.available_features)
         return (
           (includeAgentOnlyModels ? features.has('agent') : features.has('chat') && features.has('translate')) &&
-          isCherryCloudChatOffer(model) &&
-          offerFilter(model)
+          isCherryCloudChatOffer(offer) &&
+          offerFilter(offer)
         )
       })
-      .map((offer) => ({
+      .map(({ kind, offer }) => ({
+        kind,
         offer,
         modelId: createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, offer.id),
         tags: MODEL_DISPLAY_CAPABILITY_TAGS.filter((tag) => offer.capabilities?.includes(tag))
       }))
   }, [
+    showOffers,
     canOfferSubscription,
     signedOut,
-    publicPlanModels,
+    publicPlans,
     cachedPlanModels,
     livePlanModels,
+    amdActivationRequiredModels,
+    signInRequiredModels,
     includeAgentOnlyModels,
     offerFilter
   ])

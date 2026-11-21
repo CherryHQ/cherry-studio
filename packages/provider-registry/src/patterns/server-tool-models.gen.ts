@@ -98,6 +98,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gpt-5-pro',
           'gpt-6-1-sol',
           'gpt-6-1-terra',
+          'gpt-6-2-astra',
+          'gpt-6-2-sol',
           'gpt-6-astra',
           'gpt-6-astra-pro',
           'gpt-6-luna',
@@ -649,6 +651,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
           'gemini-4-hydrogen',
+          'gemini-4-neon',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'
@@ -685,6 +688,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
           'gemini-4-hydrogen',
+          'gemini-4-neon',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'
@@ -929,6 +933,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gpt-5-pro',
           'gpt-6-1-sol',
           'gpt-6-1-terra',
+          'gpt-6-2-astra',
+          'gpt-6-2-sol',
           'gpt-6-astra',
           'gpt-6-luna',
           'gpt-6-sol',
@@ -1219,6 +1225,9 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image',
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
+          'gemini-4-carbon',
+          'gemini-4-hydrogen',
+          'gemini-4-neon',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'
@@ -1254,6 +1263,9 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image',
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
+          'gemini-4-carbon',
+          'gemini-4-hydrogen',
+          'gemini-4-neon',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'

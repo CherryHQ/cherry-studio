@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,7 +104,31 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
-  it('uses the snapshot image instead of the live avatar', async () => {
+  it('updates historical author avatars and restores the snapshot after deletion', () => {
+    const message = createMessage('assistant', {
+      messageSnapshot: { id: 'agent-1', name: 'Original name', emoji: '🎓' }
+    })
+    providerState.meta = { authorAvatars: new Map([['agent-1', '🐱']]) }
+    const { rerender } = render(<MessageHeader message={message} />)
+    expect(screen.getAllByText('🐱')[0]).toBeVisible()
+    expect(screen.getByText('Original name')).toBeVisible()
+
+    providerState.meta = { authorAvatars: new Map([['agent-1', '🐶']]) }
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🐶')[0]).toBeVisible()
+    expect(screen.queryByText('🐱')).not.toBeInTheDocument()
+
+    providerState.meta = { authorAvatars: new Map([['other-agent', '🐶']]) }
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+    expect(screen.queryByText('🐶')).not.toBeInTheDocument()
+
+    providerState.meta = {}
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+  })
+
+  it('uses an explicit current avatar and retains snapshot images as the fallback', async () => {
     class LoadedImage {
       complete = true
       naturalWidth = 1
@@ -118,16 +142,22 @@ describe('MessageHeader', () => {
       assistantAvatarSources: new Map([['file:frozen', 'file:///frozen.webp']])
     }
     try {
-      render(
-        <MessageHeader
-          message={createMessage('assistant', {
-            messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
-          })}
-        />
-      )
-      const image = await screen.findByRole('img')
-      expect(image).toHaveAttribute('src', 'file:///frozen.webp')
-      fireEvent.error(image)
+      const message = createMessage('assistant', {
+        messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
+      })
+      const { rerender } = render(<MessageHeader message={message} />)
+      expect(await screen.findByRole('img')).toHaveAttribute('src', 'file:///frozen.webp')
+      providerState.meta = { ...providerState.meta, authorAvatars: new Map([['a1', 'file:///live.webp']]) }
+      rerender(<MessageHeader message={{ ...message }} />)
+      await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///live.webp'))
+      providerState.meta = { ...providerState.meta, authorAvatars: new Map([['a1', '🤖']]) }
+      rerender(<MessageHeader message={{ ...message }} />)
+      expect(screen.queryByRole('img')).not.toBeInTheDocument()
+      expect(screen.getAllByText('🤖')[0]).toBeVisible()
+      providerState.meta = { ...providerState.meta, authorAvatars: undefined }
+      rerender(<MessageHeader message={{ ...message }} />)
+      await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///frozen.webp'))
+      fireEvent.error(screen.getByRole('img'))
       expect(screen.getAllByText('🎓')[0]).toBeVisible()
       expect(screen.queryByRole('img')).not.toBeInTheDocument()
     } finally {

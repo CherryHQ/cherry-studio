@@ -1,11 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ImgHTMLAttributes } from 'react'
+import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { TabIdContext } from '@renderer/hooks/tab'
+
+import type * as ArtboardModule from '../components/Artboard'
+import type { ArtboardProps } from '../components/Artboard'
 import type { PaintingData } from '../model/types/paintingData'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  files: [] as { id: string }[],
+  activeTab: false,
+  files: [] as PaintingData['files'],
   generate: vi.fn(),
   generating: false,
   historyItems: [] as PaintingData[],
@@ -17,6 +25,11 @@ const mocks = vi.hoisted(() => ({
   saveCurrent: vi.fn(),
   submitting: false,
   templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[]
+}))
+
+vi.mock('@renderer/hooks/tab/useTabsContext', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useOptionalTabsContext: () => ({ activeTabId: mocks.activeTab ? 'paintings-tab' : 'other-tab', tabs: [] })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -37,8 +50,33 @@ vi.mock('../hooks/usePaintingTemplateCatalog', () => ({
   })
 }))
 
-vi.mock('../components/Artboard', () => ({
-  default: () => <div data-testid="painting-artboard" />
+vi.mock('../components/Artboard', async (importOriginal) => {
+  const { default: Artboard } = await importOriginal<typeof ArtboardModule>()
+  return {
+    default: (props: ArtboardProps) => (
+      <div data-testid="painting-artboard">
+        <Artboard {...props} />
+      </div>
+    )
+  }
+})
+
+vi.mock('@renderer/components/ImageViewer', () => ({
+  default: ({ src, alt, onLoad }: ImgHTMLAttributes<HTMLImageElement>) => <img src={src} alt={alt} onLoad={onLoad} />
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({
+    models: [
+      { providerId: 'provider-a', apiModelId: 'model-a', name: 'Flux Schnell' },
+      { providerId: 'provider-1', apiModelId: 'model-b', name: 'Composer Model B' },
+      { providerId: 'provider-1', apiModelId: 'model-1', name: 'Default Composer Model' }
+    ]
+  })
+}))
+
+vi.mock('../hooks/usePaintingSizeInfo', () => ({
+  usePaintingSizeInfo: () => ({ ratio: null, sizeLabel: undefined })
 }))
 
 vi.mock('../components/PaintingTemplateShowcase', () => ({
@@ -66,26 +104,46 @@ vi.mock('../components/PaintingTemplateShowcase', () => ({
 }))
 
 vi.mock('../components/PaintingComposer', () => ({
-  default: ({
+  default: function MockPaintingComposer({
     painting,
     submitting,
-    onGenerate
+    onGenerate,
+    onModelSelect,
+    onFocusTargetChange
   }: {
     painting: { model?: string; prompt?: string; providerId: string }
     submitting: boolean
     onGenerate: () => void
-  }) => (
-    <div
-      data-testid="painting-composer"
-      data-model-id={painting.model}
-      data-provider-id={painting.providerId}
-      style={{ height: painting.prompt ? 180 : 64 }}>
-      <textarea aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
-      <button type="button" disabled={submitting} onClick={onGenerate}>
-        generate
-      </button>
-    </div>
-  )
+    onModelSelect: (selection: { providerId: string; modelId: string }) => void
+    onFocusTargetChange?: (focus: (() => boolean) | undefined) => void
+  }) {
+    const promptRef = useRef<HTMLTextAreaElement>(null)
+    useEffect(() => {
+      const prompt = promptRef.current
+      if (!onFocusTargetChange || !prompt) return
+      onFocusTargetChange(() => {
+        prompt.focus()
+        return document.activeElement === prompt
+      })
+      return () => onFocusTargetChange(undefined)
+    }, [onFocusTargetChange])
+
+    return (
+      <div
+        data-testid="painting-composer"
+        data-model-id={painting.model}
+        data-provider-id={painting.providerId}
+        style={{ height: painting.prompt ? 180 : 64 }}>
+        <textarea ref={promptRef} aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
+        <button type="button" disabled={submitting} onClick={onGenerate}>
+          generate
+        </button>
+        <button type="button" onClick={() => onModelSelect({ providerId: 'provider-1', modelId: 'model-b' })}>
+          select model B
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('../components/PaintingStrip', () => ({
@@ -139,7 +197,10 @@ vi.mock('../hooks/usePaintingModelCatalog', () => ({
 }))
 
 vi.mock('../hooks/usePaintingModelSwitch', () => ({
-  usePaintingModelSwitch: () => vi.fn()
+  usePaintingModelSwitch:
+    ({ onPaintingChange }: { onPaintingChange: (patch: Partial<PaintingData>) => void }) =>
+    ({ providerId, modelId }: { providerId: string; modelId: string }) =>
+      onPaintingChange({ providerId, model: modelId })
 }))
 
 vi.mock('../hooks/usePaintingProviderOptions', () => ({
@@ -169,8 +230,30 @@ vi.mock('../model/utils/paintingGenerationParams', () => ({
 
 const { default: PaintingPage } = await import('../PaintingPage')
 
+const generatedFile: PaintingData['files'][number] = {
+  id: 'generated-image',
+  name: 'generated-image.png',
+  origin_name: 'generated-image.png',
+  path: '/tmp/generated-image.png',
+  ext: '.png',
+  size: 100,
+  type: 'image',
+  created_at: '2026-01-01T00:00:00.000Z',
+  count: 1
+}
+
+function loadDisplayedImage(width: number, height: number) {
+  const image = screen.getByRole('presentation')
+  Object.defineProperties(image, {
+    naturalWidth: { configurable: true, value: width },
+    naturalHeight: { configurable: true, value: height }
+  })
+  fireEvent.load(image)
+}
+
 describe('PaintingPage showcase', () => {
   beforeEach(() => {
+    mocks.activeTab = false
     mocks.cancel.mockReset()
     mocks.files = []
     mocks.generate.mockReset()
@@ -220,9 +303,55 @@ describe('PaintingPage showcase', () => {
     expect(screen.getByRole('button', { name: 'generate' })).toBeDisabled()
   })
 
+  it('keeps attributing output to the history receipt after selecting another composer model', async () => {
+    const user = userEvent.setup()
+    mocks.files = [generatedFile]
+    mocks.draftModelId = 'model-a'
+    mocks.historyItems = [
+      {
+        id: 'painting-1',
+        providerId: 'provider-a',
+        model: 'model-a',
+        mode: 'generate',
+        prompt: '',
+        files: mocks.files
+      }
+    ]
+    render(<PaintingPage />)
+    loadDisplayedImage(4096, 2048)
+    expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' }))
+    await user.click(screen.getByRole('button', { name: 'select model B' }))
+
+    expect(screen.getByTestId('painting-composer')).toHaveAttribute('data-model-id', 'model-b')
+    expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+    expect(screen.queryByText(/Composer Model B/)).not.toBeInTheDocument()
+  })
+
+  it.each([undefined, 'model-b'])('does not attribute a model-less receipt to composer model %s', (draftModelId) => {
+    mocks.files = [generatedFile]
+    mocks.draftModelId = draftModelId
+    mocks.historyItems = [
+      {
+        id: 'painting-1',
+        providerId: 'provider-1',
+        mode: 'generate',
+        prompt: '',
+        files: mocks.files
+      }
+    ]
+    render(<PaintingPage />)
+    loadDisplayedImage(4096, 2048)
+
+    const artboard = within(screen.getByTestId('painting-artboard'))
+    expect(artboard.getByText('4096×2048')).toBeVisible()
+    expect(artboard.queryByText(/Default Composer Model|Composer Model B|model-1|model-b/)).not.toBeInTheDocument()
+  })
+
   it('minimizes the prompt dock after images exist and restores it from the expand toggle', () => {
     // Regression: long prompts permanently stole artboard space after generate (#20739).
-    mocks.files = [{ id: 'generated-image' }]
+    mocks.files = [generatedFile]
 
     render(<PaintingPage />)
 
@@ -244,6 +373,24 @@ describe('PaintingPage showcase', () => {
 
     expect(screen.getByTestId('painting-prompt-dock-collapsed')).toBeInTheDocument()
     expect(screen.queryByTestId('painting-composer')).not.toBeInTheDocument()
+  })
+
+  it('restores and focuses the prompt dock when returning to the paintings tab', () => {
+    mocks.files = [generatedFile]
+    const page = () => (
+      <TabIdContext value="paintings-tab">
+        <PaintingPage />
+      </TabIdContext>
+    )
+    const view = render(page())
+    expect(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' })).toBeVisible()
+
+    mocks.activeTab = true
+    view.rerender(page())
+    expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))
+    expect(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' })).toBeVisible()
   })
 
   it('keeps the prompt dock expanded on a blank draft without generated images', () => {

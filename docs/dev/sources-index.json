@@ -15,7 +15,7 @@
     },
     {
       "path": "docs/dev/contrib/release-workflow.md",
-      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release-target.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs","scripts/release/release-cos.py","scripts/release/sync-gitcode.sh","scripts/release/validate-release-state.js"]
+      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/deploy-release-sync-scf.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release-target.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs","scripts/release/gitcode-scf.py","scripts/release/release-cos.py","scripts/release/sync-gitcode.sh","scripts/release/validate-release-state.js"]
     },
     {
       "path": "docs/dev/references/ai/adapter-family.md",
@@ -39,15 +39,15 @@
     },
     {
       "path": "docs/dev/references/ai/agent-session-fork.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/fork","src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/fork","src/main/ai/runtime/pi","src/main/ai/runtime/piDurable","src/main/data/services/AgentSessionForkService.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/ipc/handlers/ai.ts","src/renderer/pages/agents/messages/agentMessageListAdapter.tsx"]
+      "sources": ["migrations/sqlite-drizzle/0039_agent_session_tree_backfill.sql","migrations/sqlite-drizzle/0040_agent_session_tree_constraints.sql","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/fork","src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/fork","src/main/ai/runtime/pi","src/main/ai/runtime/piDurable","src/main/data/db/schemas/agentSessionMessage.ts","src/main/data/db/seeding/seeders/AgentSessionMessageTreeSeeder.ts","src/main/data/services/AgentSessionForkService.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/ipc/handlers/ai.ts","src/renderer/pages/agents/messages/agentMessageListAdapter.tsx"]
     },
     {
       "path": "docs/dev/references/ai/agent-session-runtime.md",
-      "sources": ["packages/agent-behavior/src","packages/agent-runtime-pi-durable/src","packages/agent-runtime-pi/src","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/durableNativeContext.ts","src/main/ai/agentSession/relocateSystemWorkspaces.ts","src/main/ai/agents/AgentWorkspaceStorageService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/piDurable","src/main/ai/runtime/types.ts","src/main/ai/runtime/workspaceRelocation.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
+      "sources": ["packages/agent-behavior/src","packages/agent-runtime-pi-durable/src","packages/agent-runtime-pi/src","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/durableNativeContext.ts","src/main/ai/agentSession/import","src/main/ai/agentSession/relocateSystemWorkspaces.ts","src/main/ai/agentSession/sessionHistory.ts","src/main/ai/agents/AgentWorkspaceStorageService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/piDurable","src/main/ai/runtime/types.ts","src/main/ai/runtime/workspaceRelocation.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
     },
     {
       "path": "docs/dev/references/ai/ai-usage-records.md",
-      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/usagePricing.ts"]
+      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/providerBillingDefaults.ts","src/shared/utils/usagePricing.ts"]
     },
     {
       "path": "docs/dev/references/ai/browser-use-design.md",
@@ -71,7 +71,7 @@
     },
     {
       "path": "docs/dev/references/ai/image-generation-parameters.md",
-      "sources": ["packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings"]
+      "sources": ["packages/provider-registry/src/creators/bytedance.ts","packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/AiService.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings","src/shared/ai/seedreamImageContract.ts"]
     },
     {
       "path": "docs/dev/references/ai/ipc-transport.md",
@@ -91,7 +91,7 @@
     },
     {
       "path": "docs/dev/references/ai/params-pipeline.md",
-      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts","src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts"]
+      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts","src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts","src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts","src/main/ai/utils/modelParameters.ts"]
     },
     {
       "path": "docs/dev/references/ai/provider-resolution.md",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/dev/references/ai/tool-approval.md",
-      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/RootMessageProjection.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/main/ipc/handlers/computerUse.ts","src/main/services/ComputerUseApproval.ts","src/main/services/ComputerUseService.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/ComputerUseApprovalComposer.tsx","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/pages/home/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts","src/shared/ipc/schemas/computerUse.ts"]
+      "sources": ["packages/agent-behavior/src/orchestration/gate.ts","src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/RootMessageProjection.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/pi/piApprovalFacts.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/toolApproval/commandPolicy/builtinDestructiveDetector.ts","src/main/ai/toolApproval/commandPolicy/checkCommand.ts","src/main/ai/toolApproval/commandPolicy/command-policy.json","src/main/ai/toolApproval/commandPolicy/commandParser.ts","src/main/ai/toolApproval/commandPolicy/commandSemantics.ts","src/main/ai/toolApproval/commandPolicy/index.ts","src/main/ai/toolApproval/commandPolicy/policyEvaluator.ts","src/main/ai/toolApproval/commandPolicy/policySchema.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/main/ipc/handlers/computerUse.ts","src/main/services/ComputerUseApproval.ts","src/main/services/ComputerUseService.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/ComputerUseApprovalComposer.tsx","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/pages/home/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts","src/shared/ipc/schemas/computerUse.ts"]
     },
     {
       "path": "docs/dev/references/ai/tool-registry.md",
@@ -319,11 +319,11 @@
     },
     {
       "path": "docs/dev/references/file/directory-tree.md",
-      "sources": ["src/main/services/file/tree","src/main/services/file/watcher.ts","src/renderer/hooks/useDirectoryTree.ts","src/shared/ipc/schemas/file.ts","src/shared/utils/file/tree.ts"]
+      "sources": ["src/main/services/file/observation","src/main/services/file/tree","src/main/services/file/watcher.ts","src/renderer/hooks/useDirectoryTree.ts","src/renderer/services/DirectoryTreeSession.ts","src/shared/ipc/schemas/file.ts","src/shared/utils/file/tree.ts"]
     },
     {
       "path": "docs/dev/references/file/file-editing.md",
-      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/services/fileEdit","src/shared/ipc/schemas/fileEdit.ts"]
+      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/hooks/useFileSize.ts","src/renderer/services/fileEdit","src/renderer/services/fileObservation","src/shared/ipc/schemas/fileEdit.ts"]
     },
     {
       "path": "docs/dev/references/file/file-entry-cleanup.md",
@@ -332,6 +332,10 @@
     {
       "path": "docs/dev/references/file/file-manager-architecture.md",
       "sources": ["src/main/data/db/schemas/file.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file","src/shared/data/types/file.ts"]
+    },
+    {
+      "path": "docs/dev/references/file/file-observation.md",
+      "sources": ["src/main/ipc/handlers/fileObservation.ts","src/main/services/file/observation","src/renderer/hooks/useFileObservation.ts","src/renderer/services/fileObservation","src/shared/ipc/schemas/fileObservation.ts"]
     },
     {
       "path": "docs/dev/references/file/fuzzy-search.md",
@@ -347,7 +351,7 @@
     },
     {
       "path": "docs/dev/references/i18n/README.md",
-      "sources": ["scripts/i18n-glossary.json","scripts/i18n-plurals.ts","scripts/i18n-sync.ts","src/main/i18n/locales","src/renderer/i18n"]
+      "sources": ["scripts/i18n-check.ts","scripts/i18n-glossary.json","scripts/i18n-key-format.ts","scripts/i18n-plurals.ts","scripts/i18n-sync.ts","src/main/i18n/locales","src/renderer/i18n"]
     },
     {
       "path": "docs/dev/references/ipc/ipc-migration-guide.md",
@@ -443,7 +447,7 @@
     },
     {
       "path": "docs/dev/references/logging/README.md",
-      "sources": ["src/main/core/logger/LoggerService.ts","src/main/services/SentryLogService.ts","src/main/services/sentry.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
+      "sources": ["src/main/ai/errorReporting.ts","src/main/ai/mcp/failureFacts.ts","src/main/ai/runtime/aiSdk/failureFacts.ts","src/main/ai/utils/customFetch.ts","src/main/core/logger/LoggerService.ts","src/main/core/logger/logFailure.ts","src/main/core/preboot/legacyUpgradeGate.ts","src/main/data/failureFacts.ts","src/main/ipc/handlers/file.ts","src/main/services/errorReporting/ErrorReportingService.ts","src/main/services/errorReporting/sentry.ts","src/main/services/file/FileEditService.ts","src/main/services/file/failureFacts.ts","src/main/services/file/internal/content","src/main/services/file/internal/entry/rename.ts","src/main/services/file/system.ts","src/main/services/remoteStorage/failureFacts.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
     },
     {
       "path": "docs/dev/references/memory/overview.md",
@@ -491,7 +495,7 @@
     },
     {
       "path": "docs/dev/references/provider-model/provider-registry.md",
-      "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts"]
+      "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts","src/main/services/CherryInModelSyncService.ts"]
     },
     {
       "path": "docs/dev/references/provider-model/README.md",

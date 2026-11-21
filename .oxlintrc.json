@@ -5,7 +5,7 @@
     "es2022": true
   },
   "globals": {},
-  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
+  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs", "./scripts/lint/import-layout.mjs"],
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -27,6 +27,10 @@
     "typeAware": true
   },
   "overrides": [
+    {
+      "files": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+      "rules": { "import/first": "off" }
+    },
     {
       "files": [
         "src/renderer/**/*.{ts,tsx}",
@@ -111,10 +115,42 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "import/first": "error",
+    "import-layout/no-block-comments-between-imports": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
     "no-eval": "error",
     "no-fallthrough": "error",
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "globalThis",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "window",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "self",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "global",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      }
+    ],
     "no-unassigned-vars": "error",
     "no-unused-expressions": "off",
     "no-unused-vars": ["error", { "caughtErrors": "none" }],

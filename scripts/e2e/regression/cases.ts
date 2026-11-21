@@ -1,4 +1,4 @@
-import type { Platform } from './types'
+import type { Platform, RunMode } from './types'
 
 export const REGRESSION_CASES = [
   {
@@ -63,6 +63,13 @@ export const REGRESSION_CASES = [
     phase: 'modelsAndAssistants',
     title: 'Preserve a partial chat response after disconnect and restart',
     tasks: ['error-recovery', 'chat-stream-failure']
+  },
+  {
+    id: 'C-04',
+    capabilities: [],
+    phase: 'modelsAndAssistants',
+    title: 'Preserve a partial Claude Messages response after disconnect and restart',
+    tasks: ['error-recovery', 'chat-stream-failure', 'claude-stream-failure']
   },
   {
     id: 'MP-42',
@@ -206,27 +213,6 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'openclaw']
   },
   {
-    id: 'M-01',
-    capabilities: [],
-    phase: 'cherryIn',
-    title: 'Sign in to CherryIN and chat',
-    tasks: ['chat-core', 'cherryin-chat']
-  },
-  {
-    id: 'P-01',
-    capabilities: ['desktopAutomation'],
-    phase: 'cherryIn',
-    title: 'Generate an image using an image model',
-    tasks: ['paintings', 'image-generation']
-  },
-  {
-    id: 'MP-90',
-    title: 'Enlarge, preview, and save images',
-    tasks: ['paintings'],
-    phase: 'images',
-    capabilities: ['desktopAutomation']
-  },
-  {
     id: 'MP-91',
     title: 'Prompt templates and enhancement',
     tasks: ['paintings'],
@@ -361,7 +347,7 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: ['desktopAutomation', 'screenCapture']
   },
-  { id: 'MP-10', title: 'Web search', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
+  { id: 'MP-10', title: 'Web search', tasks: ['chat-core', 'chat-web-tools'], phase: 'chatCore', capabilities: [] },
   {
     id: 'MP-16',
     title: 'Polish prompts',
@@ -425,7 +411,13 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
-  { id: 'MP-35', title: 'Web search and URL fetching', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
+  {
+    id: 'MP-35',
+    title: 'Web search and URL fetching',
+    tasks: ['chat-core', 'chat-web-tools'],
+    phase: 'chatCore',
+    capabilities: []
+  },
   {
     id: 'MP-36',
     title: 'Reference MCP prompts and resources',
@@ -438,14 +430,14 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-39',
     title: 'Message token and timing details',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'message-token-details'],
     phase: 'chatCore',
     capabilities: []
   },
   {
     id: 'MP-40',
     title: 'Code block toolbar',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'code-block-toolbar'],
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
   },
@@ -479,7 +471,13 @@ export const REGRESSION_CASES = [
     phase: 'notes',
     capabilities: []
   },
-  { id: 'MP-79', title: 'Export notes to a knowledge base', tasks: ['notes'], phase: 'notes', capabilities: [] },
+  {
+    id: 'MP-79',
+    title: 'Export notes to a knowledge base',
+    tasks: ['notes', 'note-knowledge-export'],
+    phase: 'notes',
+    capabilities: []
+  },
   {
     id: 'MP-81',
     title: 'Translation history (favorite, reuse, delete, clear)',
@@ -523,6 +521,20 @@ export const REGRESSION_CASES = [
     tasks: ['settings']
   },
   {
+    id: 'SET-01',
+    title: 'Keep settings search open and focused after pointer clear',
+    tasks: ['settings', 'settings-search'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
+    id: 'SET-02',
+    title: 'Distinguish a blank settings search from a query with no matches',
+    tasks: ['settings', 'settings-search'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
     id: 'MP-105',
     title: 'Theme, appearance, and window style',
     tasks: ['settings'],
@@ -537,9 +549,16 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'ZOOM-01',
+    title: 'Ctrl-wheel interface zoom and persistence',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
     id: 'MP-107',
     title: 'Message and input settings',
-    tasks: ['settings'],
+    tasks: ['settings', 'message-input-settings'],
     phase: 'settings',
     capabilities: []
   },
@@ -624,7 +643,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-68',
     title: 'Upload files to the library',
-    tasks: ['files'],
+    tasks: ['files', 'file-library-upload'],
     phase: 'files',
     capabilities: ['desktopAutomation']
   },
@@ -632,7 +651,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-70',
     title: 'Preview files and open their location',
-    tasks: ['files'],
+    tasks: ['files', 'file-library-preview'],
     phase: 'files',
     capabilities: ['desktopAutomation']
   },
@@ -714,6 +733,13 @@ export const REGRESSION_CASES = [
     tasks: ['system-integration'],
     phase: 'system',
     capabilities: []
+  },
+  {
+    id: 'M-01',
+    title: 'Authorize CherryIN and chat with a live model',
+    tasks: ['cherryin-chat'],
+    phase: 'cherryIn',
+    capabilities: []
   }
 ] as const
 
@@ -745,13 +771,22 @@ export function serializeTaskSelection(selection: TaskSelection): string {
   return typeof selection === 'string' ? selection : selection.join(',')
 }
 
-export function resolveWorkflowTasks(inputs: Record<string, unknown>) {
-  const selection = parseTaskSelection(String(inputs.task ?? 'all'))
-  const task = serializeTaskSelection(selection)
+export function resolveWorkflowTasks(inputs: Record<string, unknown>, mode: RunMode = 'branch') {
+  const suite = inputs.suite ?? 'all'
+  if (suite !== 'all' && suite !== 'regression' && suite !== 'smoke') {
+    throw new Error(`Invalid E2E suite: ${suite}`)
+  }
+  if (suite === 'smoke' && mode === 'tag') {
+    throw new Error('Standalone smoke requires a branch checkout')
+  }
+
+  const regression = suite !== 'smoke'
+  const selection = regression ? parseTaskSelection(String(inputs.task ?? 'all')) : 'all'
   return {
-    task,
-    prepare_mcp: selectCases(selection).some(({ id }) => id === 'MCP-01') ? 'true' : 'false',
-    smoke: task === 'all' ? 'all' : inputs.settings_search_smoke === true ? 'settings-search' : 'none'
+    task: serializeTaskSelection(selection),
+    regression: String(regression),
+    prepare_mcp: regression && selectCases(selection).some(({ id }) => id === 'MCP-01') ? 'true' : 'false',
+    smoke: suite !== 'regression' && mode === 'branch' ? 'all' : 'none'
   }
 }
 
