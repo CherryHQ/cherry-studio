@@ -5283,6 +5283,8 @@
   "settings.messages.navigation.none": "Brak",
   "settings.messages.scroll_to_bottom_on_send.hint": "Automatycznie przewijaj do najnowszej wiadomości po pomyślnym wysłaniu wiadomości.",
   "settings.messages.scroll_to_bottom_on_send.label": "Przewijaj do najnowszej wiadomości po wysłaniu",
+  "settings.messages.show_citation_markers.hint": "Pokazuj znaczniki źródeł w odpowiedziach korzystających z baz wiedzy lub wyszukiwania w internecie. Źródła pozostają widoczne pod wiadomością, a podczas kopiowania ukryte znaczniki są pomijane.",
+  "settings.messages.show_citation_markers.label": "Pokazuj znaczniki cytowań",
   "settings.messages.show_message_outline": "Pokaż konspekt wiadomości",
   "settings.messages.title": "Ustawienia wiadomości",
   "settings.messages.use_serif_font": "Używaj czcionki szeryfowej",

@@ -5218,6 +5218,8 @@
   "settings.messages.navigation.none": "Niciunul",
   "settings.messages.scroll_to_bottom_on_send.hint": "Derulează automat la cel mai recent mesaj după trimiterea cu succes a unui mesaj.",
   "settings.messages.scroll_to_bottom_on_send.label": "Derulează la cel mai recent mesaj la trimitere",
+  "settings.messages.show_citation_markers.hint": "Afișează marcaje de sursă în text în răspunsurile care folosesc baze de cunoștințe sau căutare web. Sursele rămân listate sub mesaj, iar copierea omite marcajele ascunse.",
+  "settings.messages.show_citation_markers.label": "Afișează marcajele de citare",
   "settings.messages.show_message_outline": "Afișează conturul mesajului",
   "settings.messages.title": "Setări mesaje",
   "settings.messages.use_serif_font": "Folosește font serif",

@@ -5217,6 +5217,8 @@
   "settings.messages.navigation.none": "不顯示",
   "settings.messages.scroll_to_bottom_on_send.hint": "成功傳送訊息後，自動捲動至最新訊息。",
   "settings.messages.scroll_to_bottom_on_send.label": "傳送後捲動至最新訊息",
+  "settings.messages.show_citation_markers.hint": "在使用知識庫或網路搜尋的回答中顯示行內來源標記。來源仍會列在訊息下方；隱藏後複製內容將不含標記。",
+  "settings.messages.show_citation_markers.label": "顯示引用標記",
   "settings.messages.show_message_outline": "顯示訊息大綱",
   "settings.messages.title": "訊息設定",
   "settings.messages.use_serif_font": "使用襯線字型",

@@ -5217,6 +5217,8 @@
   "settings.messages.navigation.none": "Không hiển thị",
   "settings.messages.scroll_to_bottom_on_send.hint": "Tự động cuộn đến tin nhắn mới nhất sau khi gửi tin nhắn thành công.",
   "settings.messages.scroll_to_bottom_on_send.label": "Cuộn đến tin nhắn mới nhất khi gửi",
+  "settings.messages.show_citation_markers.hint": "Hiển thị dấu nguồn trong nội dung câu trả lời dùng cơ sở tri thức hoặc tìm kiếm web. Nguồn vẫn được liệt kê dưới tin nhắn và khi ẩn, nội dung sao chép sẽ không có các dấu này.",
+  "settings.messages.show_citation_markers.label": "Hiển thị dấu trích dẫn",
   "settings.messages.show_message_outline": "Hiển thị dàn bộ tin nhắn",
   "settings.messages.title": "Cài đặt tin nhắn",
   "settings.messages.use_serif_font": "Dùng phông chữ có chân",

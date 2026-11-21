@@ -8,6 +8,7 @@ import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
+import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 
@@ -15,9 +16,11 @@ import MainTextBlock from '../MainTextBlock'
 
 // Mock dependencies
 const mockRenderConfig = vi.hoisted(() => ({
-  renderInputMessageAsMarkdown: false
+  renderInputMessageAsMarkdown: false,
+  showCitationMarkers: true
 }))
 const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const openCitationsPanel = vi.hoisted(() => vi.fn())
 const openExternalUrl = vi.hoisted(() => vi.fn())
 
 const mockTranslations = vi.hoisted(() => ({
@@ -27,7 +30,7 @@ const mockTranslations = vi.hoisted(() => ({
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
-  useOptionalMessageListActions: () => ({ openExternalUrl })
+  useOptionalMessageListActions: () => ({ openExternalUrl, openCitationsPanel })
 }))
 
 vi.mock('@renderer/services/ImagePreviewService', () => ({
@@ -270,11 +273,17 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
 }))
 
 describe('MainTextBlock', () => {
+  let mockWithCitationTags: any
+
   beforeEach(async () => {
     vi.clearAllMocks()
     capturedChatMarkdownProps.length = 0
 
+    const { withCitationTags } = await import('@renderer/utils/citation')
+    mockWithCitationTags = withCitationTags as any
+
     mockRenderConfig.renderInputMessageAsMarkdown = false
+    mockRenderConfig.showCitationMarkers = true
   })
 
   // Helper functions
@@ -1060,6 +1069,62 @@ Hidden answer
       })
 
       expect(getRenderedMarkdown()).toHaveAttribute('data-content', '1. 工程立项审计；\n2. 工程采购审计；')
+    })
+
+    it('hides legacy citation markers when markers are disabled', () => {
+      mockRenderConfig.showCitationMarkers = false
+      const citations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Example Citation', content: 'Citation content' }
+      ]
+
+      renderMainTextBlock({
+        content: 'Claim [1] and more.',
+        role: 'assistant',
+        citations,
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
+      })
+
+      expect(mockWithCitationTags).not.toHaveBeenCalled()
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', expect.not.stringMatching(/\[1\]|<sup|cite:/))
+    })
+
+    it.each([
+      ['Claim [[1]](https://example.com).', 'Claim.'],
+      ['Claim *[1]*.', 'Claim.'],
+      ['**[1]**', '']
+    ])('hides source-backed wrapped markers without leaving Markdown artifacts: %s', (content, expected) => {
+      mockRenderConfig.showCitationMarkers = false
+      renderMainTextBlock({
+        content,
+        role: 'assistant',
+        citations: [{ number: 1, url: 'https://example.com', title: 'Source' }],
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.GROK }]
+      })
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', expected)
+      expect(mockWithCitationTags).not.toHaveBeenCalled()
+    })
+
+    it('hides [cite:id] markers in assistant text when markers are disabled', () => {
+      mockRenderConfig.showCitationMarkers = false
+      renderMainTextBlock({ content: 'Claim.[cite:abc-1] Next.', role: 'assistant' })
+
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'Claim. Next.')
+    })
+
+    it('keeps code literals and the sources footer when hiding markers', () => {
+      mockRenderConfig.showCitationMarkers = false
+      const citations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Source title', content: 'Evidence' }
+      ]
+      renderMainTextBlock({
+        content: 'Claim [1]. `literal [1]`',
+        role: 'assistant',
+        citations,
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
+      })
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'Claim. `literal [1]`')
+      fireEvent.click(screen.getByRole('button', { name: /message.citation/ }))
+      expect(openCitationsPanel).toHaveBeenCalledWith({ citations })
     })
 
     it('keeps a literal [cite:id] typed by the user', () => {
