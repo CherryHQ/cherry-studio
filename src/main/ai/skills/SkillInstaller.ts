@@ -1,5 +1,5 @@
 import * as fs from 'fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -53,7 +53,7 @@ export class SkillInstaller {
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
     await this.recoverInterruptedInstall(destPath)
-    await this.removeCommittedCleanup(destPath)
+    await this.removeCommittedCleanupForDest(destPath)
 
     const backupPath = this.getBackupPath(destPath)
     let hasBackup = false
@@ -137,7 +137,11 @@ export class SkillInstaller {
   }
 
   /** Restore every interrupted publish before reconcile considers pruning. */
-  async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
+  async recoverInterruptedInstalls(
+    storageRoot: string,
+    isFolderTracked?: (folderName: string) => boolean,
+    isMigrationSuperseded?: (oldName: string, newName: string) => boolean
+  ): Promise<void> {
     let entries: fs.Dirent[]
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
@@ -148,6 +152,18 @@ export class SkillInstaller {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
+      const migration = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+      if (migration?.[1] && migration?.[2]) {
+        await this.recoverInterruptedMigration(
+          storageRoot,
+          migration[1],
+          migration[2],
+          isFolderTracked,
+          isMigrationSuperseded
+        )
+        continue
+      }
+
       const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
       if (backupMatch?.[1]) {
         await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
@@ -157,6 +173,276 @@ export class SkillInstaller {
       const cleanupMatch = entry.name.match(/^\.(.+)\.cleanup$/)
       if (cleanupMatch?.[1]) {
         await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'committed skill backup')
+      }
+    }
+  }
+
+  /**
+   * Settle a migration marker against the catalog. Post-commit the marker is dropped and the
+   * replacement kept; pre-commit the replacement is dropped first, then the old folder restored
+   * (or an empty marker dropped when the old folder was already gone).
+   */
+  private async recoverInterruptedMigration(
+    storageRoot: string,
+    oldName: string,
+    newName: string,
+    isFolderTracked?: (folderName: string) => boolean,
+    isMigrationSuperseded?: (oldName: string, newName: string) => boolean
+  ): Promise<void> {
+    const marker = path.join(storageRoot, `.${oldName}.migrating-to.${newName}.bak`)
+    const oldTracked = isFolderTracked?.(oldName) ?? false
+    const newTracked = isFolderTracked?.(newName) ?? false
+    // Post-commit only when the row moved off the old folder; an unrelated skill using newName
+    // must not delete a pending backup that still owns the original files.
+    if (newTracked && !oldTracked) {
+      await this.removeDirectoryStrict(marker, 'committed skill migration backup')
+      return
+    }
+
+    if (isMigrationSuperseded?.(oldName, newName)) {
+      await this.removeDirectoryStrict(marker, 'superseded skill migration backup')
+      return
+    }
+
+    if (oldTracked && newTracked) {
+      logger.warn('Leaving skill migration backup in place; both folders remain catalogued', {
+        marker,
+        oldName,
+        newName
+      })
+      return
+    }
+
+    // Drop the uncommitted replacement before consuming the marker: a failed cleanup keeps the
+    // marker for the next boot instead of orphaning a duplicate for reconcile to adopt.
+    // The marker carries no identity for the replacement, so an unindexed folder at newName may be
+    // a user-authored skill written straight into the library rather than our half-published copy.
+    // Never delete it: move it aside under a hidden name (reconcile ignores dot-folders) so the
+    // original can be restored without losing either copy.
+    const newPath = path.join(storageRoot, newName)
+    if (await pathExists(newPath)) {
+      // Random suffix: renaming onto an existing empty directory would silently replace it.
+      const quarantine = path.join(storageRoot, `.${newName}.conflict-${Date.now()}-${randomUUID()}`)
+      await fs.promises.rename(newPath, quarantine)
+      logger.warn('Moved unindexed folder aside before restoring skill migration backup', {
+        newPath,
+        quarantine
+      })
+    }
+
+    const oldPath = path.join(storageRoot, oldName)
+    if (await pathExists(oldPath)) {
+      logger.warn('Leaving skill migration backup in place; original folder reappeared', { marker, oldPath })
+      return
+    }
+    let markerEntries: string[]
+    try {
+      markerEntries = await fs.promises.readdir(marker)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    // An empty marker means the old folder was already gone: drop it without resurrecting an
+    // empty folder; reconcile prunes the stale row now that no replacement remains.
+    if (markerEntries.length === 0) {
+      await this.safeRemoveDirectory(marker, 'empty skill migration backup')
+      return
+    }
+    await fs.promises.rename(marker, oldPath)
+    logger.info('Recovered interrupted skill migration', { oldPath, marker })
+  }
+
+  /**
+   * Move a replaced library folder aside to a migration rollback marker naming the replacement.
+   * Always created before publishing: an empty marker records an already-gone old folder.
+   */
+  /**
+   * Prepare a folder for another migration: recover any pending backup that still owns the only
+   * copy of the old files, then drop committed markers left behind by a finished migration.
+   */
+  async settleMigrationMarkersBeforeRename(
+    storageRoot: string,
+    folderName: string,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+
+    const key = folderName.toLowerCase()
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const markerPath = path.join(storageRoot, entry.name)
+      const lower = entry.name.toLowerCase()
+
+      const migration = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+      if (migration?.[1] && migration?.[2]) {
+        const oldName = migration[1]
+        const newName = migration[2]
+        if (oldName.toLowerCase() === key) {
+          const oldTracked = isFolderTracked?.(oldName) ?? false
+          const newTracked = isFolderTracked?.(newName) ?? false
+          if (newTracked && !oldTracked) {
+            await this.removeDirectoryStrict(markerPath, 'committed skill migration backup')
+          } else {
+            await this.recoverInterruptedMigration(storageRoot, oldName, newName, isFolderTracked, () => false)
+          }
+          continue
+        }
+        if (newName.toLowerCase() === key) {
+          const oldTracked = isFolderTracked?.(oldName) ?? false
+          const newTracked = isFolderTracked?.(folderName) ?? false
+          if (newTracked && !oldTracked) {
+            await this.removeDirectoryStrict(markerPath, 'stale skill migration backup')
+          } else {
+            await this.recoverInterruptedMigration(storageRoot, oldName, newName, isFolderTracked, () => false)
+          }
+        }
+        continue
+      }
+
+      if (lower === `.${key}.bak`) {
+        await this.recoverInterruptedInstall(path.join(storageRoot, folderName))
+        continue
+      }
+
+      if (lower === `.${key}.cleanup`) {
+        await this.removeDirectoryStrict(markerPath, 'committed skill migration backup')
+      }
+    }
+  }
+
+  async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string> {
+    const backupPath = path.join(path.dirname(dirPath), `.${path.basename(dirPath)}.migrating-to.${newFolderName}.bak`)
+    try {
+      await fs.promises.rename(dirPath, backupPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      await fs.promises.mkdir(backupPath, { recursive: true })
+    }
+    return backupPath
+  }
+
+  /**
+   * Undo `backupReplacedFolderForMigration`: move the preserved folder back, or drop an empty
+   * marker whose old folder was already gone (renaming it back would resurrect an empty folder).
+   */
+  async restoreMigrationBackup(backupPath: string, oldPath: string): Promise<void> {
+    let entries: string[]
+    try {
+      entries = await fs.promises.readdir(backupPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    if (entries.length === 0) {
+      await this.safeRemoveDirectory(backupPath, 'empty skill migration marker')
+      return
+    }
+    await fs.promises.rename(backupPath, oldPath)
+  }
+
+  /**
+   * Commit a backup created by `backupReplacedFolderForMigration` once the replacement (files +
+   * catalog row) is durable: turn the rollback marker into a `.cleanup` marker and delete it. An
+   * interruption from here on only leaves markers startup recovery deletes.
+   */
+  async commitReplacedFolder(backupPath: string | null): Promise<void> {
+    if (!backupPath) return
+    const marker =
+      path.basename(backupPath).match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/) ??
+      path.basename(backupPath).match(/^\.(.+)\.bak$/)
+    if (!marker?.[1]) throw new Error(`Not a skill backup marker: ${backupPath}`)
+    const cleanupPath = path.join(path.dirname(backupPath), `.${marker[1]}.cleanup`)
+    await this.removeCommittedCleanupMarker(cleanupPath)
+    await fs.promises.rename(backupPath, cleanupPath)
+    await this.removeDirectoryStrict(cleanupPath, 'committed skill backup')
+  }
+
+  /**
+   * Drop stale migration markers naming an uninstalled folder. A marker left behind by a warned
+   * retire would otherwise let startup recovery resurrect the old folder after the row is gone.
+   */
+  async removeMigrationMarkers(storageRoot: string, folderName: string): Promise<void> {
+    await this.removeMigrationMarkerDirectories(storageRoot, folderName, false)
+  }
+
+  /** Strict marker cleanup for uninstall: failure must abort before the catalog row is removed. */
+  async removeMigrationMarkersStrict(
+    storageRoot: string,
+    folderName: string,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
+    await this.removeMigrationMarkerDirectories(storageRoot, folderName, true, isFolderTracked)
+  }
+
+  /**
+   * True when a non-empty migration backup still owns the only copy of `folderName`'s files.
+   * Reconcile must not prune the catalog row while such a backup exists.
+   */
+  async hasPendingMigrationBackup(storageRoot: string, folderName: string): Promise<boolean> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+    const key = folderName.toLowerCase()
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const match = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+      if (!match?.[1] || match[1].toLowerCase() !== key) continue
+      try {
+        if ((await fs.promises.readdir(path.join(storageRoot, entry.name))).length > 0) return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return true
+      }
+    }
+    return false
+  }
+
+  private async removeMigrationMarkerDirectories(
+    storageRoot: string,
+    folderName: string,
+    strict: boolean,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    const key = folderName.toLowerCase()
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const name = entry.name.toLowerCase()
+      const isMarker =
+        name === `.${key}.bak` ||
+        name === `.${key}.cleanup` ||
+        (name.startsWith(`.${key}.migrating-to.`) && name.endsWith('.bak')) ||
+        name.endsWith(`.migrating-to.${key}.bak`)
+      if (isMarker) {
+        // A marker naming this folder as its replacement belongs to the old skill while that row is
+        // still catalogued: it holds the old skill's only copy, so removing the replacement's
+        // folder must not delete it.
+        const asNew = name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+        if (asNew?.[2]?.toLowerCase() === key && asNew[1].toLowerCase() !== key && isFolderTracked?.(asNew[1])) {
+          logger.warn('Keeping skill migration backup owned by a catalogued skill', { marker: entry.name })
+          continue
+        }
+        const targetPath = path.join(storageRoot, entry.name)
+        if (strict) {
+          await this.removeDirectoryStrict(targetPath, 'stale skill migration marker')
+        } else {
+          await this.safeRemoveDirectory(targetPath, 'stale skill migration marker')
+        }
       }
     }
   }
@@ -244,8 +530,11 @@ export class SkillInstaller {
     return path.join(path.dirname(destPath), `.${path.basename(destPath)}.cleanup`)
   }
 
-  private async removeCommittedCleanup(destPath: string): Promise<void> {
-    const cleanupPath = this.getCleanupPath(destPath)
+  private async removeCommittedCleanupForDest(destPath: string): Promise<void> {
+    await this.removeCommittedCleanupMarker(this.getCleanupPath(destPath))
+  }
+
+  private async removeCommittedCleanupMarker(cleanupPath: string): Promise<void> {
     try {
       const cleanupStats = await fs.promises.lstat(cleanupPath)
       if (!cleanupStats.isDirectory()) {
@@ -278,6 +567,15 @@ export class SkillInstaller {
         targetPath,
         error: error instanceof Error ? error.message : String(error)
       })
+    }
+  }
+
+  private async removeDirectoryStrict(targetPath: string, label: string): Promise<void> {
+    try {
+      await deleteDirectoryRecursive(targetPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw new Error(`Failed to remove ${label}: ${targetPath}`, { cause: error })
     }
   }
 }
