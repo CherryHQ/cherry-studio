@@ -1027,7 +1027,13 @@ class BackupManager {
   private async readDirectBackupMetadata(
     extractionDir: string
   ): Promise<Pick<DirectBackupMetadata, 'resources'> & { platform?: unknown; appVersion?: unknown }> {
-    const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as Record<string, unknown>
+    const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as {
+      appName?: unknown
+      version?: unknown
+      resources?: unknown
+      platform?: unknown
+      appVersion?: unknown
+    }
 
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
       throw new BackupInputError('This backup file is not from Cherry Studio and cannot be restored')
@@ -1043,7 +1049,16 @@ class BackupManager {
       )
     }
 
-    const resources = raw.resources as Record<string, unknown> | undefined
+    const resources = raw.resources as
+      | {
+          cache?: unknown
+          indexedDB?: unknown
+          localStorage?: unknown
+          data?: unknown
+          database?: unknown
+          appClaude?: unknown
+        }
+      | undefined
     const hasCommonResources =
       resources?.cache === true &&
       typeof resources.indexedDB === 'boolean' &&
