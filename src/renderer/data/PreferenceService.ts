@@ -118,7 +118,7 @@ export class PreferenceService {
         // cache) — fire-and-forget like subscribeChange.
         void this.subscribeToKeyInternal([key])
       }
-      return this.cache[key] as UnifiedPreferenceType[K]
+      return this.cache[key]
     }
 
     logger.verbose(`get: ${key} not found in cache`)
