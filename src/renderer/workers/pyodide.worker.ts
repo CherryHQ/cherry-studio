@@ -1,7 +1,9 @@
 /// <reference lib="webworker" />
 
+import { type AgentPythonDiagnostics, prepareManagedPythonRuntime } from './managedPythonRuntime'
+
 type WorkerResponse =
-  | { type: 'initialized' }
+  | { type: 'initialized'; diagnostics: AgentPythonDiagnostics }
   | { type: 'init-error'; error: string }
   | { type: 'system-error'; id: string; error: string }
   | { id: string; output: PyodideOutput }
@@ -14,7 +16,7 @@ interface PyodideOutput {
   image?: string
 }
 
-const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/'
+const PYODIDE_INDEX_URL = new URL('../pyodide/', self.location.href).href
 const PYODIDE_MODULE_URL = PYODIDE_INDEX_URL + 'pyodide.mjs'
 
 const MATPLOTLIB_SHIM_CODE = `
@@ -76,7 +78,7 @@ const pyodidePromise = (async () => {
     const pyodideModule = await import(/* @vite-ignore */ PYODIDE_MODULE_URL)
 
     // 加载 Pyodide 并捕获标准输出/错误
-    return await pyodideModule.loadPyodide({
+    const runtime = await pyodideModule.loadPyodide({
       indexURL: PYODIDE_INDEX_URL,
       stdout: (text: string) => {
         if (output.text) {
@@ -93,16 +95,16 @@ const pyodidePromise = (async () => {
         }
       }
     })
+    const diagnostics = await prepareManagedPythonRuntime(runtime)
+    return { runtime, diagnostics }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
 
-    // 通知主线程初始化错误
-    self.postMessage({
-      type: 'init-error',
-      error: errorMessage
-    } satisfies WorkerResponse)
-
-    throw error
+    throw new Error(
+      errorMessage.startsWith('Managed Python dependency')
+        ? errorMessage
+        : 'Managed Python runtime could not initialize. Repair the application installation and try again.'
+    )
   }
 })()
 
@@ -130,8 +132,8 @@ function processResult(result: any): any {
 
 // 通知主线程已加载
 pyodidePromise
-  .then(() => {
-    self.postMessage({ type: 'initialized' } satisfies WorkerResponse)
+  .then(({ diagnostics }) => {
+    self.postMessage({ type: 'initialized', diagnostics } satisfies WorkerResponse)
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -156,7 +158,7 @@ self.onmessage = async (event) => {
   let globals
 
   try {
-    const pyodide = await pyodidePromise
+    const { runtime: pyodide } = await pyodidePromise
     // 创建一个新的全局作用域
     globals = pyodide.globals.get('dict')()
 

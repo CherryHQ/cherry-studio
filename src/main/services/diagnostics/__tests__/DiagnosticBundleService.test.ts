@@ -277,6 +277,13 @@ describe('DiagnosticBundleService', () => {
       version: '2.0.0-test'
     })
     expect(manifest.system.operatingSystem).toMatchObject({ locale: 'en-US' })
+    expect(manifest.system.runtime).toMatchObject({
+      agentPythonImage: 'pyodide-0.28.0-openpyxl-3.1.5-v1',
+      managedPyodide: '0.28.0',
+      managedPython: '3.13.2',
+      managedOpenpyxl: '3.1.5',
+      managedEtXmlfile: '2.0.0'
+    })
     expect(manifest.sources.chatRecords).toEqual({
       included: { bytes: 0, messageCount: 0, recordCount: 0 },
       omitted: { bytes: 0, messageCount: 0, recordCount: 0 }

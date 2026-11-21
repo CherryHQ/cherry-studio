@@ -51,8 +51,9 @@ worker.
 
 ## Worker behavior
 
-The worker loads Pyodide 0.28.0 from jsDelivr, so first use and newly imported
-packages require network access. For each request it:
+The worker loads a bundled Pyodide 0.28.0 core (Python 3.13.2), openpyxl 3.1.5 and et-xmlfile 2.0.0. It verifies the installed managed package versions before accepting code. Basic XLSX read, edit and save work without network access. Other optional packages still load from the existing jsDelivr package set when imported. A missing or corrupt managed dependency reports an application-repair error rather than running a package installer.
+
+The image identifier and pinned package versions appear in diagnostic exports as managed runtime fields. The worker also emits installed versions when it initializes, available through `PyodideService.getDiagnostics()` and the central logger. The diagnostic image fields describe the provisioned assets, not whether a worker is running. For each request the worker:
 
 1. creates a fresh Python globals dictionary;
 2. calls `loadPackagesFromImports` for packages named by the source;
@@ -78,8 +79,7 @@ URL. `CodeBlockView` displays that image together with any text result.
 ## Security boundary
 
 The worker isolates computation from the UI thread, but it is not a security
-sandbox for untrusted Python. It downloads the Pyodide runtime and imported
-packages, and executes the supplied source. The feature is therefore disabled by
+sandbox for untrusted Python. It executes the supplied source, and optional packages beyond the managed XLSX set still require network access. There is no new user package-installation or upgrade API. The feature is therefore disabled by
 default and must remain an explicit user setting.
 
 ## Verification
