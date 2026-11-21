@@ -39,6 +39,7 @@
       "@shared/*": ["./src/shared/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
       "@cherrystudio/file-preview/core": ["./packages/file-preview/src/core.ts"],
+      "@cherrystudio/file-preview/headless": ["./packages/file-preview/src/headlessDocument.ts"],
       "@cherrystudio/file-preview/react": ["./packages/file-preview/src/react.ts"],
       "@cherrystudio/web-search": ["./packages/web-search/src/index.ts"],
       "@cherrystudio/web-search/catalog": ["./packages/web-search/src/catalog.ts"],
