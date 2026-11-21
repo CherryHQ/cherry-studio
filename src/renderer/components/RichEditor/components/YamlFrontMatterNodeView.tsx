@@ -13,7 +13,7 @@ const logger = loggerService.withContext('YamlFrontMatterNodeView')
 
 interface ParsedProperty {
   key: string
-  value: any
+  value: unknown
   type: 'string' | 'array' | 'date' | 'number' | 'boolean'
 }
 
@@ -34,7 +34,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
 
       if (!yamlContent.trim()) return []
 
-      const parsed = parse(yamlContent)
+      const parsed: unknown = parse(yamlContent)
       if (!parsed || typeof parsed !== 'object') return []
 
       return Object.entries(parsed).map(([key, value]): ParsedProperty => {
@@ -111,13 +111,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
   const updateYamlFromProperties = useCallback(
     (properties: ParsedProperty[]) => {
       try {
-        const yamlObject = properties.reduce(
-          (acc, prop) => {
-            acc[prop.key] = prop.value
-            return acc
-          },
-          {} as Record<string, any>
-        )
+        const yamlObject = Object.fromEntries(properties.map((prop) => [prop.key, prop.value]))
 
         const yamlContent = stringify(yamlObject).trim()
         const contentWithFence = yamlContent + '\n---'
@@ -306,7 +300,8 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     const isEditing = editingProperty === property.key
 
     if (property.type === 'array' && Array.isArray(property.value)) {
-      const isShowingInput = showArrayInput[property.key]
+      const isShowingInput = Object.hasOwn(showArrayInput, property.key) && showArrayInput[property.key]
+      const inputValue = Object.hasOwn(arrayInputValues, property.key) ? arrayInputValues[property.key] : ''
 
       return (
         <div className="flex flex-1 flex-wrap items-center gap-1.5">
@@ -326,19 +321,19 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           {isShowingInput ? (
             <Input
               placeholder={t('richEditor.frontMatter.addTag')}
-              value={arrayInputValues[property.key] || ''}
+              value={inputValue}
               onChange={(e) => setArrayInputValues((prev) => ({ ...prev, [property.key]: e.target.value }))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  handleAddArrayItem(property.key, arrayInputValues[property.key] || '')
+                  handleAddArrayItem(property.key, inputValue)
                 } else if (e.key === 'Escape') {
                   setShowArrayInput((prev) => ({ ...prev, [property.key]: false }))
                   setArrayInputValues((prev) => ({ ...prev, [property.key]: '' }))
                 }
               }}
               onBlur={() => {
-                const value = arrayInputValues[property.key] || ''
+                const value = inputValue
                 if (value.trim()) {
                   handleAddArrayItem(property.key, value)
                 } else {
