@@ -55,6 +55,7 @@ import {
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
 import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
+import { readProviderCapabilities } from './listModels/customMetadata'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -163,6 +164,9 @@ function resolveOpenAITokenLimits(
   providerId: string
 ): { contextWindow?: number; maxOutputTokens?: number } {
   const validContextValues = new Set<number>()
+  if (OPENAI_CONTEXT_LIMIT_KEYS.every((key) => model[key] == null)) {
+    logger.warn('Provider did not advertise a model context limit', { providerId, modelId: model.id })
+  }
   for (const key of OPENAI_CONTEXT_LIMIT_KEYS) {
     const value = model[key]
     if (value === undefined || value === null) continue
@@ -186,6 +190,9 @@ function resolveOpenAITokenLimits(
   }
 
   const maxTokens = model.max_tokens
+  if (maxTokens === undefined || maxTokens === null) {
+    logger.warn('Provider did not advertise a model output token limit', { providerId, modelId: model.id })
+  }
   if (maxTokens !== undefined && maxTokens !== null) {
     const parsed = parsePositiveTokenLimit(maxTokens)
     if (parsed === undefined) {
@@ -1052,9 +1059,13 @@ async function listOpenAICompatibleModels(
   return listing(
     dedup(response.data, (m) => m.id).map((m) => {
       const limits = resolveOpenAITokenLimits(m, provider.id)
+      const capabilities = readProviderCapabilities(m, provider.id)
+      const providerMetadata = { ...limits, ...(capabilities !== undefined ? { capabilities } : {}) }
       return toModel(m.id, provider, {
+        providerMetadata,
         name: m.name || m.id,
         ownedBy: m.owned_by,
+        ...(capabilities !== undefined ? { capabilities } : {}),
         ...(limits.contextWindow ? { contextWindow: limits.contextWindow } : {}),
         ...(limits.maxOutputTokens ? { maxOutputTokens: limits.maxOutputTokens } : {})
       })

@@ -16,6 +16,7 @@ import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSes
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { refreshCustomModelMetadata, resetCustomModelMetadata } from '@main/ai/provider/modelMetadataActions'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
@@ -174,6 +175,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Provider model catalog & reachability probe. ──
   'ai.provider.model.list': (request) =>
     exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),
+  'ai.provider.model.refresh_metadata': ({ providerId, modelId }) => refreshCustomModelMetadata(providerId, modelId),
+  'ai.provider.model.reset_metadata': ({ providerId, modelId, field }) =>
+    resetCustomModelMetadata(providerId, modelId, field),
   'ai.provider.model.check': (request) =>
     exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
 

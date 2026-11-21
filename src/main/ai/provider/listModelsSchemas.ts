@@ -20,7 +20,8 @@ const OpenAIModelSchema = z.looseObject({
   context_length: z.unknown().optional(),
   max_context_window: z.unknown().optional(),
   max_context_length: z.unknown().optional(),
-  max_tokens: z.unknown().optional()
+  max_tokens: z.unknown().optional(),
+  capabilities: z.unknown().optional()
 })
 
 const OpenAIModelItemSchema = z.unknown().transform((model) => {

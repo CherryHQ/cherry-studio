@@ -349,6 +349,25 @@ describe('listModels — custom-channel model metadata (#20523)', () => {
     ).toBe(true)
   })
 
+  it('accepts only explicitly advertised canonical capabilities (AC4)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'plain-model', capabilities: ['function-call', 'image-recognition', 'function-call'] },
+          { id: 'bad-model', capabilities: ['invented-capability'] }
+        ]
+      }
+    })
+    const { models } = await listModels(makeCustomChannelProvider())
+    expect(models[0].capabilities).toEqual(['function-call', 'image-recognition'])
+    expect(models[1].capabilities).toEqual([])
+    expect(
+      mockMainLoggerService.warn.mock.calls.some(
+        ([message]) => message === 'Ignoring malformed model capabilities from provider'
+      )
+    ).toBe(true)
+  })
+
   it('keeps capabilities empty for a vision-named model without explicit metadata (AC4)', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: { data: [{ id: 'super-vision-4o-image-tool', context_length: 128000 }] }

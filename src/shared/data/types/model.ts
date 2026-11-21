@@ -40,6 +40,8 @@ import {
   SERVER_TOOL
 } from '@cherrystudio/provider-registry'
 
+import { ModelMetadataSourcesSchema, ProviderModelMetadataSchema } from './modelMetadata'
+
 // Re-export const objects for consumers
 export {
   CANONICAL_PARAM_KEY,
@@ -397,6 +399,10 @@ export const ModelSchema = z.object({
   /** Supported output modalities */
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
 
+  // Discovered metadata is separate from effective values so registry enrichment
+  // cannot erase explicit provider declarations or turn inferred values into them.
+  providerMetadata: ProviderModelMetadataSchema.optional(),
+  metadataSources: ModelMetadataSourcesSchema.optional(),
   // Configuration
   /** Context window size */
   contextWindow: z.number().optional(),
