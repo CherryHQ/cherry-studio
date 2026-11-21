@@ -5415,6 +5415,8 @@
   "settings.models.retry.fallback_models_count_with_invalid": "{{valid}}개 선택됨({{invalid}}개 사용 불가)",
   "settings.models.retry.fallback_models_description": "기본 모델이 실패할 때 순서대로 시도할 모델",
   "settings.models.retry.fallback_models_unavailable": "유효한 대체 모델 없음({{count}}개 사용 불가)",
+  "settings.models.retry.image_max_attempts": "이미지 재시도 횟수",
+  "settings.models.retry.image_max_attempts_description": "일시적인 오류 발생 시 직접 이미지 생성을 재시도합니다. 재시도할 때마다 요금이 다시 청구될 수 있습니다. 0으로 설정하면 비활성화됩니다.",
   "settings.models.retry.max_attempts": "최대 재시도 횟수",
   "settings.models.retry.tooltip": "재시도 가능한 오류가 발생하면 설정된 한도까지 현재 모델을 재시도합니다. 계속 실패하거나 재시도할 수 없는 오류이면 대체 모델을 순서대로 한 번씩 시도합니다. 같은 모델에 API 키가 여러 개 있으면 401/429 오류 발생 시 먼저 다음 키로 전환합니다. 재시도와 대체는 콘텐츠 스트리밍이 시작되기 전에만 적용됩니다.",
   "settings.models.toolbar.pull_short": "모델 동기화",
