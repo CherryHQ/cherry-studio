@@ -101,10 +101,9 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   const invalidKeys = Array.from(
     new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
   )
-  const filtered: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!invalidKeys.includes(key)) filtered[key] = value
-  }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Extension values are unvalidated and may be native; preserve own fields for the second schema parse.
+  const entries = Object.entries(raw as Record<string, unknown>)
+  const filtered = Object.fromEntries(entries.filter(([key]) => !invalidKeys.includes(key)))
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
   return {
     data: reparsed.success ? reparsed.data : {},
