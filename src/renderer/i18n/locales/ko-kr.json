@@ -5043,6 +5043,7 @@
   "settings.mcp.builtinServers": "내장 서버",
   "settings.mcp.builtinServersDescriptions.brave_search": "Brave Search API를 통합하여 웹 및 로컬 검색 기능을 제공하는 MCP 서버 구현입니다. BRAVE_API_KEY 환경 변수를 설정해야 합니다",
   "settings.mcp.builtinServersDescriptions.browser": "스냅샷으로 페이지를 탐색하고 요소를 클릭하거나 입력하며, 탭을 이동하고 대화 상자를 처리합니다. 기본적으로 백그라운드에서 실행됩니다.",
+  "settings.mcp.builtinServersDescriptions.cloudbase": "데이터베이스, 클라우드 함수, 객체 스토리지, 정적 호스팅 및 배포를 제공하는 CloudBase MCP 서버입니다. CloudBase 계정 인증이 필요합니다",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "지도 검색, 요금 예상, 주문 관리, 기사 위치 추적 등 차량 호출 서비스를 제공하는 DiDi MCP 서버입니다. 중국 본토에서만 사용할 수 있습니다. DIDI_API_KEY 환경 변수를 설정해야 합니다",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify와 상호작용할 수 있는 간단한 API를 제공하는 Dify MCP 서버 구현입니다. Dify Key를 설정해야 합니다",
   "settings.mcp.builtinServersDescriptions.fetch": "URL의 웹 콘텐츠를 가져오는 MCP 서버",

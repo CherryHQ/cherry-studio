@@ -5044,6 +5044,7 @@
   "settings.mcp.builtinServers": "Vestavěné servery",
   "settings.mcp.builtinServersDescriptions.brave_search": "Implementace serveru MCP integrující Brave Search API, která nabízí webové i lokální vyhledávání. Vyžaduje nastavení proměnné prostředí BRAVE_API_KEY",
   "settings.mcp.builtinServersDescriptions.browser": "Procházení stránek pomocí snímků, klikání a psaní do prvků, přepínání karet a zpracování dialogů. Ve výchozím nastavení běží na pozadí.",
+  "settings.mcp.builtinServersDescriptions.cloudbase": "Server MCP CloudBase pro databáze, cloudové funkce, objektové úložiště, statický hosting a nasazení. Vyžaduje autorizaci účtu CloudBase",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Server DiDi MCP poskytující služby objednávek jízd včetně vyhledávání na mapě, odhadu ceny, správy objednávek a sledování řidiče. Dostupné pouze v pevninské Číně. Vyžaduje nastavení proměnné prostředí DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Implementace serveru MCP od Difyho poskytuje jednoduché API pro práci s Dify. Vyžaduje nastavení klíče Dify Key",
   "settings.mcp.builtinServersDescriptions.fetch": "Server MCP pro načítání webového obsahu z URL",
