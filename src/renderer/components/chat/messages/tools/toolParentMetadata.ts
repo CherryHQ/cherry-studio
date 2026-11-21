@@ -84,7 +84,8 @@ export function stripPartParentToolMetadata(part: CherryMessagePart): CherryMess
     const metadata = getMetadataRecord(part, field)
     if (!metadata || !PARENT_METADATA_NAMESPACES.some((namespace) => isRecord(metadata[namespace]))) continue
     next ??= { ...source }
-    const historicalFields: HistoricalToolMetadataFields = next
+    // SAFETY: Data/step parts may lack these legacy fields; every field in this view is optional and its value remains unknown.
+    const historicalFields = next as HistoricalToolMetadataFields
     historicalFields[field] = stripParentFields(metadata)
   }
 
