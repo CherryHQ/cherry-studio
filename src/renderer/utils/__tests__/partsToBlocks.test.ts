@@ -6,6 +6,47 @@ import { CitationType, ReferenceCategory } from '@shared/data/types/message'
 import { convertReferencesToCitations } from '../partsToBlocks'
 
 describe('partsToBlocks citation helpers', () => {
+  it('preserves grounding chunk numbers and support data while skipping invalid web entries', () => {
+    const groundingSupports = [{ segment: { text: 'a claim' }, groundingChunkIndices: [1, 3] }]
+    const references: ContentReference[] = [
+      {
+        category: ReferenceCategory.CITATION,
+        citationType: CitationType.WEB,
+        content: {
+          source: 'gemini',
+          results: {
+            groundingChunks: [
+              null,
+              { web: { uri: 'https://one.test', title: 'One' } },
+              { web: { uri: 42 } },
+              { web: { uri: 'https://two.test', title: 'Two' } }
+            ],
+            groundingSupports
+          }
+        }
+      }
+    ]
+
+    expect(convertReferencesToCitations(references)).toEqual([
+      {
+        number: 2,
+        url: 'https://one.test',
+        title: 'One',
+        showFavicon: true,
+        type: 'websearch',
+        metadata: groundingSupports
+      },
+      {
+        number: 4,
+        url: 'https://two.test',
+        title: 'Two',
+        showFavicon: true,
+        type: 'websearch',
+        metadata: groundingSupports
+      }
+    ])
+  })
+
   it('preserves explicit citation numbers from web results', () => {
     const references: ContentReference[] = [
       {
