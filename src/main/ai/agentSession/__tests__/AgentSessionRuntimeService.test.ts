@@ -36,6 +36,7 @@ vi.mock('../recoverSessionDeliveries', () => ({
 }))
 
 const mocks = vi.hoisted(() => ({
+  preferenceGet: vi.fn(),
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
@@ -1911,6 +1912,35 @@ describe('AgentSessionRuntimeService', () => {
       pendingMessageCount: 0,
       lastTerminalStatus: 'success'
     })
+  })
+
+  it('reads the current idle TTL on each timer refresh without restarting the service', async () => {
+    // The suite wires the shared in-memory PreferenceService, so set the real preference
+    // rather than mocking the getter: the service must re-read it on every refresh.
+    await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 12)
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60_000)
+      expect(service.inspect('session-1')).toBeDefined()
+      await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 2)
+      const next = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-next',
+        userMessage: userMessage('next')
+      })
+      void terminalListener(next).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(2 * 60_000 - 1)
+      expect(service.inspect('session-1')).toBeDefined()
+      vi.advanceTimersByTime(1)
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+      // The shared in-memory preference state is not reset between tests.
+      await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 5)
+    }
   })
 
   it('hands an idle session with a resume token to the driver onSessionIdle hook', () => {

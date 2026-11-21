@@ -342,6 +342,20 @@ describe('AgentJobsService', () => {
   })
 
   describe('createTask', () => {
+    it.each([
+      [undefined, 30],
+      [null, 0],
+      [0, 0],
+      [5, 5]
+    ] as const)('stores timeout %s as %s minutes and preserves it on unrelated edits', (timeoutMinutes, expected) => {
+      const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes })
+      expect(task.timeoutMinutes).toBe(expected)
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: expected })
+      const updated = service.updateTask(AGENT_ID, task.id, { name: 'renamed task' })
+      expect(updated?.timeoutMinutes).toBe(expected)
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: expected })
+    })
+
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })
 

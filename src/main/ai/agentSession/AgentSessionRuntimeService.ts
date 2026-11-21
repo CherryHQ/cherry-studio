@@ -130,6 +130,7 @@ import {
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { savedChildView } from './ChildThreadProjection'
 import { validateEditedInput } from './editInput'
+import { resolveAgentIdleTtlMs } from './idleTtl'
 import { nativeOutcomeTerminal } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
@@ -139,7 +140,8 @@ import { readSessionHistory } from './sessionHistory'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
-const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const idleTtlMs = (): number =>
+  resolveAgentIdleTtlMs(application.get('PreferenceService').get('agent.session.idle_ttl_minutes'))
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
@@ -3863,7 +3865,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (lastResumeToken) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
-    }, DEFAULT_IDLE_TTL_MS)
+    }, idleTtlMs())
     entry.idleTimer.unref?.()
   }
 

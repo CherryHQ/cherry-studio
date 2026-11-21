@@ -17,12 +17,15 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { prepareClaudeBranch } from '../claudeContext'
 
-const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock } = vi.hoisted(() => ({
-  startupMock: vi.fn(),
-  buildWarmRequestMock: vi.fn(),
-  traceModeEnabledMock: vi.fn(),
-  prepareTraceMock: vi.fn()
-}))
+const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock, preferenceGetMock } = vi.hoisted(
+  () => ({
+    preferenceGetMock: vi.fn(),
+    startupMock: vi.fn(),
+    buildWarmRequestMock: vi.fn(),
+    traceModeEnabledMock: vi.fn(),
+    prepareTraceMock: vi.fn()
+  })
+)
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   startup: startupMock
@@ -61,6 +64,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
+    preferenceGetMock.mockImplementation((key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null))
+    MockApplicationUtils.setService('PreferenceService', { get: preferenceGetMock })
     MockApplicationUtils.setService('ClaudeCodeTraceBridgeService', {
       isTraceModeEnabled: traceModeEnabledMock,
       prepareTrace: prepareTraceMock
@@ -462,6 +467,27 @@ describe('ClaudeCodeWarmQueryManager', () => {
       }
     }
   )
+
+  it('reads the current idle TTL when arming each warm entry', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const first = warmQuery()
+    const second = warmQuery()
+    let ttl = 12
+    preferenceGetMock.mockImplementation(() => ttl)
+    startupMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    vi.advanceTimersByTime(5 * 60_000)
+    expect(first.close).not.toHaveBeenCalled()
+    ttl = 2
+    await manager.prewarm({ key: 'session-2', options: { model: 'sonnet' } })
+    vi.advanceTimersByTime(2 * 60_000 - 1)
+    expect(second.close).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    await Promise.resolve()
+    expect(second.close).toHaveBeenCalledOnce()
+    expect(first.close).not.toHaveBeenCalled()
+    await manager.closeAll()
+  })
 
   it.each(['idle', 'replacement', 'mismatch', 'manual'] as const)(
     'drains %s disposal after the warm entry has been detached',
