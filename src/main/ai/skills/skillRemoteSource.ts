@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import { devNull } from 'node:os'
 import * as path from 'node:path'
 
 import { net } from 'electron'
@@ -12,7 +13,12 @@ import { CommandOutputLimitError, executeCommand } from '@main/utils/processRunn
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import { buildGiteaSkillUrl, encodeGithubPath, parseGiteaSkillUrl, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import {
+  buildGiteaSkillUrl,
+  encodeGithubPath,
+  parseGiteaSkillUrl,
+  parseGithubSkillUrl
+} from '@shared/utils/skillMarketplace'
 
 import {
   assertNoFoldedPathCollisions,
@@ -237,7 +243,7 @@ async function fetchFromGithub(
  * anonymous: the parser has already rejected embedded credentials, and no token is requested,
  * stored or sent; a server that requires authentication fails with its transport error.
  */
-async function resolveGiteaSkillTarget(identifier: string) {
+async function resolveGiteaSkillTarget(identifier: string, anonymousHome: string) {
   const location = parseGiteaSkillUrl(identifier)
   if (!location) {
     throw new Error(`Invalid Gitea skill URL: ${identifier}`)
@@ -245,7 +251,7 @@ async function resolveGiteaSkillTarget(identifier: string) {
 
   const { owner, repo, refAndPath, descriptorFileName } = location
   const transportRepoUrl = `https://${location.host}/${owner}/${repo}.git`
-  const { ref, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, null)
+  const { ref, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, 'heads', anonymousHome)
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = buildGiteaSkillUrl({
@@ -260,10 +266,16 @@ async function fetchFromGitea(
   identifier: string,
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
-  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGiteaSkillTarget(identifier)
-
+  // Validate before materializing anything, then give anonymous Git an empty HOME so curl cannot read .netrc.
+  if (!parseGiteaSkillUrl(identifier)) throw new Error(`Invalid Gitea skill URL: ${identifier}`)
   const tempDir = await openTempDir()
-  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
+  const anonymousHome = path.join(tempDir, 'anonymous-home')
+  await fs.promises.mkdir(anonymousHome, { recursive: true })
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGiteaSkillTarget(
+    identifier,
+    anonymousHome
+  )
+  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir, anonymousHome)
   const { contentDir, skillDir } = await materializeGithubTarget(commit, target, [descriptorFileName])
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
@@ -428,15 +440,18 @@ async function fetchFromClawhub(
 async function resolveGithubCommit(
   repoUrl: string,
   refAndPath: string[],
-  refNamespace: 'heads' | 'tags' | null
+  refNamespace: 'heads' | 'tags' | null,
+  anonymousHome?: string
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
   const gitCommand = await resolveGitCommand()
-  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
-    if (!(error instanceof CommandOutputLimitError)) throw error
-    throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
-      cause: error
-    })
-  })
+  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl], anonymousHome).catch(
+    (error: unknown) => {
+      if (!(error instanceof CommandOutputLimitError)) throw error
+      throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
+        cause: error
+      })
+    }
+  )
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
     // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
@@ -473,12 +488,17 @@ async function resolveGithubCommit(
  * Fetch one commit's trees into a bare repository. File contents stay on the remote until a sparse
  * checkout asks for them, so a small skill in a large repository never downloads the rest.
  */
-async function fetchGithubCommit(repoUrl: string, revision: string, tempDir: string): Promise<FetchedGithubCommit> {
+async function fetchGithubCommit(
+  repoUrl: string,
+  revision: string,
+  tempDir: string,
+  anonymousHome?: string
+): Promise<FetchedGithubCommit> {
   const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
-  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
+  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], anonymousHome)
 
-  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
+  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir], anonymousHome)
   await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, revision])
   return { gitDir, tempDir, git }
 }
@@ -579,8 +599,38 @@ function assertGithubTargetTree(
  * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
  * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
  */
-async function runGit(gitCommand: string, args: string[]): Promise<string> {
-  const env = await getShellEnv()
+async function runGit(gitCommand: string, args: string[], anonymousHome?: string): Promise<string> {
+  const env = { ...(await getShellEnv()) }
+  if (anonymousHome) {
+    // Git can send credentials non-interactively. Isolate helpers, URL headers/cookies, injected
+    // config and curl's .netrc source instead of merely turning off prompts. Keep explicit CA paths.
+    for (const key of Object.keys(env))
+      if (key.startsWith('GIT_') && !['GIT_SSL_CAINFO', 'GIT_SSL_CAPATH'].includes(key)) delete env[key]
+    Object.assign(env, {
+      HOME: anonymousHome,
+      USERPROFILE: anonymousHome,
+      XDG_CONFIG_HOME: anonymousHome,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_SYSTEM: devNull,
+      GIT_CONFIG_GLOBAL: devNull,
+      GIT_CEILING_DIRECTORIES: anonymousHome
+    })
+    args = [
+      '-C',
+      anonymousHome,
+      '-c',
+      'credential.helper=',
+      '-c',
+      'http.extraHeader=',
+      '-c',
+      'http.cookieFile=',
+      '-c',
+      'http.saveCookies=false',
+      '-c',
+      'http.followRedirects=false',
+      ...args
+    ]
+  }
   return executeCommand(gitCommand, args, {
     capture: true,
     maxOutputBytes: MAX_GIT_OUTPUT_BYTES,

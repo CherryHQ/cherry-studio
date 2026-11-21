@@ -241,6 +241,9 @@ describe('parseGiteaSkillUrl (#20206)', () => {
 
   it('strips a .git repository suffix', () => {
     expect(parseGiteaSkillUrl('https://gitea.example.com/o/repo.git/src/branch/main/SKILL.md')?.repo).toBe('repo')
+    expect(parseGiteaSkillUrl('https://www.gitea.example.com:8443/o/r/src/branch/main/SKILL.md')?.host).toBe(
+      'www.gitea.example.com:8443'
+    )
   })
 
   it('accepts a SKILL.md at the repository root', () => {

@@ -371,6 +371,25 @@ describe('SkillMarketplaceDialog', () => {
       })
     })
 
+    it.each(['src', 'raw'])('installs one Gitea %s URL result without querying registries', async (route) => {
+      const user = userEvent.setup()
+      renderDialog()
+      await selectGithubAndType(
+        `https://www.gitea.example.com:8443/team/repo/${route}/branch/feature/demo/skills/writer/SKILL.md`
+      )
+      expect(searchMock).not.toHaveBeenCalled()
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('Gitea')).toBeInTheDocument()
+      expect(screen.getByText('repo')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
+      await waitFor(() =>
+        expect(installMock).toHaveBeenCalledWith(
+          'gitea:https://www.gitea.example.com:8443/team/repo/src/branch/feature/demo/skills/writer/SKILL.md'
+        )
+      )
+      expect(searchMock).not.toHaveBeenCalled()
+    })
+
     it('reports an unsupported GitHub URL format instead of offering an install', async () => {
       renderDialog()
 

@@ -226,7 +226,7 @@ export function parseGiteaSkillUrl(rawUrl: string): GiteaSkillLocation | null {
   // Anonymous access only: credentials are never read, stored or sent.
   if (url.protocol !== 'https:' || url.username || url.password) return null
 
-  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const host = url.host.toLowerCase()
   const [owner, rawRepo, route, refKind, ...tail] = segments
   // Gitea exposes a skill descriptor under /src/branch/ (file view) and /raw/branch/ (download).
   const refAndPath = (route === 'src' || route === 'raw') && refKind === 'branch' ? tail : null
