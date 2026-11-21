@@ -1,9 +1,9 @@
 import { answerVerdict, ASK_WITHDRAWN, decideApproval, repeatBlock } from '../core/approval/approval'
 import { offloadPlan } from '../core/context/offload'
-import type { ToolCallFact } from '../core/facts'
+import type { GateCall, GateFacts, ToolCallFact, ToolResultFact } from '../core/facts'
 import type { ApprovalHostFacts, CallRef } from '../core/hostFacts'
 import { keys } from '../core/keys'
-import type { GateHandlers } from '../ports/harness'
+import type { GateHandlers, GateVerdict, Memory } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { storedMarker } from './output'
 
@@ -21,9 +21,13 @@ async function currentFacts(host: HostPorts, ref: CallRef, tool: ToolCallFact): 
 }
 
 /** H9: before a call, D8's block half, then approvals and the plan gate (D34, D35, D37); after it, offload (D31). */
-export function gateHandlers(host: HostPorts): GateHandlers {
+export function createToolPolicy(host: HostPorts) {
   return {
-    async before(call, facts, ports) {
+    async approve(
+      call: GateCall & { readonly signal: AbortSignal },
+      facts: GateFacts,
+      remember: Memory['remember']
+    ): Promise<GateVerdict> {
       const repeated = repeatBlock(call, facts)
       if (repeated !== undefined) return { block: repeated }
       const ref: CallRef = { thread: call.thread, key: call.key }
@@ -47,13 +51,13 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         presentation: decision.presentation,
         ...(decision.details === undefined ? {} : { details: decision.details })
       }
-      const answer = await ports.memory
-        .remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal))
-        .catch((error: unknown) => {
+      const answer = await remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal)).catch(
+        (error: unknown) => {
           // A stopped turn withdraws the ask; nothing is remembered, so a rerun asks again.
           if (call.signal.aborted) return undefined
           throw error
-        })
+        }
+      )
       if (answer === undefined) return { block: ASK_WITHDRAWN }
       const verdict = answerVerdict(answer, decision.args)
       const policy = hostFacts.commandPolicy
@@ -77,11 +81,19 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       }
       return verdict
     },
-    async after(call, result) {
+    async offload(call: GateCall, result: ToolResultFact): Promise<ToolResultFact | undefined> {
       const name = offloadPlan(call, result, host.settings.offloadThreshold())
       if (name === undefined) return undefined
       const text = await storedMarker(host, { name, content: result.text, key: call.key, tool: call.tool })
       return { ...result, text }
     }
+  }
+}
+
+export function gateHandlers(host: HostPorts): GateHandlers {
+  const policy = createToolPolicy(host)
+  return {
+    before: (call, facts, ports) => policy.approve(call, facts, (key, ask) => ports.memory.remember(key, ask)),
+    after: policy.offload
   }
 }

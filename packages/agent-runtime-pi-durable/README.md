@@ -37,6 +37,9 @@ Harness, including other conversations. Without shared behavior, `interrupt()` u
 abort: queued inputs and owned non-background work are included; queued writes and
 background subtrees are not. These effects are not application-wide cancellation.
 
+Pi Durable installs tool approval and offload through native ToolTask hooks. Approval grants reuse the
+existing task memo key, and output offload preserves non-text segments and structured tool results.
+
 ## Input and output
 
 Every Durable access provides `input.submit(input)`. Before command routing or input submission,

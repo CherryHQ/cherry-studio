@@ -16,11 +16,15 @@ import { subagentTools } from './tools/subagents'
 export type Installation = { readonly entries: Entries }
 
 /** Design §3.3: registers the package's handlers on `harness`; call it at open and again after every restart. */
-export function install(harness: HarnessPorts, host: HostPorts): Installation {
+export function install(
+  harness: Pick<HarnessPorts, 'tools' | 'lifecycle' | 'jobs' | 'requestMeter'> &
+    Partial<Pick<HarnessPorts, 'toolGate' | 'contextFilter'>>,
+  host: HostPorts
+): Installation {
   for (const tool of [...goalTools(host), ...subagentTools(host), ...interactionTools(host), recallTool()])
     harness.tools.register(tool)
-  harness.toolGate.register(gateHandlers(host))
-  harness.contextFilter.register({ omit: (_thread, facts) => unadmittedRoundItems(facts) })
+  if (harness.toolGate) harness.toolGate.register(gateHandlers(host))
+  if (harness.contextFilter) harness.contextFilter.register({ omit: (_thread, facts) => unadmittedRoundItems(facts) })
   harness.requestMeter.register({ allow: (_thread, requestsInRun, lineage) => allowRequest(requestsInRun, lineage) })
   harness.jobs.register('idle-driver', idleDriver(host))
   harness.jobs.register('subagent-report', subagentReport(host))

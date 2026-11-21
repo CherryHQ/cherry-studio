@@ -31,9 +31,7 @@ import {
 import {
   decodeEntry,
   ENTRY_KINDS,
-  install,
   type HostPorts,
-  type Entries,
   type CallRef,
   type SubagentOrigin
 } from '@cherrystudio/agent-behavior'
@@ -161,7 +159,6 @@ export async function createPiDurableRuntime(
     }
   }
   let behavior: PiDurableBehavior | undefined
-  let behaviorEntries: Entries | undefined
   let stopRegistry: (() => void) | undefined
   let harnessOptions = options.harness
   const refFor = (id: number): Thread =>
@@ -171,9 +168,7 @@ export async function createPiDurableRuntime(
     const config = options.behavior
     behavior = createPiDurableBehavior({
       folds,
-      install: (ports) => {
-        behaviorEntries = install(ports, config.host).entries
-      },
+      host: config.host,
       configureChild: async (child, parent, origin) =>
         withBehavior(
           await config.configureChild({
@@ -616,6 +611,7 @@ export async function createPiDurableRuntime(
     }
   }
   function access(entry: Entry): PiDurableThreadHandle {
+    const behaviorEntries = behavior?.entries
     entry.handles++
     let released = false
     const observations = new Set<Observation>()
@@ -791,10 +787,8 @@ export async function createPiDurableRuntime(
         },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
-          if (behavior)
-            await behavior.withCall(entry.ref.id, (ports) =>
-              behaviorEntries!.permissionModeChanged(ports, entry.ref.id)
-            )
+          if (behavior && behaviorEntries)
+            await behavior.withCall(entry.ref.id, (ports) => behaviorEntries.permissionModeChanged(ports, entry.ref.id))
           return { status: 'confirmed', value: undefined }
         }
       },
@@ -868,7 +862,7 @@ export async function createPiDurableRuntime(
                   const receipt = await behavior.withCall(
                     entry.ref.id,
                     (ports) =>
-                      behaviorEntries!.messageSubagent(
+                      behaviorEntries.messageSubagent(
                         ports,
                         entry.ref.id,
                         input.text,
@@ -893,7 +887,7 @@ export async function createPiDurableRuntime(
                 }
                 if (/^\/goal(?:\s|$)/.test(input.text)) {
                   await behavior.withCall(entry.ref.id, (ports) =>
-                    behaviorEntries!.goalCommand(
+                    behaviorEntries.goalCommand(
                       ports,
                       entry.ref.id,
                       input.text.slice('/goal'.length).trim(),
@@ -961,12 +955,12 @@ export async function createPiDurableRuntime(
       interrupt() {
         if (unavailable()) return Promise.resolve(rejected('interrupt', 'closed'))
         return track(
-          (behavior
+          (behavior && behaviorEntries
             ? behavior.withCall(entry.ref.id, async (ports) => {
                 const facts = await ports.ledger.read(entry.ref.id)
                 if (facts.lineage.kind === 'subagent')
-                  await behaviorEntries!.stopSubagent(ports, entry.ref.id, randomUUID())
-                else await behaviorEntries!.userStop(ports, entry.ref.id, randomUUID())
+                  await behaviorEntries.stopSubagent(ports, entry.ref.id, randomUUID())
+                else await behaviorEntries.userStop(ports, entry.ref.id, randomUUID())
               })
             : entry.conversation.abort(context)
           ).then(

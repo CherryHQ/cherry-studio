@@ -23,7 +23,7 @@ import {
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { onTestFinished } from 'vitest'
 
-import type { ContractHarness, HarnessPorts, ScriptedReply } from '@cherrystudio/agent-behavior'
+import type { ContractHarness, HarnessPorts, HostPorts, ScriptedReply } from '@cherrystudio/agent-behavior'
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior, type PiDurableBehaviorOptions } from '../src/behavior/harness'
@@ -31,7 +31,7 @@ import { conversationId, DurableFolds, pages, threadId } from '../src/behavior/h
 import { meteredModels } from '../src/behavior/models'
 
 export async function openDurableHarness(
-  install: (ports: HarnessPorts) => void,
+  setup: ((ports: HarnessPorts) => void) | HostPorts,
   extensions: readonly Extension[] = [],
   options: {
     settings?: HarnessOptions['settings']
@@ -109,7 +109,7 @@ export async function openDurableHarness(
     for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
       folds: options.folds?.() ?? new DurableFolds(),
-      install,
+      ...(typeof setup === 'function' ? { install: setup } : { host: setup }),
       configureChild: options.configureChild ?? ((child) => ({ model: modelOf(child) })),
       onError: (error) => errors.push(error)
     })

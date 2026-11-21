@@ -30,8 +30,12 @@ import {
   goalForRequest,
   TOOL_INTENT_GUIDE,
   createToolIntent,
+  createToolPolicy,
+  install,
   offersToolIntent,
   type BoundPorts,
+  type GateHandlers,
+  type HostPorts,
   type HarnessPorts,
   type JobHandler,
   type JobKind,
@@ -47,11 +51,10 @@ import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent
 
 import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, type DurableFolds } from './history'
 
-export interface PiDurableBehaviorOptions {
+interface BehaviorOptions {
   /** Shared with the runtime that owns the storage. */
   readonly folds: DurableFolds
   readonly onError?: (error: unknown) => void
-  readonly install: (ports: HarnessPorts) => void
   readonly owns?: (thread: ThreadId) => boolean
   readonly configureRoot?: (thread: ThreadId) => AgentChange | Promise<AgentChange>
   readonly configureChild: (
@@ -60,6 +63,9 @@ export interface PiDurableBehaviorOptions {
     origin: SubagentOrigin
   ) => AgentChange | Promise<AgentChange>
 }
+
+export type PiDurableBehaviorOptions = BehaviorOptions &
+  ({ readonly host: HostPorts } | { readonly install: (ports: HarnessPorts) => void })
 
 /** Native ports are installed before opening the Harness; recovery runs before enabling its scheduler. */
 export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
@@ -75,7 +81,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   let recovering = true
   let lifecycle: LifecycleHandlers | undefined
   let meter: Parameters<HarnessPorts['requestMeter']['register']>[0] | undefined
-  let gate: Parameters<HarnessPorts['toolGate']['register']>[0] | undefined
+  let customGate: GateHandlers | undefined
   const tools: ToolDefinition[] = []
   const jobs = new Map<JobKind, JobHandler>()
   const context = BACKGROUND_CONTEXT
@@ -129,14 +135,14 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     if (!found) throw new Error('Unknown Durable provider session')
     return found
   }
+  const remember =
+    (api: HookApi, callContext: Context) =>
+    async <T extends JsonValue>(name: string, produce: () => Promise<T>): Promise<T> =>
+      ((await api.memo(name, callContext)) ?? (await api.memo(name, nativeValue(await produce()), callContext))) as T
+
   const gatePorts = (api: HookApi, callContext: Context) => ({
     clock: { now: () => Date.now() },
-    memory: {
-      async remember<T extends JsonValue>(name: string, produce: () => Promise<T>): Promise<T> {
-        return ((await api.memo(name, callContext)) ??
-          (await api.memo(name, nativeValue(await produce()), callContext))) as T
-      }
-    }
+    memory: { remember: remember(api, callContext) }
   })
   const native = async (thread: ThreadId) => {
     const conversation = await harness.conversation(conversationId(thread), context)
@@ -666,15 +672,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       clock: { now: () => Date.now() }
     }
   }
-  options.install({
-    ...bound({
-      ended: false,
-      context,
-      commit: (run) => harness.commit(run, context),
-      memo: async () => {
-        throw new Error('Memory requires a call')
-      }
-    }),
+  const registrations = {
     tools: { register: (tool) => tools.push(tool) },
     jobs: {
       register: (kind, handler) => {
@@ -686,18 +684,32 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         lifecycle = handlers
       }
     },
-    toolGate: {
-      register: (handlers) => {
-        gate = handlers
-      }
-    },
-    contextFilter: { register() {} },
     requestMeter: {
       register(handler) {
         meter = handler
       }
     }
-  })
+  } satisfies Pick<HarnessPorts, 'tools' | 'jobs' | 'lifecycle' | 'requestMeter'>
+  const policy = 'host' in options ? createToolPolicy(options.host) : undefined
+  const entries = 'host' in options ? install(registrations, options.host).entries : undefined
+  if ('install' in options)
+    options.install({
+      ...bound({
+        ended: false,
+        context,
+        commit: (run) => harness.commit(run, context),
+        memo: async () => {
+          throw new Error('Memory requires a call')
+        }
+      }),
+      ...registrations,
+      toolGate: {
+        register: (handlers) => {
+          customGate = handlers
+        }
+      },
+      contextFilter: { register() {} }
+    })
   const intent = createToolIntent()
   const extension: Extension = defineExtension({
     name: 'cherry.behavior',
@@ -754,7 +766,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     hooks: [
       hook(ToolTask, {
         async beforeTool(call, api, callContext) {
-          if (!gate) return
+          if (!policy && !customGate) return
           const view = await harness.commit(async (tx) => {
             const fold = await folds.advance(tx, api.conversationId)
             const turn = fold.history[fold.turn]
@@ -767,25 +779,32 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                 : []
             }
           }, context)
-          const result = await gate.before(
-            {
-              key: callKeyOf(String(api.taskId)),
-              thread: threadId(api.conversationId),
-              tool: call.name,
-              args: call.arguments,
-              nested: !!call.parent,
-              signal: callContext.abortSignal ?? new AbortController().signal
-            },
-            view,
-            gatePorts(api, callContext)
-          )
+          const gated = {
+            key: callKeyOf(String(api.taskId)),
+            thread: threadId(api.conversationId),
+            tool: call.name,
+            args: call.arguments,
+            nested: !!call.parent,
+            signal: callContext.abortSignal ?? new AbortController().signal
+          }
+          const result = policy
+            ? await policy.approve(gated, view, remember(api, callContext))
+            : await customGate?.before(gated, view, gatePorts(api, callContext))
+          if (!result) return
           return {
             block: result.block,
             arguments: result.args === undefined ? undefined : (nativeValue(result.args) as Record<string, NativeJson>)
           }
         },
         async afterTool(call, result, api, callContext) {
-          if (!gate) return
+          if (!policy && !customGate) return
+          const gated = {
+            key: callKeyOf(String(api.taskId)),
+            thread: threadId(api.conversationId),
+            tool: call.name,
+            args: call.arguments,
+            nested: !!call.parent
+          }
           const output: NonNullable<typeof result.output> = []
           let isError = result.isError
           let details = result.details
@@ -805,17 +824,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               text += next.text
               index += 1
             }
-            const replaced = await gate.after(
-              {
-                key: callKeyOf(String(api.taskId)),
-                thread: threadId(api.conversationId),
-                tool: call.name,
-                args: call.arguments,
-                nested: !!call.parent
-              },
-              { text, isError: isError ?? false, details },
-              gatePorts(api, callContext)
-            )
+            const span = { text, isError: isError ?? false, details }
+            const replaced = policy
+              ? await policy.offload(gated, span)
+              : await customGate?.after(gated, span, gatePorts(api, callContext))
             output.push(...(replaced ? [{ type: 'text' as const, text: replaced.text }] : blocks.slice(start, index)))
             if (replaced) {
               isError = replaced.isError
@@ -871,6 +883,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   })
   return {
     extension,
+    entries,
     withCall,
     consumeRequest,
     providerThread,

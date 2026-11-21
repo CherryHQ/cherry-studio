@@ -117,6 +117,7 @@ export type {
   HostPorts
 } from './ports/host'
 export { install } from './orchestration/install'
+export { createToolPolicy } from './orchestration/gate'
 export {
   TOOL_INTENT_ARG,
   TOOL_INTENT_GUIDE,
