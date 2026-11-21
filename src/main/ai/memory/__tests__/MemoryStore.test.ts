@@ -1068,31 +1068,55 @@ describe('limits, access, and recovery', () => {
     expect((await store.previewRecovery(caller))?.batchId).toBe(saved.batchId)
   })
 
-  it('reclaims completed manifests of a superseded partial recovery after restart', async () => {
-    const rewrite = async (names: string[]) => {
-      const reads = await Promise.all(names.map((name) => store.read(caller, name)))
-      return store.commit(
-        caller,
-        reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Changed' })),
-        'controlled',
-        approve
+  it('protects the last confirmed write while newer pending targets are unreadable', async () => {
+    const saved = await save('MEMORY.md', 'Keep this undo')
+    for (let i = 0; i < 4; i++)
+      await createMemoryBackup(
+        backups,
+        [{ path: `.memories/unverified-${i}.md`, before: null, after: Buffer.from('Pending') }],
+        'controlled'
       )
-    }
-    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
-    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => '.memories/' + name + '.md')
-    for (const name of [a, b, c, d]) await writeFile(path.join(root, name), 'Original')
-    await rewrite([a, b])
-    await recover()
-    await writeFile(path.join(root, b), 'Independent edit')
-    await recover()
-    await rewrite([c, d])
-    await writeFile(path.join(root, d), 'Conflict')
-    await recover()
-    store = new MemoryStore(root, backups)
-    await store.initialize()
-    expect((await save('MEMORY.md', 'Still writable')).error).toBeUndefined()
-    expect((await store.clear(caller, (await store.previewClear(caller)).token, approve)).error).toBeUndefined()
+    const read = memoryFiles.readMemoryBytes
+    vi.spyOn(memoryFiles, 'readMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === root && args[1].startsWith('.memories/unverified-')) throw new Error('Temporarily unreadable')
+      return read(...args)
+    })
+    await expect(save('MEMORY.md', 'Another change')).rejects.toMatchObject({ code: 'backup-capacity' })
+    expect((await memoryBackups.latestMemoryBackup(backups, saved.batchId!))?.id).toBe(saved.batchId)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Keep this undo')
   })
+
+  it.each(['save', 'clear'] as const)(
+    'reclaims completed manifests of a superseded partial recovery before %s',
+    async (operation) => {
+      const rewrite = async (names: string[]) => {
+        const reads = await Promise.all(names.map((name) => store.read(caller, name)))
+        return store.commit(
+          caller,
+          reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Changed' })),
+          'controlled',
+          approve
+        )
+      }
+      const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+      const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => '.memories/' + name + '.md')
+      for (const name of [a, b, c, d]) await writeFile(path.join(root, name), 'Original')
+      await rewrite([a, b])
+      await recover()
+      await writeFile(path.join(root, b), 'Independent edit')
+      await recover()
+      await rewrite([c, d])
+      await writeFile(path.join(root, d), 'Conflict')
+      await recover()
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const result =
+        operation === 'save'
+          ? await save('MEMORY.md', 'Still writable')
+          : await store.clear(caller, (await store.previewClear(caller)).token, approve)
+      expect(result.error).toBeUndefined()
+    }
+  )
 
   it('protects the latest recovery batch when a second large backup would exceed capacity', async () => {
     const original = Buffer.alloc(9 * 1024 * 1024, 65)
