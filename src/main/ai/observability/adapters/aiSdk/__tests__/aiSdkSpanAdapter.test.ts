@@ -90,3 +90,18 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)'
     expect(usage({ 'ai.toolCall.name': 'x' })).toBeUndefined()
   })
 })
+
+it('keeps one parsed provider input and omits oversized diagnostic JSON', () => {
+  const convert = (messages: string) =>
+    AiSdkSpanAdapter.convertToSpanEntity({
+      span: fakeSpan({
+        _attributes: { 'ai.operationId': 'ai.streamText.doStream', 'ai.prompt.messages': messages }
+      })
+    })
+  const small = convert('[{"role":"user","content":"hello"}]')
+  expect(small.attributes?.inputs).toMatchObject({ messages: [{ role: 'user', content: 'hello' }] })
+  expect(small.attributes).not.toHaveProperty('ai.prompt.messages')
+  const large = convert(JSON.stringify([{ role: 'user', content: 'x'.repeat(2_000_000) }]))
+  expect(JSON.stringify(large).length).toBeLessThan(2_000)
+  expect(large.attributes?.inputs).toMatchObject({ messages: expect.stringContaining('omitted') })
+})

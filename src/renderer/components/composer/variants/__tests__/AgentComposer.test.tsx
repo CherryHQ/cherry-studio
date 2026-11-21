@@ -288,7 +288,10 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useIsActiveTab: () => true
+}))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
@@ -3464,6 +3467,77 @@ describe('AgentComposer', () => {
     expect(inputAdapter.focus).toHaveBeenCalled()
   })
 
+  it('keeps same-named local and remote skills independently selectable and surfaces a failed origin', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) => {
+      if (route !== 'mcp.server.list_skills') return {}
+      if (serverId === 'offline') throw new Error('Origin unavailable')
+      return (
+        serverId === 'one' ? ['skill://pdf/SKILL.md', 'skill://team/pdf/SKILL.md'] : ['skill://pdf/SKILL.md']
+      ).map((uri) => ({
+        serverId,
+        serverName: serverId,
+        uri,
+        frontmatter: { name: 'pdf', description: 'Read PDFs' },
+        resources: 'dynamic'
+      }))
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['one', 'two', 'offline'] }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(5))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => item.id)).size).toBe(5)
+    expect(items.filter((item) => item.label === 'pdf · one')).toHaveLength(2)
+    expect(items.find((item) => item.label === 'pdf · two')?.description).toContain('skill://pdf/SKILL.md')
+    expect(items.find((item) => item.id === 'skill:pdf')?.label).toBe('pdf')
+    expect(items.find((item) => item.disabled)?.description).toContain('Origin unavailable')
+  })
+
+  it('distinguishes and searches identical Skills from same-named servers', async () => {
+    const ids = ['shared-server-one', 'shared-server-two']
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) =>
+      route === 'mcp.server.list_skills'
+        ? [
+            {
+              serverId,
+              serverName: 'Shared',
+              uri: 'skill://pdf/SKILL.md',
+              frontmatter: { name: 'pdf', description: 'Read PDFs' },
+              resources: 'dynamic'
+            }
+          ]
+        : {}
+    )
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ids }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(2))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => `${item.label} ${item.description}`)).size).toBe(2)
+    for (const serverId of ids) {
+      const item = items.find((item) => item.id === `mcp-skill:${JSON.stringify([serverId, 'skill://pdf/SKILL.md'])}`)!
+      expect(item.description).toContain(serverId)
+      expect(item.filterText).toContain(serverId)
+    }
+  })
+
   it('refreshes an already-open skills submenu when the skill list changes', () => {
     const updateList = vi.fn()
     mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList }
@@ -4934,6 +5008,31 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
+  // A dock item lives in window memory; Durable must receive the follow-up so it survives a crash.
+  it.each([
+    { steer: false, followUp: true },
+    { steer: true, followUp: undefined }
+  ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer })
+    })
+
+    expect(getQueueDock()).toBeFalsy()
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBe(followUp)
+  })
+
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
@@ -5297,6 +5396,43 @@ describe('AgentComposer', () => {
 
     expect(mocks.insertToken).toHaveBeenCalledWith(token)
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+  })
+
+  // Durable withdrew this message at Stop: resending must deliver it as it was, editing must not erase a draft.
+  it('resends or restores a message that Stop withdrew before sending', async () => {
+    const parts = [{ type: 'text' as const, text: 'Queued question' }]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const restore = (send: boolean) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+          topicId: 'agent-session:session-1',
+          messageId: 'unsent-1',
+          parts,
+          send
+        })
+      })
+
+    await restore(true)
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toEqual(parts)
+
+    mocks.getDraft.mockReturnValue({ text: 'Draft in progress', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.unsent_message.input_not_empty')
+
+    mocks.getDraft.mockReturnValue({ text: '', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Queued question', tokens: [] })
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 
   it('attaches a file or folder from the file pane once, and only in its own session', async () => {

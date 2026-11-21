@@ -19,6 +19,16 @@ export const cherryCloudModelFeatureSchema = z.enum(['agent', 'chat', 'translate
 
 export type CherryCloudModelFeature = z.infer<typeof cherryCloudModelFeatureSchema>
 
+const cherryCloudPlanModelSchema = z.looseObject({
+  id: z.string(),
+  display_name: z.string().min(1),
+  capabilities: z.array(z.string()).optional(),
+  available_features: z.array(cherryCloudModelFeatureSchema)
+})
+
+/** An AMD model the account must authorize; `activation_endpoint` is the same-origin path that issues its entry link. */
+const cherryCloudAmdModelSchema = cherryCloudPlanModelSchema.extend({ activation_endpoint: z.string().optional() })
+
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
   freeModelIds: z.array(UniqueModelIdSchema),
@@ -30,7 +40,13 @@ const cherryCloudModelSyncResultSchema = z.strictObject({
     agent: z.array(UniqueModelIdSchema),
     general: z.array(UniqueModelIdSchema)
   }),
-  quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
+  quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
+  /** AMD models the account can use only after authorizing AMD; they stay out of the model table until then. */
+  amdActivationRequiredModels: z.array(cherryCloudAmdModelSchema),
+  /** Standalone models that need only a Cherry AI sign-in; empty once signed in. */
+  signInRequiredModels: z.array(cherryCloudPlanModelSchema),
+  /** Every model the server lists, usable or not; null when the catalog could not be read. */
+  catalogModelIds: z.array(UniqueModelIdSchema).nullable()
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
@@ -40,13 +56,6 @@ const cherryCloudSubscriptionPriceSchema = z.looseObject({
   currency: z.string(),
   interval: z.string(),
   unit_amount: z.number().int().nonnegative()
-})
-
-const cherryCloudPlanModelSchema = z.looseObject({
-  id: z.string(),
-  display_name: z.string().min(1),
-  capabilities: z.array(z.string()).optional(),
-  available_features: z.array(cherryCloudModelFeatureSchema)
 })
 
 const cherryCloudPlanSummarySchema = z.looseObject({
@@ -76,6 +85,18 @@ export const cherryCloudPublicPlanCatalogSchema = z.looseObject({
     })
   )
 })
+
+/** `GET /api/v1/amd/desktop/status`: what the signed-in account must do next to use AMD models. */
+export const cherryCloudAmdStatusSchema = z.looseObject({
+  status: z.string(),
+  /** `register`, `login` (link or re-verify), `continue`, `wait`, `contact_support` or `none`. */
+  action: z.string(),
+  activated: z.boolean(),
+  registration_enabled: z.boolean().optional(),
+  reference: z.string().optional()
+})
+
+export type CherryCloudAmdStatus = z.infer<typeof cherryCloudAmdStatusSchema>
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
   /** `subscription_month` follows the billing period and resets at `period_end`. */
@@ -181,7 +202,12 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   }),
   z.strictObject({ event: z.literal('subscription_usage_view'), subscribed: z.boolean() }),
   z.strictObject({ event: z.literal('subscription_manage_click') }),
-  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() })
+  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() }),
+  z.strictObject({
+    event: z.literal('amd_entry_clicked'),
+    flowId: subscriptionFlowIdSchema,
+    modelId: z.string().max(200)
+  })
 ])
 
 export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
@@ -209,7 +235,13 @@ function endpointFactSchema<TSchema extends z.ZodType>(value: TSchema) {
 
 export type CherryCloudEndpointFact<T> = z.infer<ReturnType<typeof endpointFactSchema<z.ZodType<T>>>>
 
-export const cherryCloudRefreshReasonSchema = z.enum(['initial', 'focus_refresh', 'notification', 'models'])
+export const cherryCloudRefreshReasonSchema = z.enum([
+  'initial',
+  'focus_refresh',
+  'notification',
+  'models',
+  'quota_refusal'
+])
 export type CherryCloudRefreshReason = z.infer<typeof cherryCloudRefreshReasonSchema>
 
 export const cherryCloudAccountReceiptSchema = z.strictObject({
@@ -244,6 +276,10 @@ export const cherryCloudRequestSchemas = {
     }),
     output: z.void()
   }),
+  'cherry_cloud.amd_entry.open': defineRoute({
+    input: z.strictObject({ modelId: z.string().min(1).max(200) }),
+    output: z.void()
+  }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
@@ -264,6 +300,7 @@ export const cherryCloudRequestSchemas = {
     output: z.strictObject({ outcome: z.enum(['opened', 'superseded']) })
   }),
   'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema }),
+  'cherry_cloud.amd_status.get': defineRoute({ input: z.void(), output: cherryCloudAmdStatusSchema.nullable() }),
   'cherry_cloud.analytics.track': defineRoute({
     input: z.strictObject({ payload: cherryCloudAnalyticsEventSchema, scopeId: z.string().nullable().optional() }),
     output: z.void()

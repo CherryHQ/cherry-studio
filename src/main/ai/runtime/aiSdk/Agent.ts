@@ -131,17 +131,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         : undefined
       const singleStep = {
         ...settings,
+        output: opts.output,
         model: params.modelId,
         system: params.system,
         tools,
-        maxRetries: 0,
+        maxRetries: params.wrapModel ? 0 : (opts.maxRetries ?? 0),
         stopWhen: stepCountIs(1)
       }
       return {
         stream: (input: { messages: ModelMessage[]; abortSignal?: AbortSignal }) =>
-          executor.streamText({ ...singleStep, ...input }),
+          executor.streamText({ ...singleStep, ...input }, params.wrapModel),
         generate: (input: ({ prompt: string } | { messages: ModelMessage[] }) & { abortSignal?: AbortSignal }) =>
-          executor.generateText({ ...singleStep, ...input })
+          executor.generateText({ ...singleStep, ...input }, params.wrapModel)
       }
     }
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
@@ -391,6 +392,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
         sendSources: true,
+        messageMetadata: ({ part }) =>
+          params.contextOwner === 'caller' && part.type === 'finish-step'
+            ? { providerMetadata: part.providerMetadata, rawFinishReason: part.rawFinishReason }
+            : undefined,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)

@@ -1,7 +1,3 @@
-import crypto from 'crypto'
-import fs from 'fs/promises'
-import path from 'path'
-
 /**
  * Generate React components from SVG files using @svgr/core
  *
@@ -14,6 +10,10 @@ import path from 'path'
  *   --type=providers  generate provider icons, avatars, barrels, catalogs, and loaders
  *   --type=models     generate model icons, avatars, barrels, and loaders
  */
+import crypto from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+
 import { transform } from '@svgr/core'
 
 import { generateMeta } from './codegen'

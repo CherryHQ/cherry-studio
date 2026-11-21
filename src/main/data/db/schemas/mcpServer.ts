@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import type { McpConfigSample } from '@shared/data/types/mcpServer'
+import type { McpConfigSample, McpSkillPermission } from '@shared/data/types/mcpServer'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -38,6 +38,7 @@ export const mcpServerTable = sqliteTable(
     configSample: text({ mode: 'json' }).$type<McpConfigSample>(),
     disabledTools: text({ mode: 'json' }).$type<string[]>(),
     disabledAutoApproveTools: text({ mode: 'json' }).$type<string[]>(),
+    skillPermissions: text({ mode: 'json' }).$type<Record<string, McpSkillPermission>>(),
     shouldConfig: integer({ mode: 'boolean' }),
     sortOrder: integer().default(0),
     isActive: integer({ mode: 'boolean' }).notNull().default(false),

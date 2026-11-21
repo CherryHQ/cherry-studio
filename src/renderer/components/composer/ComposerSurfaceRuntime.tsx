@@ -186,14 +186,14 @@ function EditingReasoningSection({ reasoning }: { reasoning: ComposerSurfaceEdit
           aria-controls={contentId}
           title={reasoning.actionLabel}
           onClick={() => setExpanded((value) => !value)}
-          className="flex min-w-0 items-center gap-1.5 rounded-md text-left text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:bg-accent/50 focus-visible:outline-none">
+          className="text-muted-foreground flex min-w-0 items-center gap-1.5 rounded-md text-left text-xs transition-colors hover:text-foreground focus-visible:bg-accent/50 focus-visible:outline-none">
           <ChevronRight
             aria-hidden="true"
             className={cn('size-3.5 shrink-0 transition-transform', expanded && 'rotate-90')}
           />
           <span className="font-medium">{reasoning.label}</span>
         </button>
-        <span className="truncate text-[11px] text-muted-foreground">{reasoning.title}</span>
+        <span className="text-muted-foreground truncate text-[11px]">{reasoning.title}</span>
       </div>
       {expanded ? (
         <div id={contentId} className="mt-2">
@@ -207,9 +207,9 @@ function EditingReasoningSection({ reasoning }: { reasoning: ComposerSurfaceEdit
             aria-label={reasoning.label}
             disabled={reasoning.disabled}
             rows={6}
-            className="w-full resize-y rounded-lg border border-border bg-background p-2 font-[var(--font-family)] text-foreground text-xs leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="placeholder:text-muted-foreground w-full resize-y rounded-lg border border-border bg-background p-2 text-xs leading-5 font-[var(--font-family)] text-foreground outline-none focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
           />
-          <p className="mt-1 text-[11px] text-muted-foreground leading-4">{reasoning.hint}</p>
+          <p className="text-muted-foreground mt-1 text-[11px] leading-4">{reasoning.hint}</p>
         </div>
       ) : null}
     </div>
@@ -250,6 +250,7 @@ export interface ComposerSurfaceProps {
   enableDragDrop: boolean
   enableSpellCheck: boolean
   editable?: boolean
+  focusOnTabActivation?: boolean
   fontSize: number
   narrowMode: boolean
   /** Opts this composer into the China-edition AI-generated content disclaimer. */
@@ -263,6 +264,8 @@ export interface ComposerSurfaceProps {
   voiceTarget?: { targetId: string; sourceEntityId: string }
   /** @internal Keeps the outer deferred surface's voice binding stable while the editor swaps. */
   onInputAdapterChange?: (inputAdapter: QuickPanelInputAdapter | undefined) => void
+  /** Reports the mounted, editable input's focus action, or undefined while unavailable. */
+  onFocusTargetChange?: (focus: (() => boolean) | undefined) => void
   /** @internal Marks the outer deferred surface's voice target from rich-editor interactions. */
   onVoiceTargetInteraction?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
@@ -605,6 +608,7 @@ export default function ComposerSurfaceRuntime({
   sidePaddingPx = COMPOSER_SIDE_PADDING_PX,
   onFocus,
   onInputAdapterChange,
+  onFocusTargetChange,
   onVoiceTargetInteraction,
   voiceTarget,
   onActionsChange,
@@ -1667,7 +1671,14 @@ export default function ComposerSurfaceRuntime({
             event.stopPropagation()
             return true
           }
-          if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (
+            (event.key === 'Tab' ||
+              event.key === (getComputedStyle(view.dom).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
             event.preventDefault()
             event.stopPropagation()
             if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })
@@ -2085,6 +2096,17 @@ export default function ComposerSurfaceRuntime({
     return () => onInputAdapterChange?.(undefined)
   }, [inputAdapter, onInputAdapterChange])
 
+  useLayoutEffect(() => {
+    if (!onFocusTargetChange || !editor || editor.isDestroyed) return
+    onFocusTargetChange(() => {
+      if (editor.isDestroyed || !editor.view.dom.isConnected) return false
+      editor.commands.setTextSelection(editor.state.doc.content.size)
+      editor.view.focus()
+      return editor.view.hasFocus()
+    })
+    return () => onFocusTargetChange(undefined)
+  }, [editor, onFocusTargetChange])
+
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
@@ -2438,7 +2460,7 @@ export default function ComposerSurfaceRuntime({
       onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative transition-all duration-200 ease-in-out',
-        !embedded && 'rounded-[20px] border-[0.5px] border-border bg-composer-surface shadow-sm',
+        !embedded && 'bg-composer-surface rounded-[20px] border-[0.5px] border-border shadow-sm',
         isCompact || editingState || embedded ? 'pt-0' : 'pt-2',
         !embedded && (belowControls ? 'mb-0.5' : 'mb-3'),
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
@@ -2460,8 +2482,8 @@ export default function ComposerSurfaceRuntime({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-border-strong focus-visible:outline-none">
-            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-border-strong group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+            className="group/composer-resize-handle focus-visible:bg-border-strong absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none">
+            <div className="group-data-[resizing=true]/composer-resize-handle:bg-border-strong absolute top-0 right-0 left-0 h-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
             <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">

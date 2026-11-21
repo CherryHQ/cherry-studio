@@ -35,6 +35,38 @@ generic analytics retains consent and transport.
 The [ownership Spec](../../../../.agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md)
 records the preservation boundary, deliberate fixes and offline verification limits.
 
+## AMD entry
+
+`openAmdEntry` signs in when required, then sends `POST` to the model's
+`activation_endpoint` from the signed catalog (today `/api/v1/amd/desktop/entry`)
+through `authenticatedFetch`, which refuses any other origin. If the refreshed
+catalog shows the model authorized already, it opens nothing. The request has an
+empty body and uses the v2 device signature, so every attempt gets a new request
+ID. The response's `entry_url` is a 60-second, single-use credential that the
+browser redeems. Main opens it unchanged, fragment included, only if it is on the
+Cloud API origin. Never log, report or persist it. Concurrent clicks share one
+in-flight entry.
+
+Model sync requests `/v1/models?limit=1000&catalog=full`; without `catalog=full`
+the server keeps the legacy entitled-only list for clients released before it.
+AMD models arrive through `/v1/models` with `provider: "amd"` and need no plan.
+Model sync treats an authorized one (`activation_required` not true) as an
+entitled free model without a quota pool. A locked one never reaches the model
+table: it goes into the receipt's `amdActivationRequiredModels`, and the selector
+shows it as an "AMD 授权" row, named by `getAmdStatus` once signed in. A
+`403 AMD_ACTIVATION_REQUIRED` or `AMD_CREDENTIAL_INVALID` response clears the
+model sync cache and keeps the session, so the next sync locks the model again.
+
+Signed out, model sync reads `/v1/models` with only the pre-login client HMAC,
+the same scheme as the login requests; a refusal yields no catalog. Standalone
+models with `requires_login: false` are usable then, and `modelFetch` sends their
+requests with the HMAC over the exact body instead of a session. Signed in, every
+standalone model is usable without a plan.
+
+Each sync also reports `catalogModelIds`, every model the server lists. A stored
+Cloud model missing from it has been delisted; the field is null when the
+catalog could not be read, so a failed read never delists anything.
+
 ## Login request signing
 
 The desktop client signs authorization creation and exchange requests using the
