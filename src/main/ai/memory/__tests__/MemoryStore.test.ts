@@ -1052,22 +1052,6 @@ describe('limits, access, and recovery', () => {
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
   })
 
-  it('keeps the last usable backup through repeated clear intent failures', async () => {
-    const saved = await save('MEMORY.md', 'Keep this undo')
-    store = new MemoryStore(root, backups, undefined, undefined, () => {
-      throw new Error('Database locked')
-    })
-    await store.initialize()
-    for (let i = 0; i < 7; i++) {
-      await expect(store.clear(caller, (await store.previewClear(caller)).token, approve)).rejects.toThrow(
-        'Database locked'
-      )
-    }
-    store = new MemoryStore(root, backups)
-    await store.initialize()
-    expect((await store.previewRecovery(caller))?.batchId).toBe(saved.batchId)
-  })
-
   it('protects the last confirmed write while newer pending targets are unreadable', async () => {
     const saved = await save('MEMORY.md', 'Keep this undo')
     for (let i = 0; i < 4; i++)

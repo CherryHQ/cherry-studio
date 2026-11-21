@@ -128,6 +128,11 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
+vi.mock('@main/ai/memory/memoryRuntime', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/memory/memoryRuntime')>()),
+  openRuntimeMemoryGuard: () => ({ check: async () => {}, dispose: () => {} })
+}))
+
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(function () {
     return {
