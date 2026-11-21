@@ -11,7 +11,7 @@ vi.mock('../panelPrimitives', () => ({
   RagFieldLabel: ({ label }: { label: string }) => <span>{label}</span>
 }))
 
-vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
+vi.mock('@renderer/components/knowledge/KnowledgeEmbeddingModelSelect', () => ({
   KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,

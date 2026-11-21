@@ -9,7 +9,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
+import { normalizeKnowledgeError } from '@renderer/utils/knowledgeError'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'

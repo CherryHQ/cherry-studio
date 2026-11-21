@@ -3,14 +3,13 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
-} from './KnowledgeDialogLayout'
+} from '@renderer/components/knowledge/KnowledgeDialogLayout'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 export interface KnowledgeEntityNameDialogProps {
   open: boolean
