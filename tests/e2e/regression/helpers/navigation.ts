@@ -25,18 +25,31 @@ export async function selectConversationListOption(
 }
 
 export async function dismissTransientDialogs(page: Page): Promise<void> {
-  // Escape also closes popovers; repeated presses let nested dialogs finish their exit animations.
+  // Escape closes popovers and most dialogs, but a dialog without an Escape handler stays
+  // on screen and then poisons every later case in the same copy (one leftover modal made
+  // 40 unrelated cases fail). So: press Escape, then fall back to the dialog's own dismissal
+  // control, and fail with the dialog's text so the culprit is named instead of anonymous.
   await page.keyboard.press('Escape')
-  await expect
-    .poll(
-      async () => {
-        const count = await page.getByRole('dialog').count()
-        if (count > 0) await page.keyboard.press('Escape')
-        return count
-      },
-      { timeout: 10_000 }
-    )
-    .toBe(0)
+  const dialogs = page.getByRole('dialog')
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if ((await dialogs.count()) === 0) return
+    const dialog = dialogs.first()
+    const close = dialog.getByRole('button', { name: /^(close|dismiss|cancel|got it)$/i }).first()
+    if (await close.isVisible().catch(() => false)) {
+      await close.click({ timeout: 2_000 }).catch(() => undefined)
+    } else {
+      await page.keyboard.press('Escape')
+    }
+    await page.waitForTimeout(250)
+  }
+  const remaining = await dialogs.count()
+  if (remaining > 0) {
+    const text = await dialogs
+      .first()
+      .innerText()
+      .catch(() => '<unreadable>')
+    throw new Error(`A dialog stayed open after Escape and its own dismissal control: ${text.slice(0, 400)}`)
+  }
 }
 
 export async function dismissOnboarding(page: Page): Promise<void> {
