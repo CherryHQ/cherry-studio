@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-web-search-blacklist-subscriptions.md
+2026-11-12-web-search-blacklist-subscriptions.md: c38e4fa461b5cd1e5c2b5b33d6d6ec34f461b2f2
+2026-11-12-web-search-blacklist-subscriptions.zh.md: c8bc33977b5530c5bb39d4162b74e94e8f6d4f5c
