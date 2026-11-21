@@ -2317,8 +2317,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      const settings = settingsFor(config, 'newapi')
-      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+      expect(config.providerSettings).toHaveProperty('baseURL', 'https://api.newapi.com/v1')
     })
 
     // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.
