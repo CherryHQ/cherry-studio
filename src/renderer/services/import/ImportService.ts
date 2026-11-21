@@ -2,22 +2,75 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
+import { toFileUrl } from '@shared/utils/file'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
-import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
+import { CherryTopicImporter } from './importers/CherryTopicImporter'
+import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
+
+// FILE_IPC_MAX_BATCH_CREATE_ITEMS from the file IPC schema.
+const RESTORE_MEDIA_BATCH_SIZE = 100
+
+// Built from code points instead of regex literals so the patterns carry no
+// literal control character (oxlint no-control-regex); matching is unchanged.
+const NUL_CHAR = String.fromCharCode(0)
+const UNSAFE_ENTRY_NAME_CHARS = new RegExp(`[${NUL_CHAR}/\\\\]`, 'g')
+const SAFE_ENTRY_EXT_PATTERN = new RegExp(`^[^./\\\\\\s${NUL_CHAR}]{1,255}$`)
+
+/** Decode a self-contained `data:` url into bytes and its declared mime. */
+function decodeDataUrl(url: string): { bytes: Uint8Array; mime: string } | null {
+  const comma = url.indexOf(',')
+  if (!url.startsWith('data:') || comma < 0) return null
+  const header = url.slice(5, comma)
+  const payload = url.slice(comma + 1)
+  const mime = header.split(';')[0] || 'application/octet-stream'
+  try {
+    if (header.endsWith(';base64')) {
+      const binary = atob(payload)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      return { bytes, mime }
+    }
+    return { bytes: new TextEncoder().encode(decodeURIComponent(payload)), mime }
+  } catch {
+    return null
+  }
+}
+
+/** Coerce an arbitrary attachment name into the entry SafeName contract. */
+export function safeEntryName(filename: string | undefined, fallback: string): string {
+  const cleaned = (filename?.trim() || fallback).replace(UNSAFE_ENTRY_NAME_CHARS, '_').slice(0, 255)
+  return cleaned === '' || cleaned === '.' || cleaned === '..' ? fallback : cleaned
+}
+
+/** A filename's extension when it satisfies the bare SafeExt contract. */
+export function safeEntryExt(filename: string): string | null {
+  const dot = filename.lastIndexOf('.')
+  if (dot < 0) return null
+  const ext = filename.slice(dot + 1)
+  return SAFE_ENTRY_EXT_PATTERN.test(ext) ? ext : null
+}
+
+/** A video mime subtype as a bare extension, when it is SafeExt-compatible. */
+export function videoExtFromMime(mime: string): string | null {
+  if (!mime.startsWith('video/')) return null
+  const ext = mime.slice('video/'.length)
+  return SAFE_ENTRY_EXT_PATTERN.test(ext) ? ext : null
+}
 
 type ImportProgressCallback = (percent: number) => void
 
 // Every conversation importer the service registers on construction. Add new
 // importers here as they are implemented.
-const availableImporters = [new ChatgptImporter(), new AnthropicImporter()]
+const availableImporters = [new ChatgptImporter(), new AnthropicImporter(), new CherryTopicImporter()]
 
 /**
  * Main import service that manages all conversation importers
@@ -100,6 +153,12 @@ class ImportService {
             error: i18n.t('import.error.unsupported_format', { defaultValue: 'Unsupported file format' })
           }
         }
+      }
+
+      // Native topic files carry no assistant: route them to the native import
+      // so a generic entry point never mints a throwaway assistant for them.
+      if (importer instanceof CherryTopicImporter) {
+        return this.importNativeTopic(fileContent, onProgress)
       }
 
       // Validate format
@@ -223,6 +282,162 @@ class ImportService {
   }
 
   /**
+   * Recreate destination-owned FileManager entries for self-contained media.
+   * The topic exporter inlines attachments and local videos as `data:` urls;
+   * persisted as-is such a part has no destination FileManager entry, so it
+   * vanishes from the file renderer and breaks provider continuation (the
+   * send path resolves text extraction and native files through the entry).
+   * Each embedded payload becomes a fresh internal entry and the part is
+   * rewritten to address it — never a source-install id or path. The fresh
+   * entry id stays on the part as `providerMetadata.cherry.fileEntryId` so
+   * persisting the message registers a file reference; without it automatic
+   * cleanup would reclaim the `delete_when_unreferenced` entry after its
+   * grace period while the topic still exists. Parts whose payload cannot be
+   * decoded or stored are dropped and counted so the caller can say so
+   * instead of losing them silently.
+   */
+  private async restoreEmbeddedMedia(conversation: ImportConversation): Promise<number> {
+    interface EmbeddedMediaCandidate {
+      message: ImportMessageNode
+      partIndex: number
+      kind: 'file' | 'video'
+      part: Record<string, unknown>
+      bytes: Uint8Array
+      mime: string
+      name: string
+      ext: string | null
+    }
+
+    const candidates: EmbeddedMediaCandidate[] = []
+    const droppedIndexes = new Map<ImportMessageNode, Set<number>>()
+    const dropPart = (message: ImportMessageNode, partIndex: number) => {
+      const indexes = droppedIndexes.get(message) ?? new Set<number>()
+      indexes.add(partIndex)
+      droppedIndexes.set(message, indexes)
+    }
+
+    for (const message of conversation.messages) {
+      for (const [partIndex, part] of message.parts.entries()) {
+        if (typeof part !== 'object' || part === null) continue
+        const record = part as Record<string, unknown>
+        if (record.type === 'file' && typeof record.url === 'string' && record.url.startsWith('data:')) {
+          const decoded = decodeDataUrl(record.url)
+          if (!decoded) {
+            dropPart(message, partIndex)
+            continue
+          }
+          const filename = typeof record.filename === 'string' ? record.filename : undefined
+          candidates.push({
+            message,
+            partIndex,
+            kind: 'file',
+            part: record,
+            bytes: decoded.bytes,
+            mime: decoded.mime,
+            name: safeEntryName(filename, 'attachment'),
+            ext: filename ? safeEntryExt(filename) : null
+          })
+          continue
+        }
+        if (record.type === 'data-video') {
+          const data = record.data
+          const url = typeof data === 'object' && data !== null ? (data as { url?: unknown }).url : undefined
+          if (typeof url !== 'string' || !url.startsWith('data:')) continue
+          const decoded = decodeDataUrl(url)
+          if (!decoded) {
+            dropPart(message, partIndex)
+            continue
+          }
+          const ext = videoExtFromMime(decoded.mime)
+          candidates.push({
+            message,
+            partIndex,
+            kind: 'video',
+            part: record,
+            bytes: decoded.bytes,
+            mime: decoded.mime,
+            name: `video.${ext ?? 'bin'}`,
+            ext
+          })
+        }
+      }
+    }
+
+    let unrestored = [...droppedIndexes.values()].reduce((count, indexes) => count + indexes.size, 0)
+
+    for (let start = 0; start < candidates.length; start += RESTORE_MEDIA_BATCH_SIZE) {
+      const chunk = candidates.slice(start, start + RESTORE_MEDIA_BATCH_SIZE)
+      try {
+        const created = await ipcApi.request('file.batch_create_internal_entries', {
+          items: chunk.map((candidate) => ({
+            source: 'bytes' as const,
+            data: candidate.bytes,
+            name: candidate.name,
+            ext: candidate.ext,
+            cleanupPolicy: 'delete_when_unreferenced' as const
+          }))
+        })
+        const failedIndexes = new Set(created.failed.map((failure) => Number(failure.sourceRef.slice(1))))
+        const physicalPaths = await ipcApi.request('file.batch_get_physical_paths', {
+          ids: created.succeeded.map((success) => success.id)
+        })
+        for (const [index, candidate] of chunk.entries()) {
+          if (failedIndexes.has(index)) {
+            dropPart(candidate.message, candidate.partIndex)
+            unrestored++
+          }
+        }
+        for (const success of created.succeeded) {
+          const candidate = chunk[Number(success.sourceRef.slice(1))]
+          const physicalPath = candidate ? physicalPaths[success.id] : undefined
+          if (!candidate || !physicalPath) {
+            if (candidate) {
+              dropPart(candidate.message, candidate.partIndex)
+              unrestored++
+            }
+            continue
+          }
+          const rewritten: Record<string, unknown> =
+            candidate.kind === 'file'
+              ? {
+                  ...candidate.part,
+                  url: toFileUrl(physicalPath),
+                  mediaType: typeof candidate.part.mediaType === 'string' ? candidate.part.mediaType : candidate.mime,
+                  providerMetadata: {
+                    ...(candidate.part.providerMetadata as Record<string, unknown> | undefined),
+                    cherry: { fileEntryId: success.id }
+                  }
+                }
+              : {
+                  ...candidate.part,
+                  data: { filePath: physicalPath },
+                  providerMetadata: {
+                    ...(candidate.part.providerMetadata as Record<string, unknown> | undefined),
+                    cherry: { fileEntryId: success.id }
+                  }
+                }
+          const nextParts = [...candidate.message.parts]
+          nextParts[candidate.partIndex] = rewritten as ImportMessageNode['parts'][number]
+          candidate.message.parts = nextParts
+        }
+      } catch (error) {
+        // A thrown IPC error must not abort the import: drop and count the chunk.
+        logger.warn('Failed to restore an embedded media chunk', error as Error, { chunkSize: chunk.length })
+        for (const candidate of chunk) {
+          if (droppedIndexes.get(candidate.message)?.has(candidate.partIndex)) continue
+          dropPart(candidate.message, candidate.partIndex)
+          unrestored++
+        }
+      }
+    }
+
+    for (const [message, indexes] of droppedIndexes) {
+      message.parts = message.parts.filter((_, index) => !indexes.has(index))
+    }
+    return unrestored
+  }
+
+  /**
    * The topic is not active anymore — it was archived by another window (or is
    * already gone). Purge the archived row when it still exists.
    */
@@ -248,26 +463,109 @@ class ImportService {
   }
 
   /**
+   * Import a native Cherry Studio topic file. Unlike external imports this
+   * creates only the topic itself — no assistant — and preserves the exported
+   * snapshots, sibling groups and status verbatim. The file is fully validated
+   * before anything is written, so invalid input creates nothing.
+   */
+  async importNativeTopic(fileContent: string, onProgress?: ImportProgressCallback): Promise<ImportResponse> {
+    try {
+      logger.info('Starting native topic import...')
+      onProgress?.(0)
+
+      const importer = this.getImporter('cherry')
+      if (!importer) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: 'Importer "cherry" not found'
+        }
+      }
+      if (!importer.validate(fileContent)) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(10)
+
+      const result = await importer.parse(fileContent)
+      const conversation = result.conversations[0]
+      if (!conversation) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(20)
+
+      // Exported attachments and local videos arrive as self-contained `data:`
+      // urls; restore them as destination-owned files before persisting so the
+      // imported topic renders and continues like a native one.
+      const unrestoredMedia = await this.restoreEmbeddedMedia(conversation)
+      if (unrestoredMedia > 0) {
+        logger.warn('Dropped embedded media that could not be restored during native topic import', {
+          unrestoredMedia
+        })
+        toast.warning(i18n.t('import.cherry.skipped_attachments', { count: unrestoredMedia }))
+      }
+
+      const messagesCount = await this.persistImport({ conversations: [conversation] }, undefined, onProgress)
+      onProgress?.(100)
+
+      logger.info(`Native topic import completed: 1 topic, ${messagesCount} messages imported`)
+
+      return {
+        success: true,
+        topicsCount: 1,
+        messagesCount
+      }
+    } catch (error) {
+      logger.error('Native topic import failed:', error as Error)
+      return {
+        success: false,
+        topicsCount: 0,
+        messagesCount: 0,
+        error:
+          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
+  }
+
+  /**
    * Builds a v2 create-message DTO. Imported messages are historical, so they
-   * are persisted as `success`. For assistant rows the producing author is
-   * frozen into `messageSnapshot` so the header survives later rename/delete.
+   * are persisted as `success`. A `pending` source has no live stream on the
+   * destination to complete it, so it lands as `error` (same convention as the
+   * boot reconcile for crash-orphaned turns), keeping it terminal and retryable.
+   * For assistant rows the producing author is frozen into `messageSnapshot`
+   * so the header survives later rename/delete.
+   * Native topic nodes carry their snapshot, status and sibling group verbatim;
+   * external nodes synthesize them from the import assistant and tree position.
    */
   private toMessageDto(
     message: ImportMessageNode,
     parentId: string | null,
     siblingsGroupId: number | undefined,
-    assistant: { id: string; name: string; emoji: string }
+    assistant?: { id: string; name: string; emoji: string }
   ): CreateMessageDto {
+    const effectiveSiblingsGroupId = message.siblingsGroupId ?? siblingsGroupId
     const dto: CreateMessageDto = {
       parentId,
       role: message.role,
-      data: { parts: message.parts },
-      status: 'success',
+      data: message.turnOptions ? { parts: message.parts, turnOptions: message.turnOptions } : { parts: message.parts },
+      status: message.status === 'pending' ? 'error' : (message.status ?? 'success'),
       setAsActive: false,
-      ...(siblingsGroupId ? { siblingsGroupId } : {})
+      ...(effectiveSiblingsGroupId ? { siblingsGroupId: effectiveSiblingsGroupId } : {})
     }
 
-    if (message.role === 'assistant' && message.model) {
+    if (message.messageSnapshot) {
+      dto.messageSnapshot = message.messageSnapshot
+    } else if (assistant && message.role === 'assistant' && message.model) {
       dto.messageSnapshot = {
         id: assistant.id,
         name: assistant.name,
@@ -287,18 +585,21 @@ class ImportService {
   /**
    * Persists each imported conversation as a message tree. Source IDs stay
    * local to the import contract and are mapped to newly-created database IDs.
+   * Without an assistant the topic is created unlinked; the caller moves it to
+   * an assistant afterwards. Continuation then falls back to the destination's
+   * current assistant and model while history renders from the snapshots.
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string },
+    assistant: { id: string; name: string; emoji: string } | undefined,
     onProgress?: ImportProgressCallback,
     createdTopicIds?: string[]
   ): Promise<number> {
     const { conversations } = result
-    const totalSteps = conversations.reduce((count, conversation) => {
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      return count + 1 + conversation.messages.length + (activeSourceId ? 1 : 0)
-    }, 0)
+    const totalSteps = conversations.reduce(
+      (count, conversation) => count + 1 + conversation.messages.length + (conversation.activeSourceId ? 1 : 0),
+      0
+    )
     let completedSteps = 0
     const completeStep = () => {
       completedSteps++
@@ -307,69 +608,97 @@ class ImportService {
 
     for (const conversation of conversations) {
       const createdTopic = await dataApiService.post('/topics', {
-        body: { name: conversation.name, assistantId: assistant.id }
+        body: assistant ? { name: conversation.name, assistantId: assistant.id } : { name: conversation.name }
       })
       createdTopicIds?.push(createdTopic.id)
-      completeStep()
-
-      const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
-      for (const message of conversation.messages) {
-        const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
-        const siblings = messagesByRole.get(message.role) ?? []
-        siblings.push(message)
-        messagesByRole.set(message.role, siblings)
-        messagesByParent.set(message.parentSourceId, messagesByRole)
-      }
-
-      const siblingGroupIds = new Map<string, number>()
-      let nextSiblingGroupId = 1
-      for (const messagesByRole of messagesByParent.values()) {
-        for (const siblings of messagesByRole.values()) {
-          if (siblings.length < 2) continue
-          for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
-          nextSiblingGroupId++
-        }
-      }
-
-      const createdIds = new Map<string, string>()
-      const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
-      while (pendingSourceIds.size > 0) {
-        let createdInPass = 0
-        for (const message of conversation.messages) {
-          if (!pendingSourceIds.has(message.sourceId)) continue
-
-          let parentId: string | null = null
-          if (message.parentSourceId) {
-            const createdParentId = createdIds.get(message.parentSourceId)
-            if (!createdParentId) continue
-            parentId = createdParentId
+      try {
+        await this.persistConversation(conversation, createdTopic.id, assistant, completeStep)
+      } catch (error) {
+        // External imports are rolled back as a unit by their caller. Native
+        // imports have no assistant owner, so remove only this fresh topic.
+        if (!createdTopicIds) {
+          try {
+            await ipcApi.request('trash.topic.delete_permanently', { topicIds: [createdTopic.id] })
+          } catch (cleanupError) {
+            if (isTrashTargetNotFoundError(cleanupError)) {
+              await this.purgeTrashedTopic(createdTopic.id, error)
+            } else {
+              logger.warn('Failed to clean up a partially imported topic', { topicId: createdTopic.id, cleanupError })
+            }
           }
-
-          const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-            body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
-          })
-          createdIds.set(message.sourceId, created.id)
-          pendingSourceIds.delete(message.sourceId)
-          createdInPass++
-          completeStep()
         }
-
-        if (createdInPass === 0) {
-          throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
-        }
+        throw error
       }
-
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
-      if (activeNodeId) {
-        await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
-      }
-      if (activeSourceId) completeStep()
     }
 
     const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
     logger.info(`Persisted import: ${conversations.length} topics, ${messagesCount} messages`)
     return messagesCount
+  }
+
+  private async persistConversation(
+    conversation: ImportConversation,
+    topicId: string,
+    assistant: { id: string; name: string; emoji: string } | undefined,
+    completeStep: () => void
+  ): Promise<void> {
+    if (conversation.isNameManuallyEdited) {
+      await dataApiService.patch(`/topics/${topicId}`, { body: { isNameManuallyEdited: true } })
+    }
+    completeStep()
+
+    const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
+    for (const message of conversation.messages) {
+      const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
+      const siblings = messagesByRole.get(message.role) ?? []
+      siblings.push(message)
+      messagesByRole.set(message.role, siblings)
+      messagesByParent.set(message.parentSourceId, messagesByRole)
+    }
+
+    const siblingGroupIds = new Map<string, number>()
+    let nextSiblingGroupId = 1
+    for (const messagesByRole of messagesByParent.values()) {
+      for (const siblings of messagesByRole.values()) {
+        if (siblings.length < 2) continue
+        for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
+        nextSiblingGroupId++
+      }
+    }
+
+    const createdIds = new Map<string, string>()
+    const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
+    while (pendingSourceIds.size > 0) {
+      let createdInPass = 0
+      for (const message of conversation.messages) {
+        if (!pendingSourceIds.has(message.sourceId)) continue
+
+        let parentId: string | null = null
+        if (message.parentSourceId) {
+          const createdParentId = createdIds.get(message.parentSourceId)
+          if (!createdParentId) continue
+          parentId = createdParentId
+        }
+
+        const created = await dataApiService.post(`/topics/${topicId}/messages`, {
+          body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
+        })
+        createdIds.set(message.sourceId, created.id)
+        pendingSourceIds.delete(message.sourceId)
+        createdInPass++
+        completeStep()
+      }
+
+      if (createdInPass === 0) {
+        throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
+      }
+    }
+
+    const activeNodeId = conversation.activeSourceId ? createdIds.get(conversation.activeSourceId) : undefined
+    if (activeNodeId) {
+      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
+      completeStep()
+    }
   }
 }
 

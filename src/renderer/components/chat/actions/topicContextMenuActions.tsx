@@ -6,6 +6,7 @@ import {
   Database,
   Edit3,
   ExternalLink,
+  FileJson,
   FileText,
   Image,
   MoveRight,
@@ -73,6 +74,7 @@ export interface TopicActionContext {
   onExportNotion: TopicMenuHandler
   onExportObsidian: TopicMenuHandler
   onExportSiyuan: TopicMenuHandler
+  onExportTopicFile: TopicMenuHandler
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
   assistantMoveTargets: readonly TopicMoveAssistantTarget[]
@@ -243,6 +245,11 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.export.siyuan',
   run: ({ onExportSiyuan, topic }) => onExportSiyuan(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.export.topic-file',
+  run: ({ onExportTopicFile, topic }) => onExportTopicFile(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -495,6 +502,16 @@ topicActionRegistry.registerAction({
       availability: ({ exportMenuOptions }) => ({ visible: exportMenuOptions.siyuan })
     }
   ]
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.export.topic-file',
+  commandId: 'topic.export.topic-file',
+  label: ({ t }) => t('chat.topics.export.topic_file'),
+  icon: () => <FileJson size={14} />,
+  group: 'share',
+  order: 75,
+  surface: 'menu'
 })
 
 topicActionRegistry.registerAction({

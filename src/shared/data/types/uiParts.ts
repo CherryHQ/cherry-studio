@@ -217,6 +217,18 @@ export interface CherryErrorMeta {
   diagnosis?: DiagnosisResult
 }
 
+/** Cherry metadata on a data-video DataUIPart. */
+export interface CherryVideoMeta {
+  /**
+   * FileEntryId of the destination-owned internal entry holding the video
+   * bytes. A video part addresses its bytes by physical path alone, so the
+   * owning entry is carried here; consumed by message file-reference
+   * extraction so automatic cleanup keeps the entry alive while its
+   * message exists.
+   */
+  fileEntryId?: string
+}
+
 /** Cherry metadata on a FileUIPart. */
 export interface CherryFileMeta {
   /**
@@ -249,9 +261,11 @@ export type CherryMetaForPartType<T extends string> = T extends 'text'
       ? CherryToolMeta
       : T extends 'file'
         ? CherryFileMeta
-        : T extends 'data-error'
-          ? CherryErrorMeta
-          : Record<string, never>
+        : T extends 'data-video'
+          ? CherryVideoMeta
+          : T extends 'data-error'
+            ? CherryErrorMeta
+            : Record<string, never>
 
 /**
  * @deprecated Use `CherryTextMeta` / `CherryReasoningMeta` / `CherryToolMeta` / `CherryFileMeta`
@@ -350,6 +364,10 @@ export const CherryErrorMetaSchema: z.ZodType<CherryErrorMeta> = z.object({
   diagnosis: DiagnosisResultSchema.optional()
 })
 
+export const CherryVideoMetaSchema: z.ZodType<CherryVideoMeta> = z.object({
+  fileEntryId: z.string().optional()
+})
+
 export const KnowledgeScopePartDataSchema: z.ZodType<KnowledgeScopePartData> = z.strictObject({
   baseIds: z.array(z.string().min(1))
 })
@@ -360,6 +378,7 @@ const SCHEMA_BY_PART_TYPE: ReadonlyArray<readonly [(t: string) => boolean, z.Zod
   [(t) => t === 'reasoning', CherryReasoningMetaSchema],
   [(t) => t === 'dynamic-tool' || t.startsWith('tool-'), CherryToolMetaSchema],
   [(t) => t === 'file', CherryFileMetaSchema],
+  [(t) => t === 'data-video', CherryVideoMetaSchema],
   [(t) => t === 'data-error', CherryErrorMetaSchema]
 ]
 
