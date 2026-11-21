@@ -1118,7 +1118,7 @@ describe('limits, access, and recovery', () => {
     }
   )
 
-  it('can clear a large memory again after a complete undo', async () => {
+  it.each(['clear', 'recover'])('can clear a large memory again using %s after a complete undo', async (operation) => {
     const target = path.join(root, 'MEMORY.md')
     const original = Buffer.alloc(9 * 1024 * 1024, 65)
     await writeFile(target, original)
@@ -1127,12 +1127,47 @@ describe('limits, access, and recovery', () => {
     const undo = await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
     expect(undo.error).toBeUndefined()
     expect((await readFile(target)).equals(original)).toBe(true)
-    const second = await clear()
+    const second =
+      operation === 'clear'
+        ? await clear()
+        : await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
     expect(second.error).toBeUndefined()
     expect((await store.previewRecovery(caller))?.batchId).toBe(second.batchId)
     expect(await memoryBackups.latestMemoryBackup(backups, first.batchId!)).toBeUndefined()
     expect(await memoryBackups.latestMemoryBackup(backups, undo.batchId!)).toBeDefined()
   })
+
+  it.each([false, true])(
+    'can undo a redone clear only while the cleared scope still matches (legacy=%s)',
+    async (legacy) => {
+      const target = path.join(root, 'MEMORY.md')
+      await writeFile(target, 'Original fact')
+      const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+      await store.clear(caller, (await store.previewClear(caller)).token, approve)
+      const cleared = await readFile(target, 'utf8')
+      await recover()
+      await recover()
+      expect(await readFile(target, 'utf8')).toBe(cleared)
+      if (legacy) {
+        for (const name of await readdir(backups)) {
+          const file = path.join(backups, name)
+          const manifest = JSON.parse(await readFile(file, 'utf8'))
+          if (manifest.source !== 'recovery') continue
+          delete manifest.clearScopeHash
+          delete manifest.undoClearScopeHash
+          await writeFile(file, JSON.stringify(manifest))
+        }
+      }
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const other = path.join(root, '.memories/other.md')
+      await writeFile(other, 'External change')
+      await expect(recover()).rejects.toMatchObject({ code: 'conflict' })
+      await unlink(other)
+      expect((await recover()).error).toBeUndefined()
+      expect(await readFile(target, 'utf8')).toBe('Original fact')
+    }
+  )
 
   it('protects the latest recovery batch when a second large backup would exceed capacity', async () => {
     const original = Buffer.alloc(9 * 1024 * 1024, 65)
