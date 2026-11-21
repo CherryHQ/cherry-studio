@@ -137,6 +137,7 @@ async function runChecks(): Promise<void> {
         'Unicode grid or primary screen restoration failed'
       )
       assert(result.reply === '\x1b[1;5R', 'headless cursor query was not answered')
+      assert(result.searchCount === 1 && result.searchIndex === 0, 'native search or allocator callbacks failed')
       assert(result.normalKey === '\x1b[A' && result.applicationKey === '\x1bOA', 'key encoding ignored terminal mode')
       assert(result.paste === '\x1b[200~中文\x1b[201~', 'bracketed paste encoding failed')
       assert(result.alternate === 'ALT' && result.cols === 10 && result.rows === 6, 'alternate screen or resize failed')

@@ -29,6 +29,8 @@ export type SmokeContract = {
         node: string
         revision: string
         unicode: string
+        searchCount: number
+        searchIndex: number | null
         reply: string
         normalKey: string
         applicationKey: string
