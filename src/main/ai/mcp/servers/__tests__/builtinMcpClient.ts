@@ -28,7 +28,7 @@ async function withConnection<T>(createServer: () => McpServer, run: (connection
 export function callBuiltinTool(
   createServer: () => McpServer,
   name: string,
-  args: Record<string, unknown> = {}
+  args: Parameters<McpConnection['callTool']>[1] = {}
 ): Promise<CallToolResult> {
   return withConnection(createServer, (connection) =>
     connection.callTool(name, args, { signal: new AbortController().signal, timeoutMs: 10_000 })

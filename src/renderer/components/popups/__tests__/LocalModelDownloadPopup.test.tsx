@@ -1,7 +1,9 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 const { toastError, localModel } = vi.hoisted(() => ({
@@ -38,10 +40,11 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
-    Button: ({ children, ...props }: Record<string, any>) => React.createElement('button', props, children),
-    Dialog: ({ children, open }: Record<string, any>) =>
+    Button: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.Button>) =>
+      React.createElement('button', props, children),
+    Dialog: ({ children, open }: ComponentPropsWithoutRef<typeof UI.Dialog>) =>
       open ? React.createElement(React.Fragment, null, children) : null,
-    DialogContent: ({ children, ...props }: Record<string, any>) => {
+    DialogContent: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.DialogContent>) => {
       delete props.showCloseButton
       delete props.overlayClassName
       delete props.closeOnOverlayClick
@@ -49,10 +52,14 @@ vi.mock('@cherrystudio/ui', () => {
 
       return React.createElement('div', { role: 'dialog', ...props }, children)
     },
-    DialogDescription: ({ children }: Record<string, any>) => React.createElement('div', null, children),
-    DialogFooter: ({ children, ...props }: Record<string, any>) => React.createElement('div', props, children),
-    DialogHeader: ({ children, ...props }: Record<string, any>) => React.createElement('div', props, children),
-    DialogTitle: ({ children, ...props }: Record<string, any>) => React.createElement('h2', props, children)
+    DialogDescription: ({ children }: ComponentPropsWithoutRef<typeof UI.DialogDescription>) =>
+      React.createElement('div', null, children),
+    DialogFooter: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.DialogFooter>) =>
+      React.createElement('div', props, children),
+    DialogHeader: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.DialogHeader>) =>
+      React.createElement('div', props, children),
+    DialogTitle: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.DialogTitle>) =>
+      React.createElement('h2', props, children)
   }
 })
 
