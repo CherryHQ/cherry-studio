@@ -1,6 +1,8 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
+
 import { openReadableFileSnapshot } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -30,9 +32,9 @@ const PAYLOAD_KEYS = new Set(['requestBodyValues', 'response'])
  * (status codes, error codes) that a bundled `errors` array would otherwise push past the cap.
  * The result is a reordered, possibly-trimmed haystack — never parse it back.
  */
-function serializeDetail(rest: Record<string, unknown>): { text: string; truncated: boolean } | undefined {
+function serializeDetail(rest: [string, JSONValue | undefined][]): { text: string; truncated: boolean } | undefined {
   const fields: string[] = []
-  for (const [key, value] of Object.entries(rest)) {
+  for (const [key, value] of rest) {
     try {
       fields.push(`${JSON.stringify(key)}:${JSON.stringify(value) ?? 'null'}`)
     } catch {
@@ -55,11 +57,11 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   const trimmed = text.trim()
   if (!trimmed) return undefined
 
-  let value: Record<string, unknown>
+  let value: JSONObject
   try {
-    const parsed = JSON.parse(trimmed)
+    const parsed: JSONValue = JSON.parse(trimmed)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
-    value = parsed as Record<string, unknown>
+    value = parsed
   } catch {
     return undefined
   }
@@ -67,17 +69,17 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   if (typeof value.timestamp !== 'string' || typeof value.message !== 'string') return undefined
   const timestampMs = parseLogTimestampString(value.timestamp)
   if (timestampMs === undefined) return undefined
-  if (!SCAN_LEVELS.includes(value.level as ScanLevel)) return undefined
+  const level = SCAN_LEVELS.find((level) => level === value.level)
+  if (!level) return undefined
 
-  const rest: Record<string, unknown> = {}
-  for (const [key, entry] of Object.entries(value)) {
-    if (!KNOWN_KEYS.has(key) && !PAYLOAD_KEYS.has(key)) rest[key] = entry
-  }
+  const rest = Object.entries<JSONValue | undefined>(value).filter(
+    ([key]) => !KNOWN_KEYS.has(key) && !PAYLOAD_KEYS.has(key)
+  )
   const detail = serializeDetail(rest)
 
   return {
     timestampMs,
-    level: value.level as ScanLevel,
+    level,
     message: value.message.slice(0, MAX_TEXT_CHARS),
     ...(typeof value.module === 'string' && { module: value.module }),
     ...((value.process === 'main' || value.process === 'renderer') && { process: value.process }),
