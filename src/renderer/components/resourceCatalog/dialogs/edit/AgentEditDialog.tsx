@@ -160,7 +160,7 @@ function getLeafTabIds(tabs: EditDialogTab[]) {
 function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
   const form = buildInitialAgentFormState(resource)
   return {
-    avatar: form.avatar || '🤖',
+    avatar: form.avatar,
     name: form.name,
     description: form.description,
     modelId: form.model || null,
@@ -392,12 +392,15 @@ function AgentEditDialogContent({
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
-    setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
+
+  useEffect(() => {
+    if (open) setAvatarSrc(resource.avatarSrc)
+  }, [open, resource.avatarSrc, resource.id])
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff
@@ -689,7 +692,7 @@ function AgentBasicFields({
   const { isPresent: heartbeatPresent } = useExitPresence(heartbeatOpen ? true : null)
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+    <div className="divide-y divide-border-subtle border-b border-border-subtle [&>*:first-child]:pt-0">
       <AgentAvatarNameField
         form={form}
         agentId={agentId}
@@ -873,7 +876,7 @@ function RuntimeField({ agentType }: { agentType: AgentType }) {
     <div className={editDialogFormRowClassName}>
       <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.runtime.label')}</span>
       <AgentRuntimeSummary value={agentType} t={t} />
-      <span className="col-start-2 text-muted-foreground text-xs">
+      <span className="text-muted-foreground col-start-2 text-xs">
         {t('library.config.agent.field.runtime.immutable_hint')}
       </span>
     </div>
@@ -1206,7 +1209,7 @@ function AgentToolsFields({
         <div className="grid gap-5">
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
+              <span className="text-muted-foreground text-xs font-medium">{t('settings.browser.title')}</span>
               <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
                 {t('settings.title')}
               </Button>
@@ -1231,7 +1234,7 @@ function AgentToolsFields({
           </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
+              <span className="text-muted-foreground text-xs font-medium">{t('settings.computerUse.title')}</span>
               <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
                 {t('settings.title')}
               </Button>
@@ -1258,7 +1261,7 @@ function AgentToolsFields({
           </div>
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
-              <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
+              <div className="text-muted-foreground text-xs font-medium">{section.label}</div>
               <CatalogToggleGrid
                 items={section.items}
                 enabledIds={enabledToolIds}
@@ -1325,7 +1328,7 @@ function AgentToolsFields({
               type="button"
               variant="ghost"
               onClick={openSkillsSettingsTab}
-              className="h-full min-h-11 w-full rounded-lg border border-border-subtle border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
+              className="text-muted-foreground hover:border-border-strong h-full min-h-11 w-full rounded-lg border border-dashed border-border-subtle px-2.5 py-1.5 text-sm font-normal shadow-none transition-colors hover:bg-accent/50 hover:text-foreground">
               <ToolCase size={14} strokeWidth={1.7} />
               {t('agent.settings.skills.addMore')}
             </Button>

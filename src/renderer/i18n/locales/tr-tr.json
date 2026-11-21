@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Bellek",
   "agent.tools.builtin.Bash.description": "Ortamda kabuk komutlarını çalıştırır",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Onayınızla bir ajanın avatarını oluşturur veya geri yükler",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Ajan avatarını değiştir",
   "agent.tools.builtin.CherryConfig.description": "Bu ajan yapılandırmasını ve kanallarını inceler ve yönetir",
   "agent.tools.builtin.CherryConfig.label": "Ajan Yapılandırması",
   "agent.tools.builtin.CherryCron.description": "Uygulama içi zamanlayıcıyı yönetir",

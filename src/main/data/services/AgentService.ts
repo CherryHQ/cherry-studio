@@ -7,7 +7,7 @@ import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { agentAvatarBackupTable, agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -293,6 +293,7 @@ export class AgentService {
 
   clearAvatarSlotTx(tx: DbOrTx, agentId: string): void {
     clearSingleFileRefTx(tx, agentAvatarFileRefTable, agentId)
+    clearSingleFileRefTx(tx, agentAvatarBackupTable, agentId)
     tx.update(agentsTable).set({ updatedAt: Date.now() }).where(eq(agentsTable.id, agentId)).run()
   }
 
@@ -300,6 +301,39 @@ export class AgentService {
     this.assertActiveTx(tx, agentId)
     this.clearAvatarSlotTx(tx, agentId)
     insertSingleFileRefTx(tx, agentAvatarFileRefTable, agentId, fileId)
+  }
+
+  requireAvatarToolTargetTx(tx: DbOrTx, agentId: string): { name: string } {
+    const target = tx
+      .select({ name: agentsTable.name })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt), notDoctorAgent))
+      .get()
+    if (!target) throw DataApiErrorFactory.notFound('Agent', agentId)
+    return target
+  }
+
+  replaceAvatarWithBackupTx(tx: DbOrTx, agentId: string, fileId: FileEntryId): string {
+    const target = this.requireAvatarToolTargetTx(tx, agentId)
+    const previousFileId = this.avatarIds(tx, [agentId]).get(agentId)
+    this.setAvatarSlotTx(tx, agentId, fileId)
+    tx.insert(agentAvatarBackupTable).values({ sourceId: agentId, fileEntryId: previousFileId }).run()
+    return target.name
+  }
+
+  getAvatarBackupTx(tx: DbOrTx, agentId: string) {
+    return tx.select().from(agentAvatarBackupTable).where(eq(agentAvatarBackupTable.sourceId, agentId)).get()
+  }
+
+  restoreAvatarBackupTx(tx: DbOrTx, agentId: string, backupId: string): string {
+    const target = this.requireAvatarToolTargetTx(tx, agentId)
+    const backup = this.getAvatarBackupTx(tx, agentId)
+    if (backup?.id !== backupId) {
+      throw DataApiErrorFactory.invalidOperation('restore avatar', t('agent.avatar_tool.no_backup'))
+    }
+    this.clearAvatarSlotTx(tx, agentId)
+    if (backup.fileEntryId) insertSingleFileRefTx(tx, agentAvatarFileRefTable, agentId, backup.fileEntryId)
+    return target.name
   }
 
   setAvatarEmojiTx(tx: DbOrTx, agentId: string, emoji: string): void {
@@ -847,6 +881,9 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
+            if (getAgentAvatar(nextConfiguration) !== getAgentAvatar(persistedConfiguration)) {
+              clearSingleFileRefTx(tx, agentAvatarBackupTable, id)
+            }
             // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
             const effectiveModelId =
               updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)

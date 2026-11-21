@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Память",
   "agent.tools.builtin.Bash.description": "Выполняет shell-команды в вашей среде",
   "agent.tools.builtin.Bash.label": "Баш",
+  "agent.tools.builtin.CherryAgentAvatar.description": "С вашего разрешения создаёт или восстанавливает аватар агента",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Изменить аватар агента",
   "agent.tools.builtin.CherryConfig.description": "Проверяет и управляет этой конфигурацией агента и каналами",
   "agent.tools.builtin.CherryConfig.label": "Конфигурация агента",
   "agent.tools.builtin.CherryCron.description": "Управляет встроенным планировщиком",

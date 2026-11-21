@@ -1,10 +1,11 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
@@ -98,6 +99,69 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  it('identifies the selected Agent from the approved ID while preserving the original input', async () => {
+    MockUseDataApiUtils.mockQueryLoading('/agents/:agentId')
+    const input = { action: 'restore', target_agent_id: 'target-42' }
+    const base = makeRequest()
+    const request = makeRequest({
+      match: { ...base.match, input },
+      toolResponse: {
+        ...base.toolResponse,
+        arguments: input,
+        tool: {
+          id: 'cherry_tools__agent_avatar',
+          type: 'mcp',
+          name: 'agent_avatar',
+          serverId: 'cherry_tools',
+          serverName: 'cherry_tools',
+          inputSchema: { type: 'object' }
+        }
+      }
+    })
+    const onRespond = vi.fn()
+    const user = userEvent.setup()
+    const renderComposer = () => (
+      <PermissionRequestComposer request={request} onRespond={onRespond} agentName="Requesting Agent" />
+    )
+    const { rerender } = render(renderComposer())
+    expect(screen.getByRole('button', { name: /Allow/ })).toBeDisabled()
+    await user.keyboard('{Enter}')
+    expect(onRespond).not.toHaveBeenCalled()
+
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId', {
+      id: 'target-42',
+      name: 'Target Agent',
+      type: 'pi',
+      model: null,
+      modelName: null,
+      orderKey: 'a0',
+      createdAt: '2026-11-21T00:00:00.000Z',
+      updatedAt: '2026-11-21T00:00:00.000Z'
+    })
+    rerender(renderComposer())
+    expect(screen.getByText('Target Agent (target-42)')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Allow/ }))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: true })
+
+    const mcpResponse = request.toolResponse as McpToolResponse
+    MockUseDataApiUtils.mockQueryLoading('/agents/:agentId')
+    rerender(
+      <PermissionRequestComposer
+        request={{
+          ...request,
+          approvalId: 'external-approval',
+          toolResponse: {
+            ...mcpResponse,
+            tool: { ...mcpResponse.tool, serverId: 'external-server' }
+          }
+        }}
+        onRespond={onRespond}
+        agentName="Requesting Agent"
+      />
+    )
+    expect(screen.getByRole('button', { name: /Allow/ })).toBeEnabled()
+  })
+
   // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
   it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
     const user = userEvent.setup()

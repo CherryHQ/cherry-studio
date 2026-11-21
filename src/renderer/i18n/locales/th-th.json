@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "หน่วยความจำ",
   "agent.tools.builtin.Bash.description": "รันคำสั่งเชลล์ในสภาพแวดล้อมของคุณ",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "สร้างหรือกู้คืนรูปโปรไฟล์ของเอเจนต์เมื่อคุณอนุมัติ",
+  "agent.tools.builtin.CherryAgentAvatar.label": "เปลี่ยนรูปโปรไฟล์ของเอเจนต์",
   "agent.tools.builtin.CherryConfig.description": "ตรวจสอบและจัดการคอนฟิกและแชนแนลของเอเจนต์นี้",
   "agent.tools.builtin.CherryConfig.label": "คอนฟิกเอเจนต์",
   "agent.tools.builtin.CherryCron.description": "จัดการตัวกำหนดเวลาภายในแอป",

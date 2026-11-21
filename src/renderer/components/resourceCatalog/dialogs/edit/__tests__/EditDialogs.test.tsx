@@ -2522,6 +2522,23 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('textbox', { name: 'Type to search for an emoji' })).not.toBeInTheDocument()
   })
 
+  it('reflects a committed avatar change without saving a default emoji on close', async () => {
+    const onOpenChange = vi.fn()
+    const resource = { ...AGENT, configuration: { ...AGENT.configuration, avatar: undefined } }
+    const { rerender } = render(<AgentEditDialog open resource={resource} onOpenChange={onOpenChange} />)
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...resource, avatarSrc: 'file:///avatars/generated.webp' }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    expect(screen.getByRole('img', { name: 'Pick avatar' })).toHaveAttribute('src', 'file:///avatars/generated.webp')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('keeps popover content inside the dialog container', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

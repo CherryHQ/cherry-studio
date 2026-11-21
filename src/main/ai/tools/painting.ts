@@ -25,6 +25,7 @@ import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import {
   type ImageGenerationMode,
   type ImageGenerationSupport,
@@ -157,7 +158,8 @@ async function resolveInputImages(
 export async function generateImageFromPrompt(
   input: GenerateImageToolInput,
   signal?: AbortSignal,
-  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel()
+  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel(),
+  cleanupPolicy: CleanupPolicy = 'manual'
 ): Promise<PaintingResult> {
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
@@ -191,7 +193,7 @@ export async function generateImageFromPrompt(
       // tables register it. Auto-reclaiming it would unrecoverably delete images
       // still shown in chat history. Tracked in #17169: once the output is
       // registered as a chat_message ref upstream, flip to 'delete_when_unreferenced'.
-      cleanupPolicy: 'manual',
+      cleanupPolicy,
       requestOptions: signal ? { signal } : undefined
     })
     return files.map((file) => ({ id: file.id, name: file.name }))

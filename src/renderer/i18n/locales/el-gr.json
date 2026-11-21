@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Μνήμη",
   "agent.tools.builtin.Bash.description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Δημιουργεί ή επαναφέρει το avatar ενός πράκτορα με την έγκρισή σας",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Αλλαγή avatar πράκτορα",
   "agent.tools.builtin.CherryConfig.description": "Ελέγχει και διαχειρίζεται αυτήν τη ρύθμιση παράγοντα και τα κανάλια",
   "agent.tools.builtin.CherryConfig.label": "Ρύθμιση Πράκτορα",
   "agent.tools.builtin.CherryCron.description": "Διαχειρίζεται τον ενσωματωμένο προγραμματιστή εντός της εφαρμογής",

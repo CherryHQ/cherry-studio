@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "메모리",
   "agent.tools.builtin.Bash.description": "사용자 환경에서 셸 명령을 실행합니다",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "사용자의 승인을 받아 에이전트 아바타를 생성하거나 복원합니다",
+  "agent.tools.builtin.CherryAgentAvatar.label": "에이전트 아바타 변경",
   "agent.tools.builtin.CherryConfig.description": "이 에이전트의 설정과 채널을 확인하고 관리합니다",
   "agent.tools.builtin.CherryConfig.label": "에이전트 설정",
   "agent.tools.builtin.CherryCron.description": "앱 내 스케줄러를 관리합니다",

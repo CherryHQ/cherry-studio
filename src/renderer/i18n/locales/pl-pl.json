@@ -614,6 +614,8 @@
   "agent.tools.builtin.AgentMemory.label": "Pamięć",
   "agent.tools.builtin.Bash.description": "Wykonuje polecenia powłoki w Twoim środowisku",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Za Twoją zgodą tworzy lub przywraca awatar agenta",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Zmień awatar agenta",
   "agent.tools.builtin.CherryConfig.description": "Sprawdza i zarządza konfiguracją tego agenta oraz kanałami",
   "agent.tools.builtin.CherryConfig.label": "Konfiguracja agenta",
   "agent.tools.builtin.CherryCron.description": "Zarządza harmonogramem w aplikacji",
