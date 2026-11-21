@@ -233,7 +233,7 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 
 `AiRequestContext` 未声明的扩展字段和 `providerToolPlugin` 按 Provider 动态分发的配置值使用 `unknown`；读取其内部字段前，需要由拥有该字段或配置的插件收窄类型。已声明的上下文字段保持原有类型。
 
-`TypedProviderOptions` 的自定义命名空间遵循 AI SDK 的共享 JSON 选项契约。`mergeProviderOptions` 递归合并对象，后传入的标量和数组覆盖先前值；保留 `__proto__` 等字面名称为普通对象的自有数据属性，不合并继承字段，也不修改输入。
+`TypedProviderOptions` 的自定义命名空间遵循 AI SDK 的共享 JSON 选项契约，已知 Provider 保留其 SDK 类型。`mergeProviderOptions` 递归合并对象，后传入的标量和数组覆盖先前值；保留 `__proto__` 等字面名称为普通对象的自有数据属性，不合并继承字段，也不修改输入。合并不对 SDK 允许的不透明扩展值进行递归 JSON 验证。
 
 创建自定义插件非常简单：
 
