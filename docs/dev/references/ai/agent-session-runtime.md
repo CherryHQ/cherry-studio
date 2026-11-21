@@ -1153,7 +1153,7 @@ Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
-permission mode, including for child sessions. The script itself needs no separate
+permission mode, including for child sessions. The script itself normally needs no separate
 approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
@@ -1165,6 +1165,10 @@ failure does not erase an earlier successful child. Retention is limited to 256 
 total); over-budget fields are omitted whole with byte counts and omission metadata.
 Legacy sessions cannot recover results that were never recorded. These presentation
 records do not change the model-facing codemode output or native approval checks.
+
+Reading an MCP skill does not change code-mode approval policy;
+the builtin skills server is directly exposed for verified on-demand reads.
+See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP
@@ -1294,8 +1298,12 @@ files remain untouched. Restoring an older backup repeats the same conversion.
 Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
 in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
-provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
-owns retries; the object transport and gateway do not retry the same request independently.
+provider execution path. Pi remains the sole tool executor and loop owner. Desktop Pi and Pi Durable
+disable native provider retries for roots and children. Internal object requests reuse `ai-retry`
+with three retries for retryable failures before the first content chunk; partial streams are not replayed.
+AI SDK built-in retries remain disabled.
+The final upstream error is preserved. Public HTTP gateway requests retain their no-retry policy.
+A later user input can start a new run after a failure.
 
 ## Internal Agent continuation normalization
 
