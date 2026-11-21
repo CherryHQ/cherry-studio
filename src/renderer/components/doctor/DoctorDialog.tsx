@@ -10,7 +10,7 @@ import {
   type DiagnosticUploadPanelHandle
 } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { useDoctorController } from '@renderer/hooks/doctor'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { openDoctorTarget } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import type { DoctorNavigateTarget, DoctorRunTier } from '@shared/types/doctor'
 import type { DoctorPanel } from '@shared/utils/doctor'
@@ -57,7 +57,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
   )
 
   const navigate = useCallback(
-    (target: DoctorNavigateTarget) => void finishHandoff(() => openSettingsTab(target)),
+    (target: DoctorNavigateTarget) => void finishHandoff(() => openDoctorTarget(target)),
     [finishHandoff]
   )
   const controller = useDoctorController({
