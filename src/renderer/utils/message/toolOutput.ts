@@ -20,6 +20,7 @@ export type ToolMetadata = {
   type?: ToolType
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Tool envelopes and nested metadata are unvalidated; this checks only the container, and consumed metadata fields are narrowed below.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

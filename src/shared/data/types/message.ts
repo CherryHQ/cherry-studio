@@ -312,6 +312,7 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
     sourceUrl: string
     type: string
     file?: unknown
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Knowledge sources own these extra document fields; the citation carrier preserves them without claiming a validated metadata schema.
     metadata?: Record<string, unknown>
   }[]
 }
@@ -329,6 +330,7 @@ export interface MemoryCitationReference extends BaseCitationReference {
     createdAt?: string
     updatedAt?: string
     score?: number
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Memory sources own these extension fields; citation transport retains their unvalidated values for the consuming surface.
     metadata?: Record<string, unknown>
   }[]
 }

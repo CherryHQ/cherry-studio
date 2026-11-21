@@ -82,7 +82,7 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is { name?: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
