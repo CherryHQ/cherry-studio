@@ -5,6 +5,7 @@ import { session } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 
 const logger = loggerService.withContext('devtools')
 
@@ -50,7 +51,7 @@ export async function installBundledDevtools(
   onInstalled?: (extension: { id: string; name: string }) => void
 ) {
   try {
-    const devtoolsPath = join(application.getPath('app.root.resources'), 'devtools', directoryName)
+    const devtoolsPath = toAsarUnpackedPath(join(application.getPath('app.root.resources'), 'devtools', directoryName))
     // Loads into the default session, so every default-session BrowserWindow can inspect bundled panels.
     const extension = await session.defaultSession.extensions.loadExtension(devtoolsPath)
     onInstalled?.({ id: extension.id, name: extension.name })
