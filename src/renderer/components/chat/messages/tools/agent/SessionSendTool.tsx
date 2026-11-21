@@ -2,6 +2,7 @@ import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@cherrystudio/ui'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
@@ -15,13 +16,9 @@ interface SessionSendInput {
   message?: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function getInput(input: ToolInput | Record<string, unknown> | undefined): SessionSendInput {
-  if (!isRecord(input)) return {}
-  const record = input as Record<string, unknown>
+function getInput(input: ToolInput | NormalToolResponse['arguments']): SessionSendInput {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
+  const record = input as { message?: unknown }
   return {
     message: typeof record.message === 'string' ? record.message : undefined
   }
@@ -34,7 +31,7 @@ export function SessionSendTool({
   isStreaming = false,
   status
 }: {
-  input?: ToolInput | Record<string, unknown>
+  input?: ToolInput | NormalToolResponse['arguments']
   output?: ToolOutput
   hasError?: boolean
   isStreaming?: boolean
