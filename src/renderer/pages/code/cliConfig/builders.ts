@@ -23,6 +23,7 @@ import {
 } from './permissionModes'
 import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
+import type { CliConfigWriteArgs } from './types'
 import {
   asRecord,
   cliProviderKeyName,
@@ -64,32 +65,37 @@ function openCodeProviderRequestOptions(options: Pick<OpenCodeConfigOptions, 'pr
   headers?: Record<string, string>
 } {
   const headers = Object.fromEntries(
-    Object.entries(asRecord(options.providerHeaders)).filter(([, value]) => typeof value === 'string')
+    Object.entries(asRecord(options.providerHeaders)).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string'
+    )
   )
   return Object.keys(headers).length > 0 ? { headers } : {}
 }
 
 export function buildClaudeConfig(
-  existing: Record<string, any>,
-  userBlob: Record<string, any>,
+  existing: Record<string, Serializable>,
+  userBlob: NonNullable<CliConfigWriteArgs['configBlob']>,
   resolved: { apiKey: string; baseUrl: string; model: string; writePrimaryModel?: boolean }
-): Record<string, any> {
+) {
   const configEnv = { ...asRecord(userBlob.env) }
-  const envBlock: Record<string, any> = { ...configEnv }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Foreign env values from the edited blob are preserved until JSON rendering; only managed values are overwritten.
+  const envBlock: Record<string, unknown> = { ...configEnv }
   if (resolved.baseUrl) envBlock.ANTHROPIC_BASE_URL = resolved.baseUrl
   if (resolved.apiKey) envBlock.ANTHROPIC_AUTH_TOKEN = resolved.apiKey
   if (resolved.writePrimaryModel === false) delete envBlock.ANTHROPIC_MODEL
   else if (resolved.model) envBlock.ANTHROPIC_MODEL = resolved.model
 
+  // SAFETY: Existing env fields come from the JSONC parser; the branch below checks the object container.
   const existingEnv =
-    existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : null
+    existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, Serializable>) } : null
   if (existingEnv) {
     for (const key of CLAUDE_MANAGED_ENV_KEYS) {
       if (!(key in envBlock)) delete existingEnv[key]
     }
   }
 
-  const merged: Record<string, any> = { ...existing, ...userBlob }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The edited blob may retain unvalidated extension values; JSON rendering owns omission and serialization errors.
+  const merged: Record<string, unknown> = { ...existing, ...userBlob }
   for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
     if (!(key in userBlob)) delete merged[key]
   }
@@ -127,7 +133,11 @@ export function buildCodexConfig(
   const existingWindow = existingToml.model_context_window
   const existingCompaction = existingToml.model_auto_compact_token_limit
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
-  const preservedProviders = omitKeysByPrefix(asRecord(existingToml.model_providers), CHERRY_PROVIDER_PREFIX)
+  // SAFETY: Existing provider entries come from parsed TOML; the container view preserves native TOML values.
+  const preservedProviders = omitKeysByPrefix(
+    asRecord(existingToml.model_providers) as TomlTable,
+    CHERRY_PROVIDER_PREFIX
+  )
   const cleaned: TomlTable = {}
   for (const [key, value] of Object.entries(existingToml)) {
     if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
@@ -155,7 +165,8 @@ export function buildCodexConfig(
   if (isValidTokenCount(existingCompaction)) merged.model_auto_compact_token_limit = existingCompaction
   if (options.disableResponseStorage === true) merged.disable_response_storage = true
   if (options.goalMode === true) {
-    const features = asRecord(merged.features)
+    // SAFETY: The existing feature fields retain the parsed TOML value domain after managed-key deletion.
+    const features = asRecord(merged.features) as TomlTable
     features.goals = true
     merged.features = features
   }
@@ -264,10 +275,15 @@ export function buildOpenCodeConfig(
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
-  const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
+  // SAFETY: Existing provider entries come from parsed JSON; the container check does not change their value domain.
+  const preservedProviders = omitKeysByPrefix(
+    asRecord(existing.provider) as Record<string, Serializable>,
+    CHERRY_PROVIDER_PREFIX
+  )
   const cleaned: Record<string, Serializable> = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
-  const compaction = { ...asRecord(existing.compaction) }
+  // SAFETY: Existing compaction values come from parsed JSON and are copied without interpretation.
+  const compaction = { ...(asRecord(existing.compaction) as Record<string, Serializable>) }
   delete cleaned.compaction
   delete compaction.auto
   if (options.autoCompact === true) compaction.auto = true
@@ -313,11 +329,12 @@ export function buildGeminiEnvConfig(
 }
 
 export function buildGeminiSettingsConfig(
-  settings: Record<string, any>,
+  settings: Record<string, Serializable>,
   resolved: { model: string },
-  configBlob: Record<string, any>
-): Record<string, any> {
-  const next = { ...settings }
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
+) {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Managed-key copying can retain raw edited values; JSON rendering validates their final representation.
+  const next: Record<string, unknown> = { ...settings }
   applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
   next.model = { ...asRecord(next.model), name: resolved.model }
   const security = asRecord(next.security)
@@ -326,13 +343,14 @@ export function buildGeminiSettingsConfig(
 }
 
 export function buildQwenConfig(
-  existing: Record<string, any>,
+  existing: Record<string, Serializable>,
   resolved: { apiKey: string; baseUrl: string; model: string; modelLabel: string },
-  configBlob: Record<string, any>
-): Record<string, any> {
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
+) {
   const sanitizedConfigBlob = sanitizeQwenConfigBlob(configBlob)
   const envKey = 'CHERRY_QWEN_API_KEY'
-  const existingModels = Array.isArray(existing.modelProviders?.openai) ? [...existing.modelProviders.openai] : []
+  const modelProviders = asRecord(existing.modelProviders)
+  const existingModels = Array.isArray(modelProviders.openai) ? [...modelProviders.openai] : []
   const userModels = existingModels.filter((m) => !isCherryManagedModel(m))
   userModels.push({ id: resolved.model, name: resolved.modelLabel, baseUrl: resolved.baseUrl, envKey })
 
@@ -340,7 +358,8 @@ export function buildQwenConfig(
   existingEnv[envKey] = resolved.apiKey
 
   const security = asRecord(existing.security)
-  const merged = {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The managed settings copied below still contain raw edited values; JSON rendering owns their serialization.
+  const merged: Record<string, unknown> = {
     ...existing,
     modelProviders: { ...asRecord(existing.modelProviders), openai: userModels },
     env: existingEnv,
@@ -355,23 +374,29 @@ export function buildQwenConfig(
 }
 
 export function buildKimiConfig(
-  existing: Record<string, any>,
+  existing: TomlTable,
   resolved: { apiKey: string; baseUrl: string; model: string; modelKey: string; maxContextSize?: number },
-  configBlob: Record<string, any>
-): Record<string, any> {
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
+) {
   const sanitizedConfigBlob = sanitizeKimiConfigBlob(configBlob)
   const providerTable = omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX)
   providerTable[resolved.modelKey] = { type: 'openai', base_url: resolved.baseUrl, api_key: resolved.apiKey }
 
   const modelsTable = omitKeysByPrefix(asRecord(existing.models), CHERRY_PROVIDER_PREFIX)
-  const modelConfig: Record<string, any> = {
+  const modelConfig: TomlTable = {
     provider: resolved.modelKey,
     model: resolved.model
   }
   if (resolved.maxContextSize !== undefined) modelConfig.max_context_size = resolved.maxContextSize
   modelsTable[resolved.modelKey] = modelConfig
 
-  const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve native TOML entries and raw managed values until the target TOML serializer validates them.
+  const merged: Record<string, unknown> = {
+    ...existing,
+    default_model: resolved.modelKey,
+    providers: providerTable,
+    models: modelsTable
+  }
   applyWritableTomlSettings(merged, sanitizedConfigBlob)
   return merged
 }
@@ -416,10 +441,16 @@ export function buildPiModelsConfig(
   }
   if (resolved.headers && Object.keys(resolved.headers).length > 0) provider.headers = resolved.headers
 
+  // SAFETY: Existing provider entries come from parsed JSON; only the managed prefix is replaced.
+  const preservedProviders = omitKeysByPrefix(
+    asRecord(existing.providers) as Record<string, Serializable>,
+    CHERRY_PROVIDER_PREFIX
+  )
+
   return {
     ...existing,
     providers: {
-      ...omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX),
+      ...preservedProviders,
       [resolved.providerKey]: provider
     }
   }

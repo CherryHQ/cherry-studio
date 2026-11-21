@@ -43,6 +43,7 @@ export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSe
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored CLI config is untyped; each supported field is validated independently before defaults are applied.
 export function normalizeDeepSeekHarnessSettings(value: unknown): DeepSeekHarnessSettings {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; each supported preset and permission value is validated before output.
   const settings = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
   return {
     agentPreset: isDeepSeekHarnessAgentPreset(settings.agentPreset)

@@ -36,9 +36,10 @@ export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys?.find((k) => k.isEnabled)?.key ?? ''
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CLI adapters read user-edited JSON and TOML sections; accept object tables before preserving foreign configuration keys.
-export function asRecord(value: unknown): Record<string, any> {
-  return value && typeof value === 'object' ? (value as Record<string, any>) : {}
+// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- JSON, TOML and user-edited sections share this container check; foreign field values remain unvalidated.
+export function asRecord(value: unknown): Record<string, unknown> {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; callers validate consumed fields or retain their parser-owned value contract.
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
 
 /** Drop every key in `record` whose name starts with `prefix`. */
@@ -59,25 +60,30 @@ export function isCherryManagedModel(item: unknown): boolean {
 }
 
 /** Find the provider key Cherry Studio manages (prefixed with `CHERRY_PROVIDER_PREFIX`). */
-export function findCherryProviderKey(providers: Record<string, any>): string | undefined {
+export function findCherryProviderKey<T>(providers: Record<string, T>): string | undefined {
   return Object.keys(providers).find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
 }
 
 /** Delete `target.features.goals`, dropping the whole `features` object if it becomes empty. */
-export function dropFeatureGoalsIfEmpty(target: Record<string, any>): void {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This deletion helper preserves all foreign file values; it only removes the named feature key after checking its container.
+export function dropFeatureGoalsIfEmpty(target: Record<string, unknown>): void {
   if (!target.features || typeof target.features !== 'object') return
-  const features = { ...(target.features as Record<string, any>) }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; spreading retains its unvalidated enumerable values before deleting goals.
+  const features = { ...(target.features as Record<string, unknown>) }
   delete features.goals
   if (Object.keys(features).length === 0) delete target.features
   else target.features = features
 }
 
 /** Delete `target.security.auth.selectedType`, dropping `auth`/`security` when they become empty. */
-export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, any>): void {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This deletion helper preserves foreign security settings and removes only the managed auth selector.
+export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, unknown>): void {
   if (!target.security || typeof target.security !== 'object') return
-  const security = { ...(target.security as Record<string, any>) }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The security container is checked; its other native values are copied without interpretation.
+  const security = { ...(target.security as Record<string, unknown>) }
   if (security.auth && typeof security.auth === 'object') {
-    const auth = { ...(security.auth as Record<string, any>) }
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The auth container is checked; only selectedType is deleted from its copied fields.
+    const auth = { ...(security.auth as Record<string, unknown>) }
     delete auth.selectedType
     if (Object.keys(auth).length === 0) delete security.auth
     else security.auth = auth

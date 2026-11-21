@@ -98,7 +98,7 @@ describe('ownLogin builders', () => {
 
       expect(result.model).toBeUndefined()
       expect(result.env).toEqual({ USER_ENV: 'keep' })
-      expect(result.modelProviders.openai).toEqual([{ id: 'user-model', envKey: 'USER_KEY' }])
+      expect(result).toHaveProperty('modelProviders.openai', [{ id: 'user-model', envKey: 'USER_KEY' }])
       expect(result.security).toBeUndefined()
       expect(result.tools).toEqual({ approvalMode: 'plan' })
       expect(result.general).toEqual({ vimMode: true })
