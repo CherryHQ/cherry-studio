@@ -833,6 +833,7 @@
   "chat.input.file_not_supported": "Model tento typ souboru nepodporuje",
   "chat.input.file_not_supported_count": "{{count}} souborů není podporováno",
   "chat.input.followup_queue.edit": "Upravit",
+  "chat.input.followup_queue.limit_reached": "Fronta je plná (max. {{count}})",
   "chat.input.followup_queue.pause": "Pozastavit automatické odesílání",
   "chat.input.followup_queue.remove": "Odebrat",
   "chat.input.followup_queue.resume": "Obnovit automatické odesílání",

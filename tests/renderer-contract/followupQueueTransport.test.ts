@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useSWRConfig } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@data/hooks/useDataApi')
@@ -21,6 +22,7 @@ const { service } = vi.hoisted(() => ({
 import { followupQueueHandlers } from '../../src/main/data/api/handlers/followupQueues'
 import { useFollowupQueue } from '../../src/renderer/components/composer/useFollowupQueue'
 import { createSWRTestWrapper } from '../../src/renderer/data/hooks/__tests__/testUtils'
+import { DataApiError, ErrorCode } from '../../src/shared/data/api/errors'
 
 const ids = [
   '11111111-1111-7111-8111-111111111111',
@@ -38,6 +40,52 @@ afterEach(() => {
 
 // Keep the renderer caller, fetcher and client real. Only bridge dispatch and
 // persistence are faked; handler validation below is the production boundary.
+
+describe('production overlapping enqueue settlement', () => {
+  it('keeps an older rejected enqueue false after a newer scope enqueue succeeds', async () => {
+    let rejectFirst!: (reason: Error) => void
+    let postCount = 0
+    const request = vi.fn(async (req) => {
+      if (req.path === '/followup-queues' && req.method === 'POST') {
+        postCount++
+        if (postCount === 1)
+          return await new Promise((_resolve, reject) => {
+            rejectFirst = reject
+          })
+        return { id: req.id, status: 201, data: req.body }
+      }
+      return {
+        id: req.id,
+        status: 200,
+        data: req.path === '/followup-queue-states' ? { scopeKey: req.params?.scopeKey, paused: false } : []
+      }
+    })
+    Object.defineProperty(window, 'api', { configurable: true, value: { ...window.api, dataApi: { request } } })
+    const { Wrapper: wrapper } = createSWRTestWrapper()
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, status: 'streaming', lastCompletedAt: null, onDrain: vi.fn() }),
+      { wrapper, initialProps: { scopeKey: 'scope-a' } }
+    )
+    let first!: Promise<boolean>
+    await act(async () => {
+      first = result.current.enqueue({ text: 'A', tokens: [] }, { text: 'A', userMessageParts: [] })
+    })
+    await waitFor(() => expect(postCount).toBe(1))
+    rerender({ scopeKey: 'scope-b' })
+    let second: unknown
+    await act(async () => {
+      second = await result.current.enqueue({ text: 'B', tokens: [] }, { text: 'B', userMessageParts: [] })
+    })
+    expect(second).toBe(true)
+    let older: unknown
+    await act(async () => {
+      rejectFirst(new DataApiError(ErrorCode.VALIDATION_ERROR, 'older write rejected', 400))
+      older = await first
+    })
+    expect(older).toBe(false)
+    expect(postCount).toBe(2)
+  })
+})
 
 describe('production edit-transfer transport contract', () => {
   it.each([
@@ -113,6 +161,7 @@ describe('production edit-transfer transport contract', () => {
           payload: { text: 'edited', userMessageParts: [] }
         }))
       })
+      expect(seen.some((req) => req.path === '/followup-queues/order:batch')).toBe(false)
       expect(transferred).toHaveLength(1)
       expect(seen).toContainEqual(
         expect.objectContaining({
@@ -135,4 +184,109 @@ describe('production edit-transfer transport contract', () => {
       unmount()
     }
   )
+
+  it('preserves A,B after B -> A -> C through failed SWR revalidation (inv_e112f222ee5f42b2)', async () => {
+    let failReads = false
+    let rows = ids.slice(0, 3).map((id, index) => ({
+      id,
+      scopeKey: scope,
+      draft: { text: ['A', 'B', 'C'][index], tokens: [] },
+      payload: { text: ['A', 'B', 'C'][index], userMessageParts: [] },
+      status: 'pending',
+      orderKey: String(index),
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      sentAt: null
+    }))
+    service.listByScope.mockImplementation(() => [...rows])
+    service.getState.mockImplementation(() => ({ scopeKey: scope, paused: false }))
+    service.claim.mockReturnValue({ claimed: true, alreadySent: false })
+    service.enqueue.mockImplementation((body) => {
+      const existing = rows.find((row) => row.id === body.id)
+      if (existing) return existing
+      let slot = 0
+      for (const predecessor of [...(body.restorePredecessors ?? [])].reverse()) {
+        const index = rows.findIndex((row) => row.id === predecessor)
+        if (index >= 0) {
+          slot = index + 1
+          break
+        }
+      }
+      const inserted = { ...rows[0], ...body, orderKey: String(slot) }
+      rows.splice(slot, 0, inserted)
+      return inserted
+    })
+    service.remove.mockImplementation((id) => {
+      rows = rows.filter((row) => row.id !== id)
+    })
+    const seen: Array<{ method: string; path: string; body?: unknown }> = []
+    const request = vi.fn(async (req) => {
+      seen.push(req)
+      if (req.method === 'GET' && req.path === '/followup-queues' && failReads)
+        return { id: req.id, status: 400, error: { code: 'BAD_REQUEST', message: 'Queue revalidation unavailable' } }
+      const match = req.path.match(/^\/followup-queues\/([^/]+)(?:\/(claim|heartbeat))?$/)
+      let data: unknown
+      if (req.path === '/followup-queues') {
+        data =
+          req.method === 'GET'
+            ? await followupQueueHandlers['/followup-queues'].GET({ query: req.params })
+            : await followupQueueHandlers['/followup-queues'].POST({ body: req.body })
+      } else if (req.path === '/followup-queue-states') {
+        data = await followupQueueHandlers['/followup-queue-states'].GET({ query: req.params })
+      } else if (match?.[2] === 'claim') {
+        data = await followupQueueHandlers['/followup-queues/:id/claim'].POST({
+          params: { id: match[1] },
+          body: req.body
+        })
+      } else if (match && req.method === 'DELETE') {
+        data = await followupQueueHandlers['/followup-queues/:id'].DELETE({
+          params: { id: match[1] },
+          body: req.body
+        })
+      } else if (req.path === '/followup-queues/order:batch') data = undefined
+      else throw new Error(`Unexpected request ${req.method} ${req.path}`)
+      return { id: req.id, status: 200, data }
+    })
+    Object.defineProperty(window, 'api', { configurable: true, value: { ...window.api, dataApi: { request } } })
+
+    const { Wrapper } = createSWRTestWrapper()
+    const { result, unmount } = renderHook(
+      () => {
+        const queue = useFollowupQueue({
+          scopeKey: scope,
+          status: 'streaming',
+          lastCompletedAt: null,
+          onDrain: async () => true
+        })
+        return { ...queue, refresh: useSWRConfig().mutate }
+      },
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.items).toHaveLength(3))
+    await act(async () => {
+      await result.current.takeForEdit(ids[1], () => null)
+    })
+    await waitFor(() => expect(result.current.items.map((row) => row.draft.text)).toEqual(['A', 'C']))
+    failReads = true
+    await act(async () => {
+      await result.current.takeForEdit(ids[0], () => ({
+        draft: { text: 'B edited', tokens: [] },
+        payload: { text: 'B edited', userMessageParts: [] }
+      }))
+    })
+    expect(result.current.items.map((row) => row.draft.text)).toEqual(['A', 'C'])
+    failReads = false
+    await act(async () => {
+      await result.current.refresh(() => true)
+    })
+    await waitFor(() => expect(result.current.items.map((row) => row.draft.text)).toEqual(['B edited', 'C']))
+    await act(async () => {
+      await result.current.takeForEdit(ids[2], () => ({
+        draft: { text: 'A edited', tokens: [] },
+        payload: { text: 'A edited', userMessageParts: [] }
+      }))
+    })
+    expect(rows.map((row) => row.draft.text)).toEqual(['A edited', 'B edited'])
+    unmount()
+  })
 })

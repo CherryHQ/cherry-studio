@@ -148,8 +148,15 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
-  const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
-    useComposerToolProviderDispatch()
+  const {
+    addNewTopic,
+    onTextChange,
+    setFiles,
+    subscribeFilesDispatch,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    toolsRegistry
+  } = useComposerToolProviderDispatch()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
 
   const toolActions = useMemo<ToolActionMap>(
@@ -157,10 +164,11 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
       addNewTopic,
       onTextChange,
       setFiles,
+      subscribeFilesDispatch,
       setMentionedModels,
       setSelectedKnowledgeBases
     }),
-    [addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases]
+    [addNewTopic, onTextChange, setFiles, subscribeFilesDispatch, setMentionedModels, setSelectedKnowledgeBases]
   )
 
   const availableTools = useMemo(() => {

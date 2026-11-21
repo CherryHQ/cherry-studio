@@ -833,6 +833,7 @@
   "chat.input.file_not_supported": "모델이 이 파일 형식을 지원하지 않습니다",
   "chat.input.file_not_supported_count": "지원하지 않는 파일 {{count}}개",
   "chat.input.followup_queue.edit": "편집",
+  "chat.input.followup_queue.limit_reached": "대기열이 가득 찼습니다(최대 {{count}}개)",
   "chat.input.followup_queue.pause": "자동 전송 일시 중지",
   "chat.input.followup_queue.remove": "제거",
   "chat.input.followup_queue.resume": "자동 전송 재개",
