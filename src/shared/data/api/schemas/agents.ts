@@ -47,6 +47,14 @@ export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
+export const CustomCliConfigurationSchema = z.object({
+  /** Absolute path to the executable, validated by Main before save and before each launch. */
+  executable: z.string(),
+  /** Argument vector passed to the process verbatim; no shell is involved. */
+  args: z.array(z.string()).default([])
+})
+export type CustomCliConfiguration = z.infer<typeof CustomCliConfigurationSchema>
+
 export const AgentConfigurationSchema = z
   .object({
     avatar: z.string().optional(),
@@ -55,6 +63,7 @@ export const AgentConfigurationSchema = z
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
     service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
+    custom_cli: CustomCliConfigurationSchema.optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),
