@@ -17,6 +17,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
+import { AgentChannelDraftSchema } from '@shared/data/api/schemas/agentChannels'
 import {
   AgentBaseSchema,
   AgentEntitySchema,
@@ -89,7 +90,12 @@ export const CreateAgentCommandSchema = AgentBaseSchema.extend({
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
    */
-  skillIds: AgentSkillIdSetSchema.optional()
+  skillIds: AgentSkillIdSetSchema.optional(),
+  /**
+   * Create-only: channels owned by the new Agent, created in the same DB transaction.
+   * QR-login channels are always created inactive.
+   */
+  channels: z.array(AgentChannelDraftSchema).optional()
 })
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
