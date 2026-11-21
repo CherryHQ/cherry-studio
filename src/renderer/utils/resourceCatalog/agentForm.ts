@@ -44,6 +44,7 @@ export interface AgentFormState {
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
   heartbeatEnabled: boolean
+  sharedMemoryEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
   /** Tri-state driver for `configuration.language`: inherit (undefined), off (null), custom (string). */
@@ -115,6 +116,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
+    sharedMemoryEnabled: cfg.shared_memory_enabled !== false,
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
     ...initialLanguageFields(cfg.language)
@@ -202,6 +204,11 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
 
   const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
+
+  if (baseline.sharedMemoryEnabled !== next.sharedMemoryEnabled) {
+    cfgPatch.shared_memory_enabled = next.sharedMemoryEnabled
+    cfgDirty = true
+  }
 
   if (baseline.avatar !== next.avatar) {
     cfgPatch.avatar = next.avatar

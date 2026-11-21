@@ -26,6 +26,7 @@ import { hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
 import { localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
+import { memoryRequestSchemas } from './memory'
 import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
@@ -87,6 +88,7 @@ export const ipcRequestSchemas = {
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,
   ...mcpRequestSchemas,
+  ...memoryRequestSchemas,
   ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
   ...notificationRequestSchemas,
