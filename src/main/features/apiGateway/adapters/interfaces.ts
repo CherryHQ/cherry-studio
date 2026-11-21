@@ -11,6 +11,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
 import type { CallOverrides } from '@main/ai/types'
+import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -27,6 +28,7 @@ import type { Provider } from '@shared/data/types/provider'
 export interface GatewayUsageMetadata {
   providerMetadata?: ProviderMetadata
   rawFinishReason?: string
+  reportedOutputUsage?: ProviderReportedOutputUsage
   stats?: {
     totalTokens?: number
     inputTokens?: number
@@ -119,6 +121,11 @@ export interface StreamAdapterOptions {
   inputTokens?: number
   /** Restore a provider-safe tool name to the identity expected by the API client. */
   toClientToolName?: (toolName: string) => string
+  /**
+   * Private object transports only: surface upstream count provenance on emitted events. The public
+   * HTTP gateway keeps its normalized usage payloads unchanged.
+   */
+  exposeReportedOutputUsage?: boolean
 }
 
 /**

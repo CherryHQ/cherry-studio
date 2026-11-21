@@ -16,7 +16,9 @@ import { getRawModelId } from '@shared/utils/model'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { formatPiOutputLimitDiagnostic } from './outputLimitDiagnostic'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
+import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reportedOutputUsage'
 
 const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
 
@@ -84,6 +86,7 @@ export async function createPiGatewayModelBinding(
     ],
     streamSimple: (model, context, options) => {
       // Native reasoning can enlarge per-call output caps before the gateway receives them.
+      const reported: ReportedOutputUsage = {}
       const stream = streamSimple(model, context, {
         ...options,
         objectTransports: gateway.createAgentObjectTransports({
@@ -96,11 +99,18 @@ export async function createPiGatewayModelBinding(
         }),
         disableContinuation: true,
         reasoning: undefined,
-        maxRetries: 0
+        maxRetries: 0,
+        onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
       })
       void stream
         .result()
         .then((message) => {
+          if (message.stopReason === 'length') {
+            message.errorMessage = formatPiOutputLimitDiagnostic({
+              configuredMaxTokens: model.maxTokens,
+              ...reported
+            })
+          }
           if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
         .catch((error) => {

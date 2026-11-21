@@ -9,7 +9,15 @@
 
 import type { UIMessageChunk } from 'ai'
 
-import type { AdapterState, ContentBlockState, IStreamAdapter, StreamAdapterOptions } from '../interfaces'
+import { REPORTED_OUTPUT_USAGE_KEY, type ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
+
+import type {
+  AdapterState,
+  ContentBlockState,
+  GatewayUsageMetadata,
+  IStreamAdapter,
+  StreamAdapterOptions
+} from '../interfaces'
 
 /**
  * Abstract base class for stream adapters
@@ -22,11 +30,14 @@ import type { AdapterState, ContentBlockState, IStreamAdapter, StreamAdapterOpti
  */
 export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<TOutputEvent> {
   protected state: AdapterState
+  protected reportedOutputUsage?: ProviderReportedOutputUsage
+  private readonly exposeReportedOutputUsage: boolean
   /** Events produced by the current `processChunk`/`finalize`, drained by the active driver. */
   private pendingEvents: TOutputEvent[] = []
   private transformStream: TransformStream<UIMessageChunk, TOutputEvent>
 
   constructor(options: StreamAdapterOptions) {
+    this.exposeReportedOutputUsage = options.exposeReportedOutputUsage === true
     this.state = this.createInitialState(options)
     this.transformStream = this.createTransformStream()
   }
@@ -104,6 +115,11 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
           : `Invalid tool arguments for ${chunk.toolName}: expected an object`
       )
     }
+    if (chunk.type === 'message-metadata' || chunk.type === 'finish') {
+      const metadata = chunk.messageMetadata as GatewayUsageMetadata | undefined
+      if (this.exposeReportedOutputUsage && metadata?.reportedOutputUsage)
+        this.reportedOutputUsage = { ...metadata.reportedOutputUsage }
+    }
     this.emitMessageStart()
     this.processChunk(chunk)
     return this.drainPending()
@@ -144,7 +160,12 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * (TransformStream transform/flush, or the push API) drains it.
    */
   protected emit(event: TOutputEvent): void {
-    this.pendingEvents.push(event)
+    // Keep normalized protocol totals and provider count presence separate.
+    this.pendingEvents.push(
+      this.reportedOutputUsage
+        ? Object.assign({}, event, { [REPORTED_OUTPUT_USAGE_KEY]: { ...this.reportedOutputUsage } })
+        : event
+    )
   }
 
   /**

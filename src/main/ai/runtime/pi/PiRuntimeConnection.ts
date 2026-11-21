@@ -24,7 +24,8 @@ import {
   prepareNativeSubmission,
   lookupNativeInput,
   bindNativeInput,
-  applyNativeSubmissionResult
+  applyNativeSubmissionResult,
+  nativeOutcomeError
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
@@ -529,7 +530,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       for (const input of batch.outcomes) {
         if (input.outcome !== 'completed' && !this.failure) {
-          const error = new Error(input.error?.message ?? input.outcome)
+          const error = nativeOutcomeError(input)
           logAiFailure(
             logger,
             'Pi input failed',

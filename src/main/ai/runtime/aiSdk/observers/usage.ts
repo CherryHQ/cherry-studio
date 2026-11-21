@@ -24,6 +24,7 @@
 import type { LanguageModelUsage } from 'ai'
 
 import { getContextTokens } from '@cherrystudio/ai-core'
+import { providerReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { MessageStats } from '@shared/data/types/message'
 
 import type { Agent } from '../Agent'
@@ -120,7 +121,8 @@ export function attachUsageObserver(agent: Agent): void {
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        stats: usageToStats(total, lastStepTotalTokens)
+        stats: usageToStats(total, lastStepTotalTokens),
+        reportedOutputUsage: providerReportedOutputUsage(step.usage)
       }
     })
   })

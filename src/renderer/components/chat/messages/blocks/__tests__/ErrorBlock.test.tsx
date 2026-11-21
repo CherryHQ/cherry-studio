@@ -208,6 +208,36 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
   })
 
+  it.each(['Pi', 'Pi Durable'])('shows the %s output-limit counts and recovery detail on the card', () => {
+    mocks.translations = new Map([
+      ['error.output_token_limit_reached', 'Reached the limit.'],
+      ['error.output_token_limit_detail', '{{detail}}']
+    ])
+    mocks.i18nKeys.add('error.output_token_limit_reached')
+    mocks.i18nKeys.add('error.output_token_limit_detail')
+    const detail = 'Configured maximum output: 8192 tokens; output 8079; reasoning 7000.'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: detail,
+          stack: null,
+          reason: 'output-truncated',
+          finishReason: 'length',
+          i18nKey: 'output_token_limit_reached',
+          detailI18nKey: 'output_token_limit_detail',
+          detailI18nValues: { detail }
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(/8192/)).toBeInTheDocument()
+    expect(screen.getByText(/7000/)).toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
