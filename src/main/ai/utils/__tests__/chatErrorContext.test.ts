@@ -154,8 +154,8 @@ describe('chatErrorContext', () => {
   })
 
   it('normalizes credential-bearing messages on plain errors and terminates cyclic causes', () => {
-    const error: Record<string, unknown> = { message: 'connection failed token=private', code: 'ECONNRESET' }
-    error.cause = error
+    const error = { message: 'connection failed token=private', code: 'ECONNRESET' }
+    Object.assign(error, { cause: error })
     const context = chatErrorContext(error)
 
     expect(context.errorMessage).toContain('connection failed')

@@ -44,6 +44,7 @@ function responseShape(value: unknown): Serializable {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Retry and parser failures carry heterogeneous nested causes; detect payload ownership before deciding whether message text can be retained.
 function containsPayload(error: unknown, depth = 0): boolean {
   if (typeof error !== 'object' || error === null) return false
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the error container is checked; native fields and nested causes remain opaque until validation or bounded redaction.
   const source = error as Record<string, unknown>
   if (['requestBodyValues', 'responseBody', 'data', 'text', 'value', 'issues'].some((key) => source[key] != null))
     return true
@@ -54,13 +55,14 @@ function containsPayload(error: unknown, depth = 0): boolean {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK and native failures may be arbitrary values; narrow diagnostic fields and redact payloads under the selected message policy.
-function collectErrorContext(error: unknown, depth: number, hideMessage: boolean): Record<string, unknown> {
+function collectErrorContext(error: unknown, depth: number, hideMessage: boolean): Record<string, Serializable> {
   if (!(typeof error === 'object' && error !== null)) {
     return { errorMessage: hideMessage ? redactToShape(error) : safeText(String(error), MAX_MESSAGE_CHARS) }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the error container is checked; native fields and nested causes remain opaque until validation or bounded redaction.
   const source = error as Record<string, unknown>
-  const context: Record<string, unknown> = getSafeAiSdkErrorDiscriminants({
+  const context: Record<string, Serializable> = getSafeAiSdkErrorDiscriminants({
     statusCode: source.statusCode,
     statusText: source.statusText,
     isRetryable: source.isRetryable,
@@ -99,7 +101,7 @@ function collectErrorContext(error: unknown, depth: number, hideMessage: boolean
 
 /** Diagnostic-only payload shapes augment the shared error normalization without entering persisted errors. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime catch paths provide original failures; payload detection and redaction own diagnostic projection at this boundary.
-export function chatErrorContext(error: unknown): Record<string, unknown> {
+export function chatErrorContext(error: unknown): Record<string, Serializable> {
   // Retry wrappers and parser causes can echo payloads from another level of the error chain.
   return collectErrorContext(error, 0, containsPayload(error))
 }
