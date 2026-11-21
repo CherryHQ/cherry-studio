@@ -255,7 +255,8 @@ export type InfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'G
 
 type InfiniteCacheValue<TResponse> = Parameters<SWRInfiniteKeyedMutator<TResponse[]>>[0]
 
-type InfiniteQueryKey = [string, Record<string, unknown>]
+// Snapshot filters can carry raw cursor values; later page cursors come from the typed response.
+type InfiniteQueryKey = [string, { limit: number; cursor?: unknown }]
 type InfiniteQueryKeyGetter = (
   pageIndex: number,
   previousPageData: CursorPaginationResponse<unknown> | null
@@ -263,7 +264,7 @@ type InfiniteQueryKeyGetter = (
 
 function createInfiniteQueryKeyGetter(
   resolvedPath: string,
-  query: InfiniteQueryKey[1] | undefined,
+  query: object | undefined,
   limit: number,
   enabled = true
 ): InfiniteQueryKeyGetter {
@@ -356,8 +357,7 @@ export function useQuery<TPath extends ApiPath>(
 ): UseQueryResult<TPath> {
   const isEnabled = options?.enabled !== false
   const resolvedPath = isEnabled ? resolveTemplate(path, options?.params) : null
-  const key =
-    isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
+  const key = isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query) : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<ResponseForPath<TPath, 'GET'>>(key, getFetcher, {
     ...DEFAULT_SWR_OPTIONS,
@@ -479,7 +479,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
 
   // Track the params from the most recent in-flight trigger, for dev-mode
   // concurrency detection on template paths.
-  const inFlightParamsRef = useRef<Record<string, unknown> | null>(null)
+  const inFlightParamsRef = useRef<NonNullable<Parameters<typeof resolveTemplate>[1]> | null>(null)
 
   const apiFetcher = useMemo(() => createApiFetcher<ConcreteApiPaths, TMethod>(method), [method])
 
@@ -708,7 +708,7 @@ export function prefetch<TPath extends ApiPath>(
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
   const resolvedPath = resolveTemplate(path, options?.params)
-  const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
+  const key = buildSWRKey(resolvedPath, options?.query)
   return preload(key, getFetcher)
 }
 
@@ -746,7 +746,7 @@ export function useReadCache() {
   return useCallback(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
-      query?: Record<string, unknown>,
+      query?: object,
       infinite?: { limit: number }
     ): TResponse | undefined => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0
@@ -798,7 +798,7 @@ export function useWriteCache() {
     async <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
       value: TResponse,
-      query?: Record<string, unknown>
+      query?: object
     ): Promise<void> => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0
       const key = hasQuery ? [path, query] : [path]
@@ -1295,7 +1295,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
  * @param query - Optional query parameters
  * @returns Tuple of [path] or [path, query] for SWR cache key
  */
-function buildSWRKey<TQuery extends Record<string, any>>(path: string, query?: TQuery): [string] | [string, TQuery] {
+function buildSWRKey<TQuery>(path: string, query?: TQuery): [string] | [string, TQuery] {
   if (query && Object.keys(query).length > 0) {
     return [path, query]
   }
