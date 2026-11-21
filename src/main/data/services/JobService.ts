@@ -1,8 +1,8 @@
-import { and, asc, count, desc, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, lte, max, notInArray, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
-import { type InsertJobRow, type JobRow, jobTable } from '@data/db/schemas/job'
+import { type InsertJobRow, type JobRow, jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
@@ -165,7 +165,11 @@ export class JobService {
       .select()
       .from(jobTable)
       .where(and(eq(jobTable.scheduleId, scheduleId), inArray(jobTable.status, TERMINAL_JOB_STATUSES)))
-      .orderBy(desc(jobTable.finishedAt))
+      // Tie order is load-bearing and must match the GC prunes below: ids are
+      // UUID v7 (time-ordered), so desc(id) deterministically picks the
+      // latest-created row among same-finishedAt ties - the same row the TTL
+      // exemption and the count prune treat as "latest".
+      .orderBy(desc(jobTable.finishedAt), desc(jobTable.id))
       .limit(limit)
       .all()
     return rows.map((r) => this.rowToSnapshot(r))
@@ -686,17 +690,116 @@ export class JobService {
 
   // ---------------- GC ----------------
 
-  /** Delete terminal jobs whose finishedAt is older than the cutoff. */
+  /**
+   * Delete terminal jobs whose finishedAt is older than the cutoff - except each
+   * LIVE schedule's single latest terminal row. "Latest" is (finishedAt DESC,
+   * id DESC): ids are UUID v7 (time-ordered), so the tiebreak is deterministic
+   * and matches both the dependency gate's limit-1 read and the count prune -
+   * all three agree on which row is the latest. The gate
+   * (`dependencyBlockReason` in runAgentTask) accepts a dependency run of any
+   * age when `withinMinutes` is unset, so letting TTL delete that row would
+   * silently turn "ran successfully long ago" into 'dependency not run' and
+   * stall >7-day-cadence chains forever. Rows of deleted schedules get no
+   * exemption - the gate reports 'dependency missing' before reading history -
+   * and the scheduleId FK is `onDelete: 'set null'`, so retention stays bounded
+   * at exactly one row per live schedule. Tradeoff: an exempted row's
+   * file-entry refs survive with it.
+   *
+   * Query shape (bind-cap safe, index-backed): one indexed MAX-per-schedule
+   * aggregation, one small tie-resolving select chunked at 500 schedule pairs
+   * (each chunk < 1,003 binds, far under SQLite's 32,766 cap), then a single
+   * set-based DELETE whose exemption set lives in a temp table - no
+   * JS-collected id lists in SQL text and no per-row correlated subqueries.
+   */
   pruneTerminalOlderThanTx(tx: DbOrTx, cutoffMs: number): number {
-    const result = tx
-      .delete(jobTable)
-      .where(and(inArray(jobTable.status, TERMINAL_JOB_STATUSES), lte(jobTable.finishedAt, cutoffMs)))
-      .run()
+    // Per-schedule latest finish over terminal rows only; rides the
+    // (schedule_id, finished_at) index for the group scan.
+    const latestPerSchedule = tx
+      .select({ scheduleId: jobTable.scheduleId, maxFinishedAt: max(jobTable.finishedAt) })
+      .from(jobTable)
+      .where(and(inArray(jobTable.status, TERMINAL_JOB_STATUSES), isNotNull(jobTable.scheduleId)))
+      .groupBy(jobTable.scheduleId)
+      .all()
+    const maxBySchedule = new Map<string, number>()
+    for (const row of latestPerSchedule) {
+      if (row.scheduleId && row.maxFinishedAt !== null) maxBySchedule.set(row.scheduleId, row.maxFinishedAt)
+    }
+
+    const winnerIds: string[] = []
+    if (maxBySchedule.size > 0) {
+      const liveScheduleIds = new Set(
+        tx
+          .select({ id: jobScheduleTable.id })
+          .from(jobScheduleTable)
+          .all()
+          .map((r) => r.id)
+      )
+      const pairs = [...maxBySchedule.entries()].filter(([scheduleId]) => liveScheduleIds.has(scheduleId))
+      // Chunked tie resolution: each chunk binds <= 500 schedule ids + 500
+      // timestamps + 3 statuses. Rows over-selected by the cross product are
+      // filtered back to exact (scheduleId, maxFinishedAt) pairs here; the
+      // index serves the per-combination seeks.
+      const CHUNK = 500
+      for (let i = 0; i < pairs.length; i += CHUNK) {
+        const chunk = pairs.slice(i, i + CHUNK)
+        const candidates = tx
+          .select({ id: jobTable.id, scheduleId: jobTable.scheduleId, finishedAt: jobTable.finishedAt })
+          .from(jobTable)
+          .where(
+            and(
+              inArray(jobTable.status, TERMINAL_JOB_STATUSES),
+              inArray(
+                jobTable.scheduleId,
+                chunk.map(([scheduleId]) => scheduleId)
+              ),
+              inArray(jobTable.finishedAt, [...new Set(chunk.map(([, maxFinishedAt]) => maxFinishedAt))])
+            )
+          )
+          .all()
+        const winnerBySchedule = new Map<string, string>()
+        for (const r of candidates) {
+          if (r.scheduleId === null || r.finishedAt === null || maxBySchedule.get(r.scheduleId) !== r.finishedAt) {
+            continue
+          }
+          const current = winnerBySchedule.get(r.scheduleId)
+          if (current === undefined || r.id > current) winnerBySchedule.set(r.scheduleId, r.id)
+        }
+        winnerIds.push(...winnerBySchedule.values())
+      }
+    }
+
+    // Set-based delete with the exemption set in a temp table: zero id binds,
+    // temp-PK probe per candidate row, constant statement shape at any scale.
+    tx.run(sql`CREATE TEMP TABLE IF NOT EXISTS job_gc_exempt (id TEXT PRIMARY KEY)`)
+    tx.run(sql`DELETE FROM job_gc_exempt`)
+    const INSERT_CHUNK = 500
+    for (let i = 0; i < winnerIds.length; i += INSERT_CHUNK) {
+      const chunk = winnerIds.slice(i, i + INSERT_CHUNK)
+      tx.run(
+        sql`INSERT OR IGNORE INTO job_gc_exempt (id) VALUES ${sql.join(
+          chunk.map((id) => sql`(${id})`),
+          sql`, `
+        )}`
+      )
+    }
+    const result = tx.run(sql`
+      DELETE FROM ${jobTable}
+      WHERE ${jobTable.status} IN (${sql.join(
+        TERMINAL_JOB_STATUSES.map((status) => sql`${status}`),
+        sql`, `
+      )})
+        AND ${jobTable.finishedAt} <= ${cutoffMs}
+        AND ${jobTable.id} NOT IN (SELECT id FROM job_gc_exempt)
+    `)
+    tx.run(sql`DELETE FROM job_gc_exempt`)
     return result.changes
   }
 
   pruneTerminalOlderThan(cutoffMs: number): number {
-    return this.pruneTerminalOlderThanTx(application.get('DbService').getDb(), cutoffMs)
+    // Single write tx so the temp-table steps and the delete are atomic with
+    // the caller-visible boundary, like the count prune below.
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.pruneTerminalOlderThanTx(tx, cutoffMs))
   }
 
   /**
@@ -714,7 +817,9 @@ export class JobService {
       .select({ id: jobTable.id, type: jobTable.type, scheduleId: jobTable.scheduleId })
       .from(jobTable)
       .where(inArray(jobTable.status, TERMINAL_JOB_STATUSES))
-      .orderBy(desc(jobTable.finishedAt))
+      // desc(id) tiebreak (UUID v7, time-ordered): among same-finishedAt ties the
+      // survivor set is deterministic and its first row matches the gate read.
+      .orderBy(desc(jobTable.finishedAt), desc(jobTable.id))
       .all()
 
     const perSchedule = new Map<string, number>()

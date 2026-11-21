@@ -21,7 +21,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, readTaskDependency } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -475,6 +475,43 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- update
+
+  describe('task dependency save contract', () => {
+    it('resolves a unique name to stable ID and preserves it during unrelated updates', () => {
+      const dependency = service.createTask(AGENT_ID, { ...form, name: 'upstream' })
+      const task = service.createTask(AGENT_ID, { ...form, dependsOn: { taskId: 'upstream', withinMinutes: 30 } })
+      expect(readTaskDependency(jobScheduleService.getById(task.id)?.metadata)).toEqual({
+        taskId: dependency.id,
+        withinMinutes: 30
+      })
+      service.updateTask(AGENT_ID, task.id, { prompt: 'changed' })
+      expect(readTaskDependency(jobScheduleService.getById(task.id)?.metadata)).toEqual({
+        taskId: dependency.id,
+        withinMinutes: 30
+      })
+    })
+
+    it('clears only dependency metadata and retains session reuse settings', () => {
+      const dependency = service.createTask(AGENT_ID, { ...form, name: 'upstream' })
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, dependsOn: { taskId: dependency.id } })
+      service.updateTask(AGENT_ID, task.id, { dependsOn: null })
+      expect(readTaskDependency(jobScheduleService.getById(task.id)?.metadata)).toBeNull()
+      expect(jobScheduleService.getById(task.id)?.metadata?.reuse).toMatchObject({ enabled: true })
+    })
+
+    it('rejects missing dependencies before writing a schedule', () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, dependsOn: { taskId: 'missing' } })).toThrow('not found')
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it('rejects self and transitive cycles without changing dependency metadata', () => {
+      const first = service.createTask(AGENT_ID, { ...form, name: 'first' })
+      const second = service.createTask(AGENT_ID, { ...form, name: 'second', dependsOn: { taskId: first.id } })
+      expect(() => service.updateTask(AGENT_ID, first.id, { dependsOn: { taskId: first.id } })).toThrow('cycle')
+      expect(() => service.updateTask(AGENT_ID, first.id, { dependsOn: { taskId: second.id } })).toThrow('cycle')
+      expect(readTaskDependency(jobScheduleService.getById(first.id)?.metadata)).toBeNull()
+    })
+  })
 
   describe('updateTask', () => {
     it('updates an explicitly empty timeout to unlimited', () => {
