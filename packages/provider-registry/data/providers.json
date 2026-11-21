@@ -768,6 +768,36 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["cn", "global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "ACCTOKEN - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://www.acctoken.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://www.acctoken.com/v1"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://www.acctoken.com/v1"
+        }
+      },
+      "id": "acctoken",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.acctoken.com/keys",
+          "docs": "https://www.acctoken.com/about",
+          "models": "https://www.acctoken.com/pricing",
+          "official": "https://www.acctoken.com"
+        }
+      },
+      "modelListSource": "registry",
+      "name": "ACCTOKEN"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2968,5 +2998,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "d9b71151bc87a9e3"
 }
