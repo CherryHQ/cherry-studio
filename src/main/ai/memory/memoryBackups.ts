@@ -15,10 +15,8 @@ import {
 export const MEMORY_BACKUP_BATCHES = 5
 export const MEMORY_BACKUP_BYTES = 20 * 1024 * 1024
 
-const hashSchema = z
-  .string()
-  .regex(/^[0-9a-f]{64}$/)
-  .nullable()
+const digestSchema = z.string().regex(/^[0-9a-f]{64}$/)
+const hashSchema = digestSchema.nullable()
 const stepSchema = z.strictObject({
   path: z.string(),
   before: z.string().nullable(),
@@ -43,10 +41,8 @@ const batchSchema = z.strictObject({
   orderedRecovery: z.boolean().optional(),
   transferTargets: z.array(z.object({ path: z.string(), hash: hashSchema })).optional(),
   dependencies: z.array(z.object({ path: z.string(), hash: hashSchema })).optional(),
-  clearScopeHash: z
-    .string()
-    .regex(/^[0-9a-f]{64}$/)
-    .optional(),
+  undoClearScopeHash: digestSchema.optional(),
+  clearScopeHash: digestSchema.optional(),
   steps: z.array(stepSchema)
 })
 
@@ -117,9 +113,38 @@ async function storedBatches(root: string): Promise<StoredBatch[]> {
     }
     batches.push({ filename, reservedBytes: Math.max(bytes.length, reservedBatchBytes(batch)), batch })
   }
-  return batches.sort(
+  batches.sort(
     (left, right) => left.batch.createdAt - right.batch.createdAt || left.filename.localeCompare(right.filename)
   )
+  // Reconstruct older clear/undo manifests only when their complete inverse is still on disk.
+  for (const { batch } of batches) {
+    if (
+      batch.recoveryOf &&
+      !batch.clearScopeHash &&
+      !batch.undoClearScopeHash &&
+      batch.steps.every((step) => step.outcome === 'applied')
+    ) {
+      const parent = batches.find((item) => item.batch.id === batch.recoveryOf)?.batch
+      if (parent) inheritClearDirection(parent, batch)
+    }
+  }
+  return batches
+}
+
+function inheritClearDirection(parent: MemoryBatch, reverse: MemoryBatch): void {
+  if ((!parent.clearScopeHash && !parent.undoClearScopeHash) || parent.steps.length !== reverse.steps.length) return
+  const exactInverse = parent.steps.every(
+    (step) =>
+      step.outcome === 'applied' &&
+      reverse.steps.some(
+        (other) =>
+          other.path === step.path && other.beforeHash === step.afterHash && other.afterHash === step.beforeHash
+      )
+  )
+  if (exactInverse) {
+    reverse.undoClearScopeHash = parent.clearScopeHash
+    reverse.clearScopeHash = parent.undoClearScopeHash
+  }
 }
 
 export function hasOrderedRecovery(batch: MemoryBatch): boolean {
@@ -131,6 +156,14 @@ export function hasOrderedRecovery(batch: MemoryBatch): boolean {
 
 function batchFilename(batch: MemoryBatch): string {
   return `${batch.createdAt}-${batch.id}.json`
+}
+
+function needsRecoveryPredecessor(parent: MemoryBatch, reverse: MemoryBatch): boolean {
+  return parent.steps.some(
+    (step) =>
+      step.outcome !== 'unchanged' &&
+      !reverse.steps.some((saved) => saved.path === step.path && saved.beforeHash === step.afterHash)
+  )
 }
 
 export function hasCompletedRecovery(parent: MemoryBatch, child: MemoryBatch): boolean {
@@ -180,7 +213,7 @@ export async function createMemoryBackup(
   }
   const reverse = recoveryOf ? existing.findLast((item) => item.batch.recoveryOf === recoveryOf) : undefined
   const parent = recoveryOf ? existing.find((item) => item.batch.id === recoveryOf)?.batch : undefined
-  const protectedIds = new Set([recoveryOf, parent?.recoveryOf, reverse?.batch.id])
+  const protectedIds = new Set([recoveryOf, reverse?.batch.id])
   // Only the newest usable operation can be selected. If its result is uncertain,
   // also retain earlier candidates until one has a confirmed write.
   for (const { batch: candidate } of existing.toReversed()) {
@@ -190,7 +223,8 @@ export async function createMemoryBackup(
       const original = existing.find((item) => item.batch.id === candidate.recoveryOf)?.batch
       if (original?.status === 'partial') {
         protectedIds.add(original.id)
-        protectedIds.add(original.recoveryOf)
+        if (original.id !== recoveryOf && needsRecoveryPredecessor(original, candidate))
+          protectedIds.add(original.recoveryOf)
       }
     }
     if (candidate.steps.some((step) => step.outcome === 'applied')) break
@@ -241,6 +275,8 @@ export async function createMemoryBackup(
       })
     }
   }
+  if (parent?.recoveryOf && needsRecoveryPredecessor(parent, batch)) protectedIds.add(parent.recoveryOf)
+  if (parent) inheritClearDirection(parent, batch)
   if (parent && hasOrderedRecovery(parent)) {
     const order = new Map(parent.steps.toReversed().map((step, index) => [step.path, index]))
     batch.steps.sort((left, right) => order.get(left.path)! - order.get(right.path)!)
