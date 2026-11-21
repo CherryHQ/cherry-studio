@@ -77,26 +77,28 @@ export function redactUrl(rawUrl: string): string {
   return redactUrlParams(rawUrl, OAUTH_QUERY_EXTRAS)
 }
 
-export function redactHeaders(
-  headers: Headers | Record<string, unknown> | undefined
-): Record<string, string> | undefined {
+export function redactHeaders(headers: Headers | RequestOptions['headers']): Record<string, string> | undefined {
   if (!headers) return undefined
 
-  const result: Record<string, string> = {}
   const entries: [string, unknown][] = []
 
-  if (typeof (headers as Headers).forEach === 'function') {
-    ;(headers as Headers).forEach((value, key) => entries.push([key, value]))
+  if (Array.isArray(headers)) {
+    for (let index = 0; index < headers.length; index += 2) {
+      entries.push([String(headers[index]), headers[index + 1]])
+    }
+  } else if ('forEach' in headers && typeof headers.forEach === 'function') {
+    headers.forEach((value: string, key: string | number) => entries.push([String(key), value]))
   } else {
     entries.push(...Object.entries(headers))
   }
 
+  const redactedEntries: [string, string][] = []
   for (const [key, value] of entries) {
     if (value === undefined) continue
-    result[key] = isSensitiveHeaderName(key) ? REDACTED : normalizeHeaderValue(value)
+    redactedEntries.push([key, isSensitiveHeaderName(key) ? REDACTED : normalizeHeaderValue(value)])
   }
 
-  return Object.keys(result).length > 0 ? result : undefined
+  return redactedEntries.length > 0 ? Object.fromEntries(redactedEntries) : undefined
 }
 
 export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): RequestDescription {
@@ -125,7 +127,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   const normalizedPath =
     path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://') ? path : `/${path}`
 
-  const requestHeaders = redactHeaders(options.headers as Record<string, unknown> | undefined)
+  const requestHeaders = redactHeaders(options.headers)
 
   return {
     method: String(options.method ?? 'GET').toUpperCase(),
@@ -552,7 +554,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    if (!isRecord(message) || message.type !== 'clear') return
+    if (message === null || typeof message !== 'object' || !('type' in message) || message.type !== 'clear') return
 
     this.events.splice(0)
     this.broadcast({ type: 'cleared' })
@@ -820,19 +822,20 @@ function redactJsonValue(value: Serializable): Serializable {
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item))
   if (value === null || typeof value !== 'object') return value
 
-  const result: Record<string, Serializable> = {}
-  for (const [key, item] of Object.entries(value)) {
-    result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
-  }
-  return result
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]): [string, Serializable] => [
+      key,
+      isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
+    ])
+  )
 }
 
-function formDataToRecord(formData: FormData): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
+function formDataToRecord(formData: FormData): Record<string, string> {
+  const entries: [string, string][] = []
   for (const [key, value] of formData.entries()) {
-    result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : describeFormDataValue(value)
+    entries.push([key, isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : describeFormDataValue(value)])
   }
-  return result
+  return Object.fromEntries(entries)
 }
 
 function describeFormDataValue(value: FormDataEntryValue): string {
@@ -904,10 +907,6 @@ function getErrorMessage(error: unknown): string {
 
 function normalizeOrigin(origin: string): string {
   return origin.replace(/\/$/, '')
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
 }
 
 function waitForServerListening(server: WebSocketServer): Promise<void> {

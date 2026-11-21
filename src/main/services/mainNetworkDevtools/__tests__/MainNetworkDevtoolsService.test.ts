@@ -79,6 +79,46 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('redacts flat Node header arrays by header name', () => {
+    const description = describeHttpRequest('https', [
+      'https://example.com',
+      { headers: ['Authorization', 'Bearer secret', 'Cookie', 'session=secret', 'X-Trace-Id', 'trace-id'] }
+    ])
+
+    expect(description.requestHeaders).toEqual({
+      Authorization: '<redacted>',
+      Cookie: '<redacted>',
+      'X-Trace-Id': 'trace-id'
+    })
+  })
+
+  it('retains reserved header names as own properties while redacting credentials', () => {
+    const headers = redactHeaders({ ['__proto__']: 'trace-marker', Authorization: 'Bearer secret' })
+
+    expect(Object.getOwnPropertyDescriptor(headers, '__proto__')?.value).toBe('trace-marker')
+    expect(Object.getPrototypeOf(headers)).toBe(Object.prototype)
+    expect(headers?.Authorization).toBe('<redacted>')
+  })
+
+  it.each(['json', 'form'])('retains reserved %s body fields while redacting credentials', (format) => {
+    const form = new FormData()
+    form.set('__proto__', 'trace-marker')
+    form.set('token', 'secret')
+    const body = format === 'form' ? form : JSON.stringify({ ['__proto__']: 'trace-marker', token: 'secret' })
+
+    const captured = captureRequestBody(body)
+
+    expect(JSON.parse(captured?.text ?? '{}')).toEqual({ ['__proto__']: 'trace-marker', token: '<redacted>' })
+  })
+
+  it('redacts nested credentials beneath reserved JSON keys', () => {
+    const captured = captureRequestBody('{"__proto__":{"api_key":"secret","visible":"trace-marker"}}')
+
+    expect(JSON.parse(captured?.text ?? '{}')).toEqual({
+      ['__proto__']: { api_key: '<redacted>', visible: 'trace-marker' }
+    })
+  })
+
   it('describes Node http request arguments without leaking secrets', () => {
     const description = describeHttpRequest('https', [
       'https://example.com/v1/chat?token=abc',
