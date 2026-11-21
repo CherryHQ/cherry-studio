@@ -1272,6 +1272,24 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
+    it('getVersion probes a system OpenClaw binary, which carries no snapshot version', async () => {
+      findBinarySpy.mockResolvedValue({ source: 'system', path: resolvePath('/usr/local/bin/openclaw') })
+      runOpenClawCommandSpy.mockResolvedValue({
+        exitCode: 0,
+        stdout: 'OpenClaw 2026.3.13 (61d171a)\n',
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(service.getVersion()).resolves.toBe('2026.3.13')
+      expect(runOpenClawCommandSpy.mock.calls[0][1]).toEqual(['--version'])
+    })
+
+    it('getVersion reports unknown when no binary is installed', async () => {
+      findBinarySpy.mockResolvedValue(null)
+      await expect(service.getVersion()).resolves.toBe('unknown')
+    })
+
     it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {
       const child = createSpawnChild()
       checkPortOpenSpy.mockResolvedValue(false)

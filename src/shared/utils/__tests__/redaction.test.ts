@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isSensitiveKey,
   redactDeep,
+  redactEmbeddedUrls,
   REDACTED,
   redactLiteral,
   redactRecord,
@@ -330,5 +331,19 @@ describe('redactLiteral', () => {
   it('ignores an empty secret instead of destroying the text', () => {
     expect(redactLiteral('text', '')).toBe('text')
     expect(redactLiteral('text', undefined)).toBe('text')
+  })
+})
+
+describe('redactEmbeddedUrls', () => {
+  it('redacts an opaque query credential and userinfo in URLs inside free text', () => {
+    const out = redactEmbeddedUrls('gateway exited, see https://user:pw@host.test/ui?key=abc123opaque&x=1. Retry later')
+    expect(out).not.toContain('abc123opaque')
+    expect(out).not.toContain('pw@')
+    expect(out).toContain('x=1')
+    expect(out).toContain('Retry later')
+  })
+
+  it('leaves text without URLs untouched', () => {
+    expect(redactEmbeddedUrls('Gateway failed on port 18789')).toBe('Gateway failed on port 18789')
   })
 })
