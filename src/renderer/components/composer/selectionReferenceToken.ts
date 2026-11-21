@@ -1,10 +1,12 @@
+import type { TOptions } from 'i18next'
+
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type { ComposerFileReference, DocumentAnchor, LineCommentReference } from '@renderer/types/selectionReference'
 
 import type { ComposerDraftToken } from './tokens'
 
 /** The chip label is rendered to the user, so the words in it come from i18n. */
-type TranslateLabel = (key: string, options?: Record<string, unknown>) => string
+type TranslateLabel = (key: string, options?: TOptions) => string
 
 /**
  * Compact human locator in each format's own vocabulary. Ordinals the anchor

@@ -54,6 +54,7 @@ function getToolDisplayName(toolResponse: ToolResponseLike): string {
 function getStringField(value: unknown, fields: string[]): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime-defined permission inputs have no shared field schema; only checked nonblank strings become display titles.
   const record = value as Record<string, unknown>
   for (const field of fields) {
     const candidate = record[field]

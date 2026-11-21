@@ -32,7 +32,18 @@ const EMPTY_DRAFT_CACHE: AgentComposerDraftCache = {
   agentId: ''
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  name?: unknown
+  filename?: unknown
+  description?: unknown
+  text?: unknown
+  tokens?: unknown
+  files?: unknown
+  knowledgeBaseIds?: unknown
+  workspaceKey?: unknown
+  agentId?: unknown
+  shouldValidateSkills?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
