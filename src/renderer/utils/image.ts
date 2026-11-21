@@ -48,7 +48,7 @@ async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<
   return restore
 }
 
-/** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
+/** Marks live interactive (webview) HTML artifact subtrees, which cannot be rasterized; both export paths omit them. */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
@@ -311,7 +311,11 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
     try {
       const htmlToImage = await loadHtmlToImage()
       restoreContents = await prepareCaptureContents(elRef.current)
-      const canvas = await htmlToImage.toCanvas(elRef.current)
+      const canvas = await htmlToImage.toCanvas(elRef.current, {
+        filter: (node: Node) =>
+          !(node instanceof HTMLElement) ||
+          (!node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE) && window.getComputedStyle(node).display !== 'none')
+      })
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
@@ -371,7 +375,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
-          // Interactive HTML artifacts are intentionally omitted from image exports.
+          // Live interactive HTML artifacts can't be rasterized and are omitted from image exports.
           if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
@@ -507,19 +511,23 @@ async function buildFontEmbedCSS(): Promise<string> {
   // against that block's own stylesheet href.
   const inlined = await Promise.all(
     blocks.map(async ({ cssText, base }) => {
-      const urls = [...cssText.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)]
-        .map((m) => m[2])
-        .filter((u) => !u.startsWith('data:'))
+      const tokens = parseCssUrlTokens(cssText).filter((token) => !token.url.startsWith('data:'))
       const dataUrlByUrl = new Map<string, string | undefined>()
-      await Promise.all(urls.map(async (u) => dataUrlByUrl.set(u, await readAsDataUrl(u, base))))
-      let out = cssText
-      for (const [u, dataUrl] of dataUrlByUrl) {
-        if (!dataUrl) continue
-        out = out.split(`url("${u}")`).join(dataUrl)
-        out = out.split(`url('${u}')`).join(dataUrl)
-        out = out.split(`url(${u})`).join(dataUrl)
+      await Promise.all(
+        [...new Set(tokens.map((token) => token.url))].map(async (u) =>
+          dataUrlByUrl.set(u, await readAsDataUrl(u, base))
+        )
+      )
+      let out = ''
+      let last = 0
+      for (const token of tokens) {
+        out += cssText.slice(last, token.start)
+        // readAsDataUrl returns a complete `url(data:...)` token, so it replaces the whole source token.
+        const dataUrl = dataUrlByUrl.get(token.url)
+        out += dataUrl ? dataUrl : cssText.slice(token.start, token.end)
+        last = token.end
       }
-      return out
+      return out + cssText.slice(last)
     })
   )
 
@@ -659,9 +667,311 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
 /**
  * 捕获 iframe 内部文档的完整内容快照
  */
+export interface CaptureScrollableIframeOptions {
+  /**
+   * Keep the capture inside a restricted preview's resource policy (`data:`, `blob:`, `file:` only): never fetch
+   * stylesheets, fonts or images from the parent renderer that the sandboxed document itself could not load.
+   */
+  restrictToLocalResources?: boolean
+}
+
+const LOCAL_RESOURCE_PROTOCOLS = new Set(['data:', 'blob:', 'file:'])
+
+function isLocalResourceUrl(url: string, baseUrl: string): boolean {
+  try {
+    return LOCAL_RESOURCE_PROTOCOLS.has(new URL(url, baseUrl).protocol)
+  } catch {
+    return false
+  }
+}
+
+const RESOURCE_ATTRIBUTES = ['src', 'poster', 'data', 'xlink:href'] as const
+
+/** True when the element references a resource outside the local-only policy. */
+function hasNonLocalResource(el: Element, baseUrl: string): boolean {
+  const tag = el.tagName.toLowerCase()
+  const attrs: string[] = [...RESOURCE_ATTRIBUTES]
+  if (tag === 'link' || tag === 'image' || tag === 'use') attrs.push('href')
+  for (const attr of attrs) {
+    const value = el.getAttribute(attr)
+    if (value && !value.startsWith('#') && !isLocalResourceUrl(value.trim(), baseUrl)) return true
+  }
+  const srcset = el.getAttribute('srcset')
+  if (srcset) {
+    const candidates = srcset.split(',').map((entry) => entry.trim().split(/\s+/)[0])
+    if (candidates.some((candidate) => candidate && !isLocalResourceUrl(candidate, baseUrl))) return true
+  }
+  return false
+}
+
+const CSS_URL_PROPERTIES = [
+  'background-image',
+  'border-image-source',
+  'list-style-image',
+  'mask-image',
+  '-webkit-mask-image',
+  'mask-border-source'
+] as const
+/** Exported for tests. */
+export interface CssUrlToken {
+  /** Start index of the whole `url(...)` token in the source text. */
+  start: number
+  /** End index (exclusive) of the whole token. */
+  end: number
+  /** Parsed URL value with CSS escapes resolved. */
+  url: string
+}
+
+const CSS_WHITESPACE = new Set([' ', '\t', '\n', '\r', '\f'])
+
+/** Resolves one CSS escape sequence; `pos` points just after the backslash. Returns the char(s) and next index. */
+function readCssEscape(text: string, pos: number): { value: string; next: number } {
+  if (pos >= text.length) return { value: '', next: pos }
+  if (/[0-9a-fA-F]/.test(text[pos])) {
+    let hex = ''
+    let i = pos
+    while (i < text.length && hex.length < 6 && /[0-9a-fA-F]/.test(text[i])) hex += text[i++]
+    if (i < text.length && CSS_WHITESPACE.has(text[i])) i++ // one whitespace after a hex escape is part of it
+    const codePoint = parseInt(hex, 16)
+    return { value: codePoint === 0 || codePoint > 0x10ffff ? '\uFFFD' : String.fromCodePoint(codePoint), next: i }
+  }
+  return { value: text[pos], next: pos + 1 }
+}
+
+/**
+ * Finds every CSS `url()` token in `text`. Unlike a regex this follows the CSS Syntax url-token rules, so it handles
+ * quoted values containing `)`, CSS escapes (including escaped `)` in unquoted values), a case-insensitive `url` name
+ * and surrounding whitespace, and it never mistakes url-like text inside strings or comments for a real token.
+ * Malformed (bad-url) tokens are skipped: the CSS parser drops those declarations, so they never cause a fetch.
+ */
+export function parseCssUrlTokens(text: string): CssUrlToken[] {
+  const tokens: CssUrlToken[] = []
+  const n = text.length
+  let i = 0
+  while (i < n) {
+    const c = text[i]
+    if (c === '/' && text[i + 1] === '*') {
+      const close = text.indexOf('*/', i + 2)
+      i = close === -1 ? n : close + 2
+      continue
+    }
+    if (c === '"' || c === "'") {
+      i++
+      while (i < n && text[i] !== c) i += text[i] === '\\' ? 2 : 1
+      i++ // closing quote (or past the end of an unterminated string)
+      continue
+    }
+    if (/[A-Za-z_-]/.test(c)) {
+      const start = i
+      let ident = ''
+      while (i < n && /[\w-]/.test(text[i])) ident += text[i++]
+      if (ident.toLowerCase() === 'url') {
+        let j = i
+        while (j < n && CSS_WHITESPACE.has(text[j])) j++
+        if (text[j] === '(') {
+          j++
+          while (j < n && CSS_WHITESPACE.has(text[j])) j++
+          let url = ''
+          let valid = true
+          const quote = text[j]
+          if (quote === '"' || quote === "'") {
+            j++
+            while (j < n && text[j] !== quote) {
+              if (text[j] === '\\') {
+                const escape = readCssEscape(text, j + 1)
+                url += escape.value
+                j = escape.next
+              } else {
+                url += text[j++]
+              }
+            }
+            if (j >= n) valid = false
+            else j++ // closing quote
+            while (j < n && CSS_WHITESPACE.has(text[j])) j++
+            if (text[j] !== ')') valid = false
+          } else {
+            while (j < n && text[j] !== ')') {
+              const ch = text[j]
+              if (ch === '\\') {
+                const escape = readCssEscape(text, j + 1)
+                url += escape.value
+                j = escape.next
+              } else if (CSS_WHITESPACE.has(ch)) {
+                let k = j
+                while (k < n && CSS_WHITESPACE.has(text[k])) k++
+                if (text[k] === ')') {
+                  j = k
+                  break
+                }
+                valid = false // whitespace in the middle of an unquoted url: bad-url token
+                j = k
+              } else if (ch === '"' || ch === "'" || ch === '(') {
+                valid = false // bad-url token per the CSS Syntax spec
+                j++
+              } else {
+                url += ch
+                j++
+              }
+            }
+          }
+          if (j < n && text[j] === ')') j++
+          else valid = false
+          if (valid) tokens.push({ start, end: j, url })
+          i = j
+          continue
+        }
+      }
+      continue
+    }
+    i++
+  }
+  return tokens
+}
+
+/** True when a parsed CSS url() value references a resource outside the local-only policy. */
+function isNonLocalCssUrl(url: string, baseUrl: string): boolean {
+  const trimmed = url.trim()
+  return trimmed !== '' && !trimmed.startsWith('#') && !isLocalResourceUrl(trimmed, baseUrl)
+}
+
+/** Neutralizes computed CSS `url()` values that point outside the local-only policy; returns a restore function. */
+function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
+  const restores: Array<() => void> = []
+  doc.querySelectorAll<HTMLElement>('*').forEach((el) => {
+    const computed = win.getComputedStyle(el)
+    for (const property of CSS_URL_PROPERTIES) {
+      const value = computed.getPropertyValue(property)
+      if (!value || !value.toLowerCase().includes('url(')) continue
+      const hasRemote = parseCssUrlTokens(value).some((token) => isNonLocalCssUrl(token.url, doc.baseURI))
+      if (!hasRemote) continue
+      const previousValue = el.style.getPropertyValue(property)
+      const previousPriority = el.style.getPropertyPriority(property)
+      el.style.setProperty(property, 'none', 'important')
+      restores.push(() => {
+        if (previousValue) el.style.setProperty(property, previousValue, previousPriority)
+        else el.style.removeProperty(property)
+      })
+    }
+  })
+  return () => restores.forEach((restore) => restore())
+}
+
+const XLINK_NS = 'http://www.w3.org/1999/xlink'
+const SVG_RESOURCE_ATTRIBUTES = ['href', 'src', 'poster', 'data'] as const
+const LOCAL_CSS_URL_PLACEHOLDER = 'url("data:,")'
+
+/** Rewrites every `url()` token that points outside the local-only policy to a blank local placeholder. Exported for tests. */
+export function neutralizeCssText(text: string, baseUrl: string): string {
+  const tokens = parseCssUrlTokens(text)
+  if (tokens.length === 0) return text
+  let out = ''
+  let last = 0
+  for (const token of tokens) {
+    out += text.slice(last, token.start)
+    out += isNonLocalCssUrl(token.url, baseUrl) ? LOCAL_CSS_URL_PLACEHOLDER : text.slice(token.start, token.end)
+    last = token.end
+  }
+  return out + text.slice(last)
+}
+
+/**
+ * html-to-image deep-clones `<svg>` subtrees without applying its `filter` and then fetches every `<image>` URL it
+ * finds there. Strip non-local resource references (`href`/`xlink:href` on image, use, feImage, pattern, etc., inline
+ * styles and `<style>` text) from every SVG subtree before cloning; returns a function that restores them.
+ */
+function neutralizeNonLocalSvgResources(doc: Document): () => void {
+  const restores: Array<() => void> = []
+  const baseUrl = doc.baseURI
+  doc.querySelectorAll('svg').forEach((svg) => {
+    const nodes: Element[] = [svg, ...Array.from(svg.querySelectorAll('*'))]
+    for (const el of nodes) {
+      for (const attr of SVG_RESOURCE_ATTRIBUTES) {
+        const value = el.getAttribute(attr)
+        if (value && !value.trim().startsWith('#') && !isLocalResourceUrl(value.trim(), baseUrl)) {
+          if (el.localName === 'image' && attr === 'href') el.setAttribute(attr, TRANSPARENT_IMAGE_PLACEHOLDER)
+          else el.removeAttribute(attr)
+          restores.push(() => el.setAttribute(attr, value))
+        }
+      }
+      const xlink = el.getAttributeNS(XLINK_NS, 'href')
+      if (xlink && !xlink.trim().startsWith('#') && !isLocalResourceUrl(xlink.trim(), baseUrl)) {
+        if (el.localName === 'image') el.setAttributeNS(XLINK_NS, 'xlink:href', TRANSPARENT_IMAGE_PLACEHOLDER)
+        else el.removeAttributeNS(XLINK_NS, 'href')
+        restores.push(() => el.setAttributeNS(XLINK_NS, 'xlink:href', xlink))
+      }
+      const srcset = el.getAttribute('srcset')
+      if (srcset) {
+        el.removeAttribute('srcset')
+        restores.push(() => el.setAttribute('srcset', srcset))
+      }
+      const style = el.getAttribute('style')
+      if (style && style.toLowerCase().includes('url(')) {
+        const next = neutralizeCssText(style, baseUrl)
+        if (next !== style) {
+          el.setAttribute('style', next)
+          restores.push(() => el.setAttribute('style', style))
+        }
+      }
+      for (const attr of [
+        'fill',
+        'stroke',
+        'filter',
+        'mask',
+        'clip-path',
+        'marker-start',
+        'marker-mid',
+        'marker-end'
+      ]) {
+        const value = el.getAttribute(attr)
+        if (value && value.toLowerCase().includes('url(')) {
+          const next = neutralizeCssText(value, baseUrl)
+          if (next !== value) {
+            el.setAttribute(attr, next)
+            restores.push(() => el.setAttribute(attr, value))
+          }
+        }
+      }
+      if (el.tagName.toLowerCase() === 'style' && el.textContent?.toLowerCase().includes('url(')) {
+        const text = el.textContent
+        const next = neutralizeCssText(text.replace(/@import[^;]*;?/gi, ''), baseUrl)
+        if (next !== text) {
+          el.textContent = next
+          restores.push(() => {
+            el.textContent = text
+          })
+        }
+      }
+    }
+  })
+  return () => restores.reverse().forEach((restore) => restore())
+}
+
+/** Reject surfaces the local-only clone cannot safely traverse. Never retry these without restrictions. */
+function assertRestrictedCaptureIsSafe(doc: Document, win: Window): void {
+  for (const el of doc.querySelectorAll('*')) {
+    // html-to-image enters nested documents and open shadow roots, including SVG descendants
+    // where its filter is bypassed. Until those trees have a policy-aware cloner, fail closed.
+    if (el.localName === 'iframe' || el.shadowRoot) {
+      throw new Error('Restricted image capture does not support nested frames or shadow roots')
+    }
+    // The library serializes pseudo-element computed styles separately from the element.
+    for (const pseudo of ['::before', '::after']) {
+      const style = win.getComputedStyle(el, pseudo)
+      for (const property of Array.from(style)) {
+        const value = style.getPropertyValue(property)
+        if (value.toLowerCase().includes('url(') && neutralizeCssText(value, doc.baseURI) !== value) {
+          throw new Error('Restricted image capture cannot export remote pseudo-element resources')
+        }
+      }
+    }
+  }
+}
+
 export async function captureScrollableIframe(
-  iframeRef: React.RefObject<HTMLIFrameElement | null>
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
+  options: CaptureScrollableIframeOptions = {}
 ): Promise<HTMLCanvasElement | undefined> {
+  const restrictToLocalResources = options.restrictToLocalResources === true
   const iframe = iframeRef.current
   if (!iframe?.contentDocument?.defaultView) return undefined
 
@@ -683,10 +993,10 @@ export async function captureScrollableIframe(
   // 内联字体以避免跨域问题
   const inlineFonts = async () => {
     const fontFaceRegex = /@font-face[\s\S]*?\}/g
-    const fontUrlRegex = /url\((['"]?)([^)"']+)\1\)/g
     const fontExtRegex = /\.(woff2?|ttf|otf)(\?|#|$)/i
 
     const fetchAsDataUrl = async (url: string): Promise<string> => {
+      if (restrictToLocalResources && !isLocalResourceUrl(url, doc.baseURI)) return url
       try {
         const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
         if (!res.ok) return url
@@ -710,14 +1020,12 @@ export async function captureScrollableIframe(
         let block = match[0]
         const fontUrls: Array<[string, string]> = []
 
-        let urlMatch: RegExpExecArray | null
-        fontUrlRegex.lastIndex = 0
-        while ((urlMatch = fontUrlRegex.exec(block)) !== null) {
-          const url = urlMatch[2]
+        for (const token of parseCssUrlTokens(block)) {
+          const url = token.url
           if (!url.startsWith('data:') && fontExtRegex.test(url)) {
             try {
               const absoluteUrl = new URL(url, baseUrl).href
-              fontUrls.push([urlMatch[0], absoluteUrl])
+              fontUrls.push([block.slice(token.start, token.end), absoluteUrl])
             } catch {
               // ignore
             }
@@ -749,6 +1057,7 @@ export async function captureScrollableIframe(
     await Promise.all(
       Array.from(externalSheets).map(async (link) => {
         if (!link.href) return
+        if (restrictToLocalResources && !isLocalResourceUrl(link.href, doc.baseURI)) return
         try {
           const res = await fetch(link.href, { mode: 'cors', credentials: 'omit' })
           if (res.ok) {
@@ -777,6 +1086,8 @@ export async function captureScrollableIframe(
 
   const animationStyle = disableAnimations()
   let injectedFontStyle: HTMLStyleElement | null = null
+  let restoreCssUrls: (() => void) | undefined
+  let restoreSvgResources: (() => void) | undefined
 
   const createFontStyle = (css: string): HTMLStyleElement => {
     const style = doc.createElement('style')
@@ -789,6 +1100,12 @@ export async function captureScrollableIframe(
   try {
     // 等待渲染稳定
     await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => r(null))))
+
+    if (restrictToLocalResources) {
+      assertRestrictedCaptureIsSafe(doc, win)
+      restoreCssUrls = neutralizeNonLocalCssUrls(doc, win)
+      restoreSvgResources = neutralizeNonLocalSvgResources(doc)
+    }
 
     // 强制加载懒加载图片
     doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
@@ -835,6 +1152,10 @@ export async function captureScrollableIframe(
       cacheBust: true,
       pixelRatio,
       skipAutoScale: true,
+      ...(restrictToLocalResources && {
+        filter: (node: Node) =>
+          !(node instanceof (win as Window & typeof globalThis).Element) || !hasNonLocalResource(node, doc.baseURI)
+      }),
       width: Math.floor(totalWidth),
       height: Math.floor(totalHeight),
       style: {
@@ -850,14 +1171,19 @@ export async function captureScrollableIframe(
     logger.error('Error capturing iframe:', error as Error)
     return undefined
   } finally {
+    restoreSvgResources?.()
+    restoreCssUrls?.()
     injectedFontStyle?.remove()
     // 恢复动画
     animationStyle.remove()
   }
 }
 
-export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
-  return captureScrollableIframe(iframeRef).then((canvas) => {
+export const captureScrollableIframeAsDataUrl = async (
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
+  options?: CaptureScrollableIframeOptions
+) => {
+  return captureScrollableIframe(iframeRef, options).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
     }
@@ -867,9 +1193,10 @@ export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObjec
 
 export const captureScrollableIframeAsBlob = async (
   iframeRef: React.RefObject<HTMLIFrameElement | null>,
-  func: BlobCallback
+  func: BlobCallback,
+  options?: CaptureScrollableIframeOptions
 ) => {
-  await captureScrollableIframe(iframeRef).then((canvas) => {
+  await captureScrollableIframe(iframeRef, options).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })
 }

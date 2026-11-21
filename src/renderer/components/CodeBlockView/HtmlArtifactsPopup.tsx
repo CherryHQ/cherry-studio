@@ -130,6 +130,7 @@ interface HtmlArtifactsPopupProps {
   onSave?: (html: string) => void
   editable?: boolean
   canCapturePreview?: boolean
+  restrictCaptureToLocalResources?: boolean
   renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
 }
@@ -144,6 +145,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   editable = true,
   canCapturePreview = true,
   renderPreview,
+  restrictCaptureToLocalResources = true,
   onClose
 }) => {
   const { t } = useTranslation()
@@ -204,25 +206,31 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
 
         if (to === 'file') {
-          const dataUrl = await captureScrollableIframeAsDataUrl(previewFrameRef)
+          const dataUrl = await captureScrollableIframeAsDataUrl(previewFrameRef, {
+            restrictToLocalResources: restrictCaptureToLocalResources
+          })
           if (dataUrl) {
             await window.api.file.saveImage(fileName, dataUrl)
           }
         }
 
         if (to === 'clipboard') {
-          await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
-            if (blob) {
-              await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-              toast.success(t('message.copy.success'))
-            }
-          })
+          await captureScrollableIframeAsBlob(
+            previewFrameRef,
+            async (blob) => {
+              if (blob) {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                toast.success(t('message.copy.success'))
+              }
+            },
+            { restrictToLocalResources: restrictCaptureToLocalResources }
+          )
         }
       } catch (error) {
         logger.error('Failed to capture HTML artifact preview', error as Error)
       }
     },
-    [html, t]
+    [html, t, restrictCaptureToLocalResources]
   )
 
   const renderCodePanel = () => (

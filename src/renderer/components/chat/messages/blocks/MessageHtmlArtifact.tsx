@@ -30,7 +30,6 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
 
   return (
     <div
-      data-html-artifact=""
       data-testid="message-html-artifact"
       className="message-html-artifact special-preview mt-0 mb-2.5 w-full min-w-0 max-w-full">
       <Suspense fallback={null}>
