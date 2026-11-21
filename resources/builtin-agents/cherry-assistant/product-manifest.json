@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
-    "count": 68,
+    "version": "7667eedef47ea6ab",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -963,6 +963,10 @@
       {
         "id": "tokendance",
         "name": "TokenDance"
+      },
+      {
+        "id": "hubris",
+        "name": "Hubris"
       },
       {
         "id": "new-api",
