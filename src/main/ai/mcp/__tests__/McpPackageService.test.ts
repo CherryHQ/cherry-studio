@@ -16,6 +16,7 @@ const {
   buildResolvedEnv,
   ensurePathWithin,
   McpPackageService,
+  performVariableSubstitution,
   validateArgs,
   validateCommand,
   validatePackageUploadPayload
@@ -267,6 +268,33 @@ describe('buildResolvedEnv', () => {
     expect(() => buildResolvedEnv({ node_options: '--require ./evil.js' }, extractDir)).toThrow('is not allowed')
     expect(() => buildResolvedEnv({ ld_preload: '/tmp/evil.so' }, extractDir)).toThrow('is not allowed')
     expect(() => buildResolvedEnv({ dyld_insert_libraries: '/tmp/evil.dylib' }, extractDir)).toThrow('is not allowed')
+  })
+})
+
+describe('performVariableSubstitution', () => {
+  it('substitutes configured values without consuming unresolved placeholders', () => {
+    expect(
+      performVariableSubstitution(
+        '--token=${user_config.token} --count=${user_config.count} --missing=${user_config.missing}',
+        '/package',
+        { token: 'configured-token', count: 3 }
+      )
+    ).toBe('--token=configured-token --count=3 --missing=${user_config.missing}')
+  })
+
+  it('uses native string coercion and rejects values that cannot become replacement text', () => {
+    const token = { [Symbol.toPrimitive]: (hint: string) => (hint === 'string' ? 'configured-token' : 'wrong-hint') }
+
+    expect(performVariableSubstitution('${user_config.token}', '/package', { token })).toBe('configured-token')
+    expect(() => performVariableSubstitution('${user_config.token}', '/package', { token: Symbol('token') })).toThrow(
+      TypeError
+    )
+  })
+
+  it('rejects substituted null bytes before returning a launch environment', () => {
+    expect(() =>
+      buildResolvedEnv({ API_KEY: '${user_config.token}' }, '/package', { token: 'configured\0token' })
+    ).toThrow('null byte detected')
   })
 })
 
