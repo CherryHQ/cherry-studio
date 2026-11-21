@@ -1,12 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 
 import type { Assistant } from '../../../src/shared/data/types/assistant'
@@ -14,7 +8,7 @@ import type { Message } from '../../../src/shared/data/types/message'
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
 type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleErrors: string[] }
@@ -22,7 +16,7 @@ type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleE
 async function launchProfile(profile: string, runtime: AvatarRuntime) {
   const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
   runtime.app = app
   const watch = (page: Page) => {
     page.on('pageerror', (error) => runtime.pageErrors.push(error.stack ?? error.message))

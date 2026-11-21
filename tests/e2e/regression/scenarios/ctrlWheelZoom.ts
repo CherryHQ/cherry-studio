@@ -144,7 +144,7 @@ export async function ctrlWheelZoom(app: RegressionApp, mainWindow: Page, testIn
     await screenshot(page, 'ZOOM-01 baseline 100 percent on fixed display')
     expect(resetFactor).toBe(1)
     await selectSidebarApp(page, 'Chat')
-    const ordinaryHost = () => page.locator('[data-ui~="app.sidebar"]')
+    const ordinaryHost = () => page.locator('#app-sidebar')
     await wheel(ordinaryHost(), 'main increase')
     await check(page, 'ZOOM-01 main 110 percent', 1.1, { feedback: true })
     const firstToastStillVisible = await zoomToasts(page).isVisible()

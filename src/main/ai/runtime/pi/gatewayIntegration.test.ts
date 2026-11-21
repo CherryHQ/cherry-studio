@@ -53,6 +53,7 @@ import { gatewayErrorHandler } from '@main/features/apiGateway/errors'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { SpanEntity } from '@shared/data/types/trace'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { createTestBehavior, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
@@ -149,6 +150,7 @@ describe('native Pi through the production gateway', () => {
   }
   const outcome = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome
   let holdResponse = false
+  let failStream = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
   let geminiEvents: unknown[] | undefined
@@ -223,6 +225,7 @@ describe('native Pi through the production gateway', () => {
     requests.length = 0
     mocks.gatewayRequests = 0
     holdResponse = false
+    failStream = false
     upstreamClosed = false
     protocol = 'openai'
     geminiEvents = undefined
@@ -352,11 +355,21 @@ describe('native Pi through the production gateway', () => {
         model: 'wire-model',
         object: 'chat.completion.chunk',
         created: 1,
-        choices: [{ index: 0, delta, finish_reason: holdResponse ? null : delta.tool_calls ? 'tool_calls' : 'stop' }],
+        choices: [
+          {
+            index: 0,
+            delta,
+            finish_reason: holdResponse || failStream ? null : delta.tool_calls ? 'tool_calls' : 'stop'
+          }
+        ],
         usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 }
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' })
-      if (holdResponse) {
+      if (failStream) {
+        res.end(
+          `data: ${JSON.stringify(payload)}\n\ndata: ${JSON.stringify({ error: { message: 'stream failed', type: 'server_error' } })}\n\n`
+        )
+      } else if (holdResponse) {
         res.on('close', () => {
           upstreamClosed = true
         })
@@ -663,6 +676,43 @@ describe('native Pi through the production gateway', () => {
       error: { code, type, message, param: 'temperature' },
       request_id: 'upstream-id'
     })
+  })
+
+  it.each([429, 503])('retries an object request after upstream %i before native output', async (status) => {
+    rejectUpstream = () =>
+      requests.length === 1
+        ? { status, code: 'temporary_failure', message: 'Temporarily unavailable', retryAfter: '0.001' }
+        : undefined
+    const retryEvents: RetryPartData[] = []
+    const response = await directObjectCall(undefined, (event) => retryEvents.push(event))
+    let text = ''
+    for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    expect(text).toBe('Model answer')
+    expect(requests).toHaveLength(2)
+    expect(requests[1]).toEqual(requests[0])
+    expect(retryEvents).toEqual([
+      expect.objectContaining({ state: 'retrying', attempt: 2, modelId: 'wire-model' }),
+      { state: 'settled' }
+    ])
+  })
+
+  it('preserves the final provider error after three ai-retry retries', async () => {
+    rejectUpstream = () => ({
+      status: 429,
+      code: 'CONCURRENCY_LIMITED',
+      message: 'Provider concurrency exceeded',
+      retryAfter: '0.001'
+    })
+    const retryEvents: RetryPartData[] = []
+    const error = await directObjectCall(undefined, (event) => retryEvents.push(event)).catch((error: unknown) => error)
+    expect(error).toMatchObject({
+      status: 429,
+      message: 'Provider concurrency exceeded',
+      error: { error: { code: 'CONCURRENCY_LIMITED' } }
+    })
+    expect(requests).toHaveLength(4)
+    expect(retryEvents[0]).toMatchObject({ state: 'retrying', attempt: 2 })
+    expect(retryEvents.at(-1)).toEqual({ state: 'settled' })
   })
 
   it('preserves non-context provider errors in the native Pi response', async () => {
@@ -1722,8 +1772,8 @@ describe('native Pi through the production gateway', () => {
     })
   })
 
-  function directObjectCall(signal?: AbortSignal) {
-    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+  function directObjectCall(signal?: AbortSignal, onRetryEvent?: (event: RetryPartData) => void) {
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session', onRetryEvent })
     return transports['openai-completions'](
       { model: 'port:wire-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
       { signal }
@@ -1841,6 +1891,38 @@ describe('native Pi through the production gateway', () => {
     await iterator.return?.()
     await expect.poll(() => upstreamClosed).toBe(true)
     expect(mocks.gatewayRequests).toBe(0)
+  })
+
+  it('does not retry after partial upstream output', async () => {
+    failStream = true
+    const response = await directObjectCall()
+    let text = ''
+    const reading = (async () => {
+      for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    })()
+    await expect(reading).rejects.toThrow()
+    expect(text).toBe('Model answer')
+    expect(requests).toHaveLength(1)
+  })
+
+  it('cancels ai-retry during upstream backoff', async () => {
+    rejectUpstream = () => ({
+      status: 429,
+      code: 'rate_limit',
+      message: 'Wait before retry',
+      retryAfter: requests.length === 1 ? '0.01' : '10'
+    })
+    const abort = new AbortController()
+    const retryEvents: RetryPartData[] = []
+    const rejected = expect(directObjectCall(abort.signal, (event) => retryEvents.push(event))).rejects.toThrow(
+      'stop retrying'
+    )
+    await expect.poll(() => retryEvents[0]?.state).toBe('retrying')
+    abort.abort(new Error('stop retrying'))
+    await rejected
+    await expect.poll(() => mocks.manager!.hasLiveStreams()).toBe(false)
+    expect(requests.length).toBeLessThanOrEqual(2)
+    expect(retryEvents.at(-1)).toEqual({ state: 'settled' })
   })
 
   it('aborts an object call while waiting for its first semantic output', async () => {

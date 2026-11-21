@@ -147,7 +147,14 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       let child = bindings.get(modelKey)
       if (!child) {
         child = await (options.bindModel?.(model) ??
-          createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
+          createPiGatewayModelBinding(
+            input,
+            providerService.getByProviderId(model.providerId),
+            model,
+            undefined,
+            undefined,
+            binding.onRetry
+          ))
         bindings.set(modelKey, child)
       }
       threads.set(thread.id, modelKey)

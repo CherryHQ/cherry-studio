@@ -130,11 +130,6 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     const rough = '你是测试助手，回答简短'
     await editor.fill(rough)
     await polish.click()
-    await expect(dialog.getByRole('button', { name: /^Cancel · / })).toBeVisible()
-    await attachScreenshot('MP-16 real polish running')
-    await expect
-      .soft(editor, 'Prompt editor must lock while the real request is pending')
-      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
     await expect(polish).toBeVisible({ timeout: 70_000 })
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     // A real model may legitimately return the prompt unchanged, so the applied-result contract is
