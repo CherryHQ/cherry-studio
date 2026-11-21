@@ -1,4 +1,9 @@
-import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
+import type {
+  CliConfigConnection,
+  CliConfigFileDraft,
+  CliConfigGatewayContext,
+  CliConfigWriteArgs
+} from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -9,7 +14,7 @@ export type ClaudeModelMode = 'common' | 'detailed'
 
 export interface ConfigDraft {
   modelId: UniqueModelId | undefined
-  config: Record<string, unknown>
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
   files: CliConfigFileDraft[]
   connection: CliConfigConnection | null
   mode: ConfigDraftMode
@@ -19,7 +24,7 @@ export interface ConfigDraft {
 export interface ConfigEditPanelSubmitValues {
   modelId?: UniqueModelId
   cliConfigModelId?: UniqueModelId
-  config?: Record<string, unknown>
+  config?: CliConfigWriteArgs['configBlob']
   cliConfigFiles?: CliConfigFileDraft[]
   cliConfigOnly?: boolean
   writePrimaryModel?: boolean

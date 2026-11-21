@@ -1,6 +1,7 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { gatewayModelIdFromAddress } from './gatewayModel'
+import type { CliConfigWriteArgs } from './types'
 import { safeCreateUniqueModelId, stringValue } from './values'
 
 export const CLAUDE_DETAILED_MODEL_ROLES = [
@@ -38,10 +39,13 @@ export const CLAUDE_DETAILED_MODEL_ENV_KEYS = CLAUDE_DETAILED_MODEL_ROLES.flatMa
 
 const ONE_M_MARKER = '[1M]'
 
-function getEnv(config: Record<string, unknown>): Record<string, unknown> {
-  return config.env && typeof config.env === 'object' && !Array.isArray(config.env)
-    ? (config.env as Record<string, unknown>)
-    : {}
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This env container comes from edited tool parameters; stringValue checks each model field before use.
+function getEnv(config: NonNullable<CliConfigWriteArgs['configBlob']>): Record<string, unknown> {
+  if (config.env && typeof config.env === 'object' && !Array.isArray(config.env)) {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the non-array container is checked; foreign env values remain unvalidated.
+    return config.env as Record<string, unknown>
+  }
+  return {}
 }
 
 export function stripClaudeOneMMarker(value: string): string {
@@ -62,12 +66,14 @@ export function setClaudeOneMMarker(value: string, enabled: boolean): string {
   return enabled && base ? `${base}${ONE_M_MARKER}` : base
 }
 
-export function hasClaudeDetailedModels(config: Record<string, unknown>): boolean {
+export function hasClaudeDetailedModels(config: NonNullable<CliConfigWriteArgs['configBlob']>): boolean {
   const env = getEnv(config)
   return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim())
 }
 
-export function stripClaudeDetailedModels(config: Record<string, unknown>): Record<string, unknown> {
+export function stripClaudeDetailedModels(
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+): NonNullable<CliConfigWriteArgs['configBlob']> {
   const env = getEnv(config)
   if (!Object.keys(env).length) return config
 
@@ -84,7 +90,7 @@ export function stripClaudeDetailedModels(config: Record<string, unknown>): Reco
 
 export function getClaudeContextModelId(
   providerId: string,
-  config: Record<string, unknown>,
+  config: NonNullable<CliConfigWriteArgs['configBlob']>,
   gatewayModels?: Map<UniqueModelId, Model>
 ): UniqueModelId | undefined {
   const env = getEnv(config)

@@ -3,6 +3,7 @@ import { CodeCli } from '@shared/types/codeCli'
 
 import { sanitizeCliConfigBlob } from './adapters'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from './claudeModels'
+import type { CliConfigWriteArgs } from './types'
 
 export function parseConfiguredModelId(
   // Wide on purpose: tolerates legacy '' and corrupt dev-profile values.
@@ -18,7 +19,7 @@ export function parseConfiguredModelId(
 export function resolveCliConfigApplyContext(
   cliTool: CodeCli,
   providerId: string,
-  providerConfig: { modelId?: string | null; config?: Record<string, unknown> } | undefined,
+  providerConfig: { modelId?: string | null; config?: CliConfigWriteArgs['configBlob'] } | undefined,
   gatewayModels?: Map<UniqueModelId, Model>
 ): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
