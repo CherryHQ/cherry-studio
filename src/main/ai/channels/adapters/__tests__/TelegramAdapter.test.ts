@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { transcribeChannelAudio } = vi.hoisted(() => ({ transcribeChannelAudio: vi.fn() }))
+vi.mock('@main/ai/voice/channelTranscription', () => ({ transcribeChannelAudio }))
+vi.mock('@main/utils/downloadAsBase64', () => ({
+  downloadFileAsBase64: vi.fn(),
+  downloadImageAsBase64: vi.fn(),
+  MAX_FILE_SIZE_BYTES: 100 * 1024 * 1024
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -14,6 +22,7 @@ const mockBot = {
     config: {
       use: vi.fn()
     },
+    getFile: vi.fn(),
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     sendChatAction: vi.fn().mockResolvedValue(undefined),
@@ -41,10 +50,23 @@ vi.mock('grammy', () => {
 
 import { Bot, InputFile } from 'grammy'
 
+import { t } from '@main/i18n'
+import { downloadFileAsBase64, downloadImageAsBase64, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+
 import { createTelegramAdapter } from '../telegram/TelegramAdapter'
 
 describe('TelegramAdapter', () => {
   beforeEach(() => {
+    vi.mocked(transcribeChannelAudio).mockReset().mockRejectedValue(new Error('unsupported'))
+    mockBot.api.getFile.mockReset().mockResolvedValue({ file_path: 'recording' })
+    vi.mocked(downloadFileAsBase64)
+      .mockReset()
+      .mockImplementation(async (_url, filename) => ({
+        filename,
+        data: Buffer.from('ogg').toString('base64'),
+        media_type: 'audio/ogg',
+        size: 3
+      }))
     // Reset all mock functions but preserve the factory registration
     mockBot.use.mockClear()
     mockBot.command.mockClear()
@@ -77,6 +99,241 @@ describe('TelegramAdapter', () => {
       }
     })
   }
+
+  async function deliverAudio(
+    kind: 'voice' | 'audio',
+    media: Record<string, unknown> = {},
+    caption = 'caption',
+    hintFails = false
+  ) {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const message = vi.fn()
+    adapter.on('message', message)
+    const hint = vi.spyOn(adapter, 'sendMessage').mockImplementation(async () => {
+      if (caption) expect(message).toHaveBeenCalledTimes(1)
+      if (hintFails) throw new Error('send failed')
+    })
+    const ctx = {
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'User' },
+      message: { caption, [kind]: { file_id: 'file', file_unique_id: 'unique', ...media } }
+    }
+    const handler = mockBot.on.mock.calls.find(([filter]) => filter === `message:${kind}`)?.[1]
+    if (handler) await handler(ctx)
+    return { message, hint, adapter }
+  }
+
+  it('delivers unconfigured voice once as the original attachment before sending one hint', async () => {
+    const { message, hint } = await deliverAudio('voice')
+    expect(message.mock.calls).toEqual([
+      [
+        {
+          chatId: '123',
+          userId: '456',
+          userName: 'User',
+          text: 'caption',
+          files: [
+            {
+              filename: 'voice-unique.ogg',
+              media_type: 'audio/ogg',
+              data: Buffer.from('ogg').toString('base64'),
+              size: 3
+            }
+          ]
+        }
+      ]
+    ])
+    expect(hint.mock.calls).toEqual([['123', t('common.channel_voice_transcription_missing')]])
+    expect(downloadFileAsBase64).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['caption', ''])(
+    'delivers successful voice text with caption %j and no attachment or hint',
+    async (caption) => {
+      vi.mocked(transcribeChannelAudio).mockResolvedValue('transcript')
+      const { message, hint } = await deliverAudio('voice', {}, caption)
+      expect(message.mock.calls).toEqual([
+        [
+          {
+            chatId: '123',
+            userId: '456',
+            userName: 'User',
+            text: caption ? 'caption\n\ntranscript' : 'transcript',
+            files: []
+          }
+        ]
+      ])
+      expect(hint).not.toHaveBeenCalled()
+      expect(transcribeChannelAudio).toHaveBeenCalledWith({ audio: Buffer.from('ogg'), mimeType: 'audio/ogg' })
+    }
+  )
+
+  it.each(['decode failed', 'blank', 'timeout', 'non OGG'])('falls back for audio: %s', async (failure) => {
+    vi.mocked(transcribeChannelAudio).mockRejectedValue(new Error(failure))
+    if (failure === 'blank') vi.mocked(transcribeChannelAudio).mockResolvedValue('  ')
+    const mime = failure === 'non OGG' ? 'audio/mpeg' : 'Audio/OGG; codecs=opus'
+    const { message, hint } = await deliverAudio('audio', { file_name: 'original.mp3', mime_type: mime })
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(message.mock.calls[0][0]).toMatchObject({
+      text: 'caption',
+      files: [{ filename: 'original.mp3', media_type: mime }]
+    })
+    expect(hint).toHaveBeenCalledTimes(1)
+    if (failure === 'non OGG') expect(transcribeChannelAudio).not.toHaveBeenCalled()
+  })
+
+  it.each(['caption', ''])('does not download oversized voice with caption %j', async (caption) => {
+    const { message, hint } = await deliverAudio('voice', { file_size: MAX_FILE_SIZE_BYTES + 1 }, caption)
+    expect(message.mock.calls).toEqual(
+      caption ? [[{ chatId: '123', userId: '456', userName: 'User', text: caption, files: [] }]] : []
+    )
+    expect(downloadFileAsBase64).not.toHaveBeenCalled()
+    expect(mockBot.api.getFile).not.toHaveBeenCalled()
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['getFile failure', 'no file path'])('does not emit empty content after %s', async (failure) => {
+    if (failure === 'getFile failure') mockBot.api.getFile.mockRejectedValue(new Error('unavailable'))
+    else mockBot.api.getFile.mockResolvedValue({})
+    const { message, hint } = await deliverAudio('voice', {}, '')
+    expect(message).not.toHaveBeenCalled()
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps caption when download fails', async () => {
+    mockBot.api.getFile.mockResolvedValue({})
+    const { message, hint } = await deliverAudio('audio')
+    expect(message.mock.calls).toEqual([
+      [{ chatId: '123', userId: '456', userName: 'User', text: 'caption', files: [] }]
+    ])
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves delivered content if the hint fails', async () => {
+    const { message, hint } = await deliverAudio('voice', {}, 'caption', true)
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads known audio above the transcription ceiling without transcribing', async () => {
+    const { message, hint } = await deliverAudio('audio', { file_size: 33 * 1024 * 1024 })
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(message.mock.calls[0][0].files[0].filename).toBe('audio-unique')
+    expect(downloadFileAsBase64).toHaveBeenCalledTimes(1)
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses actual byte length when the advertised audio size is untrustworthy', async () => {
+    const attachment = {
+      filename: 'audio-unique',
+      data: Buffer.alloc(32 * 1024 * 1024 + 1).toString('base64'),
+      size: 3,
+      media_type: 'audio/ogg'
+    }
+    vi.mocked(downloadFileAsBase64).mockResolvedValueOnce(attachment)
+    const { message, hint } = await deliverAudio('audio', { file_size: 3 })
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(message.mock.calls[0][0].files[0]).toBe(attachment)
+    expect(downloadFileAsBase64).toHaveBeenCalledTimes(1)
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+    expect(hint).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the download MIME for unknown audio instead of assuming OGG', async () => {
+    vi.mocked(downloadFileAsBase64).mockResolvedValue({
+      filename: 'audio-unique',
+      data: 'YQ==',
+      size: 1,
+      media_type: 'audio/mpeg'
+    })
+    const { message } = await deliverAudio('audio')
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(message.mock.calls[0][0].files[0].media_type).toBe('audio/mpeg')
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+  })
+
+  it('preserves explicit non-OGG voice MIME without adding an OGG extension', async () => {
+    const { message } = await deliverAudio('voice', { mime_type: 'audio/mpeg' })
+    expect(message).toHaveBeenCalledTimes(1)
+    expect(message.mock.calls[0][0].files[0]).toMatchObject({ filename: 'voice-unique', media_type: 'audio/mpeg' })
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+  })
+
+  it('blocks unauthorized voice before downloading, transcribing, hinting or emitting', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const message = vi.fn()
+    adapter.on('message', message)
+    const handler = mockBot.on.mock.calls.find(([filter]) => filter === 'message:voice')?.[1]
+    const ctx = { chat: { id: 999 }, message: { voice: { file_id: 'file', file_unique_id: 'unique' } } }
+    await mockBot.use.mock.calls[0][0](ctx, () => handler?.(ctx))
+    expect(message).not.toHaveBeenCalled()
+    expect(downloadFileAsBase64).not.toHaveBeenCalled()
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+    expect(mockBot.api.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('preserves photo caption and image delivery', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    vi.mocked(downloadImageAsBase64).mockResolvedValueOnce({ data: 'aW1hZ2U=', media_type: 'image/jpeg' })
+    const message = vi.fn()
+    adapter.on('message', message)
+    const handler = mockBot.on.mock.calls.find(([filter]) => filter === 'message:photo')![1]
+    await handler({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'User' },
+      message: { caption: ' photo ', photo: [{ file_id: 'photo' }] }
+    })
+    expect(message.mock.calls).toEqual([
+      [
+        {
+          chatId: '123',
+          userId: '456',
+          userName: 'User',
+          text: 'photo',
+          images: [{ data: 'aW1hZ2U=', media_type: 'image/jpeg' }]
+        }
+      ]
+    ])
+  })
+
+  it('preserves document caption, filename and MIME', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const message = vi.fn()
+    adapter.on('message', message)
+    const handler = mockBot.on.mock.calls.find(([filter]) => filter === 'message:document')![1]
+    await handler({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'User' },
+      message: {
+        caption: ' document ',
+        document: { file_id: 'doc', file_name: 'report.pdf', mime_type: 'application/pdf' }
+      }
+    })
+    expect(message.mock.calls).toEqual([
+      [
+        {
+          chatId: '123',
+          userId: '456',
+          userName: 'User',
+          text: 'document',
+          files: [
+            {
+              filename: 'report.pdf',
+              media_type: 'application/pdf',
+              data: Buffer.from('ogg').toString('base64'),
+              size: 3
+            }
+          ]
+        }
+      ]
+    ])
+    expect(transcribeChannelAudio).not.toHaveBeenCalled()
+  })
 
   it('reports connected only after grammY confirms polling startup', async () => {
     let onStart: (() => void) | undefined
