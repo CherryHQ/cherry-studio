@@ -42,7 +42,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import { isExternalCliProvider, isSupportFastMode } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
@@ -52,6 +52,7 @@ import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { resolveModelNativeImageSupport } from './modelImageSupport'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -132,6 +133,7 @@ interface ConnectionMaterializationFacts {
   fastMode: boolean
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  supportsImages: boolean
   promptModelName?: string | null
 }
 
@@ -413,6 +415,7 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const supportsImages = materialized?.supportsImages ?? resolveModelNativeImageSupport(uniqueModelId)
   const rebuildFacts = {
     promptSuggestions: !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled'),
     modelId: uniqueModelId,
@@ -421,6 +424,7 @@ async function deriveConnectionConfigFromSnapshot(
     reasoningEffort,
     serviceTier: routeFacts.branch === 'gateway' ? serviceTier : undefined,
     fastMode: effectiveFastMode,
+    supportsImages,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
     // Rebuild fact: language change invalidates the warm connection so the new
@@ -575,6 +579,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
+  const supportsImages = resolveModelNativeImageSupport(uniqueModelId)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -588,7 +593,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         linkedChannelSnapshot,
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
-        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        supportsImages,
         thinkingOptions:
           route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
         fastMode: nativeFastMode,
@@ -624,6 +629,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         additionalBypassRule: gatewayBypassRule(route)
       }),
       effectiveLanguage,
+      supportsImages,
       promptModelName
     },
     serviceTier,
