@@ -1424,6 +1424,40 @@ describe('JobManager pause / drainInFlight', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('isolates a schedule read failure during pause release and continues synchronization', async () => {
+      const type = 'pause.next-run.read-failure'
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [[type, makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+      const ids = [0, 1].map(
+        (index) =>
+          jobManager.registerJobSchedule({
+            type,
+            trigger: { kind: 'interval', ms: 1000 },
+            name: `read-failure-${index}`,
+            jobInputTemplate: {},
+            catchUpPolicy: { kind: 'skip-missed' }
+          } as never).id
+      )
+      const hold = jobManager.pause('test: schedule read failure')
+      await vi.advanceTimersByTimeAsync(2500)
+      const getById = jobScheduleService.getById.bind(jobScheduleService)
+      const read = vi.spyOn(jobScheduleService, 'getById').mockImplementation((id) => {
+        if (id === ids[0]) throw new Error('injected schedule read failure')
+        return getById(id)
+      })
+      try {
+        expect(() => hold.dispose()).not.toThrow()
+        expect(Date.parse(getById(ids[1])?.nextRun ?? '')).toBeGreaterThan(Date.now())
+      } finally {
+        read.mockRestore()
+        vi.useRealTimers()
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+
     it('preserves a limit-cron quota across the pause window (croner-level pause)', async () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
