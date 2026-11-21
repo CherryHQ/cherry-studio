@@ -109,6 +109,7 @@ interface ComposerClipboardDraft {
   tokens: readonly ComposerClipboardDraftToken[]
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Clipboard fragments, tokens and file handles have separate field validators; this shared guard only checks their raw containers.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

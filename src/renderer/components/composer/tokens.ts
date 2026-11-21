@@ -50,6 +50,7 @@ function normalizePromptText(kind: ComposerDraftTokenKind, promptText: string | 
   return promptText
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Tiptap and restored attributes include raw extension fields; the readers below validate only supported token values.
 export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): ComposerDraftToken {
   const kindValue = attrs.kind
   const kind = isComposerDraftTokenKind(kindValue) ? kindValue : 'reference'
