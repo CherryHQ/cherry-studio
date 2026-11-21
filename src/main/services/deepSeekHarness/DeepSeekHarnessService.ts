@@ -261,7 +261,8 @@ export class DeepSeekHarnessService extends BaseService {
     }
     const { protocol, baseUrl } = resolveDeepSeekHarnessEndpoint(provider, model)
     const { route, credentialRef } = createDeepSeekHarnessDirectIdentity(provider.id, protocol)
-    const apiKey = providerService.getApiKeys(provider.id, { enabled: true })[0]?.key
+    const enabledKeys = providerService.getApiKeys(provider.id, { enabled: true })
+    const apiKey = enabledKeys.find((entry) => entry.id === model.apiKeyId)?.key ?? enabledKeys[0]?.key
     if (!apiKey && !provider.authOptional) throw new Error(`Provider ${provider.id} has no enabled API key`)
 
     return {

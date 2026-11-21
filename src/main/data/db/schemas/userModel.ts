@@ -108,6 +108,9 @@ export const userModelTable = sqliteTable(
     /** User notes */
     notes: text(),
 
+    /** When set, requests for this model use this provider API key instead of automatic rotation. */
+    apiKeyId: text(),
+
     ...createUpdateTimestamps
   },
   (t) => [

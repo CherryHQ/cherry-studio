@@ -12,6 +12,8 @@ export {
 } from './claudeModels'
 export { clearCliConfig } from './clear'
 export {
+  CliConfigRoleBindingError,
+  isCliConfigRoleBindingError,
   isOwnLoginConfigurable,
   readCliConfigDraft,
   readCliConfigFiles,

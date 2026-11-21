@@ -1,5 +1,6 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
+import { resolveEffectivePreferredKeyId } from '@main/data/services/providerApiKeySelection'
 import { providerService } from '@main/data/services/ProviderService'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -23,11 +24,17 @@ export interface BuildApiKeyFallbackModelsArgs {
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
 }
 
-/** Lazily builds the same provider/model with each remaining enabled key. */
+/**
+ * Lazily builds the same provider/model with each remaining enabled key. A model bound to
+ * an enabled key never fails over to another account's key; missing or disabled bindings
+ * keep automatic failover.
+ */
 export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): FallbackResolver[] {
   if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return []
+  const apiKeys = providerService.getApiKeys(args.provider.id)
+  if (resolveEffectivePreferredKeyId(apiKeys, args.model.apiKeyId) !== null) return []
   const keys = resolveApiKeyFallbacks(
-    providerService.getApiKeys(args.provider.id, { enabled: true }),
+    apiKeys.filter((key) => key.isEnabled),
     args.primaryCredentialReceipt
   )
   return keys.map((key) => async () => {

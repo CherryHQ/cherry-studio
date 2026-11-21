@@ -322,6 +322,7 @@ export interface OpenClawConfig {
 export interface OpenClawModelConfig {
   id: string
   name: string
+  apiKey?: string
   contextWindow?: number
   maxTokens?: number
   reasoning?: boolean
@@ -351,7 +352,7 @@ export interface OpenClawProviderConfig {
 }
 
 type OpenClawSyncModel = Model &
-  Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
+  Pick<OpenClawModelConfig, 'apiKey' | 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
 type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
@@ -1372,12 +1373,19 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
+    // Resolve bindings without `resolveApiKey` so a stale id cannot advance rotation
+    // while the serialized model omits the credential and uses the provider key.
+    const boundEntry = model.apiKeyId
+      ? providerService.getApiKeys(model.providerId).find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
+      : undefined
+    const boundApiKey = boundEntry?.key
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
       endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      ...(boundApiKey !== undefined ? { apiKey: boundApiKey } : {}),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
@@ -1540,6 +1548,22 @@ export class OpenClawService extends BaseService {
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
       const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
 
+      // Without schema-level model api keys every model would silently authenticate
+      // with the provider-level (primary) credential instead of its own binding.
+      if (!supportsModelField('apiKey')) {
+        const misboundModels = provider.models
+          .filter((m) => {
+            const bound = (m as OpenClawSyncModel).apiKey
+            return bound !== undefined && bound !== apiKey
+          })
+          .map((m) => m.name || m.id)
+        if (misboundModels.length > 0) {
+          throw new Error(
+            `The OpenClaw runtime does not support per-model API keys; update OpenClaw or remove the model API key binding for: ${misboundModels.join(', ')}`
+          )
+        }
+      }
+
       const openclawProvider: OpenClawProviderConfig = {
         ...existingProviderOverrides,
         baseUrl,
@@ -1553,6 +1577,11 @@ export class OpenClawService extends BaseService {
             cost = { ...cost }
             delete cost.tieredPricing
           }
+          // Model-level credentials are Cherry-owned like the provider key:
+          // retained overrides are dropped so unbinding regenerates instead of
+          // leaking a stale key.
+          const retained = pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing) as OpenClawModelConfig
+          delete retained.apiKey
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1563,7 +1592,8 @@ export class OpenClawService extends BaseService {
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
             ...(supportsModelField('cost') && cost ? { cost } : {}),
             ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
-            ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
+            ...retained,
+            ...(supportsModelField('apiKey') && synced.apiKey !== undefined ? { apiKey: synced.apiKey } : {}),
             id: m.id,
             name: m.name
           }

@@ -1156,7 +1156,7 @@ describe('AiService', () => {
       await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).resolves.toEqual({
         latency: expect.any(Number)
       })
-      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key')
+      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key', undefined)
       expect(submit).toHaveBeenCalledWith(expect.objectContaining({ modelId, n: 1, providerParams: {} }))
     })
 
@@ -2517,7 +2517,7 @@ describe('AiService tool approval', () => {
       apiKeyOverride: 'sk-selected'
     })
 
-    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected', undefined)
     expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
@@ -2700,7 +2700,7 @@ describe('AiService tool approval', () => {
       apiKeyOverride: 'sk-selected'
     })
 
-    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected', undefined)
     const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
     expect(url).toContain('/api/show')
     expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
