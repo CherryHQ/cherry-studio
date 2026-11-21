@@ -158,9 +158,8 @@ export const kbSearchInputSchema = z.object({
 })
 
 export const kbSearchOutputItemSchema = z.object({
-  // Citation id the model echoes back as `[cite:id]`. New results use a per-call
-  // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
-  // calls in one message; number is kept so older persisted results still parse.
+  // Content-derived ids are stable across retrieval calls and unchanged reindexing.
+  // Numeric ids and older random strings remain valid persisted results.
   id: z.union([z.string(), z.number().int().positive()]),
   // Owning base of the hit. kb_search fans out across `baseIds`, so this is both
   // what kb_read needs to follow the hit up and what makes `conceptId` (a
@@ -173,6 +172,9 @@ export const kbSearchOutputItemSchema = z.object({
   title: z.string().optional(),
   type: z.string().optional(),
   content: z.string(),
+  charStart: z.number().int().nonnegative().optional(),
+  charEnd: z.number().int().nonnegative().optional(),
+  page: z.number().int().positive().optional(),
   score: z.number().min(0).max(1)
 })
 
@@ -261,6 +263,7 @@ export const kbReadOutputSchema = z.object({
   title: z.string(),
   type: z.string(),
   totalChars: z.number().int().nonnegative(),
+  page: z.number().int().positive().optional(),
   charStart: z.number().int().nonnegative(),
   charEnd: z.number().int().nonnegative(),
   content: z.string(),

@@ -106,7 +106,12 @@ export async function loadDocumentsFromKnowledgeBaseFile(
     (document) =>
       new Document({
         text: document.text,
-        metadata: { ...sourceMetadata }
+        metadata: {
+          ...sourceMetadata,
+          ...(Number.isSafeInteger(document.metadata?.page_number) && document.metadata.page_number > 0
+            ? { page_number: document.metadata.page_number }
+            : {})
+        }
       })
   )
 }

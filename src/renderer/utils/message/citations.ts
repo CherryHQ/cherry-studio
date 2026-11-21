@@ -177,13 +177,20 @@ function toSnippet(content: string): string {
  * output carries one `id` rather than one per item. Returns null for anything not citable: an
  * error/steer string, and results persisted before kb_read joined the citation pipeline (no `id`).
  */
-function parseKbReadCitation(
-  output: unknown
-): { id: string; baseId?: string; conceptId: string; title: string; content: string } | null {
+function parseKbReadCitation(output: unknown): {
+  id: string
+  baseId?: string
+  conceptId: string
+  title: string
+  content: string
+  page?: number
+  charStart?: number
+  charEnd?: number
+} | null {
   const read = kbReadOutputSchema.safeParse(output)
   if (read.success) {
-    const { id, baseId, conceptId, title, content } = read.data
-    return id ? { id, baseId, conceptId, title, content: toSnippet(content) } : null
+    const { id, baseId, conceptId, title, content, page, charStart, charEnd } = read.data
+    return id ? { id, baseId, conceptId, title, content: toSnippet(content), page, charStart, charEnd } : null
   }
   const grep = kbGrepOutputSchema.safeParse(output)
   if (!grep.success) return null
@@ -265,13 +272,15 @@ export function resolveMessageCitations(
     conceptId?: string
     title?: string
     content: string
+    page?: number
+    charStart?: number
+    charEnd?: number
   }) => {
     const key = String(item.id)
     if (byId.has(key)) return
-    // One citation per document, the knowledge-base counterpart of the URL dedup below: kb_search
-    // can return several chunks of one file and kb_read may then quote that same file again, but
-    // the reader only cares which document backed the statement. First occurrence wins.
-    const document = documentKey(item)
+    // Located citations remain per-chunk. Legacy results without locations keep
+    // their historical one-citation-per-document behavior.
+    const document = item.page !== undefined || String(item.id).startsWith('kb-') ? undefined : documentKey(item)
     const existing = document ? byDocument.get(document) : undefined
     if (existing) {
       byId.set(key, existing)
@@ -283,7 +292,13 @@ export function resolveMessageCitations(
       title: item.title || '',
       content: item.content,
       showFavicon: false,
-      type: 'knowledge'
+      type: 'knowledge',
+      baseId: item.baseId,
+      sourceId: String(item.id),
+      conceptId: item.conceptId,
+      page: item.page,
+      charStart: item.charStart,
+      charEnd: item.charEnd
     }
     byId.set(key, citation)
     if (document) byDocument.set(document, citation)

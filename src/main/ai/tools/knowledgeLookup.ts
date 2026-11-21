@@ -26,6 +26,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
+import { knowledgeCitationId } from '@main/features/knowledge/query/citationIdentity'
 import type {
   KbGrepOutput,
   KbListInput,
@@ -180,16 +181,16 @@ export async function searchKnowledge(
   const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
   const dedupedByContent = new Map<string, { result: KnowledgeSearchResult; baseId: string }>()
   for (const hit of merged) {
-    const existing = dedupedByContent.get(hit.result.pageContent)
+    const contentKey = JSON.stringify([hit.baseId, hit.result.conceptId ?? hit.result.chunkId, hit.result.pageContent])
+    const existing = dedupedByContent.get(contentKey)
     if (!existing || hit.result.score > existing.result.score) {
-      dedupedByContent.set(hit.result.pageContent, hit)
+      dedupedByContent.set(contentKey, hit)
     }
   }
   const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
-  const prefix = newCitePrefix()
-  return sorted.map(({ result, baseId }, index) => ({
-    id: citeId(prefix, index),
+  return sorted.map(({ result, baseId }) => ({
+    id: knowledgeCitationId(baseId, result.conceptId ?? result.chunkId, result.pageContent),
     // Provenance so the model can follow a hit with kb_read. baseId pairs with
     // conceptId to identify the document (conceptId is base-relative). conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
@@ -200,6 +201,9 @@ export async function searchKnowledge(
     title: result.title,
     type: result.metadata?.itemType,
     content: result.pageContent,
+    charStart: result.charStart,
+    charEnd: result.charEnd,
+    page: result.page,
     // Clamp to the schema's [0, 1] range. This is the ONLY enforcement of that contract: ai@6.0.143
     // does not validate a tool's `outputSchema` on the execute path, and the MCP bridge doesn't either.
     score: Math.max(0, Math.min(1, result.score))
@@ -241,8 +245,7 @@ async function readConcept(
   try {
     const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
     return {
-      // One slice, one source — index 0 yields the call's only cite id.
-      id: citeId(newCitePrefix(), 0),
+      id: knowledgeCitationId(baseId, result.conceptId, result.content),
       // Pairs with the base-relative conceptId to identify the document globally.
       baseId,
       conceptId: result.conceptId,
@@ -251,6 +254,7 @@ async function readConcept(
       totalChars: result.totalChars,
       charStart: result.charStart,
       charEnd: result.charEnd,
+      ...(result.page !== undefined ? { page: result.page } : {}),
       content: result.content,
       truncated: result.truncated
     }

@@ -125,6 +125,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   metadataRequest?: FilePreviewMetadataRequest
+  pdfCitation?: FilePreviewPluginProps['pdfCitation']
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   onLineComment?: FilePreviewPluginProps['onLineComment']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
@@ -149,6 +150,7 @@ function FilePreviewPluginRenderer({
   filePath,
   metadata,
   metadataRequest,
+  pdfCitation,
   onSelectionReference,
   onLineComment,
   plugin,
@@ -168,6 +170,7 @@ function FilePreviewPluginRenderer({
         fileName={fileName}
         metadata={metadata}
         metadataRequest={metadataRequest}
+        pdfCitation={pdfCitation}
         onSelectionReference={onSelectionReference}
         onLineComment={onLineComment}
         refreshKey={refreshKey}
@@ -180,6 +183,7 @@ function FilePreviewPluginRenderer({
 export interface FilePreviewProps {
   filePath: AbsoluteFilePath
   header?: ReactNode
+  pdfCitation?: FilePreviewPluginProps['pdfCitation']
   refreshKey?: number
   type?: FilePreviewType
   /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
@@ -209,6 +213,7 @@ type FilePreviewResolution =
 export function FilePreview({
   filePath,
   header,
+  pdfCitation,
   refreshKey = 0,
   type = 'file',
   onSelectionReference,
@@ -347,6 +352,7 @@ export function FilePreview({
         {...resolution.file}
         metadata={resolution.metadata}
         metadataRequest={metadataRequest?.read}
+        pdfCitation={pdfCitation}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
         onLineComment={onLineComment}
         plugin={resolution.plugin}

@@ -384,7 +384,8 @@ async function buildRebuildMaterialInput(
       unitType: 'chunk',
       unitIndex: chunk.unitIndex,
       charStart: chunk.charStart,
-      charEnd: chunk.charEnd
+      charEnd: chunk.charEnd,
+      ...(chunk.page !== undefined ? { page: chunk.page } : {})
     })),
     usesEmbeddings,
     embeddings

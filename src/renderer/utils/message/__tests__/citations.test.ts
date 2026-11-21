@@ -266,6 +266,49 @@ describe('resolveMessageCitations', () => {
     expect(mc.all.map((citation) => citation.content)).toEqual(['from A', 'from B'])
   })
 
+  it('retains per-chunk locations and stable identities for the same PDF', () => {
+    const mc = resolveMessageCitations([
+      kbToolPart([
+        {
+          id: 'kb-first',
+          baseId: 'base-a',
+          conceptId: 'paper.pdf',
+          title: 'paper.pdf',
+          content: 'one',
+          score: 1,
+          page: 1,
+          charStart: 0,
+          charEnd: 3
+        },
+        {
+          id: 'kb-second',
+          baseId: 'base-a',
+          conceptId: 'paper.pdf',
+          title: 'paper.pdf',
+          content: 'two',
+          score: 1,
+          page: 2,
+          charStart: 5,
+          charEnd: 8
+        }
+      ])
+    ])
+    expect(mc.all).toHaveLength(2)
+    expect(mc.all[1]).toMatchObject({
+      sourceId: 'kb-second',
+      baseId: 'base-a',
+      conceptId: 'paper.pdf',
+      page: 2,
+      charStart: 5,
+      charEnd: 8
+    })
+  })
+
+  it('preserves a deep-read slice location', () => {
+    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('kb-read', { page: 3, charStart: 12, charEnd: 22 }))])
+    expect(mc.all[0]).toMatchObject({ page: 3, charStart: 12, charEnd: 22 })
+  })
+
   it('still dedupes one base’s document across a search and a read', () => {
     const mc = resolveMessageCitations([
       kbToolPart([

@@ -132,12 +132,11 @@ export class KnowledgeIndexStore {
             contentHash,
             unit.unitType,
             unit.unitIndex,
-            // title and locator_json are reserved for the PR-C locator seam; no
-            // producer populates them yet, so they are persisted as NULL.
+            // Title is optional; the existing locator column stores page metadata.
             null,
             unit.charStart,
             unit.charEnd,
-            null,
+            unit.page !== undefined ? JSON.stringify({ page: unit.page }) : null,
             now
           ]
         )
@@ -319,7 +318,7 @@ export class KnowledgeIndexStore {
   /** Read back a material's units (with body text), ordered by unit index. */
   listMaterialUnits(materialId: string): KnowledgeSearchUnit[] {
     const result = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_type, su.unit_index, su.title, su.char_start, su.char_end, st.text AS body
+      `SELECT su.unit_id, su.material_id, su.unit_type, su.unit_index, su.title, su.char_start, su.char_end, su.locator_json, st.text AS body
        FROM search_unit su
        LEFT JOIN search_text st
          ON st.target_type = 'search_unit' AND st.target_id = su.unit_id AND st.kind = 'body'
@@ -344,6 +343,7 @@ export class KnowledgeIndexStore {
         title: (row.title as string | null) ?? null,
         charStart: Number(row.char_start),
         charEnd: Number(row.char_end),
+        ...readPageLocator(row.locator_json),
         text: row.body as string
       }
     })
@@ -504,7 +504,7 @@ export class KnowledgeIndexStore {
     // undefined for them, and SQLite coerces that NULL/NaN to NULL — which would otherwise
     // sort first under `ORDER BY dist` and score `1 - Number(null) = 1`, outranking real hits.
     const result = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body,
+      `SELECT su.unit_id, su.material_id, su.unit_index, su.char_start, su.char_end, su.locator_json, st.text AS body,
               ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
        FROM embedding e
        JOIN search_text st
@@ -550,7 +550,7 @@ export class KnowledgeIndexStore {
   private bm25MatchSearch(matchQuery: string, shortTerms: string[], topK: number): KnowledgeIndexSearchMatch[] {
     const shortTermFilters = shortTerms.map(() => `AND st.text LIKE ? ESCAPE '\\'`).join(' ')
     const result = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
+      `SELECT su.unit_id, su.material_id, su.unit_index, su.char_start, su.char_end, su.locator_json, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
        JOIN search_text st
          ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
@@ -579,7 +579,7 @@ export class KnowledgeIndexStore {
     const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
     const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
     const result = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
+      `SELECT su.unit_id, su.material_id, su.unit_index, su.char_start, su.char_end, su.locator_json, st.text AS body, length(st.text) AS len
        FROM search_text st
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE st.target_type = 'search_unit' AND st.kind = 'body'
@@ -629,6 +629,19 @@ export class KnowledgeIndexStore {
   }
 }
 
+/** Invalid or legacy locators remain readable without inventing a page. */
+function readPageLocator(value: SqlValue | undefined): { page?: number } {
+  if (typeof value !== 'string') return {}
+  try {
+    const locator: unknown = JSON.parse(value)
+    if (typeof locator !== 'object' || locator === null || !('page' in locator)) return {}
+    const page = locator.page
+    return typeof page === 'number' && Number.isSafeInteger(page) && page > 0 ? { page } : {}
+  } catch {
+    return {}
+  }
+}
+
 /** Shape a single result row (shared by both lanes) with a precomputed score. */
 function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSearchMatch {
   // Every lane selects `st.text AS body` through an INNER JOIN on a NOT NULL
@@ -642,6 +655,9 @@ function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSe
     materialId: row.material_id as string,
     unitIndex: Number(row.unit_index),
     text: row.body as string,
+    charStart: Number(row.char_start),
+    charEnd: Number(row.char_end),
+    ...readPageLocator(row.locator_json),
     score
   }
 }

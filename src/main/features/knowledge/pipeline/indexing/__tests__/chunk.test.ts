@@ -47,6 +47,18 @@ describe('chunkKnowledgeDocuments', () => {
     expect(contentText.slice(chunks[1].charStart, chunks[1].charEnd)).toBe('beta')
   })
 
+  it('preserves valid PDF pages without inventing pages for text sources', () => {
+    const documents = [
+      new Document({ text: 'first page', metadata: { page_number: 1 } }),
+      new Document({ text: 'second page', metadata: { page_number: 2 } }),
+      new Document({ text: 'plain text', metadata: {} }),
+      new Document({ text: 'bad page', metadata: { page_number: -1 } })
+    ]
+    const { chunks } = chunkKnowledgeDocuments(createBase(), documents)
+    expect(chunks.map((chunk) => chunk.page)).toEqual([1, 2, undefined, undefined])
+    expect(chunks[1]).toMatchObject({ charStart: 12, charEnd: 23 })
+  })
+
   it('keeps every chunk a verbatim slice of the joined content text', () => {
     const documents = [
       new Document({ text: 'Hello world. This is the very first document body.', metadata: { source: 'a' } }),

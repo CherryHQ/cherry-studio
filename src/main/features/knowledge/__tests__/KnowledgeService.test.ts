@@ -22,6 +22,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type * as PathStorage from '../pathStorage'
+import { knowledgeCitationId } from '../query/citationIdentity'
 
 const {
   cancelManyMock,
@@ -2248,6 +2249,50 @@ describe('KnowledgeService', () => {
 
       expect(service.listBasesForDiscovery({ limit: 20, scope: { kind: 'unrestricted' } })).toEqual(page)
       expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({ limit: 20 })
+    })
+  })
+
+  describe('resolveCitation', () => {
+    function arrangeCitation() {
+      getMaterialByRelativePathMock.mockResolvedValue({ materialId: 'file-1', relativePath: 'paper.pdf' })
+      knowledgeItemGetByIdMock.mockReturnValue(
+        createFileItem('file-1', 'kb-1', resolvePath('/docs/paper.pdf'), 'completed')
+      )
+      readMaterialContentMock.mockResolvedValue('prefix evidence')
+      listMaterialUnitsMock.mockReturnValue([
+        { unitId: 'u1', unitIndex: 0, charStart: 7, charEnd: 15, text: 'evidence', page: 3 }
+      ])
+      return knowledgeCitationId('kb-1', 'paper.pdf', 'evidence')
+    }
+
+    it('resolves unchanged content at its current page, ignoring stale offsets', async () => {
+      const id = arrangeCitation()
+      const result = await new KnowledgeService().resolveCitation('kb-1', 'paper.pdf', id, { charStart: 0, charEnd: 8 })
+      expect(result).toMatchObject({ status: 'available', page: 3, excerpt: 'evidence' })
+      expect(probeKnowledgeSourcePathMock).toHaveBeenCalled()
+    })
+
+    it.each(['missing', 'unverifiable'])('does not open stale content when the source is %s', async (state) => {
+      const id = arrangeCitation()
+      probeKnowledgeSourcePathMock.mockResolvedValue(state)
+      await expect(new KnowledgeService().resolveCitation('kb-1', 'paper.pdf', id, {})).resolves.toEqual({
+        status: 'unavailable'
+      })
+    })
+
+    it('marks an unknown content id invalid before probing any path', async () => {
+      arrangeCitation()
+      await expect(new KnowledgeService().resolveCitation('kb-1', 'paper.pdf', 'kb-invalid', {})).resolves.toEqual({
+        status: 'invalid'
+      })
+      expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
+    })
+
+    it('marks a deleted concept invalid', async () => {
+      getMaterialByRelativePathMock.mockResolvedValue(null)
+      await expect(new KnowledgeService().resolveCitation('kb-1', 'paper.pdf', 'kb-invalid', {})).resolves.toEqual({
+        status: 'invalid'
+      })
     })
   })
 

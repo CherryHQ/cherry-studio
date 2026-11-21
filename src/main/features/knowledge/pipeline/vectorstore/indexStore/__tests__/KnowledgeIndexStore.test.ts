@@ -67,6 +67,22 @@ describe('KnowledgeIndexStore', () => {
   const ftsIntegrityCheck = () =>
     driver.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
 
+  it('round-trips page locators and source ranges through every search lane', () => {
+    const input = buildInput('citation evidence', [[0, 17]])
+    input.units[0].page = 4
+    store.rebuildMaterial('m1', input)
+    expect(store.listMaterialUnits('m1')[0]).toMatchObject({ page: 4, charStart: 0, charEnd: 17 })
+    for (const mode of ['bm25', 'vector', 'hybrid'] as const) {
+      expect(store.search({ queryText: 'citation', queryEmbedding: [0.1, 0.2, 0.3], mode, topK: 10 })[0]).toMatchObject(
+        {
+          page: 4,
+          charStart: 0,
+          charEnd: 17
+        }
+      )
+    }
+  })
+
   it('persists material, content, units, search_text and embeddings, then lists units in order', async () => {
     store.rebuildMaterial(
       'm1',

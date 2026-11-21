@@ -165,6 +165,15 @@ export class KnowledgeService extends BaseService {
     return await this.conceptService.readConcept(baseId, conceptId, range)
   }
 
+  async resolveCitation(
+    baseId: string,
+    conceptId: string,
+    id: string,
+    range: { charStart?: number; charEnd?: number }
+  ) {
+    return this.conceptService.resolveCitation(baseId, conceptId, id, range)
+  }
+
   async grepConcept(
     baseId: string,
     conceptId: string,

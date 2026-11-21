@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   initialScale: 1,
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
+  eventBusDispatch: vi.fn(),
+  findSetDocument: vi.fn(),
   getDocument: vi.fn(),
   requestOpen: vi.fn(),
   unusedRead: vi.fn(),
@@ -51,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   firstPage: vi.fn(),
+  onePageRendered: vi.fn(),
   pageTop: 0,
   pageReady: true,
   rangeTransportInstances: [] as Array<{
@@ -135,6 +138,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     }
 
     dispatch(eventName: string, event?: unknown) {
+      mocks.eventBusDispatch(eventName, event)
       this.listeners.get(eventName)?.forEach((listener) => listener(event))
     }
   }
@@ -148,6 +152,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
     firstPagePromise = mocks.firstPage()
+    onePageRendered = mocks.onePageRendered()
     pageColors: { background?: string } | null
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
@@ -261,6 +266,9 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
 
   return {
     EventBus: MockEventBus,
+    PDFFindController: class {
+      setDocument = mocks.findSetDocument
+    },
     PDFLinkService: MockPDFLinkService,
     PDFViewer: MockPDFViewer
   }
@@ -608,6 +616,7 @@ describe('PdfFilePreview', () => {
       promise: Promise.resolve(mocks.pdfDocument)
     })
     mocks.firstPage.mockImplementation(() => Promise.resolve())
+    mocks.onePageRendered.mockImplementation(() => Promise.resolve())
   })
 
   afterEach(() => {
@@ -619,6 +628,45 @@ describe('PdfFilePreview', () => {
     } else {
       document.documentElement.setAttribute('data-theme', initialDataTheme)
     }
+  })
+
+  it('opens a citation at its page and asks pdf.js to highlight its excerpt', async () => {
+    previewOptions = { pdf: { citation: { page: 2, excerpt: 'cited evidence' } } }
+    renderPreview()
+    await waitFor(() => expect(mocks.pdfViewerPageNumbers).toContain(2))
+    await waitFor(() =>
+      expect(mocks.eventBusDispatch).toHaveBeenCalledWith(
+        'find',
+        expect.objectContaining({ query: 'cited evidence', highlightAll: true })
+      )
+    )
+  })
+
+  it('waits for the viewer to initialize find before dispatching a citation query', async () => {
+    let rendered!: () => void
+    mocks.onePageRendered.mockReturnValue(
+      new Promise<void>((resolve) => {
+        rendered = resolve
+      })
+    )
+    previewOptions = { pdf: { citation: { page: 2, excerpt: 'cited evidence' } } }
+    renderPreview()
+    await waitFor(() => expect(mocks.pdfViewerPageNumbers).toContain(2))
+    expect(mocks.eventBusDispatch).not.toHaveBeenCalledWith('find', expect.anything())
+    await act(async () => {
+      rendered()
+    })
+    await waitFor(() =>
+      expect(mocks.eventBusDispatch).toHaveBeenCalledWith('find', expect.objectContaining({ query: 'cited evidence' }))
+    )
+  })
+
+  it('does not navigate to an out-of-range citation page', async () => {
+    previewOptions = { pdf: { citation: { page: 999, excerpt: 'cited evidence' } } }
+    renderPreview()
+    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
+    expect(mocks.pdfViewerPageNumbers).not.toContain(999)
+    expect(mocks.eventBusDispatch).not.toHaveBeenCalledWith('find', expect.anything())
   })
 
   it('loads the PDF into a continuous pdf.js viewer below a fixed toolbar', async () => {

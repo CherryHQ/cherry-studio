@@ -3,12 +3,16 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { runRipgrep } from '@main/ai/mcp/servers/filesystem'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
+import type { KnowledgeCitationTarget } from '@shared/ipc/schemas/knowledge'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import { getKnowledgeBaseFilePath, probeKnowledgeSourcePath } from '../pathStorage'
+import type { KnowledgeSearchUnit } from '../pipeline/vectorstore/indexStore/model'
+import { knowledgeCitationId } from './citationIdentity'
 import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
 
@@ -45,6 +49,7 @@ export interface KnowledgeConceptContent {
   totalChars: number
   charStart: number
   charEnd: number
+  page?: number
   content: string
   /** True when the returned slice was capped at {@link CONCEPT_READ_MAX_CHARS} and the document continues past `charEnd`. */
   truncated: boolean
@@ -228,7 +233,7 @@ export class KnowledgeConceptService {
     conceptId: string,
     range?: { charStart?: number; charEnd?: number }
   ): Promise<KnowledgeConceptContent> {
-    const { item, text } = await this.resolveConcept(baseId, conceptId, 'readConcept')
+    const { item, text, units } = await this.resolveConcept(baseId, conceptId, 'readConcept')
 
     const totalChars = text.length
     const start = Math.min(Math.max(range?.charStart ?? 0, 0), totalChars)
@@ -236,6 +241,7 @@ export class KnowledgeConceptService {
     const naturalEnd = Math.min(range?.charEnd ?? totalChars, totalChars)
     const end = Math.max(start, Math.min(naturalEnd, start + CONCEPT_READ_MAX_CHARS))
 
+    const page = units.find((unit) => unit.charStart <= start && unit.charEnd > start)?.page
     return {
       conceptId,
       title: getKnowledgeItemDisplayTitle(item),
@@ -243,8 +249,56 @@ export class KnowledgeConceptService {
       totalChars,
       charStart: start,
       charEnd: end,
+      ...(page !== undefined ? { page } : {}),
       content: text.slice(start, end),
       truncated: end < naturalEnd
+    }
+  }
+
+  async resolveCitation(
+    baseId: string,
+    conceptId: string,
+    id: string,
+    range: { charStart?: number; charEnd?: number }
+  ): Promise<KnowledgeCitationTarget> {
+    try {
+      const { item, text, units } = await this.resolveConcept(baseId, conceptId, 'resolveCitation')
+      // Match the content identity first, not the historical offset: a reindex can
+      // move an unchanged chunk to a different page or character position.
+      const unit = units.find((entry) => knowledgeCitationId(baseId, conceptId, entry.text) === id)
+      let excerpt: string
+      let page: number | undefined
+      if (unit) {
+        excerpt = unit.text
+        page = unit.page
+      } else if (
+        range.charStart !== undefined &&
+        range.charEnd !== undefined &&
+        range.charEnd >= range.charStart &&
+        range.charEnd <= text.length
+      ) {
+        excerpt = text.slice(range.charStart, range.charEnd)
+        if (knowledgeCitationId(baseId, conceptId, excerpt) !== id) return { status: 'invalid' }
+        const start = range.charStart
+        page = units.find((entry) => entry.charStart <= start && entry.charEnd > start)?.page
+        if (page !== undefined) {
+          // A deep read may span pages. pdf.js finds within a page, so highlight
+          // only the portion on the first referenced page rather than a query
+          // that can never match across a page boundary.
+          const pageEnd = Math.max(...units.filter((entry) => entry.page === page).map((entry) => entry.charEnd))
+          excerpt = text.slice(start, Math.min(range.charEnd, pageEnd))
+        }
+      } else {
+        return { status: 'invalid' }
+      }
+      if (item.type !== 'file') return { status: 'unavailable' }
+      const filePath = getKnowledgeBaseFilePath(baseId, item.data.relativePath)
+      const probe = await probeKnowledgeSourcePath(filePath)
+      if (probe !== 'readable') return { status: 'unavailable' }
+      return { status: 'available', filePath, page, excerpt }
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return { status: 'invalid' }
+      throw error
     }
   }
 
@@ -427,7 +481,7 @@ export class KnowledgeConceptService {
     baseId: string,
     conceptId: string,
     operation: string
-  ): Promise<{ item: KnowledgeItem; text: string }> {
+  ): Promise<{ item: KnowledgeItem; text: string; units: KnowledgeSearchUnit[] }> {
     const base = assertBaseCanRunRuntimeOperation(baseId, operation)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
@@ -454,6 +508,7 @@ export class KnowledgeConceptService {
       throw DataApiErrorFactory.notFound('Knowledge concept content', conceptId)
     }
 
-    return { item, text }
+    const units = await runStoreOperation(store, baseId, operation, () => store.listMaterialUnits(ref.materialId))
+    return { item, text, units }
   }
 }

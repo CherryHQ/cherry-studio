@@ -12,6 +12,8 @@ export interface KnowledgeContentChunk {
   unitIndex: number
   charStart: number
   charEnd: number
+  /** One-based PDF page, when the reader preserves a page boundary. */
+  page?: number
   text: string
 }
 
@@ -58,7 +60,10 @@ export function chunkKnowledgeDocuments(
         unitIndex: unitIndex,
         charStart: baseOffset + chunk.start,
         charEnd: baseOffset + chunk.end,
-        text: chunk.text
+        text: chunk.text,
+        ...(Number.isSafeInteger(document.metadata?.page_number) && document.metadata.page_number > 0
+          ? { page: document.metadata.page_number }
+          : {})
       })
       unitIndex += 1
     }

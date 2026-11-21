@@ -202,6 +202,9 @@ export class KnowledgeQueryService {
         },
         itemId: match.materialId,
         chunkId: match.unitId,
+        charStart: match.charStart,
+        charEnd: match.charEnd,
+        ...(match.page !== undefined ? { page: match.page } : {}),
         // Concept ID + title so a hit can be followed up with kb_read.
         conceptId: deriveConceptId(item),
         title: getKnowledgeItemDisplayTitle(item)

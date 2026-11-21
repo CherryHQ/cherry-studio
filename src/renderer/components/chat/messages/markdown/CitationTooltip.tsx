@@ -30,7 +30,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
       isOpen={isOpen}
     />
   ) : (
-    <KnowledgeCitationHoverContent citation={{ title: citation.title, content: citation.content }} />
+    <KnowledgeCitationHoverContent citation={citation} />
   )
 
   return (

@@ -25,6 +25,8 @@ export interface PreviewOptions {
   pdf?: {
     /** Defaults to the existing sidebar. Overlay mode does not shrink the page viewport. */
     outlineLayout?: 'panel' | 'overlay'
+    /** Open a knowledge citation at its page and highlight its verbatim excerpt. */
+    citation?: { page: number; excerpt: string }
   }
   docx?: {
     /** Fit tracks container resizing until manual zoom; reset resumes fitting. Defaults to actual size. */
