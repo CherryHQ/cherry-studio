@@ -48,6 +48,7 @@ export interface PaintingData {
    * (vendor-specific) at request time. Empty / undefined entries are
    * omitted from the wire — server applies its default.
    */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Draft controls hold unvalidated registry fields; field readers and canonicalGenerate own validation and request projection.
   params?: Record<string, unknown>
   /**
    * Per-draft request timeout for one image-generation attempt, in ms. Omitted

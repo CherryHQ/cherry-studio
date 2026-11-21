@@ -5,6 +5,7 @@ import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/t
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, optionalParamNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import type { PaintingData } from '../model/types/paintingData'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
@@ -41,8 +42,8 @@ export async function computeModelFieldReset(input: {
   oldModelId: string | undefined
   newModelId: string
   mode: ImageGenerationMode | undefined
-  currentValues?: Record<string, unknown>
-}): Promise<Record<string, unknown>> {
+  currentValues?: PaintingData['params']
+}): Promise<Record<string, BaseConfigItem['initialValue']>> {
   const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
   if (oldModelId && oldModelId === newModelId) return {}
 
@@ -86,7 +87,7 @@ export async function computeModelFieldReset(input: {
   const oldKeys = collectKeys(oldItems)
   const newKeys = collectKeys(newItems)
 
-  const patch: Record<string, unknown> = {}
+  const patch: Record<string, BaseConfigItem['initialValue']> = {}
   for (const key of oldKeys) {
     if (!newKeys.has(key)) patch[key] = undefined
   }
