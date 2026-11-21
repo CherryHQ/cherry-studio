@@ -67,7 +67,6 @@ export interface BuiltinToolPolicyEntry {
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
-  readonly executesCode?: true
 }
 
 function tool(
@@ -84,7 +83,7 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
-  automationJs: { ...tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'), executesCode: true },
+  automationJs: tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'),
   automationReset: tool(CHERRY_MCP_SERVER.AUTOMATION, 'reset', 'auto'),
   cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
   cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
@@ -102,17 +101,11 @@ const BUILTIN_TOOL_POLICIES = {
   cherrySessionRename: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_RENAME_TOOL_NAME, 'auto'),
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
-  cherrySessionCreate: {
-    ...tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
-    executesCode: true
-  },
-  cherrySessionSend: {
-    ...tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
-    executesCode: true
-  },
+  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
+  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
-  cherryCliInstall: { ...tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'), executesCode: true },
+  cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 
@@ -122,10 +115,10 @@ const BUILTIN_TOOL_POLICIES = {
   readMcpSkillFile: tool(CHERRY_MCP_SERVER.SKILLS, 'read_mcp_skill_file', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
-  installSkill: { ...tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'), executesCode: true },
+  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
   // like cli_install rather than deferring to the runtime's permission mode.
-  installMcpServer: { ...tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'), executesCode: true },
+  installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
 
   assistantNavigate: tool(CHERRY_MCP_SERVER.ASSISTANT, 'navigate', 'auto'),
   assistantProductInfo: tool(CHERRY_MCP_SERVER.ASSISTANT, 'product_info', 'auto'),

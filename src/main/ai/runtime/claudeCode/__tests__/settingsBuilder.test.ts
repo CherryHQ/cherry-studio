@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
-import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -158,7 +157,6 @@ vi.mock('@application', async () => {
       // Session-keyed live state always resolves to the one real service instance (created below),
       // so the many per-test `applicationGet` overrides don't each have to register it.
       get: (name: string) => {
-        if (name === 'McpSkillService') return defaultServiceInstances.McpSkillService
         if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
         if (name === 'ClaudeCodeSessionStateService') return sessionStateService
         if (name === 'AgentSessionRuntimeService') {
@@ -239,7 +237,6 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
-    bindInvocation: ({ input }: { input: Record<string, unknown> }) => input,
     register: mocks.approvalRegister
   }
 }))
@@ -1537,60 +1534,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
   })
-
-  it.each(['Bash', 'mcp__skills__load_mcp_skill'])(
-    'does not auto-allow %s and rechecks skill context after approval',
-    async (toolName) => {
-      mocks.createToolPolicySnapshot.mockResolvedValue({
-        resolve: vi.fn(() => ({ approval: 'auto' })),
-        isDisabled: () => false,
-        getPermissionMode: () => 'default',
-        update: vi.fn(),
-        setPermissionMode: vi.fn()
-      })
-      const settings = await buildClaudeCodeSessionSettings(
-        {
-          id: 'session-1',
-          agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
-        } as never,
-        {} as never
-      )
-      const validate = vi.fn()
-      defaultServiceInstances.McpSkillService.captureContext.mockReturnValue({
-        signal: new AbortController().signal,
-        origins: [{ serverId: 'origin', serverName: 'Origin', uri: 'skill://reports/SKILL.md' }],
-        validate
-      })
-      const emit = vi.fn()
-      settings.approvalEmitter!.emit = emit
-      try {
-        for (const changed of [false, true]) {
-          const input =
-            toolName === 'Bash'
-              ? { command: 'echo ready' }
-              : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
-          const requestCount = mocks.approvalRegister.mock.calls.length
-          const pending = settings.canUseTool!(toolName, input, {
-            signal: new AbortController().signal,
-            toolUseID: 'skill-exec',
-            requestId: 'skill-exec-request'
-          })
-          await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls.length).toBeGreaterThan(requestCount))
-          if (changed)
-            validate.mockImplementation(() => {
-              throw new Error('Skill changed')
-            })
-          mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true })
-          await expect(pending).resolves.toMatchObject(
-            changed ? { behavior: 'deny', message: 'Skill changed' } : { behavior: 'allow', updatedInput: input }
-          )
-        }
-      } finally {
-        defaultServiceInstances.McpSkillService.captureContext.mockReset().mockReturnValue(undefined)
-      }
-    }
-  )
 
   describe('global install approvals without SDK matchedAskRule', () => {
     async function installSettings(

@@ -25,7 +25,6 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
-import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { t } from '@main/i18n'
@@ -259,21 +258,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'interactive-headless',
     match: { when: (ctx) => (claudeToolRequiresUserInteraction(ctx.toolName) ? {} : null) },
-    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
-  },
-  {
-    id: 'mcp-skill-tool-approval',
-    bypassBehavior: 'enforce',
-    match: {
-      when: (ctx) => {
-        const approval = ctx.sessionId
-          ? getMcpSkillToolApproval(ctx.sessionId, ctx.toolName, ctx.input ?? {}, ctx.permissionMode)
-          : undefined
-        return approval ? {} : null
-      }
-    },
-    effect: 'ask',
-    reason: 'MCP skill tool approval is required',
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {

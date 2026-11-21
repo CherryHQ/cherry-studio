@@ -1,12 +1,9 @@
 ---
-description: MCP Skills discovery, verified lazy reads, tool approval, and Claude Code/Pi integration
+description: On-demand MCP Skills discovery, verified file reads, and ordinary tool approval in Agent sessions
 sources:
-  - src/main/ai/skills/McpSkillService.ts
   - src/main/ai/skills/mcpSkillContent.ts
   - src/main/ai/mcp/connections/ClientMcpConnection.ts
   - src/main/ai/mcp/servers/skills.ts
-  - src/main/ai/toolApproval/mcpSkillApproval.ts
-  - src/main/ai/toolApproval/ToolApprovalRegistry.ts
   - src/renderer/hooks/useMcpSkills.ts
   - src/renderer/components/composer/variants/AgentComposer.tsx
   - src/shared/types/mcpSkills.ts
@@ -16,46 +13,43 @@ sources:
 
 English | [中文](mcp-skills-client.zh.md)
 
-Cherry consumes the [MCP Skills extension](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills) in Claude Code and Pi Agent sessions. The server must advertise `io.modelcontextprotocol/skills` and resources on the modern protocol. Legacy and non-advertising servers retain their existing behavior. Dynamic skill manifests are currently unsupported; ordinary Assistant chat and serving Cherry skills to external MCP clients are outside this feature.
+Cherry discovers and reads [MCP Skills](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills) through tools in Claude Code and Pi Agent sessions. Servers must advertise `io.modelcontextprotocol/skills` and resources on the modern protocol. Legacy and non-advertising servers keep their existing behavior. Dynamic manifests, ordinary Assistant chat and serving local skills to external clients are outside scope.
 
 ## User flow
 
-1. Select an active MCP server for the Agent, then open **Skills** in the conversation composer. Remote entries show their server label and URI alongside local skills.
-2. Selecting an entry inserts a usage request into the composer. It does not install or load files.
-3. The model calls `load_mcp_skill`. Its ordinary tool approval follows the session permission mode; Full Access can skip this loading prompt. There is no separate consent dialog or execution checkbox.
-4. Loading returns metadata, the complete file manifest, and verified `SKILL.md` together. Supporting files are read only on demand. Declining the load tool fetches no skill files.
+1. Select an active MCP server for the Agent and open **Skills** in the composer. Remote entries display their server and URI alongside local skills.
+2. Selecting an entry inserts a usage request without installing or fetching files.
+3. The model calls `load_mcp_skill` with the server ID and skill URI. Loading uses the normal required-tool approval policy; Full Access skips that prompt. Declining the tool fetches no files.
+4. Loading returns the current metadata, complete manifest and verified `SKILL.md`. Supporting files are fetched only when requested with `read_mcp_skill_file`.
 
-Names are display labels. The stable identity is `(serverId, skillUri)`, including when several servers expose the same URI or one server exposes the same name at multiple paths. The initial prompt need not contain skill names or descriptions. The model uses `list_mcp_skills` to discover them, or calls `load_mcp_skill` with a known server ID and URI; a partial catalog does not prevent direct URI lookup.
+The model can discover names and descriptions with `list_mcp_skills`; they need not appear in the initial prompt. A known URI can be loaded without discovery. Identity is `(serverId, skillUri)`, so matching names or URIs on different origins do not shadow each other.
 
 ## Ownership
 
 | Owner | Contract |
 |---|---|
-| `ClientMcpConnection` | SDK `SkillsClient` capability detection and direct lookup, with official core schemas and host pagination that rejects repeated cursors and duplicate URIs. |
-| `McpRuntimeService` / `McpCatalogService` | Existing connection, timeout, cancellation, current server configuration, and metadata projection. Metadata is fetched afresh. |
-| `McpSkillService` | Session-held manifests, verified memory-only content, and snapshots of origin and cancellation state. |
-| Tool Approval | Execution classification, cross-origin approval, and single-use approved invocations bound by `ToolApprovalRegistry` to the session, tool, arguments and captured state. |
-| `AgentSessionRuntimeService` | Open/close the in-memory skill session and present tool approvals through the existing Tool Approval registry. |
-| Composer / IpcApi | Metadata-only discovery while the picker is open, cancellation on close, and explicit error rows for failed origins. |
+| `ClientMcpConnection` | Official SDK capability detection, direct lookup and core schemas, with host pagination that rejects repeated cursors and duplicate URIs. |
+| `McpRuntimeService` / `McpCatalogService` | Existing connections, metadata, timeouts, cancellation and current configuration checks. |
+| Builtin skills server | Request-scoped selected-server checks, current manifest retrieval and content verification. |
+| Tool Approval | Ordinary tool policy, including the required loading policy; no additional Skill-specific rules. |
+| Composer / IpcApi | Metadata-only discovery while the picker is open, cancellation on close and separate error rows for failed origins. |
 
-The host exposes `list_mcp_skills`, `load_mcp_skill`, and `read_mcp_skill_file`. Both runtimes use the same service. Pi exposes the builtin skills server directly so reading supporting files does not require executing a code-mode script. The load result contains the complete manifest, including paths of supporting files; there is no additional directory tool. No remote directories enter the local skill library or native skill discovery.
+Both runtimes use the same three tools. Pi exposes the builtin skills server directly. No remote directory enters the local skill library or native skill loader. The static manifest supplies the file inventory, so no directory tool is needed.
 
-Skill state does not classify tools or decide permission modes. The approval layer consumes its snapshots, and the MCP resource boundary applies approval and content verification to both fetched and cached reads. One origin state per server cancels affected work when configuration changes; each read needs no separate configuration listener. Each resource response is verified once against every matching held manifest.
+## Reading and integrity
 
-## Integrity and permissions
+`read_mcp_skill_file` accepts `server_id`, `skill_uri` and `resource_uri`. It needs no previous load: every call fetches the current manifest and requested bytes. Repeating a load or file read observes remote updates without reopening the session. There is no Skill session manager, activation state, version pin, content cache or persistence. Session identity is ordinary MCP interaction context only.
 
-Manifest admission validates names, roots, resource containment and uniqueness, a maximum of 512 files including `SKILL.md`, and a total of 16 MiB. Every fetched file must match the held manifest's byte size and SHA-256. Entry-file YAML must match all advertised frontmatter fields, including unknown fields. Content is read through the originating MCP connection, never by dereferencing a remote URI through HTTP or the filesystem.
+Manifest admission checks names, roots, containment, uniqueness, at most 512 files including `SKILL.md`, and a total of 16 MiB. Before fetching a file, the tool checks its root and membership in the current manifest. Responses must contain exactly the requested resource, with the declared byte length and SHA-256. Entry-file YAML must equal all advertised frontmatter fields, including unknown ones. Reads always use the selected originating MCP connection, never a direct HTTP or filesystem fetch.
 
-Loaded instructions remain untrusted tool-result context. Frontmatter cannot install hooks or grant tool permissions. Loading grants no execution permission. Host execution tools, including Bash, automation, code mode, local skill activation, and cross-session delegation through `session_create` / `session_send`, require per-call approval while remote skills are active in ordinary permission modes. Full Access automatically allows skill loading, execution, nested activation, and cross-origin reads without approval or rejection prompts. Integrity and origin checks still apply. This intentionally relaxes the MCP Skills specification’s explicit-approval requirement in Full Access. The standard approval card shows the tool and its input without an additional skill explanation. Approval does not carry over to the next call. Scheduled execution through cron `add` / `update` follows the same per-call approval boundary outside Full Access, including updates that only change the schedule; cron `list` / `remove` retain their normal policies. Ordinary read/search and remote tools retain their normal policies; all other tool restrictions still apply.
+Verification is scoped to one call. Separate reads can return different valid versions; discovery or another read does not cancel earlier calls or retract earlier text. Ordinary request cancellation and selected-server checks remain in force. There is no generic-resource interceptor.
 
-A supporting nested `SKILL.md` is ordinary Markdown. Activating that nested skill requires its own load and, outside Full Access, explicit tool approval. Generic resource reads in a session with loaded skills pass the same held-manifest checks. Outside Full Access, reading from another server requires explicit tool approval naming both origins for that individual read, including when both servers have loaded skills.
+## Permissions and limitations
 
-## Invalidation and recovery
+Instructions and nested `SKILL.md` files are ordinary untrusted tool-result context. Frontmatter cannot install hooks or grant permissions. Loading does not change later execution, cron, delegation, local-skill or cross-origin resource policy. Listing and file reads use normal read-only tool policy; loading keeps its required-tool policy, including automatic pass in Full Access.
 
-The host holds each loaded manifest in the current runtime session’s memory. Changed manifests or file integrity failures discard the entry and cancel its pending operations and approvals. The skill can be loaded again in the same session; the fresh load verifies the current manifest and content. Server removal, disablement, connection/authentication changes, deselection, cancellation, and session close reject stale operations and approvals. The first load approval is bound to the target configuration before any instructions are loaded; changing that configuration cancels the pending approval and requires a fresh decision. A successful decision carries a single-use host receipt through the runtime’s updated tool input to the builtin load handler. The receipt binds the session, server, URI, original configuration and cancellation signal through completion; another approval cannot revive an older call. The receipt is consumed before execution, its validation record remains memory-only, and Full Access needs no receipt. Cancelled host resource approvals are settled in persisted message history and published before the waiting read resumes, so their cards are no longer actionable.
-
-Closing or forking a runtime does not restore skill activation. Supporting-file reads require a fresh load, and ordinary tool policy applies until then. Skill state is not written to message metadata, and discovery does not scan retained message history. Historical tool results remain ordinary conversation history; reloading does not remove earlier skill text from the model context. This scope does not retain the extension’s acting-window state across runtime close or replacement. Operations requiring approval fail closed without an interactive responder.
+This scope deliberately omits the extension's acting-window activation and special execution/cross-origin approval model; it does not claim full host-policy compliance. Existing native history may retain older tool results, and fresh reads do not rewrite that history. No message provenance, history reconciliation, reusable grants or single-use Skill loading receipts are stored.
 
 ## Verification
 
-The shared fixture in `tests/helpers/mcpSkills.ts` supports real SDK wire tests and database-backed host tests. They cover pagination, legacy compatibility, lazy reads, integrity limits, origin collisions, nested activation, both runtime guards, same-session reloading, activation reset on reopen, and cancellation. The reviewed on-demand scenario `tests/e2e/ondemand/specs/mcp-skills.ts` uses a loopback MCP peer and scripted Anthropic responses to exercise both runtimes through Electron, including the picker, loading approval, supporting-file result, execution approval and rejection in ordinary mode, cancellation of an initial load approval after server reconfiguration, and prompt-free loading and execution in Full Access. Scripted local acceptance is distinct from remote CI or live-provider acceptance.
+`tests/helpers/mcpSkills.ts` supplies a real MCP peer for wire and tool tests. Focused coverage includes pagination, legacy compatibility, lazy reads without loading, current-version reads, binary attachments, containment, manifest membership, byte/frontmatter checks and separate origin failures. Existing runtime and approval tests cover ordinary policies. The on-demand Electron scenario exercises the picker, loading approval, supporting-file results and ordinary execution policy in both runtimes. Running that scenario and live-provider acceptance are separate from unit tests and builds.

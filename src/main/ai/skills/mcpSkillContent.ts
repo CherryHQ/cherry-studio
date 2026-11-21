@@ -71,7 +71,7 @@ export function validateMcpSkill(skill: McpSkill): McpSkill {
 export function verifyMcpSkillFile(skill: McpSkill, uri: string, bytes: Uint8Array): void {
   if (skill.resources === 'dynamic') throw new Error('Dynamic MCP skills cannot be verified')
   const entry = skill.resources.find((resource) => resource.uri === uri)
-  if (!entry) throw new Error('File is not in the held skill manifest')
+  if (!entry) throw new Error('File is not in the skill manifest')
   if (bytes.byteLength !== entry.size || `sha256:${createHash('sha256').update(bytes).digest('hex')}` !== entry.digest)
     throw new Error('Skill file failed size or digest verification')
   if (uri !== skill.uri) return

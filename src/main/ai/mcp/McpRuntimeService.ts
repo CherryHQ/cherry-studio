@@ -29,7 +29,6 @@ import { loggerService } from '@logger'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main/ai/mcp/servers/factory'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
-import { guardMcpSkillResourceRead } from '@main/ai/toolApproval/mcpSkillApproval'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -246,8 +245,6 @@ export class McpRuntimeService extends BaseService {
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
-  private readonly _onServerInvalidated = new Emitter<string>()
-  readonly onServerInvalidated = this._onServerInvalidated.event
   private readonly connectionGenerations = new Map<string, symbol>()
   private readonly _onCatalogChanged = new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
   readonly onCatalogChanged = this._onCatalogChanged.event
@@ -296,7 +293,6 @@ export class McpRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
-    this._onServerInvalidated.dispose()
     this._onCatalogChanged.dispose()
     this._onResourceUpdated.dispose()
   }
@@ -1031,48 +1027,28 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)
-    const read = async (requestSignal: AbortSignal) => {
-      const result = await this.runRequest(
-        server,
-        'mcp.resources.read',
-        async () =>
-          (await this.getOrCreateConnection(server, host ?? null, requestSignal)).readResource(uri, cacheMode, {
-            signal: requestSignal,
-            timeoutMs: policy.timeout,
-            resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
-            maxTotalTimeoutMs: policy.maxTotalTimeout,
-            interactionContext: host
-          }),
-        requestSignal
-      )
-      return {
-        contents: result.contents.map((content) => ({
-          ...content,
-          name: content.uri,
-          serverId: server.id,
-          serverName: server.name
-        }))
-      }
+    const requestSignal = signal ?? new AbortController().signal
+    const result = await this.runRequest(
+      server,
+      'mcp.resources.read',
+      async () =>
+        (await this.getOrCreateConnection(server, host ?? null, requestSignal)).readResource(uri, cacheMode, {
+          signal: requestSignal,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout,
+          interactionContext: host
+        }),
+      requestSignal
+    )
+    return {
+      contents: result.contents.map((content) => ({
+        ...content,
+        name: content.uri,
+        serverId: server.id,
+        serverName: server.name
+      }))
     }
-    return interactionContext?.sessionId
-      ? this.guardResourceRead(
-          interactionContext.sessionId,
-          serverId,
-          uri,
-          signal ?? new AbortController().signal,
-          read
-        )
-      : read(signal ?? new AbortController().signal)
-  }
-
-  guardResourceRead<T extends { contents: McpResource[] }>(
-    sessionId: string,
-    serverId: string,
-    uri: string,
-    signal: AbortSignal,
-    run: (signal: AbortSignal) => Promise<T>
-  ): Promise<T> {
-    return guardMcpSkillResourceRead(sessionId, serverId, uri, signal, run)
   }
 
   /** Abandons a pending browser authorization; the server stays in error until an explicit retry. */
@@ -1320,7 +1296,6 @@ export class McpRuntimeService extends BaseService {
   }
 
   private async closeConnectionsForServer(serverId: string): Promise<void> {
-    this._onServerInvalidated.fire(serverId)
     this.abortActiveToolCalls(serverId)
     for (const key of this.pendingProbes.keys()) {
       if (this.isServerKeyForId(key, serverId)) this.pendingProbes.delete(key)

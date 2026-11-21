@@ -54,7 +54,6 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
-import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
@@ -586,15 +585,7 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
-    const skillApproval = getMcpSkillToolApproval(
-      session.id,
-      toolName,
-      input,
-      snapshot.getPermissionMode(),
-      opts.signal
-    )
     const approvalHoldsInThisMode =
-      !!skillApproval ||
       commandRequiresApproval ||
       installApprovalHolds ||
       policy?.approval === 'delegation' ||
@@ -668,17 +659,8 @@ async function buildToolPermissions(
         toolName,
         originalInput: input,
         presentation,
-        signal: skillApproval?.signal ?? opts.signal,
+        signal: opts.signal,
         resolve: (decision) => {
-          if (decision.approved && skillApproval) {
-            try {
-              if (decision.updatedInput) throw new Error('Retry the edited call for a new skill approval.')
-              decision = { ...decision, updatedInput: skillApproval.approve() }
-            } catch (error) {
-              resolve({ behavior: 'deny', message: error instanceof Error ? error.message : String(error) })
-              return
-            }
-          }
           if (!decision.approved || !commandPolicy) {
             resolve(decisionToPermissionResult(decision, input))
             return
@@ -692,7 +674,7 @@ async function buildToolPermissions(
               if (checked.effect === 'deny')
                 resolve({ behavior: 'deny', message: checked.reason ?? t('command_approval.configuration_error') })
               else if (
-                (skillApproval?.signal.aborted ?? opts.signal.aborted) ||
+                opts.signal.aborted ||
                 checked.context !== commandPolicy.context ||
                 snapshot.isDisabled(toolName) ||
                 JSON.stringify(input) !== originalInput

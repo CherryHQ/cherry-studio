@@ -123,21 +123,6 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
-  McpSkillService: {
-    openSession: vi.fn(),
-    closeSession: vi.fn(),
-    captureContext: vi.fn<
-      () =>
-        | {
-            signal: AbortSignal
-            origins: { serverId: string; serverName: string; uri: string }[]
-            validate: () => void
-          }
-        | undefined
-    >(() => undefined),
-    captureOrigin: vi.fn(() => ({ signal: new AbortController().signal, validate: () => {} })),
-    captureResourceRead: vi.fn(() => undefined)
-  },
   AgentImportService: {
     pause: vi.fn(() => ({ dispose: vi.fn() })),
     drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),

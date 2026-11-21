@@ -1,12 +1,9 @@
 ---
-description: MCP Skills 发现、按需校验读取、工具审批及 Claude Code/Pi 集成
+description: Agent 会话中按需发现 MCP Skills、校验文件读取并复用普通工具审批
 sources:
-  - src/main/ai/skills/McpSkillService.ts
   - src/main/ai/skills/mcpSkillContent.ts
   - src/main/ai/mcp/connections/ClientMcpConnection.ts
   - src/main/ai/mcp/servers/skills.ts
-  - src/main/ai/toolApproval/mcpSkillApproval.ts
-  - src/main/ai/toolApproval/ToolApprovalRegistry.ts
   - src/renderer/hooks/useMcpSkills.ts
   - src/renderer/components/composer/variants/AgentComposer.tsx
   - src/shared/types/mcpSkills.ts
@@ -16,46 +13,43 @@ sources:
 
 [English](mcp-skills-client.md) | 中文
 
-Cherry 在 Claude Code 和 Pi Agent 会话中使用 [MCP Skills 扩展](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills)。服务必须在现代协议中声明 `io.modelcontextprotocol/skills` 和 resources 能力。旧协议和未声明扩展的服务保持原有行为。目前不支持动态技能清单；普通 Assistant 对话以及向外部 MCP 客户端提供 Cherry 技能不属于此功能。
+Cherry 在 Claude Code 和 Pi Agent 会话中，通过工具发现并读取 [MCP Skills](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills)。服务必须在现代协议中声明 `io.modelcontextprotocol/skills` 与 resources 能力。旧版和未声明能力的服务保持原有行为。动态清单、普通 Assistant 聊天及向外部客户端提供本地技能不在范围内。
 
 ## 使用流程
 
-1. 为 Agent 选择已启用的 MCP 服务，然后打开会话输入框中的 **Skills**。远端条目与本地技能一起展示，并显示服务标签和 URI。
-2. 选择条目会将使用请求填入输入框，不会安装或加载文件。
-3. 模型调用 `load_mcp_skill`，按会话权限模式处理常规工具审批；Full Access 可以跳过加载审批。不再使用独立 consent 弹窗或执行复选框。
-4. 加载一次返回元数据、完整文件清单和校验通过的 `SKILL.md`。辅助文件仅在需要时读取。拒绝加载工具不会获取技能文件。
+1. 为 Agent 选择启用的 MCP 服务，然后打开输入框中的 **Skills**。远端条目与本地技能一起展示，并标明服务和 URI。
+2. 选择条目只插入使用请求，不安装或读取文件。
+3. 模型用服务 ID 和技能 URI 调用 `load_mcp_skill`。加载使用普通 required 工具审批策略；Full Access 跳过提示。拒绝工具不读取文件。
+4. 加载返回当前元数据、完整清单和已验证的 `SKILL.md`。附件仅在通过 `read_mcp_skill_file` 请求时获取。
 
-名称仅用于展示。稳定标识为 `(serverId, skillUri)`，即使多个服务提供相同 URI，或者同一服务在不同路径下提供同名技能，也保持独立。初始提示词不必包含技能名称和描述。模型调用 `list_mcp_skills` 发现技能，或用已知服务 ID 和 URI 直接调用 `load_mcp_skill`；目录不完整不影响按 URI 查询。
+模型可通过 `list_mcp_skills` 发现名称和描述，无需把它们放进初始提示。已知 URI 可以跳过发现直接加载。身份为 `(serverId, skillUri)`，不同来源的相同名称或 URI 不会相互覆盖。
 
-## 职责归属
+## 职责
 
-| 所有者 | 契约 |
+| 模块 | 约定 |
 |---|---|
-| `ClientMcpConnection` | 通过 SDK `SkillsClient` 检测能力并执行直接查询，复用官方 core schema，由宿主分页拒绝重复游标和重复 URI。 |
-| `McpRuntimeService` / `McpCatalogService` | 复用既有连接、超时、取消、当前服务配置和元数据投影。元数据每次重新获取。 |
-| `McpSkillService` | 会话持有的清单、仅在内存中的已验证内容，以及来源和取消状态的快照。 |
-| Tool Approval | 执行分类、跨来源审批，以及由 `ToolApprovalRegistry` 绑定到会话、工具、参数和捕获状态的一次性获批调用。 |
-| `AgentSessionRuntimeService` | 打开和关闭内存中的技能会话，并通过现有 Tool Approval 注册表展示工具审批。 |
-| 输入框 / IpcApi | 仅在选择面板打开时发现元数据，关闭后取消请求，并为失败来源显示明确的错误条目。 |
+| `ClientMcpConnection` | 复用官方 SDK 能力检测、直接查询和 core Schema；宿主分页拒绝循环游标和重复 URI。 |
+| `McpRuntimeService` / `McpCatalogService` | 现有连接、元数据、超时、取消和当前配置检查。 |
+| 内置 skills 服务 | 单次请求内的服务选择检查、当前清单获取和内容校验。 |
+| Tool Approval | 普通工具策略，包括加载的 required 策略；不增加 Skill 专属规则。 |
+| 输入框 / IpcApi | 选择器打开时只发现元数据，关闭时取消，失败来源显示独立错误行。 |
 
-宿主提供 `list_mcp_skills`、`load_mcp_skill` 和 `read_mcp_skill_file`。两种运行时使用同一服务。Pi 直接暴露内置 skills 服务，使辅助文件读取不必执行 code mode 脚本。加载结果包含完整清单和辅助文件路径，不另设目录工具。远端目录不会进入本地技能库或原生技能发现。
+两个运行时使用相同的三个工具。Pi 直接暴露内置 skills 服务。远端目录不会进入本地技能库或原生技能加载器。静态清单提供文件目录，无需额外目录工具。
 
-技能状态不对工具分类，也不决定权限模式。审批层消费其快照，MCP 资源边界对远端获取和缓存读取统一应用审批及内容校验。每个服务只有一份来源状态，配置变更时取消相关工作；每次读取不再单独监听配置。每个资源响应对每份匹配的持有清单只校验一次。
+## 读取与完整性
 
-## 完整性与权限
+`read_mcp_skill_file` 接受 `server_id`、`skill_uri` 和 `resource_uri`。无需预先加载：每次调用都获取当前清单和所请求的字节。重复加载或读取即可观察远端更新，无需重新打开会话。不保留 Skill 会话管理器、激活状态、版本固定、内容缓存或持久化。会话标识仅作为普通 MCP 交互上下文。
 
-清单准入会校验名称、根目录、资源范围和唯一性，最多包含 512 个文件（包括 `SKILL.md`），总大小不超过 16 MiB。每个获取的文件都必须匹配持有清单中的字节数和 SHA-256。入口文件的 YAML 必须与所有声明的 frontmatter 字段一致，包括未知字段。内容通过原始 MCP 连接读取，绝不会直接通过 HTTP 或文件系统解析远端 URI。
+清单接收检查名称、根目录、资源范围、唯一性、包含 `SKILL.md` 在内最多 512 个文件，以及总大小不超过 16 MiB。获取文件前，工具检查根目录和当前清单成员身份。响应必须只包含请求的单个资源，其字节长度与 SHA-256 符合声明。入口文件 YAML 必须与所有声明的 frontmatter 字段一致，包括未知字段。读取始终通过选中的来源 MCP 连接，不直接访问 HTTP 或文件系统。
 
-加载的指令仍是不可信的工具结果上下文。Frontmatter 不能安装 hook 或授予工具权限。加载不会授予执行权限。远端技能生效时，Bash、automation、code mode、本地技能激活，以及通过 `session_create` / `session_send` 进行跨会话委托等宿主执行工具在普通权限模式下需要逐次批准。Full Access 自动放行技能加载、执行、嵌套激活和跨来源读取，不显示批准或拒绝提示；完整性和来源校验仍然生效。这有意放宽了 MCP Skills 规范中关于明确批准的要求。标准审批卡片显示工具及其参数，不额外显示技能说明；批准不会复用于下一次调用。通过 cron `add` / `update` 安排执行同样需要逐次审批，Full Access 除外，包括仅修改执行时间的更新；cron `list` / `remove` 保持原有策略。普通读取、搜索和远端工具保持原有策略，其他工具限制仍然适用。
+校验仅约束单次调用。不同读取可以返回不同的有效版本；发现或其他读取不会取消先前调用，也不会撤回先前文本。普通请求取消与服务选择检查继续生效。不拦截通用资源读取。
 
-作为辅助文件读取的嵌套 `SKILL.md` 只是普通 Markdown。激活嵌套技能需要单独加载，并在 Full Access 以外的模式下取得明确工具批准。已加载技能的会话通过通用资源接口读取时，也受相同的清单校验约束。在 Full Access 以外的模式下，读取另一服务的资源必须通过工具审批逐次明确批准并标明两个来源，即使两个服务的技能都已加载。
+## 权限与限制
 
-## 失效与恢复
+指令和嵌套 `SKILL.md` 都是普通的不可信工具结果上下文。Frontmatter 不能安装 hooks 或授予权限。加载不会改变后续执行、cron、委派、本地技能或跨来源资源策略。列表和文件读取使用普通只读工具策略；加载保留 required 工具策略，包括 Full Access 自动放行。
 
-宿主将每份已加载清单保存在当前运行会话的内存中。清单变更或文件完整性校验失败时，丢弃该条目并取消其待完成操作和审批。可以在同一会话中重新加载技能；新加载会校验当前清单和内容。服务移除、停用、连接或认证配置变更、取消选择、请求取消和会话关闭都会拒绝过期操作及授权。首次加载在尚未读取指令时就将审批绑定到目标配置；配置变更会取消待审批请求，必须重新取得批准。批准后，运行时通过更新后的工具输入将宿主的一次性凭据传给内置加载处理器。凭据将会话、服务、URI、原始配置和取消信号绑定到调用完成；新的批准不能使旧调用重新生效。凭据在执行前消费，其校验记录仅保存在内存中，Full Access 无需此凭据。宿主资源审批取消时，会先结束消息历史中的待审批状态并发布更新，再恢复等待中的读取，因此卡片不再可操作。
-
-关闭或分叉运行时不会恢复技能激活状态。辅助文件读取需要重新加载，此前遵循普通工具策略。技能状态不写入消息元数据，发现目录也不扫描留存消息历史。历史工具结果保留为普通对话历史；重新加载不会从模型上下文中移除此前的技能文本。此范围不在运行会话关闭或版本替换后继续保留扩展的 acting-window 状态。需要批准的操作在没有交互响应者时会被拒绝。
+本范围明确不实现扩展的 acting-window 激活及特殊执行、跨来源审批模型，不声称完整符合宿主策略。原生历史可能保留旧工具结果，重新读取不会重写历史。不保存消息来源信息、历史协调状态、可复用授权或 Skill 加载的一次性凭据。
 
 ## 验证
 
-`tests/helpers/mcpSkills.ts` 中的共享服务支持真实 SDK 协议测试及使用数据库的宿主测试，覆盖分页、旧协议兼容、按需读取、完整性边界、来源冲突、嵌套激活、两种运行时守卫、同一会话重新加载、重开后重置激活状态和取消。经过审阅后可按需运行的场景 `tests/e2e/ondemand/specs/mcp-skills.ts` 使用本地 MCP 服务和脚本化 Anthropic 响应，在 Electron 中验证两种运行时，包括选择面板、加载审批、辅助文件结果，普通模式下的执行批准和拒绝流程、服务器重配置后取消首次加载审批，以及 Full Access 下无需审批的加载和执行。本地脚本化验收与远端 CI 或真实服务商验收分别记录。
+`tests/helpers/mcpSkills.ts` 为协议和工具测试提供真实 MCP 服务。定向测试覆盖分页、旧版兼容、无需加载的附件按需读取、当前版本读取、二进制附件、资源范围、清单成员身份、字节与 frontmatter 校验，以及来源独立失败。现有运行时和审批测试覆盖普通策略。按需 Electron 场景在两个运行时中检查选择器、加载审批、附件结果和普通执行策略。该场景的实际运行与真实提供商验收均独立于单元测试和构建。

@@ -12,7 +12,6 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
-  - src/main/ai/toolApproval/mcpSkillApproval.ts
   - src/main/ai/toolApproval/builtinToolPolicyRegistry.ts
   - src/main/ai/toolApproval/commandPolicy/index.ts
   - src/main/ai/toolApproval/commandPolicy/checkCommand.ts
@@ -58,15 +57,9 @@ stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
 question nothing can receive.
 
-MCP skill loading uses the same tool approval path. While remote skills are active,
-host code-execution calls require per-call approval outside
-Full Access; see [MCP Skills Client](./mcp-skills-client.md).
-
-The approval layer owns this classification and consumes active-origin snapshots from
-`McpSkillService`. Cherry-owned tool entries declare execution behavior in the existing
-policy registry. `ToolApprovalRegistry` binds approved builtin loads to one session,
-tool and argument set, rejects reuse or edits, and checks cancellation through completion.
-Skill state contains no approval receipts or runtime-specific tool names.
+MCP skill loading uses the normal required-tool approval policy, with automatic pass in
+Full Access. Reading a skill adds no session activation or additional approval rules for
+later tools; see [MCP Skills Client](./mcp-skills-client.md).
 
 The composer identifies the requesting Agent or subagent. Child requests carry the
 spawning tool-call ID in provider metadata; the card uses that identity to show the

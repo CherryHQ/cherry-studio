@@ -7,7 +7,6 @@ import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-beha
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { getMcpSkillToolApproval } from '@main/ai/toolApproval/mcpSkillApproval'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -162,8 +161,6 @@ export function createPiInteractionPorts(
   options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
 ): Pick<HostPorts, 'approvals' | 'questions'> {
   const { input, approval } = options
-  const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<typeof getMcpSkillToolApproval>>>()
-
   async function ask(
     call: CallRef,
     name: string,
@@ -214,44 +211,9 @@ export function createPiInteractionPorts(
 
   return {
     approvals: {
-      async facts(call, tool) {
-        const args = recordSchema.parse(tool.args)
-        const facts = await readPiApprovalFacts(approval, tool.name, args)
-        const skillApproval = getMcpSkillToolApproval(
-          input.sessionId,
-          tool.name,
-          facts.rewrittenArgs === undefined ? args : recordSchema.parse(facts.rewrittenArgs),
-          approval.getPermissionMode()
-        )
-        if (skillApproval) skillApprovals.set(call, skillApproval)
-        return {
-          ...facts,
-          disabled: facts.disabled || !!(skillApproval && skillApproval.signal.aborted),
-          nonBypassable: facts.nonBypassable || !!skillApproval,
-          approvalRequired: facts.approvalRequired || !!skillApproval
-        }
-      },
+      facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
       async ask({ call, tool, details }, signal) {
-        const args = recordSchema.parse(tool.args)
-        const skillApproval = skillApprovals.get(call)
-        skillApprovals.delete(call)
-        let decision: DispatchDecision | undefined
-        try {
-          decision = await ask(
-            call,
-            tool.name,
-            args,
-            skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal,
-            details
-          )
-          if (decision?.approved && skillApproval) {
-            if (decision.updatedInput) decision = { approved: false }
-            else decision = { ...decision, updatedInput: skillApproval.approve() }
-          }
-        } catch (error) {
-          if (!skillApproval || signal.aborted) throw error
-          decision = { approved: false }
-        }
+        const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
         if (!decision) return { kind: 'unavailable' }
         return decision.approved
           ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }

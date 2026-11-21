@@ -66,9 +66,6 @@ interaction facts; `agent-behavior` decides permission policy. Cross-session del
 an interactive user turn. Root and child threads use the root's live agent permission mode,
 interaction state and tool restrictions; delegation never grants `bypassPermissions`.
 
-The interaction host uses the shared Tool Approval policy for remote-skill calls. The registry binds
-single-use load receipts to their invocation and captured origin state; the shared gate forwards the approved arguments.
-
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
 existing message parts; pending questions do not resume after restart. No new database table is used.

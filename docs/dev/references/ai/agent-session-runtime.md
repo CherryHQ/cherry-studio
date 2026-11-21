@@ -1154,8 +1154,8 @@ total); over-budget fields are omitted whole with byte counts and omission metad
 Legacy sessions cannot recover results that were never recorded. These presentation
 records do not change the model-facing codemode output or native approval checks.
 
-A loaded MCP skill requires explicit per-call tool approval for code mode outside Full Access;
-the builtin skills server is directly exposed so verified reads remain available.
+Reading an MCP skill does not change code-mode approval policy;
+the builtin skills server is directly exposed for verified on-demand reads.
 See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
