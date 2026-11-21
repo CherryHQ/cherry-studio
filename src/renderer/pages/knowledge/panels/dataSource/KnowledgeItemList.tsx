@@ -29,6 +29,7 @@ export interface KnowledgeItemListProps {
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onPreviewSource: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onRename?: (item: KnowledgeItem) => void
   onViewChunks: (itemId: string) => void
 }
 
@@ -49,6 +50,7 @@ const KnowledgeItemList = ({
   onDelete,
   onPreviewSource,
   onReindex,
+  onRename,
   onViewChunks
 }: KnowledgeItemListProps) => {
   const { t } = useTranslation()
@@ -93,10 +95,11 @@ const KnowledgeItemList = ({
         onDelete={() => onDelete(item)}
         onPreviewSource={() => onPreviewSource(item)}
         onReindex={() => onReindex(item)}
+        onRename={onRename ? () => onRename(item) : undefined}
         onViewChunks={() => onViewChunks(item.id)}
       />
     ),
-    [onActivate, onDelete, onPreviewSource, onReindex, onToggleOne, onViewChunks, selectedIds]
+    [onActivate, onDelete, onPreviewSource, onReindex, onRename, onToggleOne, onViewChunks, selectedIds]
   )
 
   if (items.length === 0 && !isLoading) {

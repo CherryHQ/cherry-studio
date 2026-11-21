@@ -285,6 +285,47 @@ export async function assertKnowledgeFileTargetAvailable(baseId: string, relativ
   await assertTargetAvailable(getKnowledgeBaseFilePath(baseId, relativePath))
 }
 
+/**
+ * Rename a base-relative material file in place. Refuses to overwrite an existing file; a
+ * case-only rename is allowed because on a case-insensitive volume the target is the file itself.
+ */
+export async function renameKnowledgeBaseFile(
+  baseId: string,
+  fromRelativePath: string,
+  toRelativePath: string
+): Promise<void> {
+  const from = getKnowledgeBaseFilePath(baseId, fromRelativePath)
+  const to = getKnowledgeBaseFilePath(baseId, toRelativePath)
+  if (from.toLowerCase() !== to.toLowerCase()) {
+    await assertTargetAvailable(to)
+  } else {
+    // Case-only rename: allowed only when `to` resolves to the same file as `from`, as on a
+    // case-insensitive volume. On case-sensitive storage a same-named-but-different-case orphan
+    // (left by best-effort cleanup) is a distinct file — overwriting it would destroy content.
+    await assertCaseOnlyRenameTargetIsSelf(from, to)
+  }
+  await fs.rename(from, to)
+}
+
+/** Reject a case-only rename whose target exists but is not the source file itself. */
+async function assertCaseOnlyRenameTargetIsSelf(from: AbsoluteFilePath, to: AbsoluteFilePath): Promise<void> {
+  let fromStat
+  let toStat
+  try {
+    ;[fromStat, toStat] = await Promise.all([fs.stat(from), fs.stat(to)])
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // Either the target is absent (case-sensitive volume, nothing to collide with) or the
+      // source is gone and the rename will fail on its own below.
+      return
+    }
+    throw error
+  }
+  if (fromStat.dev !== toStat.dev || fromStat.ino !== toStat.ino) {
+    throw new Error(`Knowledge file already exists: ${to}`)
+  }
+}
+
 export async function deleteKnowledgeItemFiles(
   baseId: string,
   items: Array<{ id?: string; type: string; data: unknown }>

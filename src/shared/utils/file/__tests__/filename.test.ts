@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeFilename, validateFileName } from '../filename'
+import { sanitizeFilename, validateFileName, validateRenamedFileName } from '../filename'
 
 describe('sanitizeFilename', () => {
   it('replaces forbidden characters with underscore by default', () => {
@@ -122,5 +122,32 @@ describe('filename edge cases', () => {
 
     expect(result.valid).toBe(false)
     if (!result.valid) expect(result.error).toMatch(/control/i)
+  })
+})
+
+describe('validateRenamedFileName', () => {
+  it('accepts a new stem with the same extension (case-insensitive) and trims it', () => {
+    expect(validateRenamedFileName('paper.pdf', '  Q4 report.PDF ')).toEqual({ valid: true, name: 'Q4 report.PDF' })
+    expect(validateRenamedFileName('README', 'NOTES')).toEqual({ valid: true, name: 'NOTES' })
+  })
+
+  it.each([
+    ['', 'empty'],
+    ['   ', 'empty'],
+    ['a'.repeat(252) + '.pdf', 'too_long'],
+    ['CON.pdf', 'invalid'],
+    ['lpt1.pdf', 'invalid'],
+    ['a<b.pdf', 'invalid'],
+    ['a:b.pdf', 'invalid'],
+    ['a\\b.pdf', 'invalid'],
+    ['a/b.pdf', 'invalid'],
+    ['report\u0001.pdf', 'invalid'],
+    ['name..pdf.', 'invalid'],
+    ['..', 'invalid'],
+    ['paper.docx', 'extension_changed'],
+    ['paper', 'extension_changed'],
+    ['.pdf', 'extension_changed']
+  ])('rejects %j as %s', (name, reason) => {
+    expect(validateRenamedFileName('paper.pdf', name)).toEqual({ valid: false, reason })
   })
 })
