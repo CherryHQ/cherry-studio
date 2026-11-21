@@ -4,7 +4,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONObject, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { InvalidToolInputError, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -249,7 +249,7 @@ describe('buildAgentParams provider resolution', () => {
       { fastMode: true, supported: false, transport: 'openai-priority', custom: false, expected: undefined },
       { fastMode: true, supported: true, transport: 'claude-code', custom: false, expected: undefined }
     ] as const)('delivers the selected tier for %j', async ({ fastMode, supported, transport, custom, expected }) => {
-      let sentBody: Record<string, unknown> | undefined
+      let sentBody: JSONObject | undefined
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: {
           providerId: adapter,
@@ -414,9 +414,9 @@ describe('buildAgentParams provider resolution', () => {
   })
 
   it.each([undefined, 'sdk-tier'])('preserves service tier body precedence with SDK tier %s', async (sdkTier) => {
-    let sentBody: Record<string, unknown> | undefined
+    let sentBody: JSONObject | undefined
     const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      sentBody = JSON.parse(String(init?.body))
       return new Response('{}')
     })
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -570,7 +570,7 @@ describe('buildAgentParams provider resolution', () => {
     const expectedCustomParameterSets = assistantCustomParameterSets.map((customParameters) =>
       Object.fromEntries(customParameters.map(({ name, value }) => [name, JSON.parse(value)]))
     )
-    const receivedBodies: Record<string, unknown>[] = []
+    const receivedBodies: JSONObject[] = []
     const requestFetches: Array<typeof globalThis.fetch> = []
     const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       receivedBodies.push(JSON.parse(init?.body as string))
@@ -900,7 +900,7 @@ describe('buildAgentParams standard model parameters', () => {
     it.each([false, true])(
       'honors sampling support=%s through SDK serialization and body passthrough',
       async (supported) => {
-        let body: Record<string, unknown> | undefined
+        let body: JSONObject | undefined
         resolveProviderAiSdkConfigMock.mockResolvedValue({
           config: {
             providerId: 'openai-compatible',
@@ -956,7 +956,7 @@ describe('buildAgentParams standard model parameters', () => {
     it.each(['flat custom', 'assistant namespace', 'gateway namespace'])(
       'removes fixed-sampling Claude top-k from %s before serializing the request',
       async (source) => {
-        let body: Record<string, unknown> | undefined
+        let body: JSONObject | undefined
         resolveProviderAiSdkConfigMock.mockResolvedValue({
           config: {
             providerId: 'anthropic',
@@ -1235,7 +1235,7 @@ describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claud
         assistant: makeAssistant(),
         signal: undefined
       })
-      let body: Record<string, unknown> | undefined
+      let body: JSONObject | undefined
       const sdkModel = createAnthropic({
         apiKey: 'test',
         fetch: async (_url, init) => {
@@ -1511,7 +1511,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     const prompt: LanguageModelV3CallOptions['prompt'] = [
       { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
     ]
-    let requestBody: Record<string, unknown> | undefined
+    let requestBody: JSONObject | undefined
     const sdkModel = createOpenAI({
       apiKey: 'sk-test',
       baseURL: 'https://example.com/v1',
@@ -1554,7 +1554,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       provider,
       model
     })
-    let requestBody: Record<string, unknown> | undefined
+    let requestBody: JSONObject | undefined
     const sdkModel = createOpenAI({
       apiKey: 'sk-test',
       baseURL: 'https://example.com/v1',
@@ -1611,7 +1611,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model,
       assistant
     })
-    let requestBody: Record<string, unknown> | undefined
+    let requestBody: JSONObject | undefined
     const sdkModel = createOpenAI({
       apiKey: 'sk-test',
       baseURL: 'https://example.com/v1',
@@ -1879,7 +1879,7 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
 
   it('keeps Gemini 2.5 on the budget dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-2.5-flash')
-    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    const config = options.google?.thinkingConfig
     expect(config).toHaveProperty('thinkingBudget')
     expect(config).not.toHaveProperty('thinkingLevel')
   })
@@ -1887,7 +1887,7 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
   // Positive control: the fallback must not force every model onto budget.
   it('leaves Gemini 3 on the level dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-3-flash')
-    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    const config = options.google?.thinkingConfig
     expect(config).toHaveProperty('thinkingLevel')
     expect(config).not.toHaveProperty('thinkingBudget')
   })
@@ -1919,7 +1919,7 @@ describe('buildAgentParams Gemini 4 requests', () => {
     ['gemini-4-hydrogen', 'xhigh'],
     ['gemini-4-hydrogen', undefined]
   ] as const)('serializes %s thinking=%s without sampling, budget, or explicit cache fields', async (id, effort) => {
-    let body: Record<string, any> | undefined
+    let body: JSONObject | undefined
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
         providerId: 'google',
@@ -1985,10 +1985,10 @@ describe('buildAgentParams Gemini 4 requests', () => {
       })
     ).rejects.toThrow('request captured')
     expect(body?.generationConfig).toMatchObject({ maxOutputTokens: 131_072 })
-    if (effort) expect(body?.generationConfig.thinkingConfig).toMatchObject({ thinkingLevel: effort })
+    if (effort) expect(body).toMatchObject({ generationConfig: { thinkingConfig: { thinkingLevel: effort } } })
     else expect(body?.generationConfig).not.toHaveProperty('thinkingConfig')
     for (const name of ['temperature', 'topP', 'topK']) expect(body?.generationConfig).not.toHaveProperty(name)
-    expect(body?.generationConfig.thinkingConfig ?? {}).not.toHaveProperty('thinkingBudget')
+    expect(body).not.toHaveProperty('generationConfig.thinkingConfig.thinkingBudget')
     expect(body).not.toHaveProperty('cachedContent')
   })
 })
@@ -2199,9 +2199,9 @@ describe('buildAgentParams — Responses instructions delivery', () => {
  * gating via `filterStandardParams`, and per-provider providerOptions merging.
  */
 describe('applyCallOverrides', () => {
-  const base = () => ({
-    standardParams: {} as Partial<Record<string, unknown>>,
-    providerOptions: {} as ProviderOptions
+  const base = (): Parameters<typeof applyCallOverrides>[0] => ({
+    standardParams: {},
+    providerOptions: {}
   })
 
   it('applies sampling overrides at highest precedence', () => {

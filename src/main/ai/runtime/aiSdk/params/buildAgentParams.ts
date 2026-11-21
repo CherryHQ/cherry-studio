@@ -687,8 +687,8 @@ function buildAgentOptions(
       reasoning
     }
   )
-  let standardParams: Partial<Record<string, unknown>> = {}
-  let bodyParams: Record<string, unknown> = {}
+  let standardParams: Parameters<typeof stripUnsupportedModelParams>[0]['standardParams'] = {}
+  let bodyParams: Parameters<typeof stripUnsupportedModelParams>[0]['bodyParams'] = {}
   if (assistant) {
     const {
       temperature = getTemperature(assistant.settings, model, reasoning),
@@ -817,10 +817,7 @@ function resolveEffectiveThinkingBudget(
   if (thinking === undefined) return fallbackBudgetTokens
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
 
-  const thinkingOptions = thinking as Record<string, unknown>
-  return thinkingOptions.type === 'enabled' && typeof thinkingOptions.budgetTokens === 'number'
-    ? thinkingOptions.budgetTokens
-    : undefined
+  return thinking.type === 'enabled' && typeof thinking.budgetTokens === 'number' ? thinking.budgetTokens : undefined
 }
 
 /**
@@ -830,13 +827,13 @@ function resolveEffectiveThinkingBudget(
  * per-provider so other providers' keys aren't clobbered. Exported for unit testing.
  */
 export function applyCallOverrides(
-  base: { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions },
+  base: Pick<Parameters<typeof stripUnsupportedModelParams>[0], 'standardParams' | 'providerOptions'>,
   callOverrides: CallOverrides | undefined,
   model: Model
-): { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions } {
+): typeof base {
   if (!callOverrides) return base
 
-  const sampling: Partial<Record<string, unknown>> = {}
+  const sampling: Pick<CallOverrides, 'temperature' | 'maxOutputTokens' | 'topP' | 'topK' | 'stopSequences'> = {}
   if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP

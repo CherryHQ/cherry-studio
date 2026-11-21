@@ -1,3 +1,5 @@
+import type { PrepareStepResult } from 'ai'
+
 import { loggerService } from '@logger'
 
 import type { AgentLoopHooks, ErrorContext } from '../loop/types'
@@ -100,7 +102,7 @@ function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentL
   if (fns.length === 1) return fns[0]
   return async (options) => {
     let mutated = options
-    let merged: Record<string, unknown> | undefined
+    let merged: PrepareStepResult
     for (const fn of fns) {
       const r = await fn(mutated)
       if (r) {
