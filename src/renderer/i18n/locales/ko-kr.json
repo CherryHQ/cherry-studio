@@ -3862,6 +3862,8 @@
   "selection.settings.toolbar.compact_mode.description": "간소화 모드에서는 텍스트 없이 아이콘만 표시됩니다",
   "selection.settings.toolbar.compact_mode.title": "간소화 모드",
   "selection.settings.toolbar.title": "도구 모음",
+  "selection.settings.toolbar.translate_only.description": "도구 모음을 건너뛰고 텍스트를 선택하면 바로 번역을 표시합니다",
+  "selection.settings.toolbar.translate_only.title": "번역만 보기",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl 키",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "선택한 후 Ctrl 키를 길게 눌러 도구 모음을 표시합니다",
   "selection.settings.toolbar.trigger_mode.description": "선택 어시스턴트를 실행하고 도구 모음을 표시하는 방법",

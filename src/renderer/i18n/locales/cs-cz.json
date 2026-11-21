@@ -3863,6 +3863,8 @@
   "selection.settings.toolbar.compact_mode.description": "V kompaktním režimu se zobrazují jen ikony bez textu",
   "selection.settings.toolbar.compact_mode.title": "Kompaktní režim",
   "selection.settings.toolbar.title": "Panel nástrojů",
+  "selection.settings.toolbar.translate_only.description": "Přeskočit panel nástrojů a po výběru textu zobrazit přímo překlad",
+  "selection.settings.toolbar.translate_only.title": "Pouze přeložit",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Klávesa Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Po výběru textu podržte klávesu Ctrl, aby se zobrazil panel nástrojů",
   "selection.settings.toolbar.trigger_mode.description": "Způsob spuštění asistenta výběru a zobrazení panelu nástrojů po označení textu",
