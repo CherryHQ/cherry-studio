@@ -95,11 +95,10 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function getMalformedSelectionWarning({
-  multiple,
-  selectionType,
-  value
-}: ModelSelectorSelectionSnapshot): { message: string; context: Record<string, unknown> } | null {
+function getMalformedSelectionWarning({ multiple, selectionType, value }: ModelSelectorSelectionSnapshot): {
+  message: string
+  context: { selectionType: 'id' | 'model' } & ({ valueType: string } | { valueLength: number })
+} | null {
   if (multiple) {
     if (selectionType === 'id') {
       return value !== undefined && !Array.isArray(value)

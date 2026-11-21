@@ -16,7 +16,7 @@ const THINK_REPLAY_MARKER = 'think'
  */
 export function hasSignedReasoningMetadata(part: CherryMessagePart): boolean {
   if (part.type !== 'reasoning') return false
-  const providerMetadata = (part as { providerMetadata?: Record<string, unknown> }).providerMetadata
+  const providerMetadata = part.providerMetadata
   if (!providerMetadata) return false
   return Object.keys(providerMetadata).some((key) => key !== CHERRY_METADATA_KEY)
 }
@@ -47,17 +47,15 @@ export function replaceReasoningPartText(
   const target = parts[partIndex]
   if (!target || target.type !== 'reasoning' || target.text === text) return parts
 
-  const { providerMetadata, ...rest } = target as typeof target & {
-    providerMetadata?: { cherry?: unknown }
-  }
-  const cherry = (providerMetadata?.cherry ?? {}) as Record<string, unknown>
+  const { providerMetadata, ...rest } = target
+  const cherry = providerMetadata?.cherry ?? {}
   const replayAsThink = hasSignedReasoningMetadata(target) || cherry.editedReasoningReplay === THINK_REPLAY_MARKER
   const nextCherry = replayAsThink ? { ...cherry, editedReasoningReplay: THINK_REPLAY_MARKER } : cherry
 
   return parts.map((part, index) => {
     if (index !== partIndex) return part
-    const edited = { ...rest, text, state: 'done' }
+    const edited: typeof target = { ...rest, text, state: 'done' }
     if (Object.keys(nextCherry).length > 0) Object.assign(edited, { providerMetadata: { cherry: nextCherry } })
-    return edited as CherryMessagePart
+    return edited
   })
 }

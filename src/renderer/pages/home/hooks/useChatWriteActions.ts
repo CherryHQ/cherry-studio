@@ -101,7 +101,7 @@ interface Result {
   retryFailedMessage: (message: CherryUIMessage, modelId: UniqueModelId) => Promise<void>
   /** Capability flags the send path needs to mirror — exposed so
    *  `handleSend` builds the same body shape. */
-  capabilityBody: Record<string, unknown>
+  capabilityBody: Partial<Pick<Assistant['settings'], 'enableWebSearch'>>
 }
 
 export function useChatWriteActions(params: Params): Result {
@@ -287,7 +287,7 @@ export function useChatWriteActions(params: Params): Result {
     [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
-  const capabilityBody = useMemo<Record<string, unknown>>(
+  const capabilityBody = useMemo<Result['capabilityBody']>(
     () => ({
       enableWebSearch: assistant?.settings.enableWebSearch
     }),
