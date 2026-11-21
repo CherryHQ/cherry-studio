@@ -113,7 +113,7 @@ class PopupService {
       instanceId,
       open: true,
       Component: Component as ComponentPopupEntry['Component'],
-      props: props as Record<string, unknown>,
+      props,
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The shared store erases unrelated popup result types; this slot retains the resolver paired with this component and instance.
       resolve: resolveFn as (result: unknown) => void
     })
