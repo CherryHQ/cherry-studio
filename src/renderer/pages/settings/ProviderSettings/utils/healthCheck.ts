@@ -1,7 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
-import type { SerializedError } from '@renderer/types/error'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -112,11 +111,7 @@ export async function checkModelWithMultipleKeys(
   )
 }
 
-export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
-  status: HealthStatus
-  error?: SerializedError
-  latency?: number
-} {
+export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]) {
   const successResults = keyResults.filter((result) => result.status === HealthStatus.SUCCESS)
   const failedResults = keyResults.filter((result) => result.status === HealthStatus.FAILED)
 

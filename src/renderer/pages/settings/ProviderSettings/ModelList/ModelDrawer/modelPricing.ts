@@ -159,7 +159,7 @@ interface ParsedModelPricingTier {
   cacheWritePrice?: number
 }
 
-function parsePrice(value: string, optional: boolean): { error?: ModelPricingDraftError; value?: number } {
+function parsePrice(value: string, optional: boolean) {
   const trimmedValue = value.trim()
   if (optional && trimmedValue === '') {
     return {}
@@ -167,16 +167,13 @@ function parsePrice(value: string, optional: boolean): { error?: ModelPricingDra
 
   const parsedValue = Number(trimmedValue)
   if (trimmedValue === '' || !Number.isFinite(parsedValue) || parsedValue < 0) {
-    return { error: 'invalidPrice' }
+    return { error: 'invalidPrice' satisfies ModelPricingDraftError }
   }
 
   return { value: parsedValue }
 }
 
-function parseModelPricingDraft(draft: ModelPricingDraft): {
-  errors: ModelPricingDraftErrors
-  tiers?: ParsedModelPricingTier[]
-} {
+function parseModelPricingDraft(draft: ModelPricingDraft) {
   const errors: ModelPricingDraftErrors = draft.tiers.map(() => ({}))
   const tiersToParse = [...draft.tiers]
   while (tiersToParse.length > 1 && tiersToParse.at(-1)?.minInputTokens.trim() === '') {
@@ -245,7 +242,7 @@ export function buildModelImagePricing(
   currentPricing: Model['pricing'],
   currencySymbol: ModelPricingCurrencySymbol,
   imagePrice?: string
-): { error?: ModelPricingDraftError; pricing?: ModelPricing } {
+) {
   const parsed = imagePrice === undefined ? {} : parsePrice(imagePrice, true)
   if (parsed.error) return { error: parsed.error }
 
@@ -270,7 +267,7 @@ export function buildModelPricingFromDraft(
   currentPricing: Model['pricing'],
   draft: ModelPricingDraft,
   currencySymbol: ModelPricingCurrencySymbol
-): { errors: ModelPricingDraftErrors; pricing?: ModelPricing } {
+) {
   const { errors, tiers } = parseModelPricingDraft(draft)
   if (!tiers) {
     return { errors }
