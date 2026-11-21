@@ -13,6 +13,8 @@
   "agent.session.workspace_status.missing": "Cesta k pracovnímu prostoru neexistuje: {{path}}",
   "agent.session.workspace_status.not_directory": "Cesta k pracovnímu prostoru není adresář: {{path}}",
   "agent.tools.to_markdown.unsupported_windows_arm64": "Nástroj to_markdown není na Windows ARM64 podporován, protože vestavěný převodník dokumentů nemá nativní sestavení pro tuto platformu. Opětovná instalace závislostí toto omezení nevyřeší.",
+  "ai.image.error.empty_response": "Poskytovatel obrázků vrátil úspěšnou odpověď, ale bez použitelných obrazových dat (poskytovatel \"{{provider}}\", model \"{{model}}\"). Operace mohla být stále zúčtována. Automaticky se neopakovala.",
+  "ai.image.error.unusable_response": "Poskytovatel obrázků vrátil odpověď, kterou nebylo možné zpracovat (poskytovatel \"{{provider}}\", model \"{{model}}\", HTTP 200). Operace mohla být stále zúčtována. Automaticky se neopakovala.",
   "apiGateway.docs.description": "HTTP API pro Cherry Studio kompatibilní s OpenAI, Anthropic a Gemini, a dále koncové body specifické pro Cherry (modely, znalostní báze)",
   "apiGateway.docs.language_switcher_label": "Jazyk dokumentace",
   "apiGateway.docs.operations.chat_completions": "Vytvoří dokončení chatu. Tělo požadavku i odpovědi odpovídá formátu OpenAI Chat Completions; pro postupný výstup nastavte `stream: true`.",
