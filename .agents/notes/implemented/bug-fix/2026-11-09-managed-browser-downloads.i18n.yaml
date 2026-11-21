@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-managed-browser-downloads.md
+2026-11-09-managed-browser-downloads.md: 24217ec9322ad3e2e92d6f04638c6a186d3dc38e
+2026-11-09-managed-browser-downloads.zh.md: a02c4a1ed1d8e51b2b85f5ccc2b28d81eb105e68

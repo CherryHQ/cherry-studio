@@ -1,12 +1,27 @@
 import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { GuestSession } from '../session/GuestSession'
 import { createGuest } from './guestFixture'
 
 const sessions: GuestSession[] = []
+const defaultGetPath = vi.mocked(application.getPath).getMockImplementation()!
+let workspace = ''
+beforeEach(() => {
+  workspace = mkdtempSync(path.join(tmpdir(), 'mcp-workspace-'))
+  vi.mocked(application.getPath).mockImplementation((key, filename) =>
+    key === 'feature.mcp.workspace' ? path.join(workspace, filename ?? '') : defaultGetPath(key, filename)
+  )
+})
 afterEach(() => {
+  vi.mocked(application.getPath).mockImplementation(defaultGetPath)
+  rmSync(workspace, { recursive: true, force: true })
   for (const session of sessions) session.dispose()
   sessions.length = 0
   vi.useRealTimers()
@@ -19,8 +34,9 @@ it('attributes shared-partition downloads to one guest, reports updates once, an
   const first = new GuestSession(a.guest, 'managed')
   const second = new GuestSession(b.guest, 'managed')
   sessions.push(first, second)
-  const item = Object.assign(new EventEmitter(), { getFilename: () => 'report.txt' })
+  const item = Object.assign(new EventEmitter(), { getFilename: () => 'report.txt', setSavePath: vi.fn() })
   a.mock.session.emit('will-download', {}, item, a.guest)
+  expect(item.setSavePath).toHaveBeenCalledWith(path.join(workspace, 'report.txt'))
   expect(first.busy).toBe(true)
   expect(second.takeEvents()).toEqual({})
   expect(first.takeEvents()).toEqual({ downloads: [{ filename: 'report.txt', state: 'progressing' }] })
@@ -32,6 +48,115 @@ it('attributes shared-partition downloads to one guest, reports updates once, an
   first.dispose()
   second.dispose()
   expect(a.mock.session.listenerCount('will-download')).toBe(0)
+})
+
+it('keeps managed download filenames inside the MCP workspace', () => {
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'managed')
+  sessions.push(session)
+  const item = Object.assign(new EventEmitter(), { getFilename: () => '../report.txt', setSavePath: vi.fn() })
+
+  a.mock.session.emit('will-download', {}, item, a.guest)
+
+  expect(item.setSavePath).toHaveBeenCalledWith(path.join(workspace, 'report.txt'))
+  expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'report.txt', state: 'progressing' }] })
+})
+
+it('never replaces an existing or in-flight workspace file with a managed download', () => {
+  writeFileSync(path.join(workspace, 'report.txt'), 'original')
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'managed')
+  sessions.push(session)
+  const make = () => Object.assign(new EventEmitter(), { getFilename: () => 'report.txt', setSavePath: vi.fn() })
+  const first = make()
+  const second = make()
+
+  a.mock.session.emit('will-download', {}, first, a.guest)
+  a.mock.session.emit('will-download', {}, second, a.guest)
+
+  expect(first.setSavePath).toHaveBeenCalledWith(path.join(workspace, 'report (1).txt'))
+  expect(second.setSavePath).toHaveBeenCalledWith(path.join(workspace, 'report (2).txt'))
+  expect(readFileSync(path.join(workspace, 'report.txt'), 'utf8')).toBe('original')
+  expect(session.takeEvents()).toEqual({
+    downloads: [
+      { filename: 'report (1).txt', state: 'progressing' },
+      { filename: 'report (2).txt', state: 'progressing' }
+    ]
+  })
+})
+
+it.each(['x'.repeat(248) + '.txt', '界'.repeat(80) + '.txt', 'name.' + 'e'.repeat(248)])(
+  'leaves native temporary filename headroom while reserving distinct paths for %s',
+  (filename) => {
+    const a = createGuest()
+    const session = new GuestSession(a.guest, 'managed')
+    sessions.push(session)
+    const paths: string[] = []
+    for (let index = 0; index < 2; index++) {
+      const item = Object.assign(new EventEmitter(), {
+        getFilename: () => filename,
+        setSavePath: (savePath: string) => paths.push(savePath)
+      })
+      a.mock.session.emit('will-download', {}, item, a.guest)
+    }
+    expect(paths).toHaveLength(2)
+    expect(new Set(paths).size).toBe(2)
+    for (const savePath of paths) {
+      expect(Buffer.byteLength(path.basename(savePath))).toBeLessThanOrEqual(200)
+      expect(existsSync(savePath)).toBe(true)
+    }
+  }
+)
+
+it('does not delete an unrelated empty file replacing a cancelled reservation', () => {
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'managed')
+  sessions.push(session)
+  const item = Object.assign(new EventEmitter(), { getFilename: () => 'report.txt', setSavePath: vi.fn() })
+
+  a.mock.session.emit('will-download', {}, item, a.guest)
+  expect(existsSync(path.join(workspace, 'report.txt'))).toBe(true)
+  renameSync(path.join(workspace, 'report.txt'), path.join(workspace, 'moved.txt'))
+  writeFileSync(path.join(workspace, 'report.txt'), '')
+  item.emit('done', {}, 'cancelled')
+
+  expect(existsSync(path.join(workspace, 'report.txt'))).toBe(true)
+})
+
+it('does not retain a progressing download when cancellation emits done synchronously', () => {
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'managed')
+  sessions.push(session)
+  const filename = 'report.txt'
+  rmSync(workspace, { recursive: true, force: true })
+  writeFileSync(workspace, 'not a directory')
+  const item = Object.assign(new EventEmitter(), {
+    getFilename: () => filename,
+    setSavePath: vi.fn(),
+    cancel: vi.fn(() => item.emit('done', {}, 'cancelled'))
+  })
+
+  a.mock.session.emit('will-download', {}, item, a.guest)
+
+  expect(item.cancel).toHaveBeenCalledOnce()
+  expect(item.setSavePath).not.toHaveBeenCalled()
+  expect(session.busy).toBe(false)
+  expect(session.takeEvents()).toEqual({ downloads: [{ filename, state: 'cancelled' }] })
+  expect(item.listenerCount('done')).toBe(0)
+  expect(item.listenerCount('updated')).toBe(0)
+})
+
+it('does not redirect borrowed guest downloads to the MCP workspace', async () => {
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'borrowed')
+  sessions.push(session)
+  const observer = await session.observe()
+  const item = Object.assign(new EventEmitter(), { getFilename: () => 'report.txt', setSavePath: vi.fn() })
+
+  a.mock.session.emit('will-download', {}, item, a.guest)
+
+  expect(item.setSavePath).not.toHaveBeenCalled()
+  observer.dispose()
 })
 
 it('reports a managed dialog timeout once while borrowed dialogs remain user-owned', async () => {
