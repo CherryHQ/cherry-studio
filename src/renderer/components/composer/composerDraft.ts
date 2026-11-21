@@ -49,13 +49,15 @@ function getRestoredTextSuffix(payload: unknown): string {
 const composerTokenText = (token: ComposerDraftToken): string =>
   (token.promptText ?? '') + getRestoredTextSuffix(token.payload)
 
+/* oxlint-disable anti-slop/no-unsafe-dictionary-type -- Live and restored payload fields are unvalidated; retain opaque values until display-field checks or restored-suffix merging. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live and restored token payloads vary by token kind; require an object before validating individual display-file fields or merging restored suffixes.
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
   return payload as Record<string, unknown>
 }
+/* oxlint-enable anti-slop/no-unsafe-dictionary-type */
 
-function readPayloadString(payload: Record<string, unknown>, key: string) {
+function readPayloadString(payload: NonNullable<ReturnType<typeof readPayloadObject>>, key: string) {
   const value = payload[key]
   return typeof value === 'string' ? value : undefined
 }
