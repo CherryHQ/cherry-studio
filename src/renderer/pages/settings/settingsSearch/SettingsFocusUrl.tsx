@@ -17,7 +17,7 @@ const SettingsFocusUrl = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const focusId = (search as Record<string, unknown>).focusId
+    const focusId = (search as { focusId?: unknown }).focusId
     // Empty string included: a blank anchor must not reach querySelector('#')
     if (typeof focusId !== 'string' || !focusId) return
     setPendingFocus(focusId)
@@ -25,7 +25,7 @@ const SettingsFocusUrl = () => {
       to: location.pathname,
       // Commit-time strip composes with concurrent param consumers (provider's
       // ?id= strip); a render-time snapshot could resurrect removed params
-      search: (prev: Record<string, unknown>) => {
+      search: (prev: typeof search & { focusId?: unknown }) => {
         const rest = { ...prev }
         delete rest.focusId
         return rest

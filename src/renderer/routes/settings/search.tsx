@@ -15,6 +15,7 @@ const searchSettingsSearchSchema = z.object({
 
 export const Route = createFileRoute('/settings/search')({
   component: SearchResultsPage,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Query values have not passed string/size validation; the schema owns that boundary and strips unrelated keys.
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = searchSettingsSearchSchema.safeParse(search)
     return parsed.success ? parsed.data : {}

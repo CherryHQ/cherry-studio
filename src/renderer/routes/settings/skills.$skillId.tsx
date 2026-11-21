@@ -10,6 +10,7 @@ const skillDetailsSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/settings/skills/$skillId')({
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The originating tab scope is unvalidated URL input; the schema narrows it before back navigation uses it.
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = skillDetailsSearchSchema.safeParse(search)
     return parsed.success ? parsed.data : { scope: 'all' as const }

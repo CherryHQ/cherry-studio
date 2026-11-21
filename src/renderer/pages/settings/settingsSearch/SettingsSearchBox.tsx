@@ -130,7 +130,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   const hasUrlQueryRef = useRef(false)
   // Snapshot before the mirror effect so it reads the current URL presence.
   useEffect(() => {
-    hasUrlQueryRef.current = isSearchPage && 'q' in (search as Record<string, unknown>)
+    hasUrlQueryRef.current = isSearchPage && 'q' in search
   }, [isSearchPage, search])
 
   useEffect(() => {
@@ -144,7 +144,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
           to: '/settings/search',
           replace: true,
           state: mirrorState,
-          search: (prev: Record<string, unknown>) => {
+          search: (prev: typeof search) => {
             const rest = { ...prev }
             delete rest.q
             return rest

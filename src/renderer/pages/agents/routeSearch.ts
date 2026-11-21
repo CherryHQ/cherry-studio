@@ -6,6 +6,7 @@ export type AgentRouteSearch = {
   skillId?: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- URL queries include invalid values and legacy keys; the checks below own the accepted Agent navigation fields.
 export function parseAgentRouteSearch(search: Record<string, unknown>): AgentRouteSearch {
   const agentId = typeof search.agentId === 'string' ? search.agentId : undefined
   const intent =
