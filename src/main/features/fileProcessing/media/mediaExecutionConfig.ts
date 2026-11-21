@@ -47,6 +47,11 @@ export interface MediaVisionExecutionConfig {
   usage: () => ReturnType<typeof createAiUsageCaptureContext>
 }
 
+export interface MediaAnalysisOptions {
+  /** Analyzes frames when no Video Vision model is selected; used only if it is a selectable vision model. */
+  fallbackVisionModelId?: UniqueModelId
+}
+
 export interface MediaExecutionConfig {
   asr: MediaAsrExecutionConfig | null
   ocr: MediaOcrExecutionConfig | null
@@ -97,8 +102,11 @@ function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
   }
 }
 
-async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfig | null> {
-  const raw = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
+async function resolveVisionExecutionConfig(
+  fallbackModelId: UniqueModelId | undefined
+): Promise<MediaVisionExecutionConfig | null> {
+  const raw =
+    application.get('PreferenceService').get('feature.file_processing.default_video_vision_model') || fallbackModelId
   if (!raw) return null
   const parsed = UniqueModelIdSchema.safeParse(raw)
   if (!parsed.success) return null
@@ -155,11 +163,11 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
   }
 }
 
-export async function resolveMediaExecutionConfig(): Promise<MediaExecutionConfig> {
+export async function resolveMediaExecutionConfig(options: MediaAnalysisOptions = {}): Promise<MediaExecutionConfig> {
   return {
     asr: resolveAsrExecutionConfig(),
     ocr: resolveOcrExecutionConfig(),
-    vision: await resolveVisionExecutionConfig(),
+    vision: await resolveVisionExecutionConfig(options.fallbackVisionModelId),
     budget: { ...DEFAULT_MEDIA_FRAME_BUDGET },
     pipelineVersion: MEDIA_PIPELINE_VERSION
   }

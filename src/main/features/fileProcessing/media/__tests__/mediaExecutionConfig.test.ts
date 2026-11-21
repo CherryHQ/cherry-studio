@@ -224,6 +224,46 @@ describe('resolveMediaExecutionConfig', () => {
   })
 })
 
+describe('resolveMediaExecutionConfig vision fallback', () => {
+  const models: Record<string, { capabilities: string[] }> = {
+    'openai::gpt-4o': { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] },
+    'openai::gpt-4.1-mini': { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] },
+    'deepseek::deepseek-chat': { capabilities: [] }
+  }
+
+  beforeEach(() => {
+    vi.mocked(modelService.getByKey).mockImplementation((providerId: string, modelId: string) => {
+      const id = `${providerId}::${modelId}`
+      if (!models[id]) throw new Error('Model not found')
+      return { id, providerId, apiModelId: modelId, name: modelId, ...models[id] } as never
+    })
+    vi.mocked(providerService.getByProviderId).mockImplementation(
+      (id: string) => ({ id, name: id, settings: {} }) as never
+    )
+    state.resolveEffectiveEndpoint.mockReturnValue({ endpointType: 'openai-chat-completions', baseUrl: 'https://x/v1' })
+    state.resolveSdkConfig.mockImplementation(async (_provider, model: { apiModelId: string }) => ({
+      sdkConfig: { providerId: 'openai-chat', providerSettings: {}, modelId: model.apiModelId },
+      credentialReceipt: undefined
+    }))
+  })
+
+  it('analyzes frames with the chat model when no Video Vision model is selected', async () => {
+    const config = await resolveMediaExecutionConfig({ fallbackVisionModelId: 'openai::gpt-4.1-mini' })
+    expect(config.vision?.uniqueModelId).toBe('openai::gpt-4.1-mini')
+  })
+
+  it('keeps the selected Video Vision model over the chat model', async () => {
+    state.preferences.set('feature.file_processing.default_video_vision_model', 'openai::gpt-4o')
+    const config = await resolveMediaExecutionConfig({ fallbackVisionModelId: 'openai::gpt-4.1-mini' })
+    expect(config.vision?.uniqueModelId).toBe('openai::gpt-4o')
+  })
+
+  it('does not use a chat model that cannot see images', async () => {
+    const config = await resolveMediaExecutionConfig({ fallbackVisionModelId: 'deepseek::deepseek-chat' })
+    expect(config.vision).toBeNull()
+  })
+})
+
 describe('hashMediaExecutionConfig', () => {
   it('changes for execution identities but excludes SDK credentials', () => {
     const config: MediaExecutionConfig = {
