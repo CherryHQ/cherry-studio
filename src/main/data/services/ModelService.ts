@@ -609,12 +609,12 @@ class ModelService {
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
         if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
-          ;(updates as Record<string, unknown>)[dbKey] = null
+          Object.assign(updates, { [dbKey]: null })
         } else {
-          ;(updates as Record<string, unknown>)[dbKey] = value
+          Object.assign(updates, { [dbKey]: value })
         }
       } else {
-        ;(updates as Record<string, unknown>)[dbKey] = value
+        Object.assign(updates, { [dbKey]: value })
       }
     }
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
