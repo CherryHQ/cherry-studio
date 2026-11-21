@@ -8,6 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 
+import { miniAppStorageFile } from '../../paths'
+import type { MiniAppPreviewService } from '../../preview/MiniAppPreviewService'
+import { clearPreviewStores, readPreviewStorage } from '../previewStores'
 import { MINI_APP_QUOTAS, QuotaExceededError, RateLimitedError } from '../quota'
 import { storageCapability } from '../storage'
 import { writeStorage } from '../storageFile'
@@ -115,5 +118,51 @@ describe('cherry.storage', () => {
   it('rejects a non-string value', () => {
     insertApp(A)
     expect(() => storageCapability.set(A, { key: 'k', value: 42 })).toThrow()
+  })
+})
+
+describe('cherry.storage under a live preview', () => {
+  const RUNTIME = 'preview-11111111-1111-1111-1111-111111111111'
+  let root = ''
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'miniapp-storage-preview-'))
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
+      filename ? path.join(root, key, filename) : path.join(root, key)
+    )
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService'
+        ? ({
+            getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined)
+          } as unknown as MiniAppPreviewService)
+        : undefined
+    )
+  })
+
+  afterEach(() => {
+    clearPreviewStores(RUNTIME)
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  it('round-trips without touching the persistent data directory', () => {
+    storageCapability.set(RUNTIME, { key: 'save', value: 'lvl-3' })
+    expect(storageCapability.get(RUNTIME, { key: 'save' })).toEqual({ value: 'lvl-3' })
+    expect(storageCapability.keys(RUNTIME)).toEqual({ keys: ['save'] })
+    // The whole point: nothing under MiniApps/data for a runtime with no installation.
+    expect(fs.existsSync(miniAppStorageFile(RUNTIME))).toBe(false)
+  })
+
+  it('deletes and reports usage from the temporary backend', () => {
+    storageCapability.set(RUNTIME, { key: 'a', value: '1' })
+    storageCapability.delete(RUNTIME, { key: 'a' })
+    expect(storageCapability.get(RUNTIME, { key: 'a' })).toEqual({ value: null })
+    expect(storageCapability.usage(RUNTIME)).toMatchObject({ count: 0 })
+  })
+
+  it('is dropped when the preview closes', () => {
+    storageCapability.set(RUNTIME, { key: 'save', value: 'lvl-3' })
+    clearPreviewStores(RUNTIME)
+    expect(readPreviewStorage(RUNTIME)).toEqual({})
+    expect(storageCapability.get(RUNTIME, { key: 'save' })).toEqual({ value: null })
   })
 })

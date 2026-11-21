@@ -27,7 +27,8 @@ import { agentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
 const mocks = vi.hoisted(() => ({
   busyForArchive: vi.fn().mockReturnValue(false),
   closeSession: vi.fn().mockResolvedValue(undefined),
-  closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
+  closeSessionForArchive: vi.fn().mockResolvedValue(undefined),
+  closeMiniAppSessionPreviews: vi.fn().mockResolvedValue({ closed: 0, tokensRevoked: 0 })
 }))
 
 vi.mock('@application', async () => {
@@ -54,7 +55,8 @@ vi.mock('@application', async () => {
       kick: () => {}
     },
     ChannelManager: { reconcileAgent: () => {} },
-    JobManager: { syncJobScheduleTimerById: () => {} }
+    JobManager: { syncJobScheduleTimerById: () => {} },
+    MiniAppPreviewService: { closeSessionPreviews: mocks.closeMiniAppSessionPreviews }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -512,6 +514,16 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
         expect.any(Number)
       )
     }
+  })
+
+  it('closes mini app previews under the topic identity for sessions being deleted', async () => {
+    await lifecycle.archiveSessions(['system', 'user'])
+    // Fire-and-log in finishDeletion — wait for the floating closes to land.
+    await vi.waitFor(() => expect(mocks.closeMiniAppSessionPreviews).toHaveBeenCalledTimes(2))
+    expect(mocks.closeMiniAppSessionPreviews.mock.calls.map(([id]) => id).sort()).toEqual([
+      'agent-session:system',
+      'agent-session:user'
+    ])
   })
 
   it('archives only system files and restores them before making the session active', async () => {

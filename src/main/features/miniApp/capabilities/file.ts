@@ -25,6 +25,7 @@ import type { QuotaUsage, QuotaUsageWithLimits } from '@shared/types/miniAppQuot
 import { InvalidArgumentError } from '../errors'
 import { PermissionDeniedError } from '../grants'
 import type { CallLease } from '../runtime/MiniAppRuntimeService'
+import { previewFileDelete, previewFileList, previewFileLoad, previewFileSave, previewFileUsage } from './previewStores'
 import {
   assertWithinQuota,
   base64CharCap,
@@ -68,6 +69,15 @@ const exportLimiter = new ConcurrentRateLimiter('file.export', 10, 1)
  * past the quota together. A promise chain per app is enough: writes to one app's
  * sandbox are inherently low-frequency (and rate-limited above).
  */
+/**
+ * A live preview has no `mini_app` row, so the DB backend cannot even hold its refs
+ * (`mini_app_file_ref.source_id` foreign-keys to that row). Its files live in the
+ * preview-owned in-memory store, dropped by the preview service on close.
+ */
+function isLivePreview(appId: string): boolean {
+  return application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId) !== undefined
+}
+
 const saveChains = new Map<string, Promise<unknown>>()
 function serializePerApp<T>(appId: string, fn: () => Promise<T>): Promise<T> {
   const next = (saveChains.get(appId) ?? Promise.resolve()).then(fn, fn)
@@ -198,6 +208,16 @@ export const fileCapability = {
     // Lease taken BEFORE the queue wait and checked after it — the whole reason this
     // is not a plain "is quiescing now?" check is that time passes in between.
     const lease = application.get('MiniAppRuntimeService').leaseFor(appId)
+    if (isLivePreview(appId)) {
+      // Same lease and serialization discipline as the DB path; only the backend
+      // differs. No FileManager entry exists to reclaim on refusal — the store's
+      // quota check runs before anything is committed, exactly like the tx.
+      return serializePerApp(appId, async () => {
+        application.get('MiniAppRuntimeService').assertLeaseValid(lease)
+        previewFileSave(appId, name, bytes)
+        return { ok: true }
+      })
+    }
     return serializePerApp(appId, () => this.saveSerialized(appId, { name, bytes }, lease))
   },
 
@@ -255,6 +275,16 @@ export const fileCapability = {
 
   async load(appId: string, params: unknown) {
     const { name } = NameParams.parse(params)
+    if (isLivePreview(appId)) {
+      const buf = previewFileLoad(appId, name)
+      if (!buf) return { data: null }
+      const releasePreview = reserveDecodeBudget(Math.ceil((buf.byteLength * 7) / 3))
+      try {
+        return { data: buf.toString('base64') }
+      } finally {
+        releasePreview()
+      }
+    }
     const ref = findRef(appId, name)
     if (!ref) return { data: null }
 
@@ -280,6 +310,7 @@ export const fileCapability = {
   },
 
   async list(appId: string) {
+    if (isLivePreview(appId)) return { names: previewFileList(appId) }
     return {
       names: application
         .get('DbService')
@@ -307,6 +338,13 @@ export const fileCapability = {
     // uninstall: its `createInternalEntry` is a real `await` between resolving the ref and
     // inserting one. A delete running beside that gap finds nothing, reports success, and
     // the save then commits the row — the file the guest was told was gone is back.
+    if (isLivePreview(appId)) {
+      return serializePerApp(appId, async () => {
+        application.get('MiniAppRuntimeService').assertLeaseValid(lease)
+        previewFileDelete(appId, name)
+        return { ok: true }
+      })
+    }
     return serializePerApp(appId, async () => {
       // ONE check, unlike `saveSerialized`'s in-transaction one: everything from here to
       // the commit is synchronous (`findRef`, then `withWriteTx`), so there is no await for
@@ -324,7 +362,7 @@ export const fileCapability = {
   },
 
   async usage(appId: string): Promise<QuotaUsageWithLimits> {
-    const usage = readUsage(appId)
+    const usage = isLivePreview(appId) ? previewFileUsage(appId) : readUsage(appId)
     return { ...usage, bytesLimit: MINI_APP_QUOTAS.file.bytes, countLimit: MINI_APP_QUOTAS.file.count }
   },
 
@@ -347,8 +385,11 @@ export const fileCapability = {
     const lease = runtime.leaseFor(appId)
     try {
       // Fast refusal, so a name that is already gone costs no dialog. The authoritative
-      // resolution is the one after it.
-      if (!findRef(appId, name)) throw new InvalidArgumentError(`No file named "${name}"`)
+      // resolution is the one after it. A preview's names live in its own store.
+      const preview = isLivePreview(appId)
+      if (preview ? !previewFileLoad(appId, name) : !findRef(appId, name)) {
+        throw new InvalidArgumentError(`No file named "${name}"`)
+      }
       const options = {
         title: t('dialog.mini_app_export', { name: runtime.displayNameOf(appId) }),
         defaultPath: suggestedName ?? name
@@ -364,6 +405,14 @@ export const fileCapability = {
       // Copying on the stale one writes a file the user just cleared onto their disk —
       // and once the blob is reclaimed it fails as an unexplained `Internal` instead.
       runtime.assertLeaseValid(lease)
+      if (preview) {
+        const buf = previewFileLoad(appId, name)
+        if (!buf) throw new InvalidArgumentError(`No file named "${name}"`)
+        // The preview backend holds bytes, not a FileManager entry — write them out
+        // directly. The dialog above is still the whole consent story.
+        await fs.promises.writeFile(filePath, buf)
+        return { saved: true }
+      }
       const ref = findRef(appId, name)
       if (!ref) throw new InvalidArgumentError(`No file named "${name}"`)
       await fs.promises.copyFile(application.get('FileManager').getPhysicalPath(ref.fileEntryId), filePath)

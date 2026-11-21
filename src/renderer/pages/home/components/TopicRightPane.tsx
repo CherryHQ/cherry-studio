@@ -29,6 +29,8 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
+const MiniAppPreviewPane = lazy(() => import('./MiniAppPreviewPane'))
+
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
 )
@@ -48,6 +50,7 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
   browserTitle: string
   branchTitle: string
   developerMode: boolean
+  previewsTitle: string
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
 }
@@ -147,6 +150,15 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   )
 }
 
+function TopicMiniAppPreviewRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!scope.topicId) return null
+  return (
+    <Suspense fallback={null}>
+      <MiniAppPreviewPane open={active} sessionId={scope.topicId} />
+    </Suspense>
+  )
+}
+
 function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const actions = useRightPanelActions()
   if (!scope.topicId) return null
@@ -216,6 +228,16 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
+  {
+    component: TopicMiniAppPreviewRightPanel,
+    resolve: (scope) => ({
+      id: 'mini-app-previews',
+      instanceKey: `mini-app-previews:${scope.topicId ?? 'unavailable'}`,
+      title: scope.previewsTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
+    })
+  },
   TOPIC_TRACE_PANE_CAPABILITY
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
@@ -253,6 +275,7 @@ function TopicRightPaneProvider({
       developerMode: enableDeveloperMode,
       browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
+      previewsTitle: t('miniApp.preview.pane.title'),
       traceTitle: t('trace.label')
     }),
     [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]

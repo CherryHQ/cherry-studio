@@ -13,9 +13,10 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { archiveExts, getFileTypeByExt } from '@shared/utils/file'
+import { archiveExts, createFilePathHandle, getFileTypeByExt } from '@shared/utils/file'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
+import MiniAppArtifactActions from '../../frame/MiniAppArtifactActions'
+import { useOptionalMessageListActions, useOptionalMessageListTopicId } from '../../MessageListProvider'
 
 export type ReportArtifactsToolResponse = McpToolResponse | NormalToolResponse
 
@@ -131,6 +132,20 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     enabled: hasAbsoluteTargetPath && (popupMenuOpen || contextMenuOpen)
   })
   const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
+
+  // A reported `.miniapp` deliverable gets the SAME actions an attachment card
+  // mounts (issue #21646, stage 3, AC7): the session identity comes from the
+  // message list's topic — on an agent session that is the `agent-session:<id>`
+  // form previews and tokens are bound to — never from the tool arguments,
+  // which are model output. The handle is a real FileHandle; main re-proves it
+  // against the session's artifact token before anything opens.
+  const topicId = useOptionalMessageListTopicId()
+  const isMiniAppPackage = fileName.toLowerCase().endsWith('.miniapp')
+  const miniAppHandle = useMemo(
+    () =>
+      isMiniAppPackage && hasAbsoluteTargetPath ? createFilePathHandle(AbsoluteFilePathSchema.parse(targetPath)) : null,
+    [isMiniAppPackage, hasAbsoluteTargetPath, targetPath]
+  )
 
   const handlePreview = useCallback(() => {
     if (!openArtifactFile) return
@@ -263,13 +278,20 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     </div>
   )
 
+  const cardWithMiniAppActions = (
+    <div className="flex w-full min-w-0 flex-col">
+      {card}
+      {miniAppHandle && topicId && <MiniAppArtifactActions handle={miniAppHandle} topicId={topicId} />}
+    </div>
+  )
+
   if (contextMenuItems.length === 0) {
-    return card
+    return cardWithMiniAppActions
   }
 
   return (
     <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems} onOpenChange={setContextMenuOpen}>
-      {card}
+      {cardWithMiniAppActions}
     </CommandContextMenu>
   )
 }

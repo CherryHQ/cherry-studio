@@ -1,0 +1,57 @@
+# Agent Note: cherry-miniapp Skill and MiniApp authoring workflow
+
+Status: implemented
+
+English | [中文](2026-11-13-cherry-miniapp-skill.zh.md)
+
+## Problem
+
+Users can install `.miniapp` packages and use `window.cherry`, but could not go from a natural-language request to a generated, tested, installed and optionally published MiniApp inside Cherry Studio. Generated HTML or a package alone does not prove that the app runs under the real MiniApp protocol, CSP, bridge, permissions and quotas.
+
+Before this work: no `.agents/skills/cherry-miniapp/`; `public-skills.txt` had no entry; `NewMiniAppPanel.tsx` offered only the `site` and `app` tabs; no `mini_app` agent tool, `miniapp-browser` or `mini_app.authoring.*` IPC existed. Existing foundations were reusable: Skill import (`SkillInstaller`, `skillArchive`, `skillRemoteSource`), MiniApp install (`features/miniApp/install/`), runtime (`MiniAppRuntimeService`, `bridge`, `protocol`, `partition`), capabilities (`features/miniApp/capabilities/`), grants and activity logs.
+
+This note covers the complete request in #21646. It relates to, and does not replace, #19781, which owns the local create → preview → install flow for Agent-created Mini Apps.
+
+## Decision
+
+The work shipped in four independently merged stages, each with its own tests.
+
+### Stage 1: Skill and packaging
+
+A public Skill at `.agents/skills/cherry-miniapp/` ships `SKILL.md`, references for the contract, testing and publishing, a static template, `window.cherry` type declarations, and validate and package scripts. The scripts check the manifest, reject assets that reference a development server (including text assets over 1 MiB), build a deterministic ZIP and compute SHA-256 and size. The CLI entry guards normalize `process.argv[1]` through `pathToFileURL` so the documented `node <script>` invocation enters on Windows and in directories with spaces. ZIP and GitHub imports reuse the existing Skill installer; a repeated import reuses the installed Skill and never creates a duplicate.
+
+### Stage 2: Isolated preview and control
+
+A preview runs through the real MiniApp protocol, CSP, capability bridge, permission checks and quotas under a `preview-` runtime identifier with its own temporary directory, Electron partition and grants, keeping the manifest identity. Isolation is structural: the `preview-` namespace keeps partition, protocol host and grants disjoint from any installed app, and a 122-bit random suffix defuses collisions with registry-first resolution. The registry is in memory; closing, replacing or exiting a preview cancels requests, revokes control targets and releases resources, and abandoned trees are swept at startup. Sessions own their preview targets exclusively. `validate` accepts only artifact paths authorized for the session and returns an `artifactToken` bound to the package SHA-256; preview and install require the token. Automation can only address the bound preview page and has no action that reaches host consent UI.
+
+### Stage 3: Creation and install entry points
+
+The Add Mini App dialog has a "Create using Agent" tab. It binds the installed Skill directly and opens a chat session with the requirement draft pre-filled, reusing an empty placeholder topic; when the Skill is missing it only guides its import through the skills settings and never installs anything itself. `.miniapp` artifact cards carry "Preview and test" and "Install to Mini Apps" actions that name the attachment's file handle — main looks up the session's own token for that path and re-checks the digest before acting. Preview consent, installation and Launchpad addition are separate decisions: the artifact click is the preview consent, installation flows through the unchanged install consent dialog, and the post-install "Add to Launchpad" / "Not now" choice persists in `feature.mini_app.launchpad_prompt_dismissed`. Preview data, files and permissions never migrate into an installed app. The repair loop caps at three consecutive automated rounds; a capped package returns the evidence and recovery steps and consent surfaces refuse it until one validation succeeds.
+
+### Stage 4: Publishing workflow
+
+Publishing runs only on explicit user request; the workflow confirms the repository owner, license, application ID and hosting address first, defaulting to the user's public GitHub repository with GitHub Pages. `scripts/publish.mjs manifest` builds the hosted distribution manifest — the packaged manifest (which must not contain `package`) plus `package.url`, `package.sha256` and `package.size` taken from the final tested package bytes — at the immutable path `apps/<id>/<version>/<id>-<version>.miniapp`; the application ID is preserved across versions. `scripts/publish.mjs verify` is the read-back gate: hosted manifest, package and icon over HTTPS from one origin with redirects disabled, failing on any digest, size or version mismatch. The upload itself is not automated. `scripts/check-directory-submission.mjs` is the official-directory docs gate: only the bilingual root `README.md` and `README.zh-CN.md` entries may change, both together, and a duplicate app ID is rejected; "published", "submitted" and "merged" stay three separate states. Hosts without the authoring tools get generation and packaging only, with an upgrade prompt that makes no claim of real-runtime testing or installation.
+
+## Alternatives considered
+
+- Use a community Builder only to generate files: rejected as the complete solution because it does not provide host-integrated testing, direct installation or publishing. It may still serve as a reference.
+- Implement only #19781: rejected because it leaves the independent Skill, bound test evidence, Launchpad choice and publishing unaddressed.
+
+## Consequences
+
+Preview evidence is session-local and structural rather than policy-checked; nothing about a preview survives a restart, which is the safe direction for abandoned state. Manual Electron verification of the preview stack and consent surfaces was not run in the authoring environment and remains for a reviewer with a desktop build. Publishing's upload step stays manual and user-confirmed by design; the scripts prepare and verify but never push. Hosts without the authoring tools deliver a validated package plus its SHA-256 with no claim of testing or installation.
+
+## Verification
+
+- AC1 — The Skill imports from ZIP and GitHub, and a repeated import reuses the installed Skill without creating a duplicate. Evidence: `src/main/ai/skills/__tests__/SkillService.test.ts` imports the repository's real `.agents/skills/cherry-miniapp` twice through `installFromDirectory` and asserts one catalog row with a stable id; existing tests cover the ZIP and GitHub sources through the same installer.
+- AC2 — Packaging rejects an invalid manifest or an asset that references a development server, and produces a deterministic ZIP with matching SHA-256 and size. Evidence: `scripts/__tests__/cherryMiniappSkill.test.ts` (11 tests, `scripts` project): template validates; invalid id/version/description rejected; icon digest mismatch rejected; loopback asset references rejected including text assets over 1 MiB; network/permission pairing enforced; packaging byte-deterministic across runs with SHA-256 and size matching the written file.
+- AC3 — A preview runs through the real protocol, CSP, bridge and permission checks, with its own runtime, temporary directory, partition and grants, and cannot read or write an installed app with the same ID. Evidence: `src/main/features/miniApp/preview/__tests__/MiniAppPreviewService.test.ts` opens previews under `preview-` runtime ids with their own tree, partition and grants and resolves them registry-first; the protocol/CSP/bridge stack is the installed apps' own, covered by `runtime/__tests__` (181 tests). Electron half not run: no desktop environment.
+- AC4 — Preview targets are bound per session; closing, replacing or exiting invalidates them and cancels in-flight requests; abandoned previews are cleaned up at startup. Evidence: the same suite covers close-replace invalidation ordering, session teardown closing previews and revoking tokens, idempotent `closePreview`, the startup sweep, and cross-session refusal.
+- AC5 — `validate` returns an `artifactToken` bound to the package SHA-256; preview and install reject a token whose package bytes have changed. Evidence: `preview/__tests__/artifactTokens.test.ts` and `authoringRequests.test.ts`: tokens bind session + SHA-256, swapped bytes are refused with `package-changed`, unknown and cross-session tokens are refused.
+- AC6 — Automation operates only the bound preview page and cannot approve preview, installation or Launchpad consent. Evidence: `src/main/ai/tools/__tests__/miniappBrowser.test.ts` (10 tests): only a preview the calling session owns is addressable, no-session invocations are refused, and no tool action can address host consent UI; stage 3 keeps consent in the unchanged user-facing dialogs.
+- AC7 — "Create using Agent" and artifact card actions bind the correct Skill and artifact without browsing internal data directories or installing a duplicate Skill. Evidence: `src/renderer/pages/miniApps/__tests__/CreateWithAgentTab.test.tsx` and `MiniAppArtifactActions.test.tsx` (5 renderer tests): the tab binds the installed Skill and opens a session with the draft, guides import when missing, and the card passes the session's handle to both actions.
+- AC8 — Preview consent, installation and Launchpad pinning are separate decisions; "Add to Launchpad" and "Not now" persist and read back. Evidence: `authoringRequests.test.ts` (9 tests) covers Launchpad dismissal dedup and read-back; renderer tests cover the card's Launchpad decision display; the preference `feature.mini_app.launchpad_prompt_dismissed` persists "Not now".
+- AC9 — After three consecutive failed repair rounds, installation and publishing stop and the returned evidence includes recovery steps. Evidence: `preview/repairRounds.ts` with 5 tests plus the `authoringRequests` refusal: a capped package returns the failing-round evidence and recovery steps and consent surfaces refuse it.
+- AC10 — Publishing runs only on explicit user request; the hosted manifest, package and icon read back over HTTPS from the same origin without redirects, with matching digest, size and version. Evidence: `scripts/__tests__/cherryMiniappPublish.test.ts` (10 publish tests): the manifest builder emits the immutable path and the tested package identity, rejects a packaged manifest with a `package` block and a non-https base; the verifier accepts a matching publish and fails on tampered package bytes, redirects, cross-origin package URLs, version mismatch and plain http.
+- AC11 — A directory submission changes only the bilingual README entries and reports published, submitted and merged as separate states. Evidence: the same suite's 4 docs-gate tests: entry-only bilingual change accepted; packages, build output, single-language and nested READMEs rejected; a duplicate app ID rejected; the CLI reports the three states separately.
+- AC12 — Hosts without the authoring tools get generation and packaging only, with an upgrade prompt and no claim of real testing or installation. Evidence: `CreateWithAgentTab.test.tsx` asserts the missing-skill prompt limits the host to generation and packaging; the Skill's `references/testing.md` instructs hosts without the tools to deliver the package and SHA-256 and state that no real-runtime testing or installation happened.

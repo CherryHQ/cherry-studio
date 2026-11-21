@@ -645,6 +645,18 @@ describe('SkillService', () => {
       expect(error).toMatchObject({ code: 'DIRECTORY_NOT_FOUND', message: `Directory not found: ${directoryPath}` })
     })
 
+    it('imports the repository cherry-miniapp skill twice without creating a duplicate', async () => {
+      const directoryPath = path.resolve(__dirname, '../../../../../.agents/skills/cherry-miniapp')
+      const first = await service.installFromDirectory({ directoryPath })
+      expect(first.name).toBe('cherry-miniapp')
+
+      const second = await service.installFromDirectory({ directoryPath })
+      expect(second.id).toBe(first.id)
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
+        expect.objectContaining({ id: first.id, name: 'cherry-miniapp' })
+      ])
+    })
+
     it('installs a directory that directly contains SKILL.md', async () => {
       const directoryPath = path.join(root, 'valid-dir')
       await fs.promises.mkdir(directoryPath)
