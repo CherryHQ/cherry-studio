@@ -1,6 +1,7 @@
 ---
 description: buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request
 sources:
+  - src/main/ai/utils/modelParameters.ts
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
@@ -55,6 +56,10 @@ routing. It does not move system messages into Responses `instructions` or set
 run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
 omit loop stop conditions and AI tool repair; their execution uses single-step
 `streamText` / `generateText` instead of `ToolLoopAgent`.
+Per-call overrides carry sampling, penalties and seed through the standard parameter filter,
+and forward tool choice, active tools and structured `Output` settings to caller-owned execution.
+Provider-scoped options merge after capability defaults, so explicit Gemini safety settings and
+cached context reach the same provider for HTTP and object callers.
 
 On `openai-chat-completions`, tool-schema middleware removes only `propertyNames`
 for recognizable Gemini raw model IDs. Recognition is a compatibility heuristic,
@@ -181,13 +186,16 @@ they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
 override them, and per-call overrides apply last. After service tier, per-call
 and Fast Mode options, and the output limit have been resolved,
-`stripRejectedSamplingParams` applies the resolved model's temperature/topP
-support and existing family policies to all three parameter surfaces:
+`stripUnsupportedModelParams` applies the resolved model's temperature/topP
+support, frequency/presence penalty support, and existing family policies to all three parameter surfaces:
 
 - Top-level standard parameters.
 - Direct fields in each `providerOptions` namespace.
 - Top-level body-passthrough parameters, including the wire alias `top_p`.
 
+Declared temperature/topP ranges clamp finite numeric values after all overrides,
+including the `top_p` body alias. Unsupported penalty fields are removed in both
+camelCase and snake_case; Gemini 3/4 omit penalties even without registry metadata.
 The filter does not mutate its inputs or traverse arbitrary nested custom data.
 Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
 in `getTemperature` / `getTopP`; this final step enforces sampling omission

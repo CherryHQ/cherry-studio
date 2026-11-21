@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,6 +73,15 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   convertImageToPng: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({
+    models: [
+      { providerId: 'other-provider', apiModelId: 'flux-schnell', name: 'Other Flux' },
+      { providerId: 'silicon', apiModelId: 'flux-schnell', name: 'Flux Schnell' }
+    ]
+  })
 }))
 
 const mockComputeImageNaturalSize = vi.hoisted(() => vi.fn())
@@ -152,6 +162,15 @@ const firePointer = (element: Element, type: string, init: Record<string, number
   fireEvent(element, event)
 }
 
+function loadDisplayedImage(width: number, height: number) {
+  const image = screen.getByTestId('artboard-image-transform')
+  Object.defineProperties(image, {
+    naturalWidth: { configurable: true, value: width },
+    naturalHeight: { configurable: true, value: height }
+  })
+  fireEvent.load(image)
+}
+
 describe('Artboard', () => {
   beforeAll(() => {
     HTMLElement.prototype.setPointerCapture ??= vi.fn()
@@ -166,7 +185,7 @@ describe('Artboard', () => {
     mockSkeletonProps.mockClear()
     mockUsePaintingSizeInfo.mockReset()
     mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
-    Object.assign(navigator, { clipboard: { writeText: mockWriteText } })
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mockWriteText } })
   })
 
   it('renders the shimmer skeleton while generating', () => {
@@ -352,6 +371,98 @@ describe('Artboard', () => {
   })
 
   describe('prompt bar', () => {
+    it('shows the recorded model with the requested size alongside returned pixels', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: 1, sizeLabel: '1024×1024' })
+      render(
+        <Artboard
+          painting={makePainting({ prompt: 'a landscape' })}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('Flux Schnell · 1024×1024 → 4096×2048')).toBeVisible()
+    })
+
+    it('shows matching requested and returned sizes only once without an arrow', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: 1, sizeLabel: '4096×2048' })
+      render(
+        <Artboard
+          painting={makePainting({ prompt: 'a landscape' })}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+      expect(screen.queryByText(/→/)).toBeNull()
+    })
+
+    it('shows the recorded model and returned pixels without an arrow when the requested size is unavailable', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
+      render(
+        <Artboard
+          painting={makePainting({ prompt: 'a landscape' })}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+      expect(screen.queryByText(/→/)).toBeNull()
+    })
+
+    it('shows only returned pixels when there is no recorded output model', () => {
+      render(<Artboard painting={makePainting({ prompt: 'a landscape', model: 'flux-schnell' })} isLoading={false} />)
+
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('4096×2048')).toBeVisible()
+      expect(screen.queryByText(/Flux Schnell|flux-schnell/)).not.toBeInTheDocument()
+    })
+
+    it('clears returned pixels when switching files until the next image loads', async () => {
+      const user = userEvent.setup()
+      render(<Artboard painting={makePainting({ prompt: 'a landscape' })} isLoading={false} />)
+      loadDisplayedImage(4096, 2048)
+      expect(screen.getByText('4096×2048')).toBeVisible()
+
+      await user.click(screen.getByRole('button', { name: 'preview.next' }))
+
+      expect(screen.queryByText('4096×2048')).not.toBeInTheDocument()
+      loadDisplayedImage(2048, 4096)
+      expect(screen.getByText('2048×4096')).toBeVisible()
+    })
+
+    it('shows output metadata without an empty prompt trigger', () => {
+      render(
+        <Artboard
+          painting={makePainting()}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+      expect(screen.queryByRole('button', { name: '' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument()
+    })
+
+    it('keeps the requested size while generating without output', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: 1, sizeLabel: '1024×1024' })
+      render(<Artboard painting={makePainting({ prompt: 'a landscape', files: [] })} isLoading={true} />)
+
+      expect(screen.getByText('1024×1024')).toBeVisible()
+      expect(screen.queryByText('4096×2048')).not.toBeInTheDocument()
+    })
+
     it('opens and copies the complete painting prompt', async () => {
       const prompt = 'a red cat wearing a tiny hat'
       render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
