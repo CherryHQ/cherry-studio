@@ -31,6 +31,6 @@ export function mergeUiProps<T>(props: T, contract: string): T {
 
   return {
     ...props,
-    'data-ui': mergeDataUi(contract, (props as Record<string, unknown>)['data-ui'])
+    'data-ui': mergeDataUi(contract, (props as { 'data-ui'?: unknown })['data-ui'])
   }
 }
