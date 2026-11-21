@@ -206,11 +206,20 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
 }
 
 /** A rewrite replaces the arguments in place: Pi runs the call with the object its `tool_call` handlers saw. */
-function replaceArgs(input: Record<string, unknown>, args: JsonValue): void {
+function replaceArgs(input: ToolResultEvent['input'], args: JsonValue): void {
   if (typeof args !== 'object' || args === null || Array.isArray(args))
     throw new TypeError('A gate can only rewrite tool arguments to an object')
+  // Array.isArray excludes arrays at runtime; TypeScript retains JsonValue's readonly-array member.
+  const fields = args as { readonly [key: string]: JsonValue }
   for (const field of Object.keys(input)) delete input[field]
-  Object.assign(input, args)
+  for (const field of Object.keys(fields)) {
+    Object.defineProperty(input, field, {
+      value: fields[field],
+      enumerable: true,
+      configurable: true,
+      writable: true
+    })
+  }
 }
 
 /** H11: the meter's answer for the next request of `conv`'s run, with the conversation's lineage. */
