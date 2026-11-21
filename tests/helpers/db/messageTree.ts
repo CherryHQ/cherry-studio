@@ -3,7 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { messageTable } from '@data/db/schemas/message'
-import type { DbType } from '@data/db/types'
+import type { DbType, DbOrTx } from '@data/db/types'
 
 type InsertMessageRow = typeof messageTable.$inferInsert
 
@@ -38,7 +38,7 @@ export function withRoot(topicId: string, messages: InsertMessageRow[]): InsertM
 }
 
 /** Create a root for direct SQL fixtures without changing the selected head or session timestamps. */
-export function seedSessionRoot(db: DbType, sessionId: string): string {
+export function seedSessionRoot(db: DbOrTx, sessionId: string): string {
   const existing = db
     .select({ id: agentSessionMessageTable.id })
     .from(agentSessionMessageTable)
@@ -47,7 +47,7 @@ export function seedSessionRoot(db: DbType, sessionId: string): string {
   if (existing) return existing.id
   return db
     .insert(agentSessionMessageTable)
-    .values({ sessionId, role: 'root', data: { parts: [] }, status: 'success', createdAt: 1, updatedAt: 1 })
+    .values({ sessionId, role: 'root', data: {}, status: 'success', createdAt: 1, updatedAt: 1 })
     .returning({ id: agentSessionMessageTable.id })
     .get().id
 }

@@ -161,12 +161,14 @@ describe('Agent import publication', () => {
     const question = rows.find((row) => row.role === 'user')!
     expect(session.name).toBe('Another application')
     expect(dbh.db.select().from(agentTable).get()).toMatchObject({ name: 'Another source', type: 'pi-durable' })
+    expect(agentSessionMessageService.getSessionMessage(session.id, selected.id).data.parts).toEqual([
+      { type: 'text', text: 'Selected answer' }
+    ])
     expect(selected).toMatchObject({
       parentId: question.id,
       role: 'assistant',
       status: 'success',
       createdAt: 2001,
-      data: { parts: [{ type: 'text', text: 'Selected answer' }] },
       messageSnapshot: {
         name: 'Another source',
         emoji: '📚',
@@ -256,7 +258,7 @@ describe('Agent import publication', () => {
       .all()
       .filter((row) => row.role !== 'root')
     expect(rows).toHaveLength(3)
-    expect(rows.find((row) => row.id === session.activeNodeId)?.data.parts).toEqual([
+    expect(agentSessionMessageService.getSessionMessage(session.id, session.activeNodeId!).data.parts).toEqual([
       { type: 'text', text: 'Mango recorded' }
     ])
     expect(rows.filter((row) => row.role === 'assistant').map((row) => row.parentId)).toEqual([
@@ -265,7 +267,9 @@ describe('Agent import publication', () => {
     ])
     expect(dbh.db.select().from(agentSessionContextTable).all()).toHaveLength(0)
     const sibling = rows.find((row) =>
-      row.data.parts?.some((part) => part.type === 'text' && part.text.includes('banana'))
+      agentSessionMessageService
+        .getSessionMessage(session.id, row.id)
+        .data.parts?.some((part) => part.type === 'text' && part.text.includes('banana'))
     )!
     agentSessionMessageService.selectBranch(session.id, sibling.id)
     expect(sibling.runtimeResumeToken).toBeNull()

@@ -341,7 +341,7 @@ export class AgentImportService extends BaseService {
           parentId: message.parentSourceId === null ? null : productId(message.parentSourceId),
           role: message.role,
           status: message.status,
-          data: message.data,
+          data: { ...message.data, parts: message.data.parts ?? [] },
           messageSnapshot:
             message.role === 'assistant' && message.model
               ? {

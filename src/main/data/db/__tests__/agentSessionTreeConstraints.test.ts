@@ -38,16 +38,13 @@ describe('Session tree storage constraints', () => {
     const root = service.captureHead('flat')
     const other = service.captureHead('branched')
     const insert = (role: string, parentId: string | null) =>
-      dbh.db
-        .insert(messages)
-        .values({ sessionId: 'flat', role, parentId, status: 'success', data: { parts: [] } })
-        .run()
+      dbh.db.insert(messages).values({ sessionId: 'flat', role, parentId, status: 'success', data: {} }).run()
     expect(() => insert('user', null)).toThrow()
     expect(() => insert('user', 'missing')).toThrow()
     expect(() => insert('user', other)).toThrow()
     expect(() => insert('root', root)).toThrow()
-    const first = service.saveMessage({ sessionId: 'flat', message: { role: 'user', data: { parts: [] } } })
-    const second = service.saveMessage({ sessionId: 'flat', message: { role: 'assistant', data: { parts: [] } } })
+    const first = service.saveMessage({ sessionId: 'flat', message: { role: 'user', data: {} } })
+    const second = service.saveMessage({ sessionId: 'flat', message: { role: 'assistant', data: {} } })
     expect(() => dbh.db.update(messages).set({ parentId: other }).where(eq(messages.id, first.id)).run()).toThrow()
     expect(() => dbh.db.delete(messages).where(eq(messages.id, first.id)).run()).toThrow()
     service.deleteSessionMessage('flat', first.id)
@@ -63,9 +60,7 @@ describe('Session tree storage constraints', () => {
     dbh.db.transaction((tx) => {
       for (let i = 0; i < 2000; i++) {
         const id = `message-${i}`
-        tx.insert(messages)
-          .values({ id, sessionId: 'flat', parentId, role: 'user', status: 'success', data: { parts: [] } })
-          .run()
+        tx.insert(messages).values({ id, sessionId: 'flat', parentId, role: 'user', status: 'success', data: {} }).run()
         parentId = id
       }
     })
@@ -116,8 +111,8 @@ describe('Session tree populated branch upgrade', () => {
     seedSessions(dbh)
     const insert = dbh.sqlite.prepare(`
       INSERT INTO agent_session_message
-        (id, session_id, role, parent_id, data, status, runtime_resume_token, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'success', ?, 100, 200)
+        (id, session_id, role, parent_id, data, status, runtime_resume_token, created_at, updated_at, searchable_text)
+      VALUES (?, ?, ?, ?, ?, 'success', ?, 100, 200, ?)
     `)
     for (const id of ['b', 'a']) {
       insert.run(
@@ -126,12 +121,13 @@ describe('Session tree populated branch upgrade', () => {
         'user',
         null,
         JSON.stringify({ parts: [{ type: 'text', text: `searchable ${id}` }] }),
-        'native'
+        'native',
+        `searchable ${id}`
       )
     }
-    insert.run('root', 'branched', 'root', null, '{"parts":[]}', null)
-    insert.run('first', 'branched', 'user', 'root', '{"parts":[]}', null)
-    insert.run('second', 'branched', 'user', 'root', '{"parts":[]}', null)
+    insert.run('root', 'branched', 'root', null, '{"parts":[]}', null, '')
+    insert.run('first', 'branched', 'user', 'root', '{"parts":[]}', null, '')
+    insert.run('second', 'branched', 'user', 'root', '{"parts":[]}', null, '')
     dbh.sqlite.prepare("UPDATE agent_session SET active_node_id = 'first' WHERE id = 'branched'").run()
     const before = dbh.sqlite
       .prepare<[], { id: string; session_id: string }>('SELECT * FROM agent_session_message ORDER BY id')
@@ -141,7 +137,7 @@ describe('Session tree populated branch upgrade', () => {
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
     for (const row of before) {
       expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message WHERE id = ?').get(row.id)).toMatchObject(
-        row.session_id === 'flat' ? { ...row, parent_id: expect.any(String) } : row
+        row.session_id === 'flat' ? { ...row, data: '{}', parent_id: expect.any(String) } : { ...row, data: '{}' }
       )
     }
     expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual(sessionBefore)
@@ -208,6 +204,7 @@ describe('Session tree upgrade before tree fields existed', () => {
       VALUES ('flat', 'Flat', 'work', 'a0', 10, 20, 10), ('empty', 'Empty', 'work', 'a1', 10, 20, 10);
       INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
       VALUES ('old', 'flat', 'user', '{"parts":[{"type":"text","text":"old archive"}]}', 'success', 100, 200);
+      UPDATE agent_session_message SET searchable_text = 'old archive' WHERE id = 'old';
     `)
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['old'])

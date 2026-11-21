@@ -15,6 +15,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
@@ -201,11 +202,7 @@ describe('Agent fork publication', () => {
         data: { event: 'started' as const, taskId: 'live-task', status: 'in_progress' as const }
       }
     ]
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { ...source.data, parts } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
+    replaceAgentSessionMessagePartsTx(dbh.db, { sessionId, messageId, parts, timestampMs: source.updatedAt })
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
     const child = agentSessionMessageService.listSessionMessages(childId).items[0]
     expect(child.data.parts).toEqual([
@@ -332,11 +329,7 @@ describe('Agent fork publication', () => {
   })
 
   it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [] } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
+    dbh.db.update(agentSessionMessageTable).set({ data: {} }).where(eq(agentSessionMessageTable.id, messageId)).run()
     const tail = agentSessionMessageService.saveMessages({
       sessionId,
       messages: [

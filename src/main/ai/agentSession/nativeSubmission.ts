@@ -9,11 +9,11 @@ import {
   type InputState,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import type { AgentSessionMessageData, AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
 
-function submissionDraft(message: AgentSessionMessageRow, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
+function submissionDraft(message: AgentSessionMessageRecord, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
   if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText, whenBusy }
   if (!message.data.parts?.length) throw new Error('Native submission requires message content')
   const text = message.data.parts
@@ -30,7 +30,7 @@ export function prepareNativeSubmission(
   messageId: string,
   contextId: string,
   whenBusy: BusyPolicy,
-  prepared?: { text: string; parts: AgentSessionMessageRow['data']['parts'] }
+  prepared?: { text: string; parts: AgentSessionMessageData['parts'] }
 ): InputDraft {
   return application.get('DbService').withWriteTx((tx) => {
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)

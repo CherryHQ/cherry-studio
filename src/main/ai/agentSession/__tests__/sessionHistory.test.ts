@@ -10,6 +10,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { buildAgentUserContent, withAgentContext } from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
@@ -58,9 +59,15 @@ beforeEach(() => {
       parentId: user.id,
       role: 'assistant',
       status: 'success',
-      data: { parts: [{ type: 'text', text: 'Sibling banana' }] }
+      data: {}
     })
     .run()
+  replaceAgentSessionMessagePartsTx(dbh.db, {
+    sessionId: 'session',
+    messageId: sibling,
+    parts: [{ type: 'text', text: 'Sibling banana' }],
+    timestampMs: Date.now()
+  })
 })
 
 function save(role: 'user' | 'assistant', parts: CherryMessagePart[]) {

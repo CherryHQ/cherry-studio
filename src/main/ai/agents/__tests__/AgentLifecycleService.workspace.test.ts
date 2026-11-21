@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +13,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -161,17 +162,14 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   const createChild = (ownerSessionId: string) => {
     const id = dbh.db.transaction((tx) => agentSessionService.createChildArchiveTx(tx, ownerSessionId, 'Child'))
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        parentId: seedSessionRoot(dbh.db, id),
-        id: `${id}-result`,
-        sessionId: id,
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: 'Child result' }] },
-        status: 'success'
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, id),
+      id: `${id}-result`,
+      sessionId: id,
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'Child result' }] },
+      status: 'success'
+    })
     return id
   }
 
@@ -195,11 +193,14 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
         })
       }
       expect(
-        dbh.db
-          .select()
-          .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.id, `${childId}-result`))
-          .get()
+        attachAgentSessionMessagePartsTx(
+          dbh.db,
+          dbh.db
+            .select()
+            .from(agentSessionMessageTable)
+            .where(eq(agentSessionMessageTable.id, `${childId}-result`))
+            .all()
+        )[0]
       ).toMatchObject({ data: { parts: [{ type: 'text', text: 'Child result' }] } })
       expect(await readFile(path.join(workspacePath(root, type), 'output.txt'), 'utf8')).toBe(`${type} output`)
 
@@ -224,11 +225,14 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     }
     for (const id of childIds) {
       expect(
-        dbh.db
-          .select()
-          .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.id, `${id}-result`))
-          .get()
+        attachAgentSessionMessagePartsTx(
+          dbh.db,
+          dbh.db
+            .select()
+            .from(agentSessionMessageTable)
+            .where(eq(agentSessionMessageTable.id, `${id}-result`))
+            .all()
+        )[0]
       ).toMatchObject({ data: { parts: [{ type: 'text', text: 'Child result' }] } })
     }
     const workspace = workspacePath(root, 'system')
