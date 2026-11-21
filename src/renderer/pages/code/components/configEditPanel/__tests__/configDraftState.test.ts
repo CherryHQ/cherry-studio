@@ -192,10 +192,10 @@ describe('createManagedConfigDraft (config-only preview)', () => {
         path: '/home/.config/opencode/opencode.json',
         language: 'json',
         content: JSON.stringify({
-          provider: {
+          providers: {
             'cherry-existing': {
-              npm: '@ai-sdk/openai-compatible',
-              options: { apiKey: 'test-key', baseURL: 'https://example.com/v1' },
+              package: '@opencode/ai/providers/openai-compatible',
+              settings: { apiKey: 'test-key', baseURL: 'https://example.com/v1' },
               models: { 'existing-model': { name: 'Existing Model' } }
             }
           }

@@ -4,11 +4,59 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
 import {
+  openCodeNpmInfoFromPackage,
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
   resolvePiProviderInfo
 } from '../resolvers'
+
+describe('openCodeNpmInfoFromPackage', () => {
+  it('passes native V2 builtin packages through unchanged', () => {
+    expect(openCodeNpmInfoFromPackage('@opencode/ai/providers/anthropic')).toEqual({
+      package: '@opencode/ai/providers/anthropic',
+      providerType: 'anthropic',
+      endpointType: 'anthropic-messages'
+    })
+  })
+
+  it('normalizes a V1 `npm` AI SDK package to the V2 `aisdk:` form with the right providerType', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/anthropic')).toEqual({
+      package: 'aisdk:@ai-sdk/anthropic',
+      providerType: 'anthropic',
+      endpointType: 'anthropic-messages'
+    })
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/google')).toEqual({
+      package: 'aisdk:@ai-sdk/google',
+      providerType: 'google',
+      endpointType: 'google-generate-content'
+    })
+  })
+
+  it('normalizes the V1 openai package with the responses endpoint', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/openai')).toEqual({
+      package: 'aisdk:@ai-sdk/openai',
+      providerType: 'openai',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('normalizes an unrecognized V1 AI SDK package as openai-compatible', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/openai-compatible')).toEqual({
+      package: 'aisdk:@ai-sdk/openai-compatible',
+      providerType: 'openai-compatible',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+
+  it('passes unknown packages through with the openai-compatible default', () => {
+    expect(openCodeNpmInfoFromPackage('custom-provider-package')).toEqual({
+      package: 'custom-provider-package',
+      providerType: 'openai-compatible',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+})
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -233,5 +281,18 @@ describe('resolveMinimaxProviderInfo', () => {
       baseUrl: 'https://anthropic.example',
       endpointType: 'anthropic-messages'
     })
+  })
+})
+
+describe('openCodeNpmInfoFromPackage normalized alias round-trip', () => {
+  // A config-only edit rewrites a V1 `npm` value to its `aisdk:` form; the next edit reads that
+  // value back and must recognize it, not fall through to the openai-compatible default.
+  it.each([
+    ['aisdk:@ai-sdk/anthropic', 'anthropic', 'anthropic-messages'],
+    ['aisdk:@ai-sdk/google', 'google', 'google-generate-content'],
+    ['aisdk:@ai-sdk/openai', 'openai', 'openai-responses'],
+    ['aisdk:@ai-sdk/openai-compatible', 'openai-compatible', 'openai-chat-completions']
+  ])('recognizes %s as %s/%s', (pkg, providerType, endpointType) => {
+    expect(openCodeNpmInfoFromPackage(pkg)).toEqual({ package: pkg, providerType, endpointType })
   })
 })
