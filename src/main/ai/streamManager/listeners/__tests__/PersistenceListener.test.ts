@@ -19,6 +19,7 @@ import type { StreamErrorResult } from '../../types'
 const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
 const messageFinalizeMock = vi.fn()
+const messageGetByIdMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -29,7 +30,8 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     update: messageUpdateMock,
-    finalizeAssistantMessage: messageFinalizeMock
+    finalizeAssistantMessage: messageFinalizeMock,
+    getById: messageGetByIdMock
   }
 }))
 
@@ -328,12 +330,16 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
   })
 
-  it('skips persistence when onDone arrives without a finalMessage', async () => {
+  it('classifies instead of skipping when onDone arrives without a finalMessage', async () => {
     const listener = makeListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    expect(appendAssistantMessageMock).not.toHaveBeenCalled()
+    // A contentless turn still has to reach storage — silently dropping it
+    // strands the placeholder row as `pending` forever.
+    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
+    const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts
+    expect(parts.some((part: { type: string }) => part.type === 'data-error')).toBe(true)
   })
 
   it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
@@ -364,6 +370,10 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   beforeEach(() => {
     messageUpdateMock.mockReset()
     messageFinalizeMock.mockReset()
+    messageGetByIdMock.mockReset()
+    // The recovery write reads the placeholder row to attach the terminal
+    // sentinel; tests that don't care about the payload get a pending row.
+    messageGetByIdMock.mockReturnValue({ id: 'assistant-1', data: { parts: [] } })
   })
 
   function makeMessageServiceListener() {
@@ -387,12 +397,16 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('does not create an empty successful ordinary-chat reply', async () => {
+  it('finalizes an empty successful ordinary-chat reply with a classified error', async () => {
     const listener = makeMessageServiceListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    expect(messageFinalizeMock).not.toHaveBeenCalled()
+    // An empty success is classified upstream and finalized with a data-error
+    // part instead of freezing the placeholder as `pending`.
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    const parts = messageFinalizeMock.mock.calls[0][1].data.parts as Array<{ type: string }>
+    expect(parts.some((part) => part.type === 'data-error')).toBe(true)
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
@@ -409,8 +423,22 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
-    // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
-    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+    // The recovery write flips the frozen `pending` placeholder to a terminal
+    // `error` and attaches the persist-failure sentinel so the row explains itself.
+    expect(messageUpdateMock).toHaveBeenLastCalledWith(
+      'assistant-1',
+      expect.objectContaining({
+        status: 'error',
+        data: expect.objectContaining({
+          parts: [
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ i18nKey: 'turn.persist_failed' })
+            })
+          ]
+        })
+      })
+    )
   })
 
   it('retains frozen turn options when finalizing the assistant placeholder', async () => {
