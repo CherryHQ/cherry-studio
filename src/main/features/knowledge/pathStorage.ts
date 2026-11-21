@@ -356,7 +356,7 @@ async function pruneEmptyKnowledgeMaterialDirs(baseId: string, relativePaths: Se
 export async function deleteKnowledgeItemFilesBestEffort(
   baseId: string,
   items: Array<{ type: string; data: unknown }>,
-  logContext: Record<string, unknown>
+  logContext: Record<string, string>
 ): Promise<void> {
   try {
     await deleteKnowledgeItemFiles(baseId, items)

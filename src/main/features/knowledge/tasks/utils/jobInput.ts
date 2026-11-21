@@ -37,7 +37,16 @@ export type NarrowedKnowledgeJobInput =
     }
 
 type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'>
-type JobInputObject = Record<string, unknown>
+type JobInputObject = {
+  baseId?: unknown
+  itemId?: unknown
+  copies?: unknown
+  fileProcessingTaskId?: unknown
+  processedRelativePath?: unknown
+  rootItemIds?: unknown
+  from?: unknown
+  relativePath?: unknown
+}
 
 export function narrowKnowledgeJobInput(snapshot: JobSnapshotInput): NarrowedKnowledgeJobInput | null {
   switch (snapshot.type) {

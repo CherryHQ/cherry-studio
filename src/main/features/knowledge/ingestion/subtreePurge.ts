@@ -18,7 +18,7 @@ import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanu
 export async function purgeKnowledgeSubtreeWithinLock(
   base: KnowledgeBase,
   subtreeItems: KnowledgeItem[],
-  logContext: Record<string, unknown>
+  logContext: Parameters<typeof deleteKnowledgeItemFilesBestEffort>[2]
 ): Promise<void> {
   const subtreeItemIds = subtreeItems.map((item) => item.id)
   if (subtreeItemIds.length === 0) {
