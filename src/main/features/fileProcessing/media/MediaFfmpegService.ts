@@ -8,6 +8,8 @@ import { BaseService, Conditional, DependsOn, Injectable, onPlatform, Phase, Ser
 import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/types'
 
 import {
+  type MediaDetectSceneChangesInput,
+  type MediaDetectSceneChangesResult,
   type MediaExtractAudioInput,
   type MediaExtractAudioResult,
   type MediaExtractFramesInput,
@@ -23,6 +25,7 @@ const logger = loggerService.withContext('MediaFfmpegService')
 export type MediaProbeRequest = Omit<MediaProbeInput, 'pidRegistryPath'>
 export type MediaExtractAudioRequest = Omit<MediaExtractAudioInput, 'pidRegistryPath'>
 export type MediaExtractFramesRequest = Omit<MediaExtractFramesInput, 'pidRegistryPath'>
+export type MediaDetectSceneChangesRequest = Omit<MediaDetectSceneChangesInput, 'pidRegistryPath'>
 
 @Injectable('MediaFfmpegService')
 @ServicePhase(Phase.WhenReady)
@@ -55,6 +58,13 @@ export class MediaFfmpegService extends BaseService {
 
   extractFrames(input: MediaExtractFramesRequest, signal?: AbortSignal): Promise<MediaExtractFramesResult> {
     return this.run('extractFrames', input, { signal })
+  }
+
+  detectSceneChanges(
+    input: MediaDetectSceneChangesRequest,
+    signal?: AbortSignal
+  ): Promise<MediaDetectSceneChangesResult> {
+    return this.run('detectSceneChanges', input, { signal })
   }
 
   private run<M extends keyof MediaFfmpegContract['methods'] & string>(
