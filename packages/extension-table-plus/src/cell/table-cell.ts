@@ -12,7 +12,7 @@ export interface TableCellOptions {
    * @default {}
    * @example { class: 'foo' }
    */
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: Parameters<typeof mergeAttributes>[number]
   /**
    * Whether nodes can be nested inside a cell.
    * @default false
