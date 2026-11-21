@@ -1,0 +1,1393 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>终端命令块布局</title>
+  <!-- Standalone design prototype; all terminal, attachment and Agent operations are simulated. -->
+  <style>
+    @layer prototype-fallback {
+      :root {
+        color-scheme: light dark;
+        --background: Canvas;
+        --foreground: CanvasText;
+        --card: Canvas;
+        --popover: Canvas;
+        --popover-foreground: CanvasText;
+        --muted-foreground: GrayText;
+        --secondary: color-mix(in oklab, CanvasText 5%, transparent);
+        --accent: color-mix(in oklab, CanvasText 5%, transparent);
+        --border: color-mix(in oklab, CanvasText 15%, transparent);
+        --primary: Highlight;
+        --ring: Highlight;
+        --success: light-dark(oklch(0.527 0.154 150.069), oklch(0.792 0.209 151.711));
+        --destructive: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
+        --code-background: Canvas;
+        --font-sans: system-ui;
+        --font-mono: ui-monospace, monospace;
+        --radius: 0.625rem;
+      }
+    }
+    body {
+      background: var(--background);
+    }
+  </style>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      margin: 0;
+    }
+    body {
+      font-family: var(--font-sans), sans-serif;
+      color: var(--foreground);
+    }
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 8px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 20px;
+      transition:
+        background-color 100ms,
+        color 100ms,
+        transform 100ms;
+    }
+    button:hover,
+    button:focus-visible {
+      background: var(--accent);
+      color: var(--foreground);
+    }
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible {
+      outline: 0;
+      box-shadow: inset 0 0 0 1.5px var(--ring);
+    }
+    button:active {
+      transform: scale(0.96);
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      transform: none;
+    }
+    button:disabled:hover {
+      background: transparent;
+      color: var(--muted-foreground);
+    }
+    svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .icon {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      padding: 4px;
+    }
+    .muted {
+      color: var(--muted-foreground);
+    }
+    .mono,
+    pre {
+      font-family: var(--font-mono), ui-monospace, monospace;
+    }
+    .prototype {
+      width: 100%;
+      min-width: 0;
+    }
+    .preview-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-block-end: 12px;
+      font-size: 12px;
+    }
+    .preview-label {
+      color: var(--muted-foreground);
+    }
+    .segmented {
+      display: inline-flex;
+      gap: 2px;
+    }
+    .segmented button[aria-pressed='true'] {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+    .scenario {
+      margin-inline-start: auto;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(170px, 0.65fr) minmax(0, 1.35fr);
+      gap: 12px;
+      align-items: stretch;
+      min-width: 0;
+    }
+    .chat,
+    .terminal-pane {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      min-width: 0;
+    }
+    .chat {
+      display: flex;
+      flex-direction: column;
+      min-height: 592px;
+    }
+    .chat-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .avatar {
+      font-size: 18px;
+      line-height: 24px;
+    }
+    .chat-history {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-block: 30px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .user-message {
+      background: var(--secondary);
+      border-radius: 10px;
+      padding: 12px;
+      align-self: flex-end;
+      max-width: 100%;
+    }
+    .assistant-message {
+      padding-inline: 2px;
+    }
+    .assistant-label {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin-block-end: 6px;
+    }
+    .tool-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      margin-block-start: 10px;
+    }
+    .tool-row .done {
+      color: var(--success);
+      width: 13px;
+      height: 13px;
+    }
+    .composer {
+      margin-block-start: auto;
+      background: var(--secondary);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .composer-placeholder {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted-foreground);
+      min-height: 46px;
+    }
+    .composer-tools {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .composer-tools .send {
+      margin-inline-start: auto;
+      background: var(--foreground);
+      color: var(--background);
+      border-radius: 50%;
+      min-width: 26px;
+      min-height: 26px;
+      width: 26px;
+      height: 26px;
+    }
+    .attachment {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 6px 8px;
+      margin-block-end: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      font-size: 11px;
+    }
+    .attachment .filename {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .attachment .icon {
+      margin-inline-start: auto;
+      width: 20px;
+      min-width: 20px;
+      height: 20px;
+      min-height: 20px;
+      padding: 2px;
+    }
+    .terminal-pane {
+      container-type: inline-size;
+      display: flex;
+      flex-direction: column;
+      padding-block-start: 8px;
+    }
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 0;
+      border-block-end: 1px solid var(--border);
+      padding-block-end: 8px;
+      min-height: 40px;
+    }
+    .tab {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      min-width: 0;
+      min-height: 30px;
+      padding-inline: 8px;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .tab .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tab.active {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+    .tab .tab-x {
+      width: 12px;
+      height: 12px;
+      margin-inline-start: 6px;
+    }
+    .tab-robot {
+      width: 13px;
+      height: 13px;
+      color: var(--primary);
+    }
+    .tabs .utilities {
+      display: flex;
+      margin-inline-start: auto;
+      gap: 0;
+      flex-shrink: 0;
+    }
+    .overflow-tabs {
+      display: none;
+    }
+    .terminal-scroll {
+      height: 528px;
+      overflow: auto;
+      scrollbar-width: thin;
+      padding-block: 20px 8px;
+      min-width: 0;
+    }
+    .block {
+      position: relative;
+      margin-block-end: 28px;
+      min-width: 0;
+    }
+    .block-meta {
+      display: flex;
+      align-items: center;
+      min-height: 28px;
+      gap: 6px;
+      font-size: 11px;
+      line-height: 16px;
+      margin-block-end: 2px;
+      position: relative;
+    }
+    .block-meta .status-icon {
+      width: 13px;
+      height: 13px;
+    }
+    .success {
+      color: var(--success);
+    }
+    .failure {
+      color: var(--destructive);
+    }
+    .block .fold {
+      margin-inline-start: -4px;
+      color: var(--muted-foreground);
+    }
+    .block .fold svg {
+      transition: transform 100ms;
+    }
+    .block[data-collapsed='true'] .fold svg {
+      transform: rotate(-90deg);
+    }
+    .status-label {
+      color: var(--muted-foreground);
+      font-variant-numeric: tabular-nums;
+    }
+    .block-actions {
+      margin-inline-start: auto;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .block-actions .secondary-action {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 100ms;
+    }
+    .block:hover .secondary-action,
+    .block:focus-within .secondary-action,
+    .block.menu-open .secondary-action,
+    .show-actions .block:first-child .secondary-action {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .block-actions .icon {
+      width: 26px;
+      min-width: 26px;
+      height: 26px;
+      min-height: 26px;
+    }
+    .native-prompt,
+    .command {
+      font-size: 12px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      min-width: 0;
+      margin: 0;
+    }
+    .native-prompt {
+      color: var(--muted-foreground);
+    }
+    .branch {
+      color: var(--success);
+    }
+    .command {
+      color: var(--foreground);
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+    }
+    .prompt-glyph {
+      color: var(--success);
+      font-weight: 500;
+    }
+    .command-text {
+      min-width: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .output-wrap {
+      position: relative;
+      margin-block-start: 12px;
+      padding-inline-start: 17px;
+    }
+    .output-wrap:before {
+      content: '';
+      position: absolute;
+      inset-inline-start: 0;
+      inset-block: 2px;
+      background: var(--border);
+      width: 1px;
+    }
+    .output-wrap pre {
+      font-size: 12px;
+      line-height: 1.8;
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--foreground);
+      tab-size: 2;
+    }
+    .output-wrap .output-copy {
+      position: absolute;
+      inset-inline-end: 0;
+      inset-block-start: -5px;
+      opacity: 0;
+      background: var(--card);
+    }
+    .output-wrap:hover .output-copy,
+    .output-copy:focus-visible {
+      opacity: 1;
+    }
+    .collapsed-summary {
+      display: flex;
+      justify-content: flex-start;
+      gap: 7px;
+      margin-block-start: 10px;
+      margin-inline-start: 11px;
+      min-height: 30px;
+      padding: 4px 8px;
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+    .collapsed-summary svg {
+      width: 14px;
+      height: 14px;
+    }
+    .live-prompt {
+      margin-block-start: 8px;
+      padding-block-end: 12px;
+    }
+    .prompt-input {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-family: var(--font-mono), monospace;
+      font-size: 12px;
+      line-height: 24px;
+    }
+    .prompt-input input {
+      border: 0;
+      padding: 0 2px;
+      background: transparent;
+      color: var(--foreground);
+      outline: 0;
+      min-width: 0;
+      flex: 1;
+      caret-color: var(--foreground);
+      font-family: inherit;
+      font-size: inherit;
+      height: 25px;
+    }
+    .prompt-input:focus-within .idle-cursor {
+      display: none;
+    }
+    .prompt-input input::placeholder {
+      color: var(--muted-foreground);
+    }
+    .cursor {
+      display: inline-block;
+      height: 16px;
+      width: 1.5px;
+      background: var(--foreground);
+      vertical-align: middle;
+    }
+    .agent-notice {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--muted-foreground);
+      margin-block: 10px;
+    }
+    .agent-notice .takeover {
+      margin-inline-start: auto;
+      min-height: 26px;
+      border: 1px solid var(--border);
+      color: var(--foreground);
+    }
+    .agent-notice svg {
+      color: var(--primary);
+      width: 14px;
+      height: 14px;
+    }
+    .searchbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      background: var(--secondary);
+      border-radius: 8px;
+      margin-block-start: 10px;
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+    .search-scope {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: var(--muted-foreground);
+      max-width: 100%;
+    }
+    .scope-name {
+      max-width: 130px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-mono), monospace;
+    }
+    .search-input {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 120px;
+      gap: 4px;
+    }
+    .search-input input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: var(--foreground);
+      padding: 4px;
+      font-size: 12px;
+    }
+    .match-count {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted-foreground);
+    }
+    mark {
+      background: color-mix(in oklab, var(--primary) 22%, transparent);
+      color: var(--foreground);
+      border-radius: 2px;
+    }
+    .selected-block .command-text,
+    .selected-block .output-wrap pre {
+      background: color-mix(in oklab, var(--primary) 12%, transparent);
+    }
+    .menu {
+      position: fixed;
+      z-index: 30;
+      min-width: 198px;
+      padding: 6px;
+      background: var(--popover);
+      color: var(--popover-foreground);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 12%, transparent);
+    }
+    .menu button {
+      display: flex;
+      width: 100%;
+      justify-content: flex-start;
+      text-align: start;
+      min-height: 32px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--popover-foreground);
+    }
+    .menu button:disabled {
+      color: var(--muted-foreground);
+    }
+    .menu button svg {
+      margin-inline-end: 4px;
+      width: 15px;
+      height: 15px;
+    }
+    .menu .divider {
+      height: 1px;
+      background: var(--border);
+      margin-block: 5px;
+    }
+    .menu .menu-note {
+      font-size: 10px;
+      line-height: 1.6;
+      color: var(--muted-foreground);
+      padding: 4px 8px;
+      max-width: 220px;
+    }
+    .toast {
+      margin-block-start: 10px;
+      min-height: 22px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted-foreground);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toast svg {
+      width: 14px;
+      height: 14px;
+    }
+    .notes {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-block-start: 12px;
+      font-size: 11px;
+      color: var(--muted-foreground);
+      line-height: 1.7;
+    }
+    .notes span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .notes b {
+      font-weight: 400;
+      color: var(--foreground);
+    }
+    .resource-placeholder {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      height: 528px;
+      font-size: 13px;
+      color: var(--muted-foreground);
+    }
+    .resource-placeholder svg {
+      width: 26px;
+      height: 26px;
+    }
+    .prototype[data-layout='terminal'] .workspace,
+    .prototype[data-layout='narrow'] .workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .prototype[data-layout='terminal'] .chat,
+    .prototype[data-layout='narrow'] .chat {
+      display: none;
+    }
+    .prototype[data-layout='narrow'] .workspace {
+      max-width: 360px;
+    }
+    .prototype[data-layout='narrow'] .notes {
+      max-width: 360px;
+    }
+    .prototype[data-layout='narrow'] .tab-file,
+    .prototype[data-layout='narrow'] .tab-web {
+      display: none;
+    }
+    .prototype[data-layout='narrow'] .overflow-tabs {
+      display: inline-flex;
+    }
+    .prototype[data-layout='narrow'] .block-actions .secondary-action {
+      display: none;
+    }
+    .prototype[data-layout='narrow'] .search-scope {
+      flex-basis: 100%;
+    }
+    .prototype[data-layout='narrow'] .terminal-scroll {
+      height: 528px;
+    }
+    .prototype[data-layout='narrow'] .terminal-pane {
+      padding-inline: 16px;
+    }
+    .copy-preview {
+      position: fixed;
+      inset: 80px 16px auto;
+      z-index: 40;
+      max-width: 560px;
+      margin-inline: auto;
+      padding: 16px;
+      background: var(--popover);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 16%, transparent);
+    }
+    .copy-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-block-end: 10px;
+    }
+    .copy-preview textarea {
+      width: 100%;
+      height: 160px;
+      background: var(--code-background);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: var(--font-mono), monospace;
+      font-size: 12px;
+      resize: vertical;
+    }
+    .copy-preview p {
+      font-size: 11px;
+      color: var(--muted-foreground);
+      margin: 10px 0 0;
+    }
+    .prototype .symbol-defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    @container (max-width:380px) {
+      .tab-file,
+      .tab-web {
+        display: none;
+      }
+      .overflow-tabs {
+        display: inline-flex;
+      }
+      .block-actions .secondary-action {
+        display: none;
+      }
+      .search-scope {
+        flex-basis: 100%;
+      }
+    }
+    @media (max-width: 560px) {
+      .workspace {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .chat {
+        display: none;
+      }
+      .scenario {
+        margin-inline-start: 0;
+      }
+      .preview-controls {
+        gap: 8px;
+      }
+      .terminal-pane {
+        padding-inline: 16px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button,
+      .block-actions .secondary-action,
+      .block .fold svg {
+        transition: none;
+      }
+      button:active {
+        transform: none;
+      }
+    }
+  </style>
+  <div class="prototype show-actions" id="prototype" data-layout="conversation">
+    <svg class="symbol-defs" aria-hidden="true">
+      <defs>
+        <symbol id="i-terminal" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <path d="m7 9 3 3-3 3m6 0h4" />
+        </symbol>
+        <symbol id="i-file" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+          <path d="M14 2v6h6M8 13h8m-8 4h6" />
+        </symbol>
+        <symbol id="i-globe" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <ellipse cx="12" cy="12" rx="4" ry="9" />
+          <path d="M3 12h18" />
+        </symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6" /></symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="12" height="13" rx="2" />
+          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+        </symbol>
+        <symbol id="i-at" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M16 8v6a2 2 0 0 0 4 0v-2a8 8 0 1 0-3 6.25" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z" /></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r=".8" />
+          <circle cx="12" cy="12" r=".8" />
+          <circle cx="19" cy="12" r=".8" />
+        </symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-8 8M10 21H3v-7m0 7 8-8" /></symbol>
+        <symbol id="i-panel" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <path d="M15 4v16" />
+        </symbol>
+        <symbol id="i-robot" viewBox="0 0 24 24">
+          <rect x="4" y="7" width="16" height="13" rx="3" />
+          <path d="M12 3v4M1 12h3m16 0h3M8 11v4m8-4v4" />
+        </symbol>
+        <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6" /></symbol>
+        <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" /></symbol>
+        <symbol id="i-select" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8Z" /></symbol>
+        <symbol id="i-lines" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16" /></symbol>
+      </defs>
+    </svg>
+    <div class="preview-controls" aria-label="原型预览选项">
+      <span class="preview-label">布局原型</span>
+      <div class="segmented" aria-label="预览宽度">
+        <button data-layout="conversation" aria-pressed="true">对话布局</button
+        ><button data-layout="terminal" aria-pressed="false">终端特写</button
+        ><button data-layout="narrow" aria-pressed="false">窄面板</button>
+      </div>
+      <button class="scenario" id="agent-toggle" aria-pressed="false">
+        <svg><use href="#i-robot" /></svg>Agent 执行状态
+      </button>
+    </div>
+    <div class="workspace">
+      <aside class="chat" aria-label="对话区域示意">
+        <div class="chat-title">
+          <span class="avatar">🍒</span>Cherry 小助手<button
+            class="icon"
+            aria-label="对话选项"
+            style="margin-inline-start: auto">
+            <svg><use href="#i-chevron" /></svg>
+          </button>
+        </div>
+        <div class="chat-history">
+          <div class="user-message">检查项目，看看有没有类型错误。</div>
+          <div class="assistant-message">
+            <div class="assistant-label"><span>🍒</span>Cherry 小助手</div>
+            我会运行测试和类型检查。
+            <div class="tool-row">
+              <svg><use href="#i-terminal" /></svg><span class="mono">pnpm test</span
+              ><svg class="done"><use href="#i-check" /></svg>
+            </div>
+            <div class="tool-row">
+              <svg><use href="#i-terminal" /></svg><span class="mono">pnpm typecheck:web</span>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <div id="attachments"></div>
+          <div class="composer-placeholder">输入消息，或 @ 引用文件</div>
+          <div class="composer-tools">
+            <button class="icon" aria-label="添加附件">
+              <svg><use href="#i-plus" /></svg></button
+            ><button class="send" aria-label="发送草稿" disabled>
+              <svg><use href="#i-send" /></svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+      <section class="terminal-pane" aria-label="统一右侧窗格">
+        <div class="tabs" role="tablist" aria-label="资源标签">
+          <button class="tab tab-file" role="tab" aria-selected="false" data-resource="file">
+            <svg><use href="#i-file" /></svg><span class="name">README.md</span
+            ><svg class="tab-x"><use href="#i-x" /></svg>
+          </button>
+          <button class="tab active" role="tab" aria-selected="true" data-resource="terminal">
+            <svg><use href="#i-terminal" /></svg><span class="name">zsh 1</span
+            ><svg class="tab-robot" id="tab-agent" hidden><use href="#i-robot" /></svg
+            ><svg class="tab-x"><use href="#i-x" /></svg>
+          </button>
+          <button class="tab tab-web" role="tab" aria-selected="false" data-resource="web">
+            <svg><use href="#i-globe" /></svg><span class="name">localhost</span>
+          </button>
+          <div class="utilities">
+            <button class="icon overflow-tabs" aria-label="全部资源标签" id="overflow-tabs">
+              <svg><use href="#i-chevron" /></svg></button
+            ><button class="icon" aria-label="终端更多" id="terminal-more">
+              <svg><use href="#i-more" /></svg></button
+            ><button class="icon" aria-label="新建资源" id="new-resource">
+              <svg><use href="#i-plus" /></svg></button
+            ><button class="icon" aria-label="放大终端" id="expand-pane">
+              <svg><use href="#i-expand" /></svg>
+            </button>
+          </div>
+        </div>
+        <div class="searchbar" id="searchbar" hidden>
+          <div class="search-scope">
+            <svg><use href="#i-search" /></svg><span class="scope-name" id="search-scope">pnpm test</span>
+          </div>
+          <div class="search-input">
+            <input id="search-input" aria-label="搜索当前命令块" placeholder="在此块中查找" /><span
+              class="match-count"
+              id="match-count"
+              >0/0</span
+            >
+          </div>
+          <button class="icon" id="match-prev" aria-label="上一个匹配">
+            <svg><use href="#i-up" /></svg></button
+          ><button class="icon" id="match-next" aria-label="下一个匹配">
+            <svg><use href="#i-chevron" /></svg></button
+          ><button class="icon" id="search-close" aria-label="关闭搜索">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="terminal-scroll" id="terminal-scroll">
+          <div id="blocks"></div>
+          <div class="live-prompt" id="live-prompt">
+            <div class="native-prompt mono">~/cherry-studio <span class="branch">main</span></div>
+            <div class="prompt-input">
+              <span class="prompt-glyph">❯</span><span class="cursor idle-cursor" aria-hidden="true"></span
+              ><input id="shell-input" aria-label="终端输入示意" autocomplete="off" spellcheck="false" placeholder="" />
+            </div>
+          </div>
+          <div id="agent-notice" class="agent-notice" hidden>
+            <svg><use href="#i-robot" /></svg><span id="agent-notice-text">Agent 正在使用此终端 · 只读</span
+            ><button class="takeover" id="takeover">接管</button>
+          </div>
+          <div class="prompt-input" id="program-input" hidden>
+            <span class="cursor" aria-hidden="true"></span
+            ><input aria-label="当前程序输入示意" placeholder="" autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+        <div id="resource-placeholder" class="resource-placeholder" hidden></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <svg><use href="#i-lines" /></svg><span>示例内容。可点击折叠、更多菜单、Attach 和块内搜索。</span>
+    </div>
+    <div class="notes">
+      <span><b>01</b> 命令常显，输出独立折叠</span><span><b>02</b> 操作在悬停或聚焦时出现</span
+      ><span><b>03</b> 保留原生 Shell 输入</span>
+    </div>
+    <div class="menu" id="menu" role="menu" hidden></div>
+    <div class="copy-preview" id="copy-preview" role="dialog" aria-modal="true" aria-label="复制内容" hidden>
+      <div class="copy-preview-head">
+        <span id="copy-preview-title">文本快照</span
+        ><button class="icon" id="copy-preview-close" aria-label="关闭快照">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <textarea id="copy-preview-text" readonly aria-label="快照内容"></textarea>
+      <p>浏览器未允许剪贴板写入，可在此选择文本复制。</p>
+    </div>
+  </div>
+  <script>
+    const $ = (s) => document.querySelector(s),
+      $$ = (s) => [...document.querySelectorAll(s)]
+    const icon = (name) => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`
+    const escapeHtml = (s) =>
+      s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+    const state = {
+      agent: false,
+      taken: false,
+      busy: false,
+      resource: 'terminal',
+      search: null,
+      match: 0,
+      menuTrigger: null,
+      searchTrigger: null
+    }
+    const blocks = [
+      {
+        id: 'tests',
+        command: 'pnpm test',
+        exit: 0,
+        duration: '2.4s',
+        collapsed: false,
+        output: '✓ terminal-renderer\n✓ shell-integration\n\nAll tests passed.\nDone in 2.4s.'
+      },
+      {
+        id: 'types',
+        command: 'pnpm typecheck:web',
+        exit: 2,
+        duration: '0.8s',
+        collapsed: true,
+        output:
+          "Checking renderer types...\n\nerror TS2322: Type 'string' is not assignable\n  to type 'number'.\n\n  const width: number = value\n        ~~~~~\n\nFound 1 error.\n\nCommand failed with exit code 2.\nCheck the highlighted assignment."
+      }
+    ]
+    function notify(message) {
+      $('#toast').innerHTML = icon('check') + `<span>${escapeHtml(message)}</span>`
+    }
+    function canRun() {
+      return !state.agent && !state.busy && !$('#shell-input').value
+    }
+    function renderBlocks() {
+      $('#blocks').innerHTML = blocks
+        .map((b) => {
+          const running = b.running,
+            failed = !running && b.exit !== 0,
+            lines = b.output.split('\n').length
+          const status = running ? (state.agent ? 'Agent 执行中' : '运行中') : failed ? `退出 ${b.exit}` : '已完成'
+          return `<section class="block" data-block="${b.id}" data-collapsed="${b.collapsed}" aria-label="命令 ${escapeHtml(b.command)}">
+  <div class="block-meta"><button class="icon fold" data-action="fold" data-id="${b.id}" ${running ? 'disabled' : ''} aria-label="${b.collapsed ? '展开' : '折叠'}输出" aria-expanded="${!b.collapsed}" aria-controls="out-${b.id}">${icon('chevron')}</button>${icon(running ? 'robot' : failed ? 'x' : 'check').replace('<svg ', '<svg class="status-icon ' + (running ? '' : failed ? 'failure' : 'success') + '" ')}<span class="status-label">${status}${b.duration ? ' · ' + b.duration : ''}</span>
+  <div class="block-actions"><button class="icon secondary-action" data-action="copy-command" data-id="${b.id}" title="复制命令" aria-label="复制命令">${icon('copy')}</button><button class="icon secondary-action" data-action="attach" data-id="${b.id}" title="附加到对话" aria-label="附加到对话">${icon('at')}</button><button class="icon secondary-action run-button" data-action="run" data-id="${b.id}" title="${canRun() ? '在当前终端重新运行' : '终端忙碌、由 Agent 使用或输入尚未清空'}" aria-label="重新运行" ${canRun() ? '' : 'disabled'}>${icon('play')}</button><button class="icon" data-action="menu" data-id="${b.id}" title="命令块更多" aria-label="命令块更多操作" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div></div>
+  <div class="native-prompt mono">~/cherry-studio <span class="branch">main</span></div><div class="command mono"><span class="prompt-glyph">❯</span><span class="command-text">${escapeHtml(b.command)}</span></div>
+  <div class="output-wrap" id="out-${b.id}" ${b.collapsed ? 'hidden' : ''}><pre data-output="${b.id}">${escapeHtml(b.output)}</pre><button class="icon output-copy" data-action="copy-output" data-id="${b.id}" aria-label="复制输出" title="复制输出">${icon('copy')}</button></div>
+  <button class="collapsed-summary" data-action="fold" data-id="${b.id}" ${b.collapsed ? '' : 'hidden'}>${icon('lines')}<span>${lines} 行输出已折叠</span></button></section>`
+        })
+        .join('')
+      $('#blocks').onclick = (event) => {
+        const button = event.target.closest('button[data-action]')
+        if (!button || button.disabled) return
+        const b = blocks.find((b) => b.id === button.dataset.id)
+        act(button.dataset.action, b, button)
+      }
+      updateRunning()
+      if (state.search) highlightSearch()
+    }
+    function updateRunning() {
+      $('#tab-agent').hidden = !state.agent
+      $('#live-prompt').hidden = state.busy
+      $('#agent-notice').hidden = !state.agent
+      $('#agent-toggle').setAttribute('aria-pressed', String(state.agent))
+      $('#agent-notice-text').textContent = state.taken ? '你已接管 · 程序仍在运行' : 'Agent 正在使用此终端 · 只读'
+      $('#takeover').hidden = state.taken
+      $('#program-input').hidden = !state.taken
+      $('.idle-cursor').hidden = !!$('#shell-input').value
+      $$('.run-button').forEach((b) => (b.disabled = !canRun()))
+    }
+    async function copyText(b, part) {
+      const text = part === 'command' ? b.command : part === 'output' ? b.output : b.command + '\n' + b.output
+      try {
+        if (!navigator.clipboard) throw new Error('clipboard unavailable')
+        await navigator.clipboard.writeText(text)
+        notify(`已复制${part === 'command' ? '命令' : part === 'output' ? '输出' : '整块'}，当前选区保持不变。`)
+      } catch {
+        $('#copy-preview-title').textContent =
+          part === 'command' ? '命令快照' : part === 'output' ? '输出快照' : '整块快照'
+        $('#copy-preview-text').value = text
+        $('#copy-preview').hidden = false
+        $('#copy-preview-text').focus()
+        $('#copy-preview-text').select()
+      }
+    }
+    function attach(b) {
+      if (!document.querySelector(`[data-attachment="${b.id}"]`)) {
+        const chip = document.createElement('div')
+        chip.className = 'attachment'
+        chip.dataset.attachment = b.id
+        chip.innerHTML =
+          icon('file') +
+          `<span class="filename">终端 · ${escapeHtml(b.command)}.txt</span><button class="icon" aria-label="移除附件">${icon('x')}</button>`
+        chip.querySelector('button').onclick = () => chip.remove()
+        $('#attachments').append(chip)
+      }
+      notify('已加入对话草稿：命令、目录、退出状态和输出快照。尚未发送。')
+    }
+    function act(action, b, trigger) {
+      if (action === 'fold') {
+        b.collapsed = !b.collapsed
+        renderBlocks()
+        const target = document.querySelector(`[data-block="${b.id}"] .fold`)
+        target?.focus({ preventScroll: true })
+        return
+      }
+      if (action.startsWith('copy-')) {
+        copyText(b, action.slice(5))
+        return
+      }
+      if (action === 'attach') {
+        attach(b)
+        return
+      }
+      if (action === 'search') {
+        openSearch(b, trigger)
+        return
+      }
+      if (action === 'select') {
+        $$('.block').forEach((el) => el.classList.toggle('selected-block', el.dataset.block === b.id))
+        notify('已选中该命令块。复制整块可同时包含折叠输出。')
+        return
+      }
+      if (action === 'run') {
+        if (!canRun()) {
+          notify('当前终端暂不能提交新命令。')
+          return
+        }
+        const next = {
+          ...b,
+          id: 'rerun-' + Date.now(),
+          running: true,
+          collapsed: false,
+          duration: '',
+          output: '正在运行…'
+        }
+        blocks.push(next)
+        state.busy = true
+        renderBlocks()
+        notify('模拟新一次执行：原命令块保留，使用当前终端目录。')
+        setTimeout(() => {
+          next.running = false
+          next.duration = '1.1s'
+          next.output = b.output
+          state.busy = false
+          renderBlocks()
+          notify('布局演示已完成，未执行真实命令。')
+        }, 1100)
+        return
+      }
+      if (action === 'menu') {
+        showMenu(
+          trigger,
+          [
+            ['copy', '复制命令', () => copyText(b, 'command')],
+            ['copy', '复制输出', () => copyText(b, 'output')],
+            ['copy', '复制整块', () => copyText(b, 'block')],
+            ['divider'],
+            ['select', '选中整块', () => act('select', b, trigger)],
+            ['at', '附加到对话', () => attach(b)],
+            ['search', '在此块中搜索', () => openSearch(b, trigger)],
+            ['divider'],
+            ['play', '在当前终端重新运行', () => act('run', b, trigger), !canRun()]
+          ],
+          !canRun() ? '终端忙碌、由 Agent 使用或输入未清空时，重新运行不可用。' : ''
+        )
+      }
+    }
+    function closeMenu(restore = false) {
+      $('#menu').hidden = true
+      $$('.menu-open').forEach((x) => x.classList.remove('menu-open'))
+      if (state.menuTrigger) {
+        state.menuTrigger.setAttribute('aria-expanded', 'false')
+        if (restore) state.menuTrigger.focus({ preventScroll: true })
+      }
+    }
+    function showMenu(trigger, items, note = '') {
+      closeMenu()
+      state.menuTrigger = trigger
+      trigger.setAttribute('aria-expanded', 'true')
+      trigger.closest('.block')?.classList.add('menu-open')
+      const menu = $('#menu')
+      menu.innerHTML = ''
+      items.forEach((item) => {
+        if (item[0] === 'divider') {
+          const line = document.createElement('div')
+          line.className = 'divider'
+          line.setAttribute('role', 'separator')
+          menu.append(line)
+          return
+        }
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.setAttribute('role', 'menuitem')
+        button.disabled = !!item[3]
+        button.innerHTML = icon(item[0]) + escapeHtml(item[1])
+        button.onclick = () => {
+          closeMenu()
+          item[2]()
+        }
+        menu.append(button)
+      })
+      if (note) {
+        const p = document.createElement('div')
+        p.className = 'menu-note'
+        p.textContent = note
+        menu.append(p)
+      }
+      menu.hidden = false
+      const rect = trigger.getBoundingClientRect()
+      const width = menu.offsetWidth,
+        height = menu.offsetHeight
+      menu.style.left = Math.max(8, Math.min(innerWidth - width - 8, rect.right - width)) + 'px'
+      menu.style.top = Math.max(8, Math.min(innerHeight - height - 8, rect.bottom + 4)) + 'px'
+      menu.querySelector('button:not(:disabled)')?.focus({ preventScroll: true })
+      menu.onkeydown = (event) => {
+        const buttons = [...menu.querySelectorAll('button:not(:disabled)')],
+          index = buttons.indexOf(document.activeElement)
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault()
+          buttons[
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? buttons.length - 1
+                : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+          ]?.focus()
+        }
+      }
+    }
+    function openSearch(b, trigger) {
+      state.search = b.id
+      state.match = 0
+      state.searchTrigger = trigger
+      b.collapsed = false
+      $('#search-input').value = ''
+      renderBlocks()
+      $('#searchbar').hidden = false
+      $('#search-scope').textContent = b.command
+      $('#match-count').textContent = '0/0'
+      $('#search-input').focus()
+    }
+    function highlightSearch() {
+      const b = blocks.find((x) => x.id === state.search)
+      if (!b) return
+      const group = document.querySelector(`[data-block="${b.id}"]`)
+      if (!group) return
+      const targets = [
+        [group.querySelector('.command-text'), b.command],
+        [group.querySelector('pre'), b.output]
+      ]
+      const query = $('#search-input').value,
+        fold = (s) => s.replace(/[A-Z]/g, (c) => c.toLowerCase())
+      let count = 0
+      for (const [node, text] of targets) {
+        node.textContent = text
+        if (!query) continue
+        let cursor = 0,
+          index,
+          parts = [],
+          source = fold(text),
+          needle = fold(query)
+        while ((index = source.indexOf(needle, cursor)) !== -1) {
+          parts.push(
+            escapeHtml(text.slice(cursor, index)),
+            `<mark data-match="${count}">${escapeHtml(text.slice(index, index + query.length))}</mark>`
+          )
+          cursor = index + query.length
+          count++
+        }
+        parts.push(escapeHtml(text.slice(cursor)))
+        node.innerHTML = parts.join('')
+      }
+      state.match = count ? ((state.match % count) + count) % count : 0
+      $('#match-count').textContent = count ? `${state.match + 1}/${count}` : '0/0'
+      const match = group.querySelector(`[data-match="${state.match}"]`)
+      if (match) {
+        match.style.boxShadow = 'inset 0 -1.5px var(--primary)'
+        match.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
+    }
+    function closeSearch() {
+      state.search = null
+      $('#searchbar').hidden = true
+      renderBlocks()
+      if (state.searchTrigger?.isConnected) state.searchTrigger.focus({ preventScroll: true })
+      else $('#shell-input').focus({ preventScroll: true })
+    }
+    $('#search-input').oninput = () => {
+      state.match = 0
+      highlightSearch()
+    }
+    $('#match-next').onclick = () => {
+      state.match++
+      highlightSearch()
+    }
+    $('#match-prev').onclick = () => {
+      state.match--
+      highlightSearch()
+    }
+    $('#search-close').onclick = closeSearch
+    $$('button[data-layout]').forEach(
+      (button) =>
+        (button.onclick = () => {
+          closeMenu()
+          $('#prototype').dataset.layout = button.dataset.layout
+          $$('button[data-layout]').forEach((x) => x.setAttribute('aria-pressed', String(x === button)))
+        })
+    )
+    $('#agent-toggle').onclick = () => {
+      closeMenu()
+      state.agent = !state.agent
+      state.taken = false
+      state.busy = state.agent
+      const existing = blocks.findIndex((b) => b.id === 'dev')
+      if (state.agent && existing < 0)
+        blocks.push({
+          id: 'dev',
+          command: 'pnpm dev',
+          running: true,
+          collapsed: false,
+          output: 'VITE ready in 412 ms\n\n➜ Local: http://localhost:5173/\n➜ press h + enter to show help'
+        })
+      if (!state.agent && existing >= 0) blocks.splice(existing, 1)
+      $('#shell-input').value = ''
+      renderBlocks()
+      notify(
+        state.agent
+          ? 'Agent 执行时，复制、Attach 和搜索仍可用；输入需先接管。'
+          : '普通终端可直接输入，不显示“交还 Agent”。'
+      )
+    }
+    $('#takeover').onclick = () => {
+      state.taken = true
+      $('#agent-notice-text').textContent = '你已接管 · 程序仍在运行'
+      $('#takeover').hidden = true
+      $('#program-input').hidden = false
+      $('#program-input input').focus()
+      notify('已模拟接管。运行中的程序保持不变，重新运行仍因忙碌而不可用。')
+    }
+    $('#shell-input').oninput = updateRunning
+    $('#shell-input').onkeydown = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        notify('这是布局原型，输入不会提交给真实 Shell。')
+      }
+    }
+    $$('[data-resource]').forEach(
+      (button) =>
+        (button.onclick = () => {
+          closeMenu()
+          state.resource = button.dataset.resource
+          $$('[data-resource]').forEach((x) => {
+            x.classList.toggle('active', x === button)
+            x.setAttribute('aria-selected', String(x === button))
+          })
+          const terminal = state.resource === 'terminal'
+          $('#terminal-scroll').hidden = !terminal
+          $('#resource-placeholder').hidden = terminal
+          $('#searchbar').hidden = terminal ? !state.search : true
+          $('#resource-placeholder').innerHTML =
+            icon(state.resource === 'file' ? 'file' : 'globe') +
+            `<span>${state.resource === 'file' ? 'README.md 文件预览' : 'localhost 网页预览'}</span><span style="font-size:11px">文件、网页、终端共用标签栏</span>`
+        })
+    )
+    $('#terminal-more').onclick = (event) =>
+      showMenu(event.currentTarget, [
+        ['copy', '复制当前选区', () => notify('选区复制沿用现有终端能力。')],
+        ['divider'],
+        ['terminal', '光标样式 · 竖线', () => notify('沿用现有光标设置。')]
+      ])
+    $('#new-resource').onclick = (event) =>
+      showMenu(event.currentTarget, [
+        ['terminal', '新建终端', () => notify('新建终端沿用现有默认 Shell。')],
+        ['globe', '新建网页', () => notify('网页与终端共用右侧标签栏。')],
+        ['file', '文件', () => notify('打开应用内文件视图。')]
+      ])
+    $('#overflow-tabs').onclick = (event) =>
+      showMenu(event.currentTarget, [
+        ['file', 'README.md', () => document.querySelector('[data-resource=file]').click()],
+        ['terminal', 'zsh 1', () => document.querySelector('[data-resource=terminal]').click()],
+        ['globe', 'localhost', () => document.querySelector('[data-resource=web]').click()]
+      ])
+    $('#expand-pane').onclick = () => document.querySelector('[data-layout=terminal]').click()
+    document.addEventListener('pointerdown', (event) => {
+      if (
+        !event.target.closest('#menu') &&
+        !event.target.closest('[data-action=menu]') &&
+        !event.target.closest('#terminal-more,#new-resource,#overflow-tabs')
+      )
+        closeMenu()
+    })
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        if (!$('#menu').hidden) {
+          event.preventDefault()
+          closeMenu(true)
+        } else if (!$('#copy-preview').hidden) {
+          $('#copy-preview').hidden = true
+        } else if (!$('#searchbar').hidden) {
+          event.preventDefault()
+          closeSearch()
+        }
+      }
+    })
+    $('#program-input input').onkeydown = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        notify('已演示当前程序的输入位置，不提交真实 stdin。')
+      }
+    }
+    $('#copy-preview-close').onclick = () => ($('#copy-preview').hidden = true)
+    renderBlocks()
+  </script>
+</html>

@@ -1,0 +1,1855 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>命令块 · 两种绘制方式对照</title>
+  <style>
+    @layer fallback {
+      :root {
+        color-scheme: light dark;
+        --background: Canvas;
+        --foreground: CanvasText;
+        --card: Canvas;
+        --popover: Canvas;
+        --secondary: color-mix(in oklab, CanvasText 6%, transparent);
+        --accent: color-mix(in oklab, CanvasText 9%, transparent);
+        --muted-foreground: GrayText;
+        --border: color-mix(in oklab, CanvasText 15%, transparent);
+        --primary: Highlight;
+        --ring: Highlight;
+        --success: light-dark(#17844c, #6cda98);
+        --destructive: light-dark(#c94040, #ed8585);
+        --font-sans: system-ui;
+        --font-mono: ui-monospace, monospace;
+        --radius: 10px;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      margin: 0;
+    }
+    body {
+      font-family: var(--font-sans), sans-serif;
+      color: var(--foreground);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    button,
+    select,
+    input {
+      font: inherit;
+      color: inherit;
+    }
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      padding: 5px 9px;
+      min-height: 30px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button:hover {
+      background: var(--accent);
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 1px;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    button[aria-pressed='true'] {
+      background: var(--secondary);
+    }
+    svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .intro {
+      margin: 0 0 12px;
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .toolbar label {
+      margin-inline-start: auto;
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+    .toolbar select {
+      background: var(--secondary);
+      border: 0;
+      border-radius: 5px;
+      padding: 4px;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+    .pane {
+      min-width: 0;
+      background: var(--card);
+      padding: 12px;
+      border-radius: var(--radius);
+    }
+    .pane-title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-weight: 500;
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 400;
+      background: var(--secondary);
+      color: var(--muted-foreground);
+      padding: 1px 6px;
+      border-radius: 5px;
+    }
+    .mini-tabs {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 30px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .mini-tabs .active {
+      color: var(--foreground);
+      background: var(--secondary);
+      border-radius: 5px;
+      padding: 2px 7px;
+    }
+    .surface {
+      position: relative;
+      height: 320px;
+      overflow: hidden;
+      touch-action: none;
+      isolation: isolate;
+    }
+    .surface canvas {
+      display: block;
+      width: 100%;
+      height: 320px;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .block-header {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      line-height: 18px;
+      white-space: nowrap;
+      pointer-events: auto;
+      color: var(--muted-foreground);
+      contain: layout paint;
+      transform-origin: 0 0;
+    }
+    .block-header button {
+      min-width: 25px;
+      min-height: 24px;
+      height: 24px;
+      padding: 2px 4px;
+      font-size: 10px;
+      line-height: 18px;
+    }
+    .block-header .status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      pointer-events: none;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .block-header .status svg {
+      color: var(--success);
+      width: 12px;
+      height: 12px;
+    }
+    .block-header .actions {
+      margin-inline-start: auto;
+      display: flex;
+      gap: 1px;
+    }
+    .block-header .fold[aria-expanded='false'] svg {
+      transform: rotate(-90deg);
+    }
+    .block-header .actions button {
+      color: var(--muted-foreground);
+    }
+    .hint {
+      font-size: 11px;
+      color: var(--muted-foreground);
+      margin-top: 6px;
+      min-height: 18px;
+    }
+    .unavailable {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      padding: 20px;
+      text-align: center;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      gap: 8px;
+    }
+    .unavailable strong {
+      color: var(--foreground);
+      font-weight: 500;
+    }
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding-top: 7px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .input-row input {
+      background: transparent;
+      border: 0;
+      min-width: 0;
+      flex: 1;
+      padding: 3px;
+      font-family: var(--font-mono), monospace;
+      font-size: 12px;
+    }
+    .input-row span {
+      color: var(--success);
+    }
+    .feedback {
+      min-height: 23px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin-top: 10px;
+    }
+    .details {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+    .details p {
+      margin: 6px 0;
+    }
+    .results {
+      margin-top: 16px;
+    }
+    .results-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .results-head strong {
+      font-weight: 500;
+    }
+    .results-head span {
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .metric-tabs {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+      font-size: 11px;
+    }
+    .metric-tabs button {
+      font-size: 11px;
+      min-height: 26px;
+      padding: 3px 7px;
+    }
+    .chart {
+      margin: 10px 0;
+      min-height: 145px;
+    }
+    .chart-row {
+      display: grid;
+      grid-template-columns: 65px minmax(0, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .chart-label {
+      color: var(--muted-foreground);
+      font-size: 11px;
+    }
+    .bar-group {
+      display: grid;
+      gap: 5px;
+    }
+    .bar-line {
+      display: grid;
+      grid-template-columns: 23px minmax(0, 1fr) 90px;
+      gap: 7px;
+      align-items: center;
+      font-size: 10px;
+    }
+    .bar-track {
+      height: 9px;
+      background: var(--secondary);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      background: var(--foreground);
+      border-radius: 3px;
+      min-width: 1px;
+    }
+    .bar.hic {
+      background: var(--primary);
+    }
+    .bar-value {
+      font-variant-numeric: tabular-nums;
+      color: var(--muted-foreground);
+      text-align: end;
+    }
+    .verdict {
+      font-size: 12px;
+      color: var(--foreground);
+      margin: 6px 0;
+    }
+    .legend {
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .menu {
+      position: fixed;
+      z-index: 20;
+      background: var(--popover);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px;
+      box-shadow: 0 5px 20px color-mix(in oklab, var(--foreground) 12%, transparent);
+    }
+    .menu button {
+      display: flex;
+      width: 100%;
+      justify-content: flex-start;
+      font-size: 12px;
+    }
+    .a11y {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    [hidden] {
+      display: none !important;
+    }
+    .single-mode .compare {
+      display: block;
+    }
+    .single-mode .pane {
+      width: 640px;
+      padding: 0;
+      border-radius: 0;
+    }
+    .single-mode .surface,
+    .single-mode canvas {
+      height: 384px;
+    }
+    .single-mode .input-row {
+      height: 36px;
+    }
+    .single-mode .block-header {
+      font-size: 11px;
+    }
+    .single-mode .intro,
+    .single-mode .toolbar,
+    .single-mode .mini-tabs,
+    .single-mode .pane-title,
+    .single-mode .hint,
+    .single-mode .feedback,
+    .single-mode .details,
+    .single-mode .results {
+      display: none;
+    }
+    @media (max-width: 580px) {
+      .compare {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .toolbar label {
+        margin-inline-start: 0;
+      }
+      .bar-line {
+        grid-template-columns: 23px minmax(0, 1fr) 82px;
+      }
+    }
+  </style>
+  <p class="intro">同一份 Canvas 终端文字与可见块布局，只替换块控件的绘制方式。测试数据，未连接 PTY。</p>
+  <div class="toolbar">
+    <button id="scroll" aria-pressed="false">同步滚动</button><button id="fold-all">折叠示例</button
+    ><button id="stream" aria-pressed="false">持续输出</button><button id="stop">停止</button
+    ><button id="benchmark">本机对照测试</button
+    ><label
+      >内容
+      <select id="density">
+        <option value="normal">普通输出</option>
+        <option value="dense">密集短命令</option>
+      </select></label
+    >
+  </div>
+  <div class="compare">
+    <section class="pane" id="pane-dom">
+      <h2 class="pane-title">A · DOM overlay <span class="badge">基线</span></h2>
+      <div class="mini-tabs"><span>README.md</span><span class="active">›_ zsh 1</span><span>localhost</span></div>
+      <div class="surface" id="surface-dom">
+        <canvas aria-label="DOM overlay 终端示意"></canvas>
+        <div class="overlay"></div>
+      </div>
+      <div class="input-row">
+        <span>❯</span
+        ><input
+          aria-label="A 输入响应测试"
+          placeholder="可输入，测按键到下一帧"
+          autocomplete="off"
+          spellcheck="false" />
+      </div>
+      <div class="hint" id="hint-dom"></div>
+    </section>
+    <section class="pane" id="pane-hic">
+      <h2 class="pane-title">B · HTML-in-Canvas <span class="badge" id="native-badge">检测中</span></h2>
+      <div class="mini-tabs"><span>README.md</span><span class="active">›_ zsh 1</span><span>localhost</span></div>
+      <div class="surface" id="surface-hic">
+        <canvas aria-label="HTML-in-Canvas 终端示意"></canvas>
+        <div class="overlay"></div>
+        <div class="unavailable" id="unsupported" hidden>
+          <strong>当前宿主未提供原生 API</strong><span>请在 Chrome 157+ 打开此文件体验 B。这里不会用 A 冒充 B。</span>
+        </div>
+      </div>
+      <div class="input-row">
+        <span>❯</span
+        ><input
+          aria-label="B 输入响应测试"
+          placeholder="可输入，测按键到下一帧"
+          autocomplete="off"
+          spellcheck="false" />
+      </div>
+      <div class="hint" id="hint-hic"></div>
+    </section>
+  </div>
+  <div class="feedback" id="feedback" role="status" aria-live="polite">
+    可在两个终端里滚轮滚动，点击折叠、复制、Attach 或更多。
+  </div>
+  <section class="results" id="results">
+    <div class="results-head"><strong>对照结果</strong><span id="result-context">尚未测量</span></div>
+    <div class="metric-tabs" id="metric-tabs">
+      <button data-metric="task" aria-pressed="true">主线程 ms / 帧</button
+      ><button data-metric="frame" aria-pressed="false">帧间隔 p95</button
+      ><button data-metric="style" aria-pressed="false">样式与布局 ms / 帧</button
+      ><button data-metric="input" aria-pressed="false">按键 → 下一 rAF</button>
+    </div>
+    <div class="chart" id="chart"></div>
+    <p class="verdict" id="verdict">不以布局演示代替性能结论。</p>
+    <div class="legend">A 为中性色，B 为强调色；数值越小越好。括号内为 5 轮范围。</div>
+  </section>
+  <div class="details">
+    <p id="capability"></p>
+    <p id="profile-note"></p>
+    <p>
+      方法：256 条命令；仅挂载可见块控件；同一 Canvas 文本绘制、滚动轨迹和输出节奏。每侧预热，交替运行 5
+      轮。测量时只启用一侧，固定视口和 DPR。
+    </p>
+    <p>
+      判定：检查实际绘制、内容与鼠标命中后再比较。差异落在轮次波动内，或缺少瓶颈证据时，结论为未收敛。此合成原型不含
+      Ghostty、PTY、IPC 和 React，也不验证 IME 或最终屏幕呈现延迟。
+    </p>
+  </div>
+  <div class="menu" id="menu" role="menu" hidden></div>
+  <div class="a11y" id="announcer" aria-live="polite"></div>
+  <script id="recorded-results" type="application/json">
+    {
+      "createdAt": "2026-11-21T21:28:18.898Z",
+      "method": {
+        "claim": "Compare visible command-block control paths under identical Canvas text rendering; do not infer Cherry production performance.",
+        "decision": "Require correct paint/click work and repeated separation beyond run-to-run spread with a measured limiter before selecting a rendering path.",
+        "rounds": 5,
+        "durationMs": 2000,
+        "viewport": { "width": 640, "height": 384, "dpr": 2 },
+        "blocks": 256,
+        "visibleOnly": true,
+        "workloads": ["scroll: 350 CSS px/s", "fold: 10 toggles / 2 s", "stream: 60 small text updates / 2 s"],
+        "input": "10 trusted keydown events per run; handler event timestamp to next requestAnimationFrame; includes frame wait, not final presented pixels.",
+        "runtime": "isolated headless Chrome; no feature flags",
+        "limitations": [
+          "synthetic Canvas text, no Ghostty/PTY/IPC/React",
+          "machine is busy; interleaved samples",
+          "CDP TaskDuration measures renderer main-thread work, not total CPU or GPU cost",
+          "rAF interval is not a presentation timestamp",
+          "both paths redraw the same viewport when dirty; no production dirty-cell renderer"
+        ],
+        "scheduler": "Both paths share the canvas paint/requestPaint scheduler in Chrome 157 to isolate control rendering. The rAF-only fallback in Electron 156 was not performance-tested."
+      },
+      "machine": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cores": 10,
+        "cpu": "Apple M5",
+        "loadBefore": [16.64013671875, 19.79443359375, 19.4541015625],
+        "loadAfter": [38.05517578125, 25.25244140625, 21.5146484375]
+      },
+      "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "summary": [
+        {
+          "scenario": "scroll",
+          "dom": {
+            "task": { "median": 0.8657685950413233, "min": 0.7363140495867769, "max": 1.077181818181818 },
+            "style": { "median": 0.09684297520661157, "min": 0.09164462809917358, "max": 0.10637190082644625 },
+            "frame": { "median": 16.799999999999272, "min": 16.700000000000728, "max": 16.799999999999272 },
+            "input": { "median": 8.899999976158142, "min": 6.699999988079071, "max": 9.050000011920929 },
+            "script": { "median": 0.14435537190082653, "min": 0.12498347107438026, "max": 0.14970247933884298 }
+          },
+          "hic": {
+            "task": { "median": 0.7792066115702482, "min": 0.7465206611570248, "max": 0.8225371900826439 },
+            "style": { "median": 0.04704958677685951, "min": 0.044570247933884304, "max": 0.05195867768595045 },
+            "frame": { "median": 16.799999999999272, "min": 16.700000000000728, "max": 16.800000000000182 },
+            "input": { "median": 9.000000029802322, "min": 8.150000005960464, "max": 9.099999994039536 },
+            "script": { "median": 0.14672727272727265, "min": 0.128, "max": 0.15519008264462805 }
+          }
+        },
+        {
+          "scenario": "fold",
+          "dom": {
+            "task": { "median": 0.36323966942148755, "min": 0.33484297520661155, "max": 0.3986198347107435 },
+            "style": { "median": 0.023677685950413162, "min": 0.02241322314049589, "max": 0.02773553719008257 },
+            "frame": { "median": 16.799999999995634, "min": 16.700000000004366, "max": 16.799999999999272 },
+            "input": { "median": 9.699999988079071, "min": 7.100000023841858, "max": 12.800000011920929 },
+            "script": { "median": 0.030983471074379956, "min": 0.028933884297520692, "max": 0.03795041322314037 }
+          },
+          "hic": {
+            "task": { "median": 0.38247933884297414, "min": 0.36210743801652845, "max": 0.47271074380165357 },
+            "style": { "median": 0.020479338842975217, "min": 0.01876859504132233, "max": 0.022206611570247833 },
+            "frame": { "median": 16.700000000004366, "min": 16.700000000000728, "max": 16.799999999999272 },
+            "input": { "median": 9.400000005960464, "min": 8.549999982118607, "max": 13.099999994039536 },
+            "script": { "median": 0.03389256198347102, "min": 0.029487603305785252, "max": 0.04008264462809912 }
+          }
+        },
+        {
+          "scenario": "stream",
+          "dom": {
+            "task": { "median": 0.5506611570247931, "min": 0.5171322314049605, "max": 0.5998595041322301 },
+            "style": { "median": 0.01385123966942152, "min": 0.013082644628099183, "max": 0.015223140495867853 },
+            "frame": { "median": 16.700000000004366, "min": 16.700000000004366, "max": 16.799999999995634 },
+            "input": { "median": 10.549999982118607, "min": 7.5999999940395355, "max": 11.200000017881393 },
+            "script": { "median": 0.09509090909090877, "min": 0.09047107438016516, "max": 0.10247933884297539 }
+          },
+          "hic": {
+            "task": { "median": 0.5822396694214862, "min": 0.546057851239668, "max": 0.6769669421487614 },
+            "style": { "median": 0.013859504132231446, "min": 0.012520661157024757, "max": 0.018380165289256116 },
+            "frame": { "median": 16.700000000004366, "min": 16.700000000004366, "max": 16.799999999995634 },
+            "input": { "median": 8.949999958276749, "min": 7.999999970197678, "max": 10.850000023841858 },
+            "script": { "median": 0.10836363636363647, "min": 0.09608264462809939, "max": 0.11390082644628112 }
+          }
+        }
+      ],
+      "context": "Chrome 157 · 640×384 · DPR 2 · 每侧每场景 5 轮",
+      "verdict": "未测到稳定的整体优势。滚动时 B 的样式与布局耗时较低，但三种场景的主线程范围均重叠，帧间隔与按键响应也未形成稳定差异。",
+      "limiter": "独立 CPU profile 以 idle / program 样本为主；rAF p95 约 16.7–16.8 ms，两侧均未表现出渲染主线程饱和。3 秒 trace 观察到 B 的样式更新减少、Paint 时间增加；该 trace 不计入正式测量。机器负载较高，本轮不据此选定正式渲染器。",
+      "runtimeCapabilities": {
+        "electron": {
+          "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/2.2.2 Chrome/156.0.8078.80 Electron/45.2.2 Safari/537.36",
+          "drawElementImage": "undefined",
+          "captureElementImage": "undefined",
+          "updateElementGeometry": "undefined",
+          "content": false,
+          "requestPaint": "undefined"
+        },
+        "chromeDefault": {
+          "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+          "drawElementImage": "function",
+          "captureElementImage": "function",
+          "updateElementGeometry": "function",
+          "content": true,
+          "requestPaint": "function"
+        },
+        "chromeExperimental": {
+          "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+          "drawElementImage": "function",
+          "captureElementImage": "function",
+          "updateElementGeometry": "function",
+          "content": true,
+          "requestPaint": "function"
+        }
+      },
+      "pixelEquivalence": {
+        "width": 1280,
+        "height": 768,
+        "meanAbsoluteChannelDifference": 6.306966145833334e-5,
+        "pixelsWithChannelDifferenceOver20": 0,
+        "totalPixels": 983040
+      },
+      "measuredArtifactSha256": "d3c921030085ea31fb1629d8bd0286782deabc63ac7078b07eb2359b875a3e33",
+      "samples": [
+        {
+          "mode": "dom",
+          "scenario": "scroll",
+          "round": 1,
+          "task": 0.8289504132231404,
+          "style": 0.09164462809917358,
+          "script": 0.14970247933884298,
+          "frameP95": 16.799999999999272,
+          "input": 6.699999988079071,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 384,
+          "cellRows": 1536,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "scroll",
+          "round": 1,
+          "task": 0.771909090909091,
+          "style": 0.044570247933884304,
+          "script": 0.15519008264462805,
+          "frameP95": 16.800000000000182,
+          "input": 8.300000011920929,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 384,
+          "transformWrites": 0,
+          "cellRows": 1536,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "scroll",
+          "round": 2,
+          "task": 1.077181818181818,
+          "style": 0.09638016528925619,
+          "script": 0.14435537190082653,
+          "frameP95": 16.700000000000728,
+          "input": 9.000000029802322,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 384,
+          "cellRows": 1536,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "scroll",
+          "round": 2,
+          "task": 0.7792066115702482,
+          "style": 0.04580991735537188,
+          "script": 0.13766115702479334,
+          "frameP95": 16.799999999999272,
+          "input": 9.050000011920929,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 384,
+          "transformWrites": 0,
+          "cellRows": 1536,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "scroll",
+          "round": 3,
+          "task": 0.7363140495867769,
+          "style": 0.09684297520661157,
+          "script": 0.12498347107438026,
+          "frameP95": 16.799999999999272,
+          "input": 8.300000041723251,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 385,
+          "cellRows": 1540,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "scroll",
+          "round": 3,
+          "task": 0.7465206611570248,
+          "style": 0.04923966942148759,
+          "script": 0.128,
+          "frameP95": 16.700000000000728,
+          "input": 9.099999994039536,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 384,
+          "transformWrites": 0,
+          "cellRows": 1536,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "scroll",
+          "round": 4,
+          "task": 0.8817950819672139,
+          "style": 0.0987950819672131,
+          "script": 0.13625409836065572,
+          "frameP95": 16.700000000000728,
+          "input": 8.899999976158142,
+          "frames": 122,
+          "callbacks": 122,
+          "drawCalls": 0,
+          "transformWrites": 389,
+          "cellRows": 1556,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "scroll",
+          "round": 4,
+          "task": 0.811851239669421,
+          "style": 0.05195867768595045,
+          "script": 0.14944628099173543,
+          "frameP95": 16.799999999999272,
+          "input": 8.150000005960464,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 385,
+          "transformWrites": 0,
+          "cellRows": 1540,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "scroll",
+          "round": 5,
+          "task": 0.8657685950413233,
+          "style": 0.10637190082644625,
+          "script": 0.14814876033057872,
+          "frameP95": 16.799999999999272,
+          "input": 9.050000011920929,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 385,
+          "cellRows": 1540,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "scroll",
+          "round": 5,
+          "task": 0.8225371900826439,
+          "style": 0.04704958677685951,
+          "script": 0.14672727272727265,
+          "frameP95": 16.799999999999272,
+          "input": 9.000000029802322,
+          "frames": 121,
+          "callbacks": 121,
+          "drawCalls": 385,
+          "transformWrites": 0,
+          "cellRows": 1540,
+          "folds": 0,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "fold",
+          "round": 1,
+          "task": 0.47271074380165357,
+          "style": 0.022206611570247833,
+          "script": 0.04008264462809912,
+          "frameP95": 16.799999999999272,
+          "input": 8.600000023841858,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 30,
+          "transformWrites": 0,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "fold",
+          "round": 1,
+          "task": 0.33484297520661155,
+          "style": 0.02241322314049589,
+          "script": 0.03400826446280998,
+          "frameP95": 16.799999999999272,
+          "input": 8.950000017881393,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 30,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "fold",
+          "round": 2,
+          "task": 0.37371900826446125,
+          "style": 0.019429752066115694,
+          "script": 0.03553719008264461,
+          "frameP95": 16.700000000000728,
+          "input": 13.099999994039536,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 30,
+          "transformWrites": 0,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "fold",
+          "round": 2,
+          "task": 0.3750826446280992,
+          "style": 0.024999999999999998,
+          "script": 0.03795041322314037,
+          "frameP95": 16.700000000004366,
+          "input": 12.800000011920929,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 30,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "fold",
+          "round": 3,
+          "task": 0.38247933884297414,
+          "style": 0.01876859504132233,
+          "script": 0.029504132231404873,
+          "frameP95": 16.700000000004366,
+          "input": 9.900000035762787,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 30,
+          "transformWrites": 0,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "fold",
+          "round": 3,
+          "task": 0.36047107438016357,
+          "style": 0.023677685950413162,
+          "script": 0.03014049586776869,
+          "frameP95": 16.700000000004366,
+          "input": 9.699999988079071,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 30,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "fold",
+          "round": 4,
+          "task": 0.36210743801652845,
+          "style": 0.020793388429752046,
+          "script": 0.029487603305785252,
+          "frameP95": 16.700000000004366,
+          "input": 8.549999982118607,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 30,
+          "transformWrites": 0,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "fold",
+          "round": 4,
+          "task": 0.3986198347107435,
+          "style": 0.02773553719008257,
+          "script": 0.030983471074379956,
+          "frameP95": 16.799999999995634,
+          "input": 7.100000023841858,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 30,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "fold",
+          "round": 5,
+          "task": 0.45546280991735466,
+          "style": 0.020479338842975217,
+          "script": 0.03389256198347102,
+          "frameP95": 16.700000000004366,
+          "input": 9.400000005960464,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 30,
+          "transformWrites": 0,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "fold",
+          "round": 5,
+          "task": 0.36323966942148755,
+          "style": 0.02357851239669423,
+          "script": 0.028933884297520692,
+          "frameP95": 16.799999999995634,
+          "input": 10.000000029802322,
+          "frames": 10,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 30,
+          "cellRows": 100,
+          "folds": 10,
+          "updates": 0,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "stream",
+          "round": 1,
+          "task": 0.5344710743801665,
+          "style": 0.015223140495867853,
+          "script": 0.09743801652892581,
+          "frameP95": 16.700000000004366,
+          "input": 10.650000005960464,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 240,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "stream",
+          "round": 1,
+          "task": 0.5797107438016539,
+          "style": 0.017644628099173536,
+          "script": 0.11390082644628112,
+          "frameP95": 16.700000000004366,
+          "input": 8.949999958276749,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 240,
+          "transformWrites": 0,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "stream",
+          "round": 2,
+          "task": 0.5171322314049605,
+          "style": 0.0151735537190083,
+          "script": 0.09047107438016516,
+          "frameP95": 16.700000000004366,
+          "input": 10.199999988079071,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 240,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "stream",
+          "round": 2,
+          "task": 0.5822396694214862,
+          "style": 0.012520661157024757,
+          "script": 0.11115702479338857,
+          "frameP95": 16.700000000004366,
+          "input": 8.349999964237213,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 240,
+          "transformWrites": 0,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "stream",
+          "round": 3,
+          "task": 0.5998595041322301,
+          "style": 0.013363636363636367,
+          "script": 0.10247933884297539,
+          "frameP95": 16.700000000004366,
+          "input": 11.200000017881393,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 240,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "stream",
+          "round": 3,
+          "task": 0.6769669421487614,
+          "style": 0.012611570247933824,
+          "script": 0.10836363636363647,
+          "frameP95": 16.700000000004366,
+          "input": 7.999999970197678,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 240,
+          "transformWrites": 0,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "stream",
+          "round": 4,
+          "task": 0.5506611570247931,
+          "style": 0.01385123966942152,
+          "script": 0.09480165289256205,
+          "frameP95": 16.700000000004366,
+          "input": 10.549999982118607,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 240,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "stream",
+          "round": 4,
+          "task": 0.546057851239668,
+          "style": 0.013859504132231446,
+          "script": 0.09608264462809939,
+          "frameP95": 16.799999999995634,
+          "input": 9.75,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 240,
+          "transformWrites": 0,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "dom",
+          "scenario": "stream",
+          "round": 5,
+          "task": 0.5948099173553694,
+          "style": 0.013082644628099183,
+          "script": 0.09509090909090877,
+          "frameP95": 16.799999999995634,
+          "input": 7.5999999940395355,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 0,
+          "transformWrites": 240,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        },
+        {
+          "mode": "hic",
+          "scenario": "stream",
+          "round": 5,
+          "task": 0.6052727272727265,
+          "style": 0.018380165289256116,
+          "script": 0.10214876033057836,
+          "frameP95": 16.70000000001164,
+          "input": 10.850000023841858,
+          "frames": 60,
+          "callbacks": 121,
+          "drawCalls": 240,
+          "transformWrites": 0,
+          "cellRows": 960,
+          "folds": 0,
+          "updates": 60,
+          "slots": 4,
+          "errors": [],
+          "trustedKeySamples": 10
+        }
+      ],
+      "profiles": {
+        "dom": {
+          "hot": [
+            { "function": "(idle)", "samples": 1441 },
+            { "function": "(program)", "samples": 391 },
+            { "function": "querySelector", "samples": 1 },
+            { "function": "paint", "samples": 1 },
+            { "function": "fillText", "samples": 1 }
+          ],
+          "traceNamedDurationMs": {
+            "FunctionCall": 34.27600000000003,
+            "UpdateLayoutTree": 17.61500000000001,
+            "PrePaint": 10.494,
+            "Paint": 13.753999999999978,
+            "EventDispatch": 16.827000000000012,
+            "Layout": 1.9020000000000001
+          }
+        },
+        "hic": {
+          "hot": [
+            { "function": "(idle)", "samples": 1007 },
+            { "function": "(program)", "samples": 400 },
+            { "function": "fillText", "samples": 3 },
+            { "function": "drawElementImage", "samples": 2 },
+            { "function": "(anonymous)", "samples": 1 },
+            { "function": "paint", "samples": 1 },
+            { "function": "querySelector", "samples": 1 }
+          ],
+          "traceNamedDurationMs": {
+            "FunctionCall": 35.466000000000015,
+            "UpdateLayoutTree": 7.117999999999998,
+            "PrePaint": 11.405000000000006,
+            "Paint": 27.025,
+            "EventDispatch": 23.82300000000001,
+            "Layout": 2.347
+          }
+        }
+      }
+    }
+  </script>
+  <script>
+    ;(() => {
+      'use strict'
+      const $ = (s) => document.querySelector(s)
+      const svg = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`
+      const icons = {
+        chevron: svg('<path d="m6 9 6 6 6-6"/>'),
+        check: svg('<path d="m5 12 4 4L19 6"/>'),
+        copy: svg(
+          '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>'
+        ),
+        attach: svg('<circle cx="12" cy="12" r="4"/><path d="M16 8v6a2 2 0 0 0 4 0v-2a8 8 0 1 0-3 6.25"/>'),
+        more: svg('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>')
+      }
+      const native =
+        typeof CanvasRenderingContext2D.prototype.drawElementImage === 'function' &&
+        'content' in HTMLCanvasElement.prototype
+      const theme = () => {
+        const source = getComputedStyle(document.documentElement)
+        const probe = document.createElement('span')
+        document.body.append(probe)
+        const colors = {}
+        for (const name of ['foreground', 'muted-foreground', 'border', 'success', 'background']) {
+          probe.style.color = `var(--${name})`
+          colors[name] = getComputedStyle(probe).color
+        }
+        probe.remove()
+        colors['font-mono'] = source.getPropertyValue('--font-mono').trim()
+        return colors
+      }
+      const message = (text) => {
+        $('#feedback').textContent = text
+        $('#announcer').textContent = text
+      }
+      let engines = [],
+        activeAnimation = 0,
+        currentMetric = 'task',
+        recorded = JSON.parse($('#recorded-results').textContent),
+        runStats = null
+      let lastAction = null
+      class Surface {
+        constructor(mode) {
+          this.mode = mode
+          this.surface = $('#surface-' + mode)
+          this.canvas = this.surface.querySelector('canvas')
+          this.overlay = this.surface.querySelector('.overlay')
+          this.ctx = this.canvas.getContext('2d')
+          this.input = $('#pane-' + mode + ' input')
+          this.available = mode === 'dom' || native
+          this.input.disabled = !this.available
+          this.scroll = 0
+          this.dense = false
+          this.collapsed = new Set()
+          this.streamTick = 0
+          this.slots = []
+          this.visible = []
+          this.dirty = false
+          this.paused = false
+          this.frames = 0
+          this.drawCalls = 0
+          this.cellRows = 0
+          this.transformWrites = 0
+          this.actions = 0
+          this.inputSamples = []
+          this.errors = []
+          if (native) {
+            this.canvas.setAttribute('content', 'drawable')
+            this.canvas.addEventListener('paint', () => {
+              if (!this.paused && (this.dirty || this.mode === 'hic')) this.paint()
+            })
+          }
+          this.surface.addEventListener(
+            'wheel',
+            (e) => {
+              e.preventDefault()
+              if (!this.available) return
+              stop()
+              this.scroll = Math.max(0, Math.min(this.total - this.height + 50, this.scroll + e.deltaY))
+              this.request()
+            },
+            { passive: false }
+          )
+          this.input.addEventListener('keydown', (e) => {
+            const started = e.timeStamp
+            requestAnimationFrame(() => {
+              const sample = performance.now() - started
+              this.inputSamples.push({ ms: sample, trusted: e.isTrusted })
+              if (!runStats)
+                message(`${mode === 'dom' ? 'A' : 'B'} 按键 → 下一 rAF：${sample.toFixed(1)} ms（包含等待下一帧）`)
+            })
+          })
+          this.resize = new ResizeObserver(() => this.size())
+          this.resize.observe(this.surface)
+          this.size()
+        }
+        size() {
+          const rect = this.surface.getBoundingClientRect()
+          if (!rect.width || !this.available) return
+          this.width = Math.round(rect.width)
+          this.height = Math.round(rect.height)
+          this.dpr = devicePixelRatio
+          this.canvas.width = Math.round(this.width * this.dpr)
+          this.canvas.height = Math.round(this.height * this.dpr)
+          this.colors = theme()
+          this.layout()
+          this.request()
+        }
+        layout() {
+          let y = 12
+          this.layoutRows = []
+          for (let i = 0; i < 256; i++) {
+            const lines = this.dense ? 1 : 4
+            const count = this.collapsed.has(i) ? 0 : lines
+            const h = 26 + 40 + (count ? count * 20 + 12 : 26) + 18
+            this.layoutRows.push({ id: i, y, h, lines: count })
+            y += h
+          }
+          this.total = y
+        }
+        request() {
+          if (!this.available || this.paused) return
+          this.dirty = true
+          this.prepare()
+          if (native) this.canvas.requestPaint()
+          else if (!this.scheduled) {
+            this.scheduled = true
+            requestAnimationFrame(() => {
+              this.scheduled = false
+              if (this.dirty) this.paint()
+            })
+          }
+        }
+        slot(index) {
+          if (this.slots[index]) return this.slots[index]
+          const node = document.createElement('div')
+          node.className = 'block-header'
+          node.innerHTML = `<button class="fold" data-action="fold" aria-label="折叠输出" aria-expanded="true">${icons.chevron}</button><span class="status">${icons.check}<span>完成 · 0.8 s</span></span><span class="actions"><button data-action="copy" aria-label="复制命令">${icons.copy}</button><button data-action="attach" aria-label="附加到草稿">${icons.attach}</button><button data-action="more" aria-label="块更多">${icons.more}</button></span>`
+          node.addEventListener('click', (e) => {
+            const button = e.target.closest('button')
+            if (!button) return
+            const id = Number(node.dataset.block)
+            this.actions++
+            lastAction = { mode: this.mode, id, action: button.dataset.action }
+            if (button.dataset.action === 'fold') {
+              this.collapsed.has(id) ? this.collapsed.delete(id) : this.collapsed.add(id)
+              this.layout()
+              this.request()
+              message(
+                `${this.mode === 'dom' ? 'A' : 'B'} · 命令 ${id + 1} 输出${this.collapsed.has(id) ? '已折叠' : '已展开'}`
+              )
+            } else if (button.dataset.action === 'more') {
+              showMenu(button, id, this)
+            } else
+              message(
+                `${this.mode === 'dom' ? 'A' : 'B'} · 命令 ${id + 1}：${button.dataset.action === 'copy' ? '复制命令示意' : '已添加草稿附件示意'}`
+              )
+          })
+          if (this.mode === 'hic') {
+            node.setAttribute('drawable', '')
+            this.canvas.append(node)
+          } else this.overlay.append(node)
+          this.slots.push(node)
+          return node
+        }
+        prepare() {
+          this.visible = this.layoutRows.filter((r) => r.y + r.h >= this.scroll && r.y - this.scroll < this.height)
+          let index = 0
+          for (const row of this.visible) {
+            const node = this.slot(index++)
+            node.hidden = false
+            const width = this.width - 24 + 'px'
+            if (node.style.width !== width) node.style.width = width
+            const id = String(row.id)
+            if (node.dataset.block !== id) node.dataset.block = id
+            const fold = node.querySelector('.fold')
+            const expanded = String(!this.collapsed.has(row.id))
+            if (fold.getAttribute('aria-expanded') !== expanded) fold.setAttribute('aria-expanded', expanded)
+            if (this.mode === 'dom') {
+              const transform = `translate(12px,${row.y - this.scroll}px)`
+              if (node.style.transform !== transform) {
+                node.style.transform = transform
+                this.transformWrites++
+              }
+            }
+          }
+          for (let i = index; i < this.slots.length; i++) this.slots[i].hidden = true
+        }
+        paint() {
+          try {
+            this.dirty = false
+            this.frames++
+            const ctx = this.ctx
+            ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+            ctx.clearRect(0, 0, this.width, this.height)
+            ctx.font = `12px ${this.colors['font-mono'] || 'monospace'}`
+            ctx.textBaseline = 'top'
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(0, 0, this.width, this.height)
+            ctx.clip()
+            let slotIndex = 0
+            for (const row of this.visible) {
+              const y = row.y - this.scroll
+              const node = this.slots[slotIndex++]
+              const expanded = !this.collapsed.has(row.id)
+              const command =
+                row.id === 0 ? 'pnpm test' : row.id === 1 ? 'pnpm typecheck:web' : `git status --short # ${row.id + 1}`
+              ctx.fillStyle = this.colors['muted-foreground']
+              ctx.fillText('~/cherry-studio  main', 12, y + 29)
+              ctx.fillStyle = this.colors.success
+              ctx.fillText('❯', 12, y + 49)
+              ctx.fillStyle = this.colors.foreground
+              ctx.fillText(command, 28, y + 49)
+              if (expanded) {
+                ctx.fillStyle = this.colors.border
+                ctx.fillRect(17, y + 75, 1, row.lines * 20 - 4)
+                for (let j = 0; j < row.lines; j++) {
+                  ctx.fillStyle = j === 0 ? this.colors.success : this.colors.foreground
+                  const text =
+                    j === 0
+                      ? '✓ terminal-renderer'
+                      : j === 1
+                        ? '✓ shell-integration'
+                        : j === 2
+                          ? `输出 ${this.streamTick} · command ${row.id + 1}`
+                          : 'All checks passed.'
+                  ctx.fillText(text, 28, y + 75 + j * 20)
+                  this.cellRows++
+                }
+              } else {
+                ctx.fillStyle = this.colors['muted-foreground']
+                ctx.fillText('··· 输出已折叠', 28, y + 77)
+              }
+              if (this.mode === 'hic') {
+                ctx.drawElementImage(node, 12, y, this.width - 24, 26)
+                this.drawCalls++
+              }
+            }
+            ctx.restore()
+          } catch (e) {
+            this.errors.push(String(e))
+            message(this.mode + ' 绘制错误：' + e.message)
+          }
+        }
+        reset(dense = false) {
+          this.dense = dense
+          this.collapsed.clear()
+          this.streamTick = 0
+          this.scroll = 0
+          this.frames = 0
+          this.drawCalls = 0
+          this.cellRows = 0
+          this.transformWrites = 0
+          this.inputSamples = []
+          this.errors = []
+          this.layout()
+          this.request()
+        }
+        digest() {
+          return {
+            mode: this.mode,
+            frames: this.frames,
+            drawCalls: this.drawCalls,
+            cellRows: this.cellRows,
+            transformWrites: this.transformWrites,
+            visibleIds: this.visible.map((x) => x.id),
+            collapsed: [...this.collapsed],
+            streamTick: this.streamTick,
+            scroll: this.scroll,
+            slots: this.slots.length,
+            actions: this.actions,
+            inputSamples: this.inputSamples,
+            errors: this.errors
+          }
+        }
+        point(action = 'fold') {
+          const row = this.visible.find((r) => r.y - this.scroll >= 0 && r.y - this.scroll + 26 < this.height)
+          if (!row) return null
+          const bounds = this.surface.getBoundingClientRect()
+          const x =
+            action === 'fold'
+              ? 24
+              : action === 'copy'
+                ? this.width - 72
+                : action === 'attach'
+                  ? this.width - 46
+                  : this.width - 20
+          return { x: bounds.x + x, y: bounds.y + row.y - this.scroll + 13, id: row.id }
+        }
+      }
+      function showMenu(button, id, engine) {
+        const menu = $('#menu')
+        menu.replaceChildren()
+        for (const [action, label] of [
+          ['copy', '复制命令'],
+          ['attach', '附加到草稿'],
+          ['search', '在此块中搜索']
+        ]) {
+          const item = document.createElement('button')
+          item.role = 'menuitem'
+          item.textContent = label
+          item.onclick = () => {
+            lastAction = { mode: engine.mode, id, action }
+            message(`命令 ${id + 1}：${label}（交互示意）`)
+            menu.hidden = true
+          }
+          menu.append(item)
+        }
+        menu.hidden = false
+        const p = engine.point('more')
+        menu.style.left = Math.max(8, Math.min(innerWidth - 180, p.x - 160)) + 'px'
+        menu.style.top = Math.min(innerHeight - 125, p.y + 16) + 'px'
+        menu.querySelector('button').focus()
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') $('#menu').hidden = true
+      })
+      document.addEventListener('pointerdown', (e) => {
+        if (!e.target.closest('#menu') && !e.target.closest('[data-action=more]')) $('#menu').hidden = true
+      })
+      function stop() {
+        cancelAnimationFrame(activeAnimation)
+        activeAnimation = 0
+        $('#scroll').setAttribute('aria-pressed', 'false')
+        $('#stream').setAttribute('aria-pressed', 'false')
+      }
+      function animate(kind) {
+        stop()
+        let started = performance.now()
+        const run = (now) => {
+          const elapsed = now - started
+          for (const engine of engines) {
+            if (!engine.available || engine.paused) continue
+            if (kind === 'scroll') engine.scroll = (elapsed * 0.22) % Math.max(1, engine.total - engine.height)
+            else {
+              engine.streamTick = Math.floor(elapsed / 33.333)
+              engine.scroll = engine.layoutRows[1].y
+            }
+            engine.request()
+          }
+          activeAnimation = requestAnimationFrame(run)
+        }
+        activeAnimation = requestAnimationFrame(run)
+        $('#' + kind).setAttribute('aria-pressed', 'true')
+      }
+      const median = (values) => {
+        const s = values.slice().sort((a, b) => a - b)
+        return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2
+      }
+      const quantile = (values, q) => {
+        const s = values.slice().sort((a, b) => a - b)
+        return s[Math.min(s.length - 1, Math.floor(s.length * q))] || 0
+      }
+      const names = { scroll: '滚动', fold: '折叠', stream: '持续输出' }
+      async function settle() {
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      }
+      async function runScenario(mode, scenario, duration = 2000, dense = false, prepared = false) {
+        stop()
+        const engine = engines.find((x) => x.mode === mode)
+        if (!engine.available) throw Error(mode + ' 原生 API 不可用')
+        if (!prepared) await prepareRun(mode, dense)
+        const frameTimes = []
+        const started = performance.now()
+        let previous = started,
+          folds = 0,
+          updates = 0
+        runStats = { mode, scenario }
+        await new Promise((resolve) => {
+          const tick = (now) => {
+            const elapsed = now - started
+            frameTimes.push(now - previous)
+            previous = now
+            let changed = false
+            if (scenario === 'scroll') {
+              engine.scroll = 200 + elapsed * 0.35
+              changed = true
+            } else if (scenario === 'fold') {
+              const target = Math.min(10, Math.floor(elapsed / 200))
+              while (folds < target) {
+                engine.collapsed.has(1) ? engine.collapsed.delete(1) : engine.collapsed.add(1)
+                engine.layout()
+                folds++
+                changed = true
+              }
+            } else {
+              const target = Math.min(60, Math.floor(elapsed / (duration / 60)))
+              while (updates < target) {
+                updates++
+                engine.streamTick = updates
+                changed = true
+              }
+              engine.scroll = engine.layoutRows[1].y
+            }
+            if (changed) engine.request()
+            if (elapsed >= duration) requestAnimationFrame(resolve)
+            else requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        })
+        await settle()
+        runStats = null
+        return {
+          mode,
+          scenario,
+          dense,
+          elapsed: performance.now() - started,
+          callbacks: frameTimes.length,
+          frameP95: quantile(frameTimes, 0.95),
+          longFrames: frameTimes.filter((x) => x > 50).length,
+          folds,
+          updates,
+          ...engine.digest()
+        }
+      }
+      async function prepareRun(mode, dense = false) {
+        const engine = engines.find((e) => e.mode === mode)
+        for (const e of engines) {
+          e.paused = e !== engine
+          $('#pane-' + e.mode).hidden = e !== engine
+        }
+        document.body.classList.add('single-mode')
+        engine.paused = false
+        engine.size()
+        engine.reset(dense)
+        await settle()
+        engine.frames = 0
+        engine.drawCalls = 0
+        engine.cellRows = 0
+        engine.transformWrites = 0
+        engine.inputSamples = []
+      }
+      function restore() {
+        document.body.classList.remove('single-mode')
+        for (const e of engines) {
+          e.paused = false
+          $('#pane-' + e.mode).hidden = false
+          e.size()
+          e.reset($('#density').value === 'dense')
+        }
+      }
+      function renderResults(data) {
+        if (!data) return
+        $('#result-context').textContent = data.context
+        $('#verdict').textContent = data.verdict
+        $('#profile-note').textContent = data.limiter || ''
+        const metric = currentMetric
+        const max = Math.max(
+          ...data.summary.flatMap((s) => [s.dom[metric]?.median || 0, s.hic[metric]?.median || 0]),
+          0.01
+        )
+        const chart = $('#chart')
+        chart.replaceChildren()
+        for (const s of data.summary) {
+          const row = document.createElement('div')
+          row.className = 'chart-row'
+          const label = document.createElement('span')
+          label.className = 'chart-label'
+          label.textContent = names[s.scenario]
+          row.append(label)
+          const group = document.createElement('div')
+          group.className = 'bar-group'
+          for (const mode of ['dom', 'hic']) {
+            const stat = s[mode][metric]
+            const line = document.createElement('div')
+            line.className = 'bar-line'
+            const name = document.createElement('span')
+            name.textContent = mode === 'dom' ? 'A' : 'B'
+            const track = document.createElement('div')
+            track.className = 'bar-track'
+            const bar = document.createElement('div')
+            bar.className = 'bar' + (mode === 'hic' ? ' hic' : '')
+            bar.style.width = ((stat?.median || 0) / max) * 100 + '%'
+            track.append(bar)
+            const value = document.createElement('span')
+            value.className = 'bar-value'
+            value.textContent = stat
+              ? `${stat.median.toFixed(2)} (${stat.min.toFixed(2)}–${stat.max.toFixed(2)})`
+              : '未测'
+            line.append(name, track, value)
+            group.append(line)
+          }
+          row.append(group)
+          chart.append(row)
+        }
+      }
+      async function localBenchmark() {
+        if (!native) {
+          message('当前宿主缺少原生 API，不能执行 A/B 对照。')
+          return
+        }
+        $('#benchmark').disabled = true
+        const samples = []
+        try {
+          for (const mode of ['dom', 'hic']) await runScenario(mode, 'scroll', 500)
+          for (const scenario of ['scroll', 'fold', 'stream'])
+            for (let round = 0; round < 5; round++) {
+              for (const mode of round % 2 ? ['hic', 'dom'] : ['dom', 'hic']) {
+                message(`${names[scenario]} · ${round + 1}/5 · ${mode === 'dom' ? 'A' : 'B'}`)
+                samples.push(await runScenario(mode, scenario, 1200, $('#density').value === 'dense'))
+              }
+            }
+          const summary = ['scroll', 'fold', 'stream'].map((scenario) => {
+            const out = { scenario }
+            for (const mode of ['dom', 'hic']) {
+              const group = samples.filter((s) => s.scenario === scenario && s.mode === mode)
+              const stats = (field) => {
+                const v = group.map(field)
+                return { median: median(v), min: Math.min(...v), max: Math.max(...v) }
+              }
+              out[mode] = {
+                task: null,
+                style: null,
+                frame: stats((s) => s.frameP95),
+                input: null
+              }
+            }
+            return out
+          })
+          recorded = {
+            context: '当前宿主 · 5 轮 · 页面内测量',
+            verdict: '这里只测帧间隔；主线程、样式与布局和按键数据需外部 CDP 测量，缺少的指标标为未测。',
+            summary,
+            samples
+          }
+          renderResults(recorded)
+          message('页面内对照完成；正式记录请查看附带的外部测量结果。')
+        } catch (e) {
+          message(e.message)
+        } finally {
+          restore()
+          $('#benchmark').disabled = false
+        }
+      }
+      engines = [new Surface('dom'), new Surface('hic')]
+      $('#unsupported').hidden = native
+      $('#native-badge').textContent = native ? '原生 API' : '不支持'
+      $('#capability').textContent =
+        `当前宿主：${native ? '支持原生 drawElementImage' : '未提供 drawElementImage'}。已验证的 Cherry Electron 45.2.2 / Chromium 156 默认不支持；Chrome 157 默认支持。`
+      $('#scroll').onclick = () => (activeAnimation ? stop() : animate('scroll'))
+      $('#stream').onclick = () => animate('stream')
+      $('#stop').onclick = stop
+      $('#fold-all').onclick = () => {
+        stop()
+        for (const e of engines) {
+          e.collapsed.has(0) ? e.collapsed.delete(0) : e.collapsed.add(0)
+          e.layout()
+          e.request()
+        }
+      }
+      $('#density').onchange = () => {
+        stop()
+        for (const e of engines) e.reset($('#density').value === 'dense')
+      }
+      $('#benchmark').onclick = localBenchmark
+      $('#metric-tabs').onclick = (e) => {
+        const b = e.target.closest('button')
+        if (!b) return
+        currentMetric = b.dataset.metric
+        for (const x of $('#metric-tabs').children) x.setAttribute('aria-pressed', String(x === b))
+        renderResults(recorded)
+      }
+      window.comparison = {
+        native,
+        engines,
+        runScenario,
+        prepareRun,
+        restore,
+        settle,
+        get lastAction() {
+          return lastAction
+        },
+        get results() {
+          return recorded
+        },
+        setResults(data) {
+          recorded = data
+          renderResults(data)
+        },
+        pause() {
+          stop()
+          for (const e of engines) e.paused = true
+        },
+        resume() {
+          restore()
+        }
+      }
+      if (recorded) renderResults(recorded)
+    })()
+  </script>
+</html>
