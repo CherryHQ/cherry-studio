@@ -62,6 +62,19 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
   })
   return Promise.all(
     attachments.map(async (attachment, index) => {
+      // A managed attachment's durable identity is its entry id: the persisted
+      // path is a snapshot that goes stale when userData relocates, so resolve
+      // the entry's current physical path at delivery and only then fall back
+      // to the snapshot (cherry-pr-review inv_66be8317fbf2fe8a).
+      let sourcePath = paths[index]!
+      if (!attachment.blob && attachment.entryId) {
+        try {
+          sourcePath = await window.api.file.getPhysicalPath({ id: attachment.entryId })
+        } catch {
+          // The entry is gone or unreadable: the persisted path is the last
+          // resort, and its failure surfaces exactly as before.
+        }
+      }
       const entry = attachment.blob
         ? await window.api.file.createInternalEntry({
             source: 'bytes',
@@ -72,7 +85,7 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
           })
         : await window.api.file.createInternalEntry({
             source: 'path',
-            path: paths[index]!,
+            path: sourcePath,
             cleanupPolicy: 'delete_when_unreferenced'
           })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })

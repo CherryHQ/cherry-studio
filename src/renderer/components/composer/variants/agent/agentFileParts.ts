@@ -93,7 +93,7 @@ export const buildAgentFilePartsForAttachments = async (
     // A path-less attachment (message-editing round-trip) cannot be matched
     // against the workspace, so it takes the internalized branch — the same
     // outcome it already had when its non-path value failed the match.
-    if (attachment.path && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+    if (attachment.path && !attachment.entryId && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
       accessibleAttachments.push({
         attachment,
         filePath: canonicalizeFilePath(attachment.path),

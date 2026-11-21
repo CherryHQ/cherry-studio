@@ -123,6 +123,42 @@ describe('buildFilePartsForAttachments', () => {
     expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
   })
 
+  it('resolves a managed attachment through its entry id at delivery instead of the persisted path', async () => {
+    // userData relocated: the persisted path is stale, but the entry id still
+    // resolves to the intact file in the new profile (cherry-pr-review
+    // inv_66be8317fbf2fe8a).
+    vi.mocked(window.api.file.getPhysicalPath)
+      .mockResolvedValueOnce('/new-profile/files/entry-1.png' as never)
+      .mockResolvedValueOnce('/p/fe-1.png' as never)
+
+    const [part] = await buildFilePartsForAttachments([
+      attachment({ entryId: 'entry-1', path: '/old-profile/files/entry-1.png' as AbsoluteFilePath })
+    ])
+
+    expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: 'entry-1' })
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/new-profile/files/entry-1.png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(part.url).toBe('file:///p/fe-1.png')
+  })
+
+  it('falls back to the persisted path when the entry id no longer resolves', async () => {
+    vi.mocked(window.api.file.getPhysicalPath)
+      .mockRejectedValueOnce(new Error('entry gone'))
+      .mockResolvedValueOnce('/p/fe-1.png' as never)
+
+    const [part] = await buildFilePartsForAttachments([attachment({ entryId: 'entry-1' })])
+
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/image.png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(part.url).toBe('file:///p/fe-1.png')
+  })
+
   it('keeps the safe pasted-text marker on the sent file part', async () => {
     const [part] = await buildFilePartsForAttachments([
       attachment({

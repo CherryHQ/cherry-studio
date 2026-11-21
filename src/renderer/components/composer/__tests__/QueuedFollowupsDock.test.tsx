@@ -222,7 +222,9 @@ describe('QueuedFollowupsDock', () => {
                 }
               ]
             },
-            payload: { text: url, userMessageParts: [] }
+            payload: { text: url, userMessageParts: [] },
+            status: 'pending',
+            updatedAt: '2026-01-01T00:00:00.000Z'
           }
         ]}
         paused={false}
@@ -262,7 +264,9 @@ describe('QueuedFollowupsDock', () => {
                 }
               ]
             },
-            payload: { text, userMessageParts: [] }
+            payload: { text, userMessageParts: [] },
+            status: 'pending',
+            updatedAt: '2026-01-01T00:00:00.000Z'
           }
         ]}
         paused={false}
