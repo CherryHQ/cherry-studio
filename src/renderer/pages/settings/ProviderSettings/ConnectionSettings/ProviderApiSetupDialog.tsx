@@ -84,6 +84,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     allModels: availableModels,
     localModels,
     reloadModels,
+    nativeReasoningById,
     isLoadingModels
   } = useProviderModelPullReconcile(providerId)
   const [step, setStep] = useState<ProviderApiSetupStep>(initialStep)
@@ -403,6 +404,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         selectedModels,
         localModels,
         knownModels: persistedModelsRef.current.values(),
+        nativeReasoningById,
         createModels,
         updateModels,
         onPersisted: (models) => {
@@ -430,6 +432,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     isBusy,
     keepProviderDisabled,
     localModels,
+    nativeReasoningById,
     probeModel,
     provider,
     selectedModels,

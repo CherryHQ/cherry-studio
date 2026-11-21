@@ -297,6 +297,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   ['parameterSupport', 'parameters'],
   'reasoning',
   'supportsStreaming',
+  'reportedReasoning',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -337,6 +338,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
+    reportedReasoning: dto.reportedReasoning ?? null,
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
@@ -403,6 +405,8 @@ function presetDeltaToNewUserModel(
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
     reasoning: mergeUserReasoning(null, dto.reasoning),
+    // Provider-reported controls are discovery metadata, not a user delta: store verbatim.
+    reportedReasoning: dto.reportedReasoning ?? null,
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -410,7 +414,7 @@ function presetDeltaToNewUserModel(
   }
 }
 
-function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
+function applyStoredPresetDeltas(baseline: Model, row: UserModelRow, profile?: ResolvedReasoningProfile): Model {
   return applyUserOverlay(baseline, {
     name: row.name,
     description: row.description,
@@ -423,6 +427,14 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
+    // Ollama rows carry natively reported reasoning controls (from `/api/show`) in
+    // reportedReasoning: they win over the catalog baseline, including an explicit empty
+    // control set that retires a stale tier. The user's defaultEffort overlays afterwards
+    // in applyStoredModelState.
+    reasoning:
+      profile?.format === 'ollama' && row.reportedReasoning != null
+        ? projectRuntimeReasoning(row.reportedReasoning, profile.wire)
+        : undefined,
     parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing
   })
@@ -444,7 +456,16 @@ function assertCompleteCustomModelRow(row: UserModelRow): asserts row is Complet
 
 function customRowToRuntimeModel(row: UserModelRow): Model {
   assertCompleteCustomModelRow(row)
-  const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
+  const userReasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
+  // Natively reported controls (e.g. Ollama `/api/show`) replace any stale locally inferred
+  // tiers; the user's defaultEffort always wins over the reported default.
+  const reported = row.reportedReasoning ? ReasoningConfigSchema.parse(row.reportedReasoning) : undefined
+  const reasoning = reported
+    ? {
+        ...reported,
+        ...(userReasoning?.defaultEffort !== undefined ? { defaultEffort: userReasoning.defaultEffort } : {})
+      }
+    : userReasoning
 
   return {
     id: createUniqueModelId(row.providerId, row.modelId),
@@ -466,6 +487,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
+    ...(reported ? { reportedReasoning: reported } : {}),
     parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing ?? undefined,
     hasCustomPricing: row.pricing != null,
@@ -484,6 +506,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
       ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
       : {}),
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
+    ...(row.reportedReasoning ? { reportedReasoning: row.reportedReasoning } : {}),
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
@@ -497,11 +520,11 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
 
 function createPresetFallback(
   row: UserModelRow,
-  profile?: ResolvedReasoningProfile['wire'],
+  profile?: ResolvedReasoningProfile,
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  const baseline = createCustomModel(row.providerId, row.modelId, profile?.wire, serviceTierControl)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row, profile), row)
 }
 
 class ModelService {
@@ -553,7 +576,7 @@ class ModelService {
         (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
           ? projectRuntimeReasoning(
               {
-                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+                controls: [{ kind: 'toggle' }]
               },
               registryData.reasoningProfile.wire
             )
@@ -598,6 +621,12 @@ class ModelService {
 
       if (dtoKey === 'reasoning') {
         updates.reasoning = mergeUserReasoning(existing.reasoning, dto.reasoning)
+        continue
+      }
+
+      if (dtoKey === 'reportedReasoning') {
+        // Server-managed discovery metadata: verbatim store, `null` clears.
+        updates.reportedReasoning = dto.reportedReasoning ?? null
         continue
       }
 
@@ -754,12 +783,15 @@ class ModelService {
       if (row.presetModelId) {
         try {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.resolveModel(providerContext, row.modelId)
+            providerRegistryService.resolveModel(providerContext, row.modelId, row.endpointTypes?.[0])
           if (providerModel) {
-            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+            return {
+              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
+              presetModelId: null
+            }
           }
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            return createPresetFallback(row, reasoningProfile, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -770,7 +802,7 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = applyStoredPresetDeltas(baseline, row)
+          const resolved = applyStoredPresetDeltas(baseline, row, reasoningProfile)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -788,9 +820,12 @@ class ModelService {
       if (!modelId) return model
       try {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.resolveModel(providerContext, modelId)
+          providerRegistryService.resolveModel(providerContext, modelId, row.endpointTypes?.[0])
         if (providerModel) {
-          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          return {
+            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
+            presetModelId: null
+          }
         }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
@@ -845,7 +880,12 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (registryModel) {
+        if (reasoningProfile.format === 'ollama' && model.reasoning?.controls !== undefined) {
+          // Natively reported Ollama controls (persisted from `/api/show`) win over catalog and
+          // inferred reasoning, including an explicit empty control set, which retires a stale
+          // locally inferred tier instead of letting it override the model's reported controls.
+          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+        } else if (registryModel) {
           reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
