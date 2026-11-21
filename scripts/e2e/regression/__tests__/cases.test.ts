@@ -8,7 +8,17 @@ import { runInNewContext } from 'node:vm'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
+import {
+  caseGrep,
+  getCase,
+  missingCapabilities,
+  parseTaskSelection,
+  PHASE_IDS,
+  resolveWorkflowTasks,
+  selectCases,
+  supportsPlatform,
+  TASK_SELECTIONS
+} from '../cases'
 
 describe('regression execution plan', () => {
   it('prepares the isolated runtime before native fixtures can start any Electron instance', () => {
@@ -46,12 +56,12 @@ describe('regression execution plan', () => {
     }
   )
 
-  it('offers every supported task in the workflow dropdown with full regression as the default', () => {
+  it('accepts comma-separated tasks while preserving full regression as the default', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    const task = workflow.on.workflow_dispatch.inputs.task
-    expect(task.type).toBe('choice')
+    const { suite, task } = workflow.on.workflow_dispatch.inputs
+    expect(suite).toMatchObject({ type: 'choice', default: 'all', options: ['all', 'regression', 'smoke'] })
+    expect(task.type).toBe('string')
     expect(task.default).toBe('all')
-    expect(task.options).toEqual(TASK_SELECTIONS)
   })
 
   it('caches only tool downloads and still installs and checks every tool on a cache hit', () => {
@@ -79,37 +89,91 @@ describe('regression execution plan', () => {
     }
   })
 
+  it('prepares the Windows registry PATH before launches that exercise OpenClaw', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string }>
+    const install = steps.findIndex(({ name }) => name === 'Install code tools under test')
+    const verify = steps.findIndex(({ name }) => name === 'Verify OpenClaw on the Windows system PATH')
+    const launch = steps.findIndex(({ name }) => name === 'Launch controlled Cherry Studio once')
+    expect(verify).toBeGreaterThan(install)
+    expect(verify).toBeLessThan(launch)
+    for (const platform of ['windows', 'macos']) {
+      for (const task of ['all', 'code-tools', 'openclaw', 'settings,openclaw', 'chat-core', 'code-cli']) {
+        const context = {
+          matrix: { platform },
+          needs: { resolve: { outputs: { task } } },
+          contains: (value: string, part: string) => value.includes(part),
+          format: (template: string, value: string) => template.replace('{0}', value)
+        }
+        const includesOpenClaw = selectCases(parseTaskSelection(task)).some(({ id }) => id === 'CODE-03')
+        expect(runInNewContext(steps[verify].if!, context)).toBe(platform === 'windows' && includesOpenClaw)
+      }
+    }
+  })
+
   it.each([
+    { event_name: 'schedule', ref_type: 'branch', ref: 'refs/heads/main', allowed: true },
     { event_name: 'workflow_dispatch', ref_type: 'branch', ref: 'refs/heads/main', allowed: true },
     { event_name: 'workflow_dispatch', ref_type: 'branch', ref: 'refs/heads/feature/e2e-fix', allowed: true },
     { event_name: 'workflow_dispatch', ref_type: 'tag', ref: 'refs/tags/v2.0.8', allowed: false },
-    { event_name: 'pull_request', ref_type: 'branch', ref: 'refs/pull/123/merge', allowed: false }
+    { event_name: 'pull_request', ref_type: 'branch', ref: 'refs/pull/123/merge', allowed: false },
+    { event_name: 'push', ref_type: 'branch', ref: 'refs/heads/main', allowed: false }
   ])('gates controller execution for $event_name on $ref', ({ allowed, ...github }) => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
+    expect(Object.keys(workflow.on).sort()).toEqual(['schedule', 'workflow_dispatch'])
     expect(runInNewContext(workflow.jobs.resolve.if, { github })).toBe(allowed)
     expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
-  it('prepares native and utility-process dependencies before the first branch launch only', () => {
+  it('builds each platform once and restores that artifact before either suite can launch', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
-    const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string; run?: string }>
-    const prepare = steps.findIndex((step) => step.name === 'Prepare application runtime once')
-    expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
-    expect(prepare).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
-    expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
-    const build = steps.findIndex((step) => step.name === 'Build application once')
-    expect(build).toBeGreaterThan(prepare)
-    expect(build).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
-    expect(steps[build].if).toBe("needs.resolve.outputs.mode == 'branch'")
-    const commands = steps.flatMap((step) => step.run?.split('\n') ?? [])
+    const { build, test, smoke } = workflow.jobs
+    expect(build.strategy.matrix.include.map(({ platform }: { platform: string }) => platform)).toEqual([
+      'macos',
+      'windows'
+    ])
+    const buildSteps = build.steps as Array<{ name: string; run?: string; with?: { name?: string } }>
+    const commands = buildSteps.flatMap(({ run }) => run?.split('\n') ?? [])
     expect(commands.filter((command) => command.includes('electron-vite build'))).toHaveLength(1)
-    expect(commands.filter((command) => command.includes('rebuild:electron'))).toEqual([
-      'pnpm --dir target-app rebuild:electron'
-    ])
-    expect(commands.filter((command) => command.includes('build:utility-process'))).toEqual([
-      'pnpm --dir target-app run build:utility-process'
-    ])
+    expect(commands).toContain('pnpm run build:utility-process')
+    const upload = buildSteps.find(({ name }) => name === 'Upload platform build')
+
+    for (const [suite, launch] of [
+      [test, 'Launch controlled Cherry Studio once'],
+      [smoke, 'Run standalone smoke suite']
+    ] as const) {
+      expect(suite.needs).toEqual(['resolve', 'build'])
+      expect(suite.strategy.matrix).toEqual(build.strategy.matrix)
+      const steps = suite.steps as Array<{ name: string; run?: string; with?: { name?: string } }>
+      const download = steps.find(({ name }) => name === 'Download platform build')
+      expect(download?.with?.name).toBe(upload?.with?.name)
+      const find = (name: string) => steps.findIndex((step) => step.name === name)
+      const restore = find('Verify and restore platform build')
+      const rebuild = find('Rebuild the application native module')
+      expect(restore).toBeGreaterThan(find('Download platform build'))
+      expect(rebuild).toBeGreaterThan(restore)
+      expect(find(launch)).toBeGreaterThan(rebuild)
+      expect(steps.some(({ run }) => run?.includes('electron-vite build'))).toBe(false)
+    }
+  })
+
+  it.each([
+    ['branch', 'all', 'success', true, true],
+    ['branch', 'regression', 'success', true, false],
+    ['branch', 'smoke', 'success', false, true],
+    ['branch', 'all', 'failure', false, false],
+    ['tag', 'all', 'skipped', true, false]
+  ] as const)('schedules %s %s after build %s', (mode, suite, build, regression, smoke) => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const context = {
+      cancelled: () => false,
+      needs: {
+        resolve: { result: 'success', outputs: { mode, ...resolveWorkflowTasks({ suite }, mode) } },
+        build: { result: build }
+      }
+    }
+    expect(runInNewContext(workflow.jobs.test.if, context)).toBe(regression)
+    expect(runInNewContext(workflow.jobs.smoke.if, context)).toBe(smoke)
   })
 
   it('selects only the requested task within its workflow phase', () => {
@@ -125,7 +189,7 @@ describe('regression execution plan', () => {
     ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
     ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
     ['code-tools', ['CODE-01', 'CODE-03']],
-    ['paintings', ['P-01', 'MP-90', 'MP-91']],
+    ['paintings', ['MP-91']],
     ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -138,10 +202,22 @@ describe('regression execution plan', () => {
     ['marketplace-smoke', ['MARKET-01']],
     ['scheduled-tasks', ['MP-58']],
     ['chat-error-recovery', ['MP-17']],
+    ['chat-web-tools', ['MP-10', 'MP-35']],
+    ['message-token-details', ['MP-39']],
+    ['code-block-toolbar', ['MP-40']],
+    ['note-knowledge-export', ['MP-79']],
+    ['message-input-settings', ['MP-107']],
+    ['file-library-upload', ['MP-68']],
+    ['file-library-preview', ['MP-70']],
     ['native-recovery', ['MP-110', 'MP-116']],
-    ['native-notifications', ['MP-110']]
+    ['native-notifications', ['MP-110']],
+    ['cherryin-chat', ['M-01']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
+  })
+
+  it('rejects the removed image-generation task before execution', () => {
+    expect(() => parseTaskSelection('image-generation')).toThrow()
   })
 
   it('keeps execution order out of selectable task names', () => {
@@ -153,8 +229,9 @@ describe('regression execution plan', () => {
     const step = workflow.jobs.test.steps.find(
       (step: { name: string }) => step.name === 'Prepare Everything MCP package'
     )
-    for (const task of ['all', 'mcp-skills', 'everything-mcp', 'notes']) {
-      expect(runInNewContext(step.if, { needs: { resolve: { outputs: { task } } } })).toBe(task !== 'notes')
+    for (const task of ['all', 'mcp-skills', 'everything-mcp', 'notes', 'notes,mcp-skills']) {
+      const outputs = resolveWorkflowTasks({ task })
+      expect(runInNewContext(step.if, { needs: { resolve: { outputs } } })).toBe(task !== 'notes')
     }
   })
 
@@ -191,46 +268,52 @@ describe('regression execution plan', () => {
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery'] as const)(
-  'discovers the selected %s cases through Playwright without matching another task prefix',
-  (task) => {
-    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
-    try {
-      const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
-      const args = [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json']
-      if (task !== 'all') args.push('--grep', `@${task}(?:\\s|$)`)
-      const report = JSON.parse(
-        execFileSync(process.execPath, args, {
-          encoding: 'utf8',
-          timeout: 20_000,
-          env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
-        })
-      ) as JSONReport
-      const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; tasks: string[]; phase: string }> =>
-        suites.flatMap((suite) => [
-          ...suite.specs.flatMap((spec) =>
-            spec.tests.map((test) => ({
-              id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
-              tasks: spec.tags,
-              phase: basename(spec.file, '.test.ts')
-            }))
-          ),
-          ...collect(suite.suites ?? [])
-        ])
-      expect(report.errors).toEqual([])
-      const discovered = collect(report.suites)
-      const selected = selectCases(task).map(({ id, tasks, phase }) => ({ id, tasks, phase }))
-      expect(discovered).toHaveLength(selected.length)
-      for (const phase of PHASE_IDS) {
-        expect(discovered.filter((test) => test.phase === phase)).toEqual(
-          selected.filter((test) => test.phase === phase)
-        )
-      }
-    } finally {
-      rmSync(directory, { recursive: true, force: true })
+it.each([
+  'all',
+  'notes',
+  'notes-smoke',
+  'knowledge',
+  'code-tools',
+  'native-recovery',
+  'custom-provider-chat,polish-prompts,browser-recovery',
+  'notes-smoke,startup-smoke,notes-smoke'
+] as const)('discovers the selected %s cases through Playwright without matching another task prefix', (task) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
+  try {
+    const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
+    const args = [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json']
+    const selection = parseTaskSelection(task)
+    const grep = caseGrep(selection)
+    if (grep) args.push('--grep', grep)
+    const report = JSON.parse(
+      execFileSync(process.execPath, args, {
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
+      })
+    ) as JSONReport
+    const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; tasks: string[]; phase: string }> =>
+      suites.flatMap((suite) => [
+        ...suite.specs.flatMap((spec) =>
+          spec.tests.map((test) => ({
+            id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
+            tasks: spec.tags,
+            phase: basename(spec.file, '.test.ts')
+          }))
+        ),
+        ...collect(suite.suites ?? [])
+      ])
+    expect(report.errors).toEqual([])
+    const discovered = collect(report.suites)
+    const selected = selectCases(selection).map(({ id, tasks, phase }) => ({ id, tasks, phase }))
+    expect(discovered).toHaveLength(selected.length)
+    for (const phase of PHASE_IDS) {
+      expect(discovered.filter((test) => test.phase === phase)).toEqual(selected.filter((test) => test.phase === phase))
     }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
-)
+})
 
 it('keeps failed phase steps visible while allowing later phases to run', () => {
   const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
@@ -241,7 +324,7 @@ it('keeps failed phase steps visible while allowing later phases to run', () => 
     expect(
       runInNewContext(phase.if, {
         cancelled: () => false,
-        steps: { launch: { outcome: 'success' } }
+        steps: { launch: { outcome: 'success' }, cherryin_browser: { outcome: 'success' } }
       })
     ).toBe(true)
   }

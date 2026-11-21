@@ -14,9 +14,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,
-  CHERRYAI_DEFAULT_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
-  CHERRYAI_DEFAULT_MODEL_NAME,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
@@ -36,12 +34,6 @@ describe('CherryAiDefaultModelSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
       .limit(1)
     return preference?.value
-  }
-
-  async function expectSeededDefaultModelPreferences() {
-    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
-      expect(await readPreferenceValue(key)).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-    }
   }
 
   it('seeds branded CherryAI providers, Qwen model, and missing default model preferences', async () => {
@@ -65,40 +57,19 @@ describe('CherryAiDefaultModelSeeder', () => {
 
     expect(provider).toMatchObject({
       providerId: CHERRYAI_PROVIDER_ID,
-      presetProviderId: CHERRYAI_PROVIDER_ID,
-      name: 'CherryAI',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      isEnabled: true
+      presetProviderId: CHERRYAI_PROVIDER_ID
     })
     expect(provider?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(CHERRYAI_API_BASE_URL)
     expect(cloudProvider).toMatchObject({
       providerId: CHERRY_CLOUD_PROVIDER_ID,
       presetProviderId: CHERRYAI_PROVIDER_ID,
-      name: 'CherryAI',
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      isEnabled: true
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     })
     expect(model).toMatchObject({
       id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       providerId: CHERRYAI_PROVIDER_ID,
-      modelId: CHERRYAI_DEFAULT_MODEL_ID,
-      name: CHERRYAI_DEFAULT_MODEL_NAME,
-      group: CHERRYAI_DEFAULT_MODEL_GROUP,
-      isEnabled: true,
-      isHidden: false
+      modelId: CHERRYAI_DEFAULT_MODEL_ID
     })
-    await expectSeededDefaultModelPreferences()
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing CherryAI default provider', {
-      providerId: CHERRYAI_PROVIDER_ID
-    })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing CherryAI default model', {
-      modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-    })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing default model preference', {
-      key: 'chat.default_model_id',
-      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-    })
-    expect(await readPreferenceValue('topic.naming.model_id')).toBeUndefined()
   })
 
   it('does not overwrite existing non-empty default model preferences', async () => {

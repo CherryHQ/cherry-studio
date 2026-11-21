@@ -182,7 +182,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(input.value).toBe('bet')
       fireEvent.change(input, { target: { value: 'gam' } })
       expect(onSearchChange).toHaveBeenCalledWith('gam')
@@ -247,21 +247,6 @@ describe('EntitySelector', () => {
       openPopover()
       expect(screen.getByTestId('loading')).toBeInTheDocument()
       expect(screen.queryByTestId('row-1')).not.toBeInTheDocument()
-    })
-
-    it('renders nothing when empty without emptyState (no hardcoded fallback)', () => {
-      render(
-        <EntitySelector
-          trigger={<button type="button">Open</button>}
-          items={[]}
-          mode="single"
-          value={null}
-          onChange={vi.fn()}
-          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
-        />
-      )
-      openPopover()
-      expect(screen.queryByText(/no items/i)).not.toBeInTheDocument()
     })
   })
 
@@ -538,7 +523,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(document.activeElement).toBe(input)
     })
 
@@ -556,7 +541,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(document.activeElement).not.toBe(input)
     })
 
@@ -589,7 +574,7 @@ describe('EntitySelector', () => {
 
       render(<RerenderHarness />)
       openPopover()
-      const input = screen.getByPlaceholderText('Search 0') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search 0')
       await waitFor(() => expect(document.activeElement).toBe(input), { timeout: 200 })
 
       const filterToggle = screen.getByRole('button', { pressed: false })

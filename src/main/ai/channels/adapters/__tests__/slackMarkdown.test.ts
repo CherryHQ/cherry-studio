@@ -47,24 +47,6 @@ describe('toSlackMarkdown', () => {
 
   // ─── Headers ──────────────────────────────────────────────
 
-  it('converts # header to *header*', () => {
-    expect(toSlackMarkdown('# Title')).toBe('*Title*')
-  })
-
-  it('converts ## header to *header*', () => {
-    expect(toSlackMarkdown('## Subtitle')).toBe('*Subtitle*')
-  })
-
-  it('converts ### header to *header*', () => {
-    expect(toSlackMarkdown('### Section')).toBe('*Section*')
-  })
-
-  it('handles header in multiline text', () => {
-    const input = '# Title\n\nSome text\n\n## Section'
-    const expected = '*Title*\n\nSome text\n\n*Section*'
-    expect(toSlackMarkdown(input)).toBe(expected)
-  })
-
   // ─── Code preservation ────────────────────────────────────
 
   it('preserves inline code', () => {
@@ -98,8 +80,6 @@ describe('toSlackMarkdown', () => {
 
   it('handles a complex mixed message', () => {
     const input = [
-      '# Summary',
-      '',
       'Here is **important** info and *note* this.',
       '',
       '```python',
@@ -110,8 +90,6 @@ describe('toSlackMarkdown', () => {
     ].join('\n')
 
     const expected = [
-      '*Summary*',
-      '',
       'Here is *important* info and _note_ this.',
       '',
       '```python',

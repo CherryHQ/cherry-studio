@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import { getDictationTarget } from '@renderer/utils/dictationTarget'
 
@@ -8,7 +9,9 @@ const HOLD_DELAY_MS = 800
 const MOVE_TOLERANCE_PX = 6
 
 export function useDictationMouseHold(): void {
-  const [enabled] = usePreference('feature.voice.dictation.mouse_hold_enabled')
+  const [mouseHoldEnabled] = usePreference('feature.voice.dictation.mouse_hold_enabled')
+  const dictationEnabled = useDictationEnabled()
+  const enabled = dictationEnabled && mouseHoldEnabled
 
   useEffect(() => {
     if (!enabled) return

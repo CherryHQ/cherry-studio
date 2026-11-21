@@ -1,5 +1,3 @@
-import * as z from 'zod'
-
 /**
  * Legacy v1 `FileMetadata` shape.
  *
@@ -18,6 +16,8 @@ import * as z from 'zod'
  * Will be removed once the last v1 store is migrated and its KnowledgeMigrator
  * input shape is no longer reachable.
  */
+import * as z from 'zod'
+
 import type OpenAI from '@cherrystudio/openai'
 import { FILE_TYPE, type FileType, FileTypeSchema } from '@shared/types/file'
 

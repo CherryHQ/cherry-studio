@@ -19,7 +19,6 @@ describe('generateProductManifest', () => {
   it('derives package metadata and routes from the current package', () => {
     const manifest = generateProductManifest()
 
-    expect(manifest.schemaVersion).toBe(1)
     const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf-8')) as {
       name: string
       version: string

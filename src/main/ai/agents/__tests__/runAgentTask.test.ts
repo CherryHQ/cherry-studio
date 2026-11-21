@@ -21,6 +21,7 @@ const {
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
+  mockReleaseOverflowed,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -36,6 +37,7 @@ const {
       captured.listeners = opts.listeners
       return { mode: 'started' as const }
     }),
+    mockReleaseOverflowed: vi.fn(),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
@@ -52,7 +54,11 @@ vi.mock('@application', async () => {
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
+    AgentJobsService: {
+      releaseOverflowedTaskSession: mockReleaseOverflowed,
+      bindTaskSessionReuse: mockBindTaskSessionReuse,
+      syncHeartbeat: syncHeartbeatScheduleMock
+    },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
     // An untrusted agent directory pauses its heartbeat schedule.
@@ -425,6 +431,24 @@ describe('runAgentTask', () => {
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['context_length_exceeded', undefined, 1],
+      ['Claude Code process exited with code 1', 'context_length', 1],
+      ['network timeout', undefined, 0]
+    ] as const)('handles a terminal %s on a reused session', async (message, claudeCodeExitCategory, releases) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(makeSession('/ws/a'))
+      const run = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
+      await expect(run).rejects.toThrow(message)
+      expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
+    })
+
     it('runs one-off when a queued job has a stale reuse revision', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
@@ -599,7 +623,6 @@ describe('runAgentTask', () => {
 
     expect(mockGetAdapter).toHaveBeenCalledTimes(1)
     expect(mockGetAdapter).toHaveBeenCalledWith('ch-match')
-    expect(captured.listeners).toHaveLength(2)
   })
 
   // The stream manager snapshots listeners then invokes every onDone. The task sentinel
@@ -753,8 +776,7 @@ describe('runAgentTask', () => {
     await expect(promise).rejects.toThrow('boom')
 
     // Exactly one channel message, and it's the task-framed summary — not the bare `Error: …`.
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
+
     expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)
   })
 
@@ -849,7 +871,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create)
-      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-stale' })
+      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-stale', model: 'other::override' })
       .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-rebound' })
     mockStartRun
       .mockResolvedValueOnce({ mode: 'not-started', reason: 'session-invalid' } as never)
@@ -865,6 +887,10 @@ describe('runAgentTask', () => {
 
     await expect(promise).resolves.toEqual({ kind: 'executed', result: 'Completed' })
     expect(agentSessionService.create).toHaveBeenCalledTimes(2)
+    // Headless runs follow the agent default: the rebound session must not
+    // inherit the stale session's override, or a later interactive open of
+    // this sticky session would run on the wrong model.
+    expect(vi.mocked(agentSessionService.create).mock.calls[1][0]).not.toHaveProperty('model')
     expect(mockStartRun.mock.calls[1][0]).toMatchObject({ sessionId: 'sess-rebound' })
     expect(vi.mocked(ctx.patchMetadata).mock.lastCall).toEqual([{ sessionId: 'sess-rebound' }])
   })

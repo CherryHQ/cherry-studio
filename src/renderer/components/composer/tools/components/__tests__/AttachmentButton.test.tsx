@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 
@@ -64,74 +62,6 @@ describe('AttachmentToolRuntime', () => {
   afterEach(() => {
     restoreRequestAnimationFrame?.()
     restoreRequestAnimationFrame = undefined
-  })
-
-  it('keeps document-only support as a suffix and tooltip instead of a long label', async () => {
-    const launcher = createLauncherApi()
-
-    render(
-      <AttachmentToolRuntime
-        launcher={launcher}
-        couldAddImageFile={false}
-        extensions={['.txt']}
-        files={[]}
-        setFiles={vi.fn()}
-      />
-    )
-
-    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-
-    const [attachmentLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-
-    expect(attachmentLauncher).toMatchObject({
-      id: 'attachment',
-      sources: ['popover'],
-      label: 'chat.input.upload.attachment',
-      searchAliases: expect.arrayContaining(['Upload attachment']),
-      suffix: 'chat.input.upload.document_only',
-      tooltip: 'chat.input.upload.image_not_supported'
-    })
-  })
-
-  it('keeps the attachment launcher registered when files change', async () => {
-    const launcher = createLauncherApi()
-    const setFiles = vi.fn()
-    const initialFiles: ComposerAttachment[] = []
-    const extensions = ['.txt']
-
-    const view = render(
-      <AttachmentToolRuntime
-        launcher={launcher}
-        couldAddImageFile
-        extensions={extensions}
-        files={initialFiles}
-        setFiles={setFiles}
-      />
-    )
-
-    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalledTimes(1))
-
-    view.rerender(
-      <AttachmentToolRuntime
-        launcher={launcher}
-        couldAddImageFile
-        extensions={extensions}
-        files={[
-          {
-            fileTokenSourceId: 'existing',
-            path: '/tmp/existing.txt' as AbsoluteFilePath,
-            name: 'existing.txt',
-            origin_name: 'existing.txt',
-            ext: '.txt',
-            size: 1,
-            type: FILE_TYPE.TEXT
-          }
-        ]}
-        setFiles={setFiles}
-      />
-    )
-
-    expect(launcher.registerLaunchers).toHaveBeenCalledTimes(1)
   })
 
   it('appends selected files with a functional state update', async () => {

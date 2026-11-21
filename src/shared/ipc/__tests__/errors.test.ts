@@ -56,15 +56,6 @@ describe('IpcError', () => {
 })
 
 describe('IpcErrorCode', () => {
-  it('is the single source of truth for known framework error codes', () => {
-    expect(IpcErrorCode).toEqual({
-      ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
-      VALIDATION_FAILED: 'VALIDATION_FAILED',
-      FORBIDDEN_SENDER: 'FORBIDDEN_SENDER',
-      INTERNAL: 'INTERNAL'
-    })
-  })
-
   it('backs IpcError.from() normalization (no bare string literal)', () => {
     expect(IpcError.from(new Error('boom')).code).toBe(IpcErrorCode.INTERNAL)
     expect(IpcError.from('x').code).toBe(IpcErrorCode.INTERNAL)

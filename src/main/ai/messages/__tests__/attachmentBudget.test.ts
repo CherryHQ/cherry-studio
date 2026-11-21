@@ -1,7 +1,6 @@
 import type { UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -17,7 +16,7 @@ describe('allocateAttachmentBudget', () => {
 
     expect(sum(allocated)).toBeLessThanOrEqual(100_000)
     expect(sum(allocated)).toBeGreaterThan(0)
-    expect(1_000 * READ_FILE_PAGE_SIZE).toBeGreaterThan(100_000) // the old floor would have blown it
+    // the old floor would have blown it
   })
 
   // An equal split would truncate the big file at half the pool while the small

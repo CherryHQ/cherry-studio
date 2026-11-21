@@ -48,7 +48,7 @@ The top level is a **closed set** — this is [Naming Conventions §4.8](./namin
 | Dir | Category | Why it earns a top-level home |
 |---|---|---|
 | `ai` | **Core domain** | Cherry Studio *is* an AI product; AI's cross-process contracts and pure logic are first-class (mirrors `src/main/ai/`). Holds AI's cross-process slice only — not AI UI or per-process services. |
-| `data` | **Cross-process infra** | The data layer's cross-process contracts: API entity/request types, cache/preference/bootConfig schemas, migration mappings, presets. Framework-like, domain-agnostic. |
+| `data` | **Cross-process infra** | The data layer's cross-process contracts: API entity/request types, cache/preference/bootConfig schemas, presets. Framework-like, domain-agnostic. |
 | `ipc` | **Cross-process infra** | The IpcApi framework: route `define` helpers, request + event schemas, error model, and shared types (`IpcContext`, `WindowId`). Domain-agnostic. |
 | `types` | **Shape bucket** | Cross-process type declarations with no single owner. |
 | `utils` | **Shape bucket** | Cross-process pure logic plus its supporting constants and class blueprints. |

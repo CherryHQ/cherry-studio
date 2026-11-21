@@ -10,6 +10,10 @@ sources:
 
 # IPC Transport
 
+## DeepSeek import commands
+
+`ai.agent.import.prepare` opens the native ZIP picker and returns validated preview counts without requiring an existing Agent. `status` restores the source importer's latest operation; `start` creates a DeepSeek Agent with ordinary Pi Durable defaults and imports its sessions, while `cancel` stops unfinished work. Retries reuse the operation and Agent. `ai.agent.import.progress` broadcasts revisioned snapshots. `AgentImportService` owns execution independently of the dialog lifetime. Imported conversations use normal Agent session reads and navigation after publication.
+
 ## Commands and observation
 
 Desktop consumers send commands through `useStreamCommands` or the existing conversation turn controller. They observe assistant output through the shared message projection store. Input admission and observation have separate lifetimes.
@@ -41,6 +45,16 @@ Detach only removes a delivery lease. It never aborts a model or releases a nati
 `useTopicStreamStatus(topicId)` still reads `topic.stream.statuses.<topicId>` from shared cache. Sidebar status, read receipts and approval anchors remain cross-window mirrors; message bodies travel through directed projection delivery.
 
 The low-level `ai.stream.attach/detach` and chunk events remain available for existing raw-stream consumers. SSE, channel and one-shot prompt listeners keep their stream-specific contracts. Desktop root/child views no longer use chunk replay or `IpcChatTransport`.
+
+## One-shot text generation
+
+`ai.text.generate` accepts `disableTools: true` for text-only background work,
+including the fallback for runtimes without native next-prompt prediction.
+Claude Code, Pi and Pi Durable use `ai.agent.session.predict_prompt` and
+`ai.agent.session.abort_prediction`; see [Agent Session Runtime](./agent-session-runtime.md#next-prompt-suggestions).
+The flag suppresses tool registration
+without creating or changing an Agent execution. An optional `requestId` pairs
+the request with `ai.text.abort`; callers must still ignore stale results.
 
 ## Related references
 

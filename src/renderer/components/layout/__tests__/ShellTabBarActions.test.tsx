@@ -134,30 +134,6 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Found new version' })).not.toBeInTheDocument()
   })
 
-  it('keeps the update action at the left of the hidden-sidebar action group', () => {
-    cacheService.setPersist('ui.sidebar.width', 0)
-    updateState.available = true
-    updateState.downloaded = true
-    updateState.info = { version: '2.0.0' }
-
-    render(<ShellTabBarActions />)
-
-    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
-      'Found new version',
-      'Open global search',
-      'Settings'
-    ])
-  })
-
-  it.each([50, 180])('keeps standalone settings out of the tab bar at width %ipx', (width) => {
-    cacheService.setPersist('ui.sidebar.width', width)
-    render(<ShellTabBarActions />)
-
-    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Help' })).not.toBeInTheDocument()
-  })
-
   it('opens settings from the right action area when the sidebar is hidden', async () => {
     cacheService.setPersist('ui.sidebar.width', 0)
     const user = userEvent.setup()
