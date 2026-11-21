@@ -355,6 +355,7 @@ export interface OpenClawModelConfig {
       range: [number, number] | [number]
     }>
   }
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Hand-edited model extensions remain unvalidated until pickSchemaSupportedProperties checks serialization and CLI schema support.
   [key: string]: unknown
 }
 
@@ -652,10 +653,10 @@ export class OpenClawService extends BaseService {
     }
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) fail()
 
-    const report = parsed as Record<string, unknown>
+    const report = parsed as { valid?: unknown; path?: unknown; issues?: unknown; warnings?: unknown }
     const isIssue = (issue: unknown): issue is OpenClawValidationIssue => {
       if (issue === null || typeof issue !== 'object' || Array.isArray(issue)) return false
-      const candidate = issue as Record<string, unknown>
+      const candidate = issue as { path?: unknown; message?: unknown; allowedValues?: unknown }
       return (
         typeof candidate.path === 'string' &&
         typeof candidate.message === 'string' &&
