@@ -196,9 +196,8 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
   if (depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH) {
     if (
       error.cause instanceof Error &&
-      (/^net::ERR_(INCOMPLETE_CHUNKED_ENCODING|CONNECTION_CLOSED|CONNECTION_RESET|EMPTY_RESPONSE)$/.test(
-        error.cause.message
-      ) ||
+      // After a 2xx status, any Chromium net error means the body transport failed mid-stream.
+      (/^net::ERR_[A-Z0-9_]+$/.test(error.cause.message) ||
         (error.cause instanceof TypeError &&
           error.cause.message === 'terminated' &&
           error.cause.cause instanceof Error &&
