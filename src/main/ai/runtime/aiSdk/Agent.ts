@@ -24,7 +24,7 @@ import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
 import { classifyAiSdkFailure } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
-import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
+import { resolveContentFilterTerminalError, resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
@@ -458,10 +458,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const terminalError =
         this.params.contextOwner === 'caller'
           ? undefined
-          : resolveToolLoopTerminalError({
+          : (resolveToolLoopTerminalError({
               steps: steps ?? [],
               stopWhen: params.options?.stopWhen
-            })
+            }) ?? resolveContentFilterTerminalError(steps ?? []))
       if (terminalError) throw terminalError
       if (pendingFinish) {
         if (!(await commitFinish(pendingFinish))) {
