@@ -453,9 +453,6 @@ export class AiStreamManager extends BaseService {
       fastMode: boolean
     }>
   >()
-  /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
-   *  agent runtime's explicit launch state. */
-  private readonly startingNextChatTopicIds = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -464,10 +461,6 @@ export class AiStreamManager extends BaseService {
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
   /** Terminal persistence listeners currently writing by topic. Unlike `hasLiveStream`, this remains
    *  true after terminal status is published and clears before runtime/renderer terminal listeners run. */
-  private readonly launchingSteers = new Map<
-    string,
-    { controller: AbortController; previous?: ActiveStream; request: MainDispatchRequest }
-  >()
   private readonly terminalPersistenceCounts = new Map<string, number>()
   /** Terminal dispatches still running by topic (counted, so multi-model siblings settle together).
    *  Admission waits on it so a follow-up cannot evict a stream before its terminal lifecycle ran. */
@@ -480,7 +473,10 @@ export class AiStreamManager extends BaseService {
   private readonly suppressedChatContinuationTopicIds = new Set<string>()
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
-  private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  private readonly inFlightChatContinuations = new Map<
+    string,
+    { source?: ActiveStream; settled: Promise<void>; reschedule: boolean }
+  >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -529,41 +525,33 @@ export class AiStreamManager extends BaseService {
     // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
-    const continuation = req.trigger === 'steer-continuation' ? this.launchingSteers.get(req.topicId) : undefined
     await this.reconciled
     return this.withDispatchLock(req.topicId, async () => {
-      // A renderer submit can land while the previous turn's terminal dispatch is still running;
-      // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
       await this.whenTerminalDispatchSettled(req.topicId)
-      if (continuation?.request === req) {
-        continuation.controller.signal.throwIfAborted()
-        if (this.activeStreams.get(req.topicId) !== continuation.previous) {
-          continuation.controller.abort()
-          continuation.controller.signal.throwIfAborted()
-        }
-        if (continuation.previous) this.evictStream(req.topicId)
-      }
-
-      // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
-      // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
-      // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
-      // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
-      // where a pause lands between that gate and this one, and the grandfathered launch is
-      // awaited by `drainInFlight` via `inFlightChatContinuations`.
-      if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
-        return {
-          mode: 'blocked' as const,
-          reason: 'paused' as const
-        }
-      }
-      const admission = dispatchStreamRequest(this, subscriber, req)
-      this.inFlightDispatches.set(admission, req.topicId)
-      try {
-        return await admission
-      } finally {
-        this.inFlightDispatches.delete(admission)
-      }
+      return this.dispatchUnderLock(subscriber, req)
     })
+  }
+
+  private async dispatchUnderLock(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
+    // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
+    // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
+    // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
+    // where a pause lands between that gate and this one, and the grandfathered launch is
+    // awaited by `drainInFlight` via `inFlightChatContinuations`.
+    if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
+      return {
+        mode: 'blocked' as const,
+        reason: 'paused' as const
+      }
+    }
+    const admission = dispatchStreamRequest(this, subscriber, req)
+    this.inFlightDispatches.set(admission, req.topicId)
+    try {
+      return await admission
+    } finally {
+      this.inFlightDispatches.delete(admission)
+    }
   }
 
   /**
@@ -702,7 +690,7 @@ export class AiStreamManager extends BaseService {
       entries.push([admission, `dispatch:${topicId}`])
     }
     for (const [topicId, launch] of this.inFlightChatContinuations) {
-      entries.push([launch, `chat-continuation:${topicId}`])
+      entries.push([launch.settled, `chat-continuation:${topicId}`])
     }
     for (const [key, write] of topicNamingService.inFlightWrites()) {
       entries.push([write, `naming:${key}`])
@@ -1164,7 +1152,7 @@ export class AiStreamManager extends BaseService {
     if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
     if (this.hasTerminalPersistenceInFlight(topicId)) return true
     if (this.terminalDispatchInFlight.has(topicId)) return true
-    if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
+    if (this.pendingSteers.has(topicId)) return true
     if (this.inFlightChatContinuations.has(topicId)) return true
     return [...this.inFlightDispatches.values()].includes(topicId)
   }
@@ -1428,15 +1416,6 @@ export class AiStreamManager extends BaseService {
     await this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       if (this.pendingSteers.has(topicId)) this.dropPendingSteers(topicId, 'aborted')
-      const launch = this.launchingSteers.get(topicId)
-      if (launch && !launch.controller.signal.aborted) {
-        launch.controller.abort()
-        if (
-          launch.previous?.chainedMemoryCompletionPending === false &&
-          this.activeStreams.get(topicId) === launch.previous
-        )
-          this.runTerminalLifecycle(launch.previous)
-      }
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1916,20 +1895,27 @@ export class AiStreamManager extends BaseService {
    *  caller runs inside a settling loopPromise, so a drain that just awaited that loop must
    *  see the pending launch on its next collect, not miss it behind the microtask. */
   private scheduleNextChatTurn(topicId: string): void {
-    if (this.startingNextChatTopicIds.has(topicId)) return
-    this.startingNextChatTopicIds.add(topicId)
-    const launch = new Promise<void>((resolve) => {
-      queueMicrotask(() => {
-        void this.startNextChatTurn(topicId)
-          .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
-          .finally(() => {
-            this.startingNextChatTopicIds.delete(topicId)
-            this.inFlightChatContinuations.delete(topicId)
-            resolve()
-          })
+    const source = this.activeStreams.get(topicId)
+    const current = this.inFlightChatContinuations.get(topicId)
+    if (current) {
+      if (current.source !== source) current.reschedule = true
+      return
+    }
+    const settled = Promise.resolve()
+      .then(async () => {
+        // Wait outside the lock so Stop can still cancel a steer during persistence.
+        await this.reconciled
+        await this.whenTerminalDispatchSettled(topicId)
+        return this.withDispatchLock(topicId, () => this.startNextChatTurn(topicId, source))
       })
-    })
-    this.inFlightChatContinuations.set(topicId, launch)
+      .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
+      .finally(() => {
+        const rerun = this.inFlightChatContinuations.get(topicId)?.reschedule
+        this.inFlightChatContinuations.delete(topicId)
+        if (rerun && (this.hasPendingSteer(topicId) || this.activeStreams.get(topicId)?.chainedMemoryCompletionPending))
+          this.scheduleNextChatTurn(topicId)
+      })
+    this.inFlightChatContinuations.set(topicId, { source, settled, reschedule: false })
   }
 
   /**
@@ -1937,30 +1923,24 @@ export class AiStreamManager extends BaseService {
    * renderer listeners forward so the continuation streams to the same windows; persistence/trace
    * listeners are rebuilt by `prepareDispatch`. Mirrors `AgentSessionRuntimeService.startNextTurn`.
    */
-  private async startNextChatTurn(topicId: string): Promise<void> {
-    // Write-quiesce: suppress the launch before consuming the queue head — the steer stays
-    // queued (its user row is already persisted) and the last hold's disposal re-kicks it.
+  private async startNextChatTurn(topicId: string, source: ActiveStream | undefined): Promise<void> {
+    if (this.activeStreams.get(topicId) !== source) return
     if (this.isWriteQuiesced) {
       this.suppressedChatContinuationTopicIds.add(topicId)
       return
-    }
-    const settling = this.activeStreams.get(topicId)
-    if (this.terminalDispatchInFlight.has(topicId)) {
-      await this.whenTerminalDispatchSettled(topicId)
-      if (this.activeStreams.get(topicId) !== settling) return
     }
     const queue = this.pendingSteers.get(topicId)
     const pending = queue?.[0]
     if (!pending) {
       this.pendingSteers.delete(topicId)
-      if (settling?.chainedMemoryCompletionPending && this.activeStreams.get(topicId) === settling) {
-        settling.chainedMemoryCompletionPending = undefined
-        this.runTerminalLifecycle(settling)
+      if (source?.chainedMemoryCompletionPending) {
+        source.chainedMemoryCompletionPending = undefined
+        this.runTerminalLifecycle(source)
       }
       return
     }
 
-    const previous = this.activeStreams.get(topicId)
+    const previous = source
     // Never evict a still-live/unsettled stream: its terminal hook hasn't run, so evicting would
     // strand the partial-output persistence (`onExecutionPaused` early-returns on a missing stream).
     // Let that hook drive — it chains on a clean done or drops on abort/error.
@@ -1996,12 +1976,10 @@ export class AiStreamManager extends BaseService {
       serviceTier,
       fastMode
     }
-    const launch = new AbortController()
-    this.launchingSteers.set(topicId, { controller: launch, previous, request: req })
+    if (previous) this.evictStream(topicId)
     try {
-      await this.dispatch(carried[0] ?? nullStreamListener, req)
+      await this.dispatchUnderLock(carried[0] ?? nullStreamListener, req)
     } catch (error) {
-      if (launch.signal.aborted) return
       // The continuation never opened (steer row deleted, no default model configured, SQLITE_BUSY …).
       // `onExecutionDone`'s chaining path already skipped the terminal lifecycle and we evicted the
       // prior stream, so the topic would otherwise stay `streaming` forever (Stop becomes a no-op,
@@ -2010,8 +1988,6 @@ export class AiStreamManager extends BaseService {
       logger.error('Chat steer continuation failed to launch', { topicId, userMessageId, error })
       if (previous) this.failChatContinuation(previous, carried, serializeError(error))
       return
-    } finally {
-      this.launchingSteers.delete(topicId)
     }
     // The first subscriber went through dispatch; the remaining windows catch up via replay.
     for (const listener of carried.slice(1)) this.addListener(topicId, listener)

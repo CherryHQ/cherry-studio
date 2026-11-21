@@ -167,11 +167,11 @@ export async function createMemoryBackup(
     throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
   const existing = await storedBatches(root)
   if (activeRoot) {
+    for (const item of existing) await reconcileMemoryBackup(root, activeRoot, item.batch, { keepUnreadable: true })
     for (const { batch: child } of existing) {
       if (!child.recoveryOf) continue
       const parent = existing.find((item) => item.batch.id === child.recoveryOf)?.batch
       if (parent?.status !== 'partial') continue
-      await reconcileMemoryBackup(root, activeRoot, child)
       if (hasCompletedRecovery(parent, child)) {
         parent.status = 'completed'
         await saveMemoryBackup(root, parent)
@@ -180,6 +180,19 @@ export async function createMemoryBackup(
   }
   const reverse = recoveryOf ? existing.findLast((item) => item.batch.recoveryOf === recoveryOf) : undefined
   const parent = recoveryOf ? existing.find((item) => item.batch.id === recoveryOf)?.batch : undefined
+  const protectedIds = new Set([recoveryOf, parent?.recoveryOf, reverse?.batch.id])
+  // Only the newest usable operation can be selected. If its result is uncertain,
+  // also retain earlier candidates until one has a confirmed write.
+  for (const { batch: candidate } of existing.toReversed()) {
+    if (candidate.steps.every((step) => step.outcome === 'unchanged')) continue
+    protectedIds.add(candidate.id)
+    if (candidate.recoveryOf) {
+      protectedIds.add(candidate.recoveryOf)
+      const original = existing.find((item) => item.batch.id === candidate.recoveryOf)?.batch
+      if (original?.status === 'partial') protectedIds.add(original.recoveryOf)
+    }
+    if (candidate.steps.some((step) => step.outcome === 'applied')) break
+  }
   const batch: MemoryBatch = reverse?.batch ?? {
     version: 1,
     id: randomUUID(),
@@ -236,24 +249,7 @@ export async function createMemoryBackup(
     reservedBatchBytes(batch) -
     (reverse?.reservedBytes ?? 0)
   let count = existing.length + (reverse ? 0 : 1)
-  const latest = existing.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))
-  // A failed ordinary write may leave the previous partial recovery as the newest usable batch.
-  const partialParents = new Set(
-    existing.filter(({ batch }) => batch.status === 'partial').map(({ batch }) => batch.id)
-  )
-  const predecessors = new Set(
-    existing.filter(({ batch }) => partialParents.has(batch.id)).map(({ batch }) => batch.recoveryOf)
-  )
-  const removable = existing.filter(
-    (item) =>
-      item.batch.status === 'completed' &&
-      item !== latest &&
-      item !== reverse &&
-      !predecessors.has(item.batch.id) &&
-      !(item.batch.recoveryOf && partialParents.has(item.batch.recoveryOf)) &&
-      item.batch.id !== recoveryOf &&
-      item.batch.id !== parent?.recoveryOf
-  )
+  const removable = existing.filter((item) => item.batch.status === 'completed' && !protectedIds.has(item.batch.id))
   const prune: StoredBatch[] = []
   for (const item of removable) {
     if (count <= MEMORY_BACKUP_BATCHES && bytes <= MEMORY_BACKUP_BYTES) break
@@ -301,14 +297,23 @@ export function memoryBatchStatus(batch: MemoryBatch): MemoryBatch['status'] {
 export async function reconcileMemoryBackup(
   root: string,
   activeRoot: string,
-  batch: MemoryBatch
+  batch: MemoryBatch,
+  options: { keepUnreadable?: boolean } = {}
 ): Promise<MemoryBatch> {
-  if (!batch.steps.some((step) => step.outcome === 'pending')) return batch
+  let changed = false
   for (const step of batch.steps) {
     if (step.outcome !== 'pending') continue
-    const actualHash = memoryHash(await readMemoryBytes(activeRoot, step.path))
+    let actualHash: string | null
+    try {
+      actualHash = memoryHash(await readMemoryBytes(activeRoot, step.path))
+    } catch (error) {
+      if (options.keepUnreadable) continue
+      throw error
+    }
+    changed = true
     step.outcome = actualHash === step.afterHash ? 'applied' : actualHash === step.beforeHash ? 'unchanged' : 'conflict'
   }
+  if (!changed) return batch
   batch.status = memoryBatchStatus(batch)
   await saveMemoryBackup(root, batch)
   return batch
