@@ -297,7 +297,11 @@ export function registerAgentMethods(
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
       const response = 'response' in params ? params.response : { kind: params.decision }
       const approved = response.kind !== 'deny'
-      let updatedInput: Record<string, unknown> | undefined
+      let updatedInput:
+        | (ReturnType<typeof questionInputSchema.parse> & {
+            answers: Extract<typeof response, { kind: 'answer' }>['answers']
+          })
+        | undefined
       if (response.kind === 'answer') {
         if (interaction.kind !== 'question')
           return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction does not accept answers' } }
