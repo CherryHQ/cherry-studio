@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../../../utils/serializeError'
 import {
   canSalvageClaudeOutput,
+  withClaudeCodeSdkFailure,
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
@@ -105,4 +106,192 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(diagnostics).toEqual({ reference: 'retry-ref' })
   })
+})
+
+it('projects actual stderr through serialization with credentials, paths and URLs removed', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('safe-ref')
+  recordClaudeCodeProcessExit(
+    diagnostics,
+    1,
+    null,
+    'native loader failed\napi_key=sk-ant-private\nhttps://user:password@private.example/path?token=private\n/Users/alice/private/file\nC:\\Users\\alice\\private\\file'
+  )
+  const serialized = serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics))
+  expect(serialized.processExitDetail).toContain('native loader failed')
+  expect(JSON.stringify(serialized)).not.toMatch(/sk-ant-private|private\.example|alice|password@|token=private/)
+})
+
+it('does not invent a D-Bus cause for an unrelated recorded failure', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('no-cause')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, 'native library missing')
+  const error = createClaudeCodeProcessExitError(new Error('transport closed'), diagnostics)
+  expect(JSON.stringify(serializeError(error))).not.toMatch(/DBUS|session.bus/i)
+})
+
+it.each([
+  '/Users/alice/Secret Project/client.env',
+  'C:\\Users\\alice\\Secret Project\\client.env',
+  'C:/Users/alice/Secret Project/client.env',
+  '\\\\private-server\\Secret Project\\client.env',
+  '"/Users/alice/Secret Project/client.env"',
+  "'/Users/alice/Secret Project/client.env'"
+])('redacts the complete private suffix of a path containing spaces: %s', (path) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('space-path-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, `loader failed at ${path}\nretry unavailable`)
+  const serialized = serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics))
+  expect(serialized.processExitDetail).toContain('loader failed at ')
+  expect(serialized.processExitDetail).toContain('<redacted-path>')
+  expect(serialized.processExitDetail).toContain('retry unavailable')
+  expect(JSON.stringify(serialized)).not.toMatch(/alice|Secret|Project|client\.env|private-server/)
+})
+
+it('strips ANSI color sequences before displaying process output', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('ansi-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, '\u001b[31mloader failed\u001b[0m')
+  const serialized = serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics))
+  expect(serialized.processExitDetail).toBe('loader failed')
+})
+
+it.each([
+  'I/O error while reading',
+  'HTTP/1.1 500 Internal Server Error',
+  'failed 1/2 times',
+  'n/a for this run',
+  'and/or',
+  '24/7',
+  'km/h'
+])('preserves a non-path slash in diagnostic text: %s', (output) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('non-path-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, output)
+  expect(serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)).processExitDetail).toBe(
+    output
+  )
+})
+
+it.each(['', 'at ', '=', '(', ':', '"', "'", '[', '{', ',', ';'])(
+  'redacts a Unix space path after a token delimiter: %s',
+  (prefix) => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('delimiter-ref')
+    recordClaudeCodeProcessExit(diagnostics, 1, null, `${prefix}/Users/alice/Secret Project/client.env`)
+    expect(
+      serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)).processExitDetail
+    ).not.toMatch(/alice|Secret|Project|client/)
+  }
+)
+
+it.each([
+  '~/Secret/client.env',
+  '/Users/alice/Secret\\ Project/client.env',
+  '//private-server/share Secret/file',
+  '/Users/alice/Secret\tProject/client.env',
+  '/Users/ali\u001b[0mce/secret.env'
+])('redacts adversarial absolute paths: %s', (path) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('adversarial-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, `fail at ${path} done`)
+  const detail = serializeError(
+    createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
+  ).processExitDetail
+  expect(detail).not.toMatch(/alice|Secret|Project|client|private-server|secret.env/)
+})
+
+it.each([
+  '/a'.repeat(100_000),
+  '/start ' + 'x '.repeat(100_000),
+  'z'.repeat(200_000),
+  '/' + 'a'.repeat(200_000),
+  '\u001b[31m'.repeat(20_000) + 'end',
+  'ok /p q r\n'.repeat(20_000)
+])('bounds long diagnostic output and processing time', (output) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('perf-ref')
+  const start = performance.now()
+  recordClaudeCodeProcessExit(diagnostics, 1, null, output)
+  const detail = serializeError(
+    createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
+  ).processExitDetail
+  if (typeof detail !== 'string') throw new Error('Expected diagnostic text')
+  expect(detail.length).toBeLessThanOrEqual(1000)
+  expect(performance.now() - start).toBeLessThan(500)
+})
+
+it.each([
+  'failed to load `/Users/alice/Secret Project/client.env`',
+  'see </Users/alice/Secret Project/x>',
+  'err)/Users/alice/Secret Project/x',
+  '{"path":"/Users/alice/Secret Project/client.env"}',
+  'at run (/Users/alice/Secret Project/client.ts:123:4)'
+])('redacts paths in diagnostic wrappers: %s', (output) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('wrapped-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, output)
+  const detail = serializeError(
+    createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
+  ).processExitDetail
+  expect(detail).not.toMatch(/alice|Secret|Project|client/)
+})
+
+it.each(['2 / 3', 'yes / no'])('conservatively redacts a spaced slash: %s', (output) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('ambiguous-ref')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, output)
+  const detail = serializeError(
+    createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
+  ).processExitDetail
+  expect(detail).toMatch(/<redacted-path>$/)
+})
+
+it('retains sanitized SDK result text with process detail in one bounded error', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('sdk-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native loader failed')
+  const processError = createClaudeCodeProcessExitError(new Error('closed'), diagnostics)
+  const result = withClaudeCodeSdkFailure(
+    processError,
+    new Error(
+      'API Error: 429 rate_limit_error; api_key=sk-ant-private https://private.example/x /Users/alice/Secret Project/x'
+    )
+  )
+  expect(result).toBe(processError)
+  const serialized = serializeError(result)
+  expect(serialized.processExitDetail).toContain('native loader failed')
+  expect(serialized.processExitDetail).toContain('429 rate_limit_error')
+  expect(JSON.stringify(serialized)).not.toMatch(/sk-ant-private|private.example|alice|Secret|Project/)
+  expect(serialized.processExitCode).toBe(7)
+})
+
+it('reserves bounded space for both process and SDK error text', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('long-sdk-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'p'.repeat(2000))
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error('SDK reason ' + 's'.repeat(2000))
+  )
+  const detail = serializeError(result).processExitDetail
+  if (typeof detail !== 'string') throw new Error('Expected diagnostic text')
+  expect(detail).toContain('SDK reason')
+  expect(detail.length).toBeLessThanOrEqual(1000)
+})
+
+it.each([
+  "https://alice:prefix'SECRET_SUFFIX@private.proxy.example/x",
+  'https://alice:prefix"SECRET_SUFFIX@private.proxy.example/x',
+  'https://alice:prefix%27SECRET_SUFFIX@private.proxy.example/x'
+])('redacts URL credentials before retaining suppressed SDK diagnostic: %s', (url) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('quoted-url-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native failure')
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error(`429 rate_limit_error ${url}`)
+  )
+  const serialized = JSON.stringify(serializeError(result))
+  expect(serialized).toContain('429 rate_limit_error')
+  expect(serialized).not.toMatch(/alice|prefix|SECRET_SUFFIX|private.proxy/)
+})
+
+it.each(['api_key', 'token'])('preserves text after a URL query credential: %s', (key) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('query-url-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native failure')
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error(`GET https://api.example.com/v1?${key}=abc rate limited, retry later`)
+  )
+  const detail = serializeError(result).processExitDetail
+  expect(detail).toContain('GET <redacted-url> rate limited, retry later')
+  expect(detail).not.toContain('abc')
 })
