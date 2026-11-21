@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-19-topic-subject-groups.md
+2026-11-19-topic-subject-groups.md: 14e794ee1ffdf2640aa2497d07da1128e916dfc5
+2026-11-19-topic-subject-groups.zh.md: c73255a976cd7d10cb09e363ce70eeac54e1a434

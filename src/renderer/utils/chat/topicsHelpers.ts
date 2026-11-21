@@ -39,10 +39,19 @@ export type TopicDisplayGroupLabels = {
   assistant: {
     unlinked: string
   }
+  subject: {
+    ungrouped: string
+  }
+}
+
+export type TopicDisplaySubject = {
+  id: string
+  name: string
 }
 
 export type TopicDisplayGroupOptions = {
   assistantById?: ReadonlyMap<string, TopicDisplayAssistant>
+  subjectById?: ReadonlyMap<string, TopicDisplaySubject>
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -52,6 +61,7 @@ export type TopicDisplaySortOptions = {
   sort?: ConversationListSort
   sortLocale?: string
   assistantRankById?: ReadonlyMap<string, number>
+  subjectRankById?: ReadonlyMap<string, number>
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
 }
@@ -73,6 +83,7 @@ export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
+const TOPIC_SUBJECT_GROUP_ID_PREFIX = 'topic:subject:'
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 export function moveTopicAfterDrop<T extends { id: string }>(
@@ -184,12 +195,19 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
   return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 }
 
-export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>({
-  assistantById,
-  labels,
-  mode,
-  now
-}: TopicDisplayGroupOptions): ResourceListGroupResolver<T> {
+export function getTopicSubjectGroupId(groupId: string): string {
+  return `${TOPIC_SUBJECT_GROUP_ID_PREFIX}${groupId}`
+}
+
+export function getSubjectIdFromTopicGroupId(groupId: string): string | undefined {
+  if (!groupId.startsWith(TOPIC_SUBJECT_GROUP_ID_PREFIX)) return undefined
+
+  return groupId.slice(TOPIC_SUBJECT_GROUP_ID_PREFIX.length)
+}
+
+export function createTopicDisplayGroupResolver<
+  T extends Pick<Topic, 'assistantId' | 'groupId' | 'lastActivityAt' | 'pinned'>
+>({ assistantById, subjectById, labels, mode, now }: TopicDisplayGroupOptions): ResourceListGroupResolver<T> {
   const pinnedResolver = createPinnedGroupResolver<T>({
     isPinned: (topic) => topic.pinned === true,
     group: { id: 'pinned', label: labels.pinned } satisfies ResourceListGroup
@@ -206,6 +224,14 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
         })
       )
     )
+  }
+
+  if (mode === 'subject') {
+    return withTopicGroupIdPrefix((topic) => {
+      const subject = topic.groupId ? subjectById?.get(topic.groupId) : undefined
+      if (!subject) return { id: 'subject:ungrouped', label: labels.subject.ungrouped }
+      return { id: `subject:${subject.id}`, label: subject.name }
+    })
   }
 
   return withTopicGroupIdPrefix((topic) => {
@@ -236,8 +262,16 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId'>>(
   return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
+function getSubjectGroupRank<T extends Pick<Topic, 'groupId'>>(
+  topic: T,
+  subjectRankById?: ReadonlyMap<string, number>
+) {
+  const subjectRank = topic.groupId ? subjectRankById?.get(topic.groupId) : undefined
+  return subjectRank ?? TOPIC_UNLINKED_ASSISTANT_RANK
+}
+
 export function sortTopicsForDisplayGroups<
-  T extends Pick<Topic, 'id' | 'assistantId' | 'lastActivityAt' | 'pinned' | 'createdAt'> & {
+  T extends Pick<Topic, 'id' | 'assistantId' | 'groupId' | 'lastActivityAt' | 'pinned' | 'createdAt'> & {
     name?: string
     orderKey?: string
   }
@@ -245,9 +279,14 @@ export function sortTopicsForDisplayGroups<
   const isPinned = (topic: T) => topic.pinned === true
   const compare = options.sort ? compareConversationListItems<T>(options.sort, options.sortLocale) : undefined
 
-  if (options.mode === 'assistant') {
+  if (options.mode === 'assistant' || options.mode === 'subject') {
+    const getRank = (topic: T) =>
+      options.mode === 'subject'
+        ? getSubjectGroupRank(topic, options.subjectRankById)
+        : getAssistantGroupRank(topic, options.assistantRankById)
+
     return topics
-      .map((topic, index) => ({ topic, index, rank: getAssistantGroupRank(topic, options.assistantRankById) }))
+      .map((topic, index) => ({ topic, index, rank: getRank(topic) }))
       .sort((a, b) => {
         if (a.rank !== b.rank) return a.rank - b.rank
         if (a.topic.pinned !== b.topic.pinned) return a.topic.pinned ? -1 : 1

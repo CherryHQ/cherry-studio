@@ -6,9 +6,10 @@ import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 
-const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
+const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant', 'subject']
 const TOPIC_DISPLAY_LABEL_KEYS: Record<TopicDisplayMode, string> = {
   assistant: 'chat.topics.display.assistant',
+  subject: 'chat.topics.display.subject',
   time: 'chat.topics.display.time'
 }
 

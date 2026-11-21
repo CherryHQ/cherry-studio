@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import { AssistantIdSchema } from '../../types/assistant'
 import { ConversationListSortBySchema, ConversationListSortLocaleSchema } from '../../types/conversationList'
+import { type Group, GroupIdSchema, GroupNameInputSchema } from '../../types/group'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
@@ -39,7 +40,8 @@ export const UpdateTopicSchema = TopicSchema.pick({
 })
   .partial()
   .extend({
-    assistantId: z.string().nullable().optional()
+    assistantId: z.string().nullable().optional(),
+    groupId: z.string().min(1).nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
@@ -49,6 +51,20 @@ export const MoveTopicSchema = z.strictObject({
   order: OrderRequestSchema
 })
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
+
+/**
+ * Create a topic group and move the topic into it in one transaction. The caller picks the group id,
+ * so a replay after a lost reply resolves to the already-committed result instead of a second group.
+ */
+export const CreateTopicGroupSchema = z.strictObject({
+  groupId: GroupIdSchema,
+  name: GroupNameInputSchema
+})
+export type CreateTopicGroupDto = z.infer<typeof CreateTopicGroupSchema>
+export interface CreateTopicGroupResult {
+  group: Group
+  topic: Topic
+}
 
 /**
  * Query parameters for `GET /topics` (cursor pagination + search).
@@ -260,6 +276,15 @@ export type TopicSchemas = {
       params: { id: string }
       body: MoveTopicDto
       response: Topic
+    }
+  }
+
+  /** Atomically create a topic group and assign the topic to it. Replay-safe by `groupId`. */
+  '/topics/:id/group': {
+    POST: {
+      params: { id: string }
+      body: CreateTopicGroupDto
+      response: CreateTopicGroupResult
     }
   }
 

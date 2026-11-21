@@ -1,12 +1,16 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
+import { topicTable } from '@data/db/schemas/topic'
 import { groupService } from '@data/services/GroupService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 const GROUP_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 
@@ -245,6 +249,7 @@ describe('GroupService', () => {
         orderKey: 'a0'
       })
 
+      notifyDataApiDataChangeMock.mockClear()
       groupService.delete(group.id)
 
       const [assistant] = await dbh.db
@@ -252,6 +257,25 @@ describe('GroupService', () => {
         .from(assistantTable)
         .where(eq(assistantTable.id, 'assistant-1'))
       expect(assistant.groupId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/assistants', kind: 'projection', entityIds: ['assistant-1'] }
+      ])
+    })
+
+    it('should broadcast topic projection effects when a topic group is deleted', async () => {
+      const group = groupService.create({ entityType: 'topic', name: 'Topic Group' })
+      await dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', groupId: group.id, orderKey: 'a0' })
+
+      notifyDataApiDataChangeMock.mockClear()
+      groupService.delete(group.id)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('should not change orderKeys of sibling groups after a deletion', async () => {

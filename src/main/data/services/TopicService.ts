@@ -10,6 +10,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
@@ -22,6 +23,8 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type {
   CreateTopicDto,
+  CreateTopicGroupDto,
+  CreateTopicGroupResult,
   DeleteTopicsResult,
   DuplicateTopicDto,
   LatestTopicQuery,
@@ -36,6 +39,7 @@ import type { Topic } from '@shared/data/types/topic'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { groupService } from './GroupService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
@@ -124,13 +128,33 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
   if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
 }
 
+function assertTopicGroupTx(tx: Pick<DbOrTx, 'select'>, groupId: string | null): void {
+  if (groupId === null) return
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({ groupId: [`Topic group not found: ${groupId}`] })
+  }
+  if (group.entityType !== 'topic') {
+    throw DataApiErrorFactory.validation({ groupId: [`Topic group must have entityType 'topic': ${groupId}`] })
+  }
+}
+
 export class TopicService {
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
     options: { deleted?: boolean } = {}
   ): void {
-    if (topicIds.length === 0) return
+    notifyDataApiDataChange(this.readModelEffects(topicIds, kind, options))
+  }
+
+  /** The topic read-model effects of a change, for callers that publish them with other effects in one broadcast. */
+  private readModelEffects(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: { deleted?: boolean } = {}
+  ): DataApiDataChangeEffect[] {
+    if (topicIds.length === 0) return []
     const entityIds = [...new Set(topicIds)]
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
@@ -139,12 +163,12 @@ export class TopicService {
       options.deleted && entityIds.length === 1
         ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
         : [{ endpoint: '/topics/:id', entityIds }]
-    notifyDataApiDataChange([
+    return [
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
       { endpoint: '/topics/latest' }
-    ])
+    ]
   }
 
   notifyPurged(topicIds: readonly string[]): void {
@@ -407,6 +431,10 @@ export class TopicService {
         }
         updates.assistantId = dto.assistantId
       }
+      if (dto.groupId !== undefined) {
+        assertTopicGroupTx(tx, dto.groupId)
+        updates.groupId = dto.groupId
+      }
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
@@ -418,6 +446,64 @@ export class TopicService {
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
     return topic
+  }
+
+  /**
+   * Create a topic group and move the topic into it in one transaction, then publish once after commit.
+   * The caller supplies `groupId`, so a replay after a lost reply finds the committed group and
+   * (re)applies the assignment instead of creating a second group.
+   */
+  createGroupAndAssign(id: string, dto: CreateTopicGroupDto): CreateTopicGroupResult {
+    const dbService = application.get('DbService')
+    let created = false
+    let renamed = false
+
+    const result = dbService.withWriteTx((tx) => {
+      const [existing] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
+
+      let group = groupService.findByIdTx(tx, dto.groupId)
+      if (group) {
+        if (group.entityType !== 'topic') {
+          throw DataApiErrorFactory.validation({ groupId: [`Group id already in use: ${dto.groupId}`] })
+        }
+        // The id is a per-draft UUID, so an existing topic group is this draft's earlier commit. A replay
+        // with an edited name (the first reply was lost) renames it instead of leaving the dialog stuck.
+        if (group.name !== dto.name) {
+          tx.update(groupTable).set({ name: dto.name }).where(eq(groupTable.id, group.id)).run()
+          // Re-read so the returned row carries the stored name and updatedAt, not a hand-built copy.
+          group = groupService.findByIdTx(tx, dto.groupId) ?? group
+          renamed = true
+        }
+      } else {
+        insertWithOrderKey(
+          tx,
+          groupTable,
+          { id: dto.groupId, entityType: 'topic', name: dto.name },
+          { pkColumn: groupTable.id, scope: eq(groupTable.entityType, 'topic') }
+        )
+        group = groupService.findByIdTx(tx, dto.groupId)
+        created = true
+      }
+      if (!group) throw DataApiErrorFactory.notFound('Group', dto.groupId)
+
+      const [row] = tx.update(topicTable).set({ groupId: group.id }).where(eq(topicTable.id, id)).returning().all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return { group, topic: rowToTopic(row) }
+    })
+
+    const effects: DataApiDataChangeEffect[] = []
+    if (created) effects.push({ endpoint: '/groups', kind: 'membership', entityIds: [result.group.id] })
+    else if (renamed) effects.push({ endpoint: '/groups', kind: 'projection', entityIds: [result.group.id] })
+    effects.push(...this.readModelEffects([id], 'projection'))
+    notifyDataApiDataChange(effects)
+    logger.info('Created topic group and assigned topic', { id, groupId: result.group.id, replay: !created })
+    return result
   }
 
   /** Atomically update a topic's assistant and global order. */

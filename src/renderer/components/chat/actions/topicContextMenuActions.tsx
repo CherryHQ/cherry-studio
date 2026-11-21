@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Image,
+  FolderInput,
   MoveRight,
   NotebookPen,
   PanelLeft,
@@ -42,11 +43,17 @@ export type TopicExportMenuOptions = Record<
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
+type TopicMoveToGroupHandler = (topic: Topic, groupId: string | null) => void | Promise<void>
 
 export interface TopicMoveAssistantTarget {
   id: string
   name: string
   icon?: ReactNode
+}
+
+export interface TopicMoveGroupTarget {
+  id: string
+  name: string
 }
 
 type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
@@ -77,6 +84,9 @@ export interface TopicActionContext {
   onExportYuque: TopicMenuHandler
   assistantMoveTargets: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
+  topicGroupMoveTargets?: readonly TopicMoveGroupTarget[]
+  onMoveToGroup?: TopicMoveToGroupHandler
+  onRequestNewGroup?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
@@ -94,6 +104,24 @@ export interface TopicActionContext {
 
 const topicActionRegistry = createActionRegistry<TopicActionContext>()
 const MOVE_TO_ASSISTANT_ACTION_PREFIX = 'topic.move-to-assistant.'
+const MOVE_TO_GROUP_ACTION_PREFIX = 'topic.move-to-group.'
+const MOVE_TO_GROUP_TARGET_PREFIX = `${MOVE_TO_GROUP_ACTION_PREFIX}target.`
+const MOVE_TO_GROUP_UNGROUPED_ACTION_ID = `${MOVE_TO_GROUP_ACTION_PREFIX}ungrouped`
+const MOVE_TO_GROUP_NEW_ACTION_ID = `${MOVE_TO_GROUP_ACTION_PREFIX}new`
+
+function buildMoveToGroupActionId(groupId: string) {
+  return `${MOVE_TO_GROUP_TARGET_PREFIX}${encodeURIComponent(groupId)}`
+}
+
+function getMoveToGroupTargetId(actionId: string) {
+  if (!actionId.startsWith(MOVE_TO_GROUP_TARGET_PREFIX)) return undefined
+
+  try {
+    return decodeURIComponent(actionId.slice(MOVE_TO_GROUP_TARGET_PREFIX.length))
+  } catch {
+    return undefined
+  }
+}
 
 function buildMoveToAssistantActionId(assistantId: string) {
   return `${MOVE_TO_ASSISTANT_ACTION_PREFIX}${encodeURIComponent(assistantId)}`
@@ -314,6 +342,43 @@ topicActionRegistry.registerAction({
   icon: ({ sidebarPinned }) => <SidebarShortcutIcon pinned={sidebarPinned} size={14} />,
   order: 32,
   surface: 'menu'
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.move-to-group',
+  label: ({ t }) => t('chat.topics.subject.move_to_group'),
+  icon: () => <FolderInput size={14} />,
+  order: 36,
+  surface: 'menu',
+  availability: ({ onMoveToGroup }) => ({ visible: !!onMoveToGroup, enabled: !!onMoveToGroup }),
+  children: ({ onRequestNewGroup, t, topic, topicGroupMoveTargets }) => {
+    const targets = (topicGroupMoveTargets ?? [])
+      .filter((target) => target.id !== topic.groupId)
+      .map((target, index) => ({
+        id: buildMoveToGroupActionId(target.id),
+        label: target.name,
+        order: index,
+        surface: 'menu' as const
+      }))
+    const children = [...targets]
+    if (topic.groupId) {
+      children.push({
+        id: MOVE_TO_GROUP_UNGROUPED_ACTION_ID,
+        label: t('chat.topics.subject.ungrouped'),
+        order: children.length,
+        surface: 'menu' as const
+      })
+    }
+    if (onRequestNewGroup) {
+      children.push({
+        id: MOVE_TO_GROUP_NEW_ACTION_ID,
+        label: t('chat.topics.subject.new_group'),
+        order: children.length,
+        surface: 'menu' as const
+      })
+    }
+    return children
+  }
 })
 
 topicActionRegistry.registerAction({
@@ -575,6 +640,24 @@ export async function executeTopicMenuAction(
   action: ResolvedAction<TopicActionContext>,
   context: TopicActionContext
 ): Promise<boolean> {
+  const targetGroupId = getMoveToGroupTargetId(action.id)
+  if (targetGroupId) {
+    if (!context.onMoveToGroup) return false
+    if (!(context.topicGroupMoveTargets ?? []).some((target) => target.id === targetGroupId)) return false
+    await context.onMoveToGroup(context.topic, targetGroupId)
+    return true
+  }
+  if (action.id === MOVE_TO_GROUP_UNGROUPED_ACTION_ID) {
+    if (!context.onMoveToGroup) return false
+    await context.onMoveToGroup(context.topic, null)
+    return true
+  }
+  if (action.id === MOVE_TO_GROUP_NEW_ACTION_ID) {
+    if (!context.onRequestNewGroup) return false
+    await context.onRequestNewGroup(context.topic)
+    return true
+  }
+
   const targetAssistantId = getMoveToAssistantTargetId(action.id)
   if (targetAssistantId) {
     if (!context.onMoveToAssistant) return false

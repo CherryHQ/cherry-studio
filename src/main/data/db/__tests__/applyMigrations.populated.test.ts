@@ -1421,6 +1421,12 @@ describe('applyMigrations over a populated database', () => {
     insertRef.run('legacy-output', 'avatar-file-2', 'avatar-message', 'tool_output')
     const tables = ['assistant', 'topic', 'message', 'file_entry', 'chat_message_file_ref']
     const before = tables.map((table) => sqlite.prepare('SELECT * FROM ' + table + ' ORDER BY id').all())
+    // The subject-group migration (0042) adds topic.group_id after this fixture's schema, so
+    // migrated rows gain the column as null.
+    before[tables.indexOf('topic')] = before[tables.indexOf('topic')].map((row) => ({
+      ...(row as Record<string, unknown>),
+      group_id: null
+    }))
     sqlite.close()
     sqlite = new Database(join(tempDir, 'test.db'))
     db = drizzle({ client: sqlite, casing: 'snake_case' })

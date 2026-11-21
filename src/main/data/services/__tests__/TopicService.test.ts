@@ -8,11 +8,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileRefService } from '@data/services/FileRefService'
+import { groupService } from '@data/services/GroupService'
 import { messageService } from '@data/services/MessageService'
 import { TopicService, topicService } from '@data/services/TopicService'
 
@@ -198,6 +200,31 @@ describe('TopicService', () => {
 
     const unlinked = topicService.update('topic-assistant-update', { assistantId: null })
     expect(unlinked.assistantId).toBeUndefined()
+  })
+
+  it('assigns, clears, and validates topic subject groups', async () => {
+    await dbh.db.insert(groupTable).values([
+      { id: 'group-topic', entityType: 'topic', name: 'Python', orderKey: 'a0' },
+      { id: 'group-assistant', entityType: 'assistant', name: 'Work', orderKey: 'a0' }
+    ])
+    await dbh.db.insert(topicTable).values({ id: 'topic-group-update', name: 'Grouping', orderKey: 'a0' })
+
+    expect(topicService.update('topic-group-update', { groupId: 'group-topic' }).groupId).toBe('group-topic')
+
+    let err: unknown
+    try {
+      topicService.update('topic-group-update', { groupId: 'group-assistant' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    expect(topicService.getById('topic-group-update').groupId).toBe('group-topic')
+
+    expect(topicService.update('topic-group-update', { groupId: null }).groupId).toBeUndefined()
+
+    topicService.update('topic-group-update', { groupId: 'group-topic' })
+    groupService.delete('group-topic')
+    expect(topicService.getById('topic-group-update').groupId).toBeUndefined()
   })
 
   describe('listByCursor', () => {
@@ -1432,6 +1459,103 @@ describe('TopicService', () => {
       expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+  })
+
+  describe('createGroupAndAssign', () => {
+    const GROUP_ID = '3f2b7c1e-5a4d-4e8f-9b6a-1c2d3e4f5a6b'
+    const seedTopic = async (values: Partial<typeof topicTable.$inferInsert> = {}) => {
+      await dbh.db.insert(topicTable).values({ id: 'cg-topic', name: 'T', orderKey: 'a0', ...values })
+    }
+    const topicGroups = () => dbh.db.select().from(groupTable).where(eq(groupTable.entityType, 'topic')).all()
+
+    it('creates the group and assigns the topic with a single post-commit broadcast', async () => {
+      await seedTopic()
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(result.group).toMatchObject({ id: GROUP_ID, name: 'Research', entityType: 'topic' })
+      expect(result.topic.groupId).toBe(GROUP_ID)
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      // One post-commit broadcast carries the group effect and every affected topic read model.
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      const effects = notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string }>
+      expect(effects[0]).toEqual({ endpoint: '/groups', kind: 'membership', entityIds: [GROUP_ID] })
+      expect(effects.map((effect) => effect.endpoint)).toEqual(
+        expect.arrayContaining(['/topics', '/topics/:id', '/topics/latest'])
+      )
+    })
+
+    it('commits and publishes nothing when the topic was archived in another window', async () => {
+      await seedTopic({ deletedAt: 100 })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })).toThrow()
+
+      expect(topicGroups()).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('is replay-safe: a retry after a lost reply returns the committed group without a second one', async () => {
+      await seedTopic()
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const replay = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(replay.group.id).toBe(GROUP_ID)
+      expect(replay.topic.groupId).toBe(GROUP_ID)
+      expect(topicGroups()).toHaveLength(1)
+      // A replay publishes only the topic read model, in one broadcast.
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(
+        (notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string }>).some(
+          (effect) => effect.endpoint === '/groups'
+        )
+      ).toBe(false)
+    })
+
+    it('never removes memberships another window committed into the group', async () => {
+      await seedTopic()
+      await seedTopic({ id: 'cg-other', orderKey: 'a1' })
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      // Another window moves a different topic into the new group, then the first request is replayed.
+      topicService.update('cg-other', { groupId: GROUP_ID })
+
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+
+      expect(topicService.getById('cg-other').groupId).toBe(GROUP_ID)
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      expect(topicGroups()).toHaveLength(1)
+    })
+
+    it('renames the committed group when a lost-reply replay arrives with an edited name', async () => {
+      await seedTopic()
+      topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Papers' })
+
+      expect(result.group.name).toBe('Papers')
+      expect(result.group.updatedAt).toBe(new Date(topicGroups()[0]?.updatedAt ?? 0).toISOString())
+      expect(topicGroups()).toHaveLength(1)
+      expect(topicGroups()[0]?.name).toBe('Papers')
+      expect(topicService.getById('cg-topic').groupId).toBe(GROUP_ID)
+      expect(
+        (notifyDataApiDataChangeMock.mock.calls[0][0] as Array<{ endpoint: string; kind?: string }>).some(
+          (effect) => effect.endpoint === '/groups' && effect.kind === 'projection'
+        )
+      ).toBe(true)
+    })
+
+    it('still rejects reusing the id of a group of another entity type', async () => {
+      await seedTopic()
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: GROUP_ID, entityType: 'assistant', name: 'Research', orderKey: 'a0' })
+
+      expect(() => topicService.createGroupAndAssign('cg-topic', { groupId: GROUP_ID, name: 'Research' })).toThrow()
     })
   })
 
