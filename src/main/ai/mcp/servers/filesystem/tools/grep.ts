@@ -16,13 +16,13 @@ export const GrepToolSchema = z.object({
   path: z
     .string()
     .optional()
-    .describe('The directory to search in (must be absolute path). Defaults to the base directory'),
+    .describe('The directory to search in (must be absolute path). Defaults to the first configured root'),
   include: z.string().optional().describe('File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')
 })
 
 // Tool definition with detailed description
 export const grepToolDefinition = {
-  description: `Search file contents by regex, returning paths and line numbers, max 100. Narrow with include and path.`,
+  description: `Search file contents by regex, returning paths and line numbers, max 100. Narrow with include and path. Defaults to the first configured root.`,
   inputSchema: GrepToolSchema
 }
 
@@ -68,13 +68,16 @@ function parseRipgrepMatch(line: string): GrepMatch | null {
 }
 
 // Handler implementation
-export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleGrepTool(
+  data: z.infer<typeof GrepToolSchema>,
+  baseDirs: readonly string[]
+): Promise<CallToolResult> {
   if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = data.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+  const searchPath = data.path || baseDirs[0]
+  const validPath = await validatePath(searchPath, baseDirs)
 
   const matches: GrepMatch[] = []
   let truncated = false
@@ -174,7 +177,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
         // Validate path to prevent symlink escapes
         try {
-          await validatePath(fullPath, baseDir)
+          await validatePath(fullPath, baseDirs)
         } catch {
           logger.debug('Skipping path outside workspace root', { path: fullPath })
           continue
@@ -233,11 +236,11 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
           const absoluteFilePath = path.isAbsolute(parsedMatch.file)
             ? parsedMatch.file
-            : path.resolve(baseDir, parsedMatch.file)
+            : path.resolve(process.cwd(), parsedMatch.file)
 
           // Re-validate each result to filter out symlink escapes
           try {
-            await validatePath(absoluteFilePath, baseDir)
+            await validatePath(absoluteFilePath, baseDirs)
           } catch {
             logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
             continue
