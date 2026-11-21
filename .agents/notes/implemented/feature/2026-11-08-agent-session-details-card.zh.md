@@ -10,7 +10,7 @@ Status: implemented
 
 用户指定的参考是 T3 Code 按内容高度布局的线程详情卡片：紧凑行、弱化的分组分隔线、空间充足时内嵌显示，否则使用工具栏锚定浮层。本次仅改智能体会话详情。文件、浏览器、Trace、资源和任务执行视图保留现有大面板。
 
-这是一项新的展示决策。它保留[Harness 拥有的上下文用量](../../proposed/architecture/2026-10-30-agent-context-usage.md)的数据语义，以及[将右侧面板展示状态绑定到实例](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md)的工作面板身份规则，不宣称完成相关提案尚未通过的验收工作。
+这是一项新的展示决策。它保留[Harness 拥有的上下文用量](../../proposed/architecture/2026-10-30-agent-context-usage.md)的数据语义，以及[将右侧面板展示状态绑定到实例](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md)的工作面板身份规则，不宣称完成相关提案尚未通过的验收工作。部分被取代：卡片与对话页资料面板互斥——见[对话页中助手与智能体的资料面板](../../proposed/feature/2026-11-12-chat-profile-pane.md)。
 
 ## 决策
 
