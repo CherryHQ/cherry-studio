@@ -505,6 +505,8 @@ export const ModelConfigSchema = z.object({
   contextWindow: z.number().optional(),
   maxOutputTokens: z.number().optional(),
   maxInputTokens: z.number().optional(),
+  /** Maximum Agent images accepted in one request (#20030, registry-owned, not user-editable). */
+  maxAgentImages: z.number().int().nonnegative().optional(),
 
   // Pricing
   pricing: ModelPricingSchema.optional(),

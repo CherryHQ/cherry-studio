@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   branchTip: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
+  deleteSessionMessage: vi.fn(),
   hasSessionMessages: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
@@ -26,7 +27,8 @@ const mocks = vi.hoisted(() => ({
   runtimeValidateSession: vi.fn(),
   setEditRuntimeTx: vi.fn(),
   reserveDurableBranchTx: vi.fn(),
-  getModelNames: vi.fn(() => new Map<string, string>())
+  getModelNames: vi.fn(() => new Map<string, string>()),
+  getModelByKey: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -56,6 +58,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
+    deleteSessionMessage: mocks.deleteSessionMessage,
     hasSessionMessages: mocks.hasSessionMessages,
     setEditRuntimeTx: mocks.setEditRuntimeTx
   }
@@ -69,7 +72,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames() }
+  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames(), getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@application', () => ({
@@ -591,5 +594,107 @@ describe('AgentChatContextProvider', () => {
     )
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  describe('multi-image limits (#20030)', () => {
+    const imagePart = (filename: string) => ({
+      type: 'file',
+      url: `file:///tmp/${filename}`,
+      mediaType: 'image/png',
+      filename
+    })
+    const twoImages = [imagePart('a.png'), imagePart('b.png')]
+    const singleImageModel = {
+      id: 'anthropic::claude-sonnet',
+      providerId: 'anthropic',
+      name: 'Single',
+      capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      maxAgentImages: 1
+    }
+
+    beforeEach(() => {
+      mocks.getModelByKey.mockReset().mockReturnValue(singleImageModel)
+      mocks.deleteSessionMessage.mockReset()
+    })
+
+    it('rejects over-limit idle dispatch before committing any rows', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
+      expect(mocks.deleteSessionMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects over-limit busy dispatch before saving the user row', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('deletes the saved busy user row when enqueue rejects after the save race', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(true)
+      // Pre-save validation passes (unlimited at validate time and at the
+      // pre-save re-check), then enqueue rejects — the provider must clean up
+      // the just-saved row.
+      const unlimited = {
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      mocks.getModelByKey.mockReset().mockReturnValue(unlimited)
+      const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+      mocks.runtimeEnqueueUserMessage.mockImplementationOnce(() => {
+        throw new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+      })
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError' })
+
+      expect(mocks.saveMessage).toHaveBeenCalledOnce()
+      expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('session-1', expect.any(String))
+    })
+
+    it('deletes committed rows when beginTurn rejects after persist', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getModelByKey.mockReturnValue({
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      })
+      const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+      mocks.runtimeBeginTurn.mockImplementationOnce(() => {
+        throw new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+      })
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError' })
+
+      expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+      expect(mocks.deleteSessionMessage).toHaveBeenCalledTimes(2)
+    })
   })
 })

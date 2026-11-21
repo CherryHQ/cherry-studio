@@ -134,6 +134,20 @@ describe('mergePresetModel', () => {
     expect(mergePresetModel(presetModel, override, 'openai-codex').supportsFastMode).toBe(true)
     expect(mergePresetModel(presetModel, null, 'openai-codex').supportsFastMode).toBeUndefined()
   })
+
+  it('propagates the registry-owned Agent image cap with override precedence (#20030)', () => {
+    const preset = { ...presetModel, maxAgentImages: 2 }
+    expect(mergePresetModel(preset, null, 'openai').maxAgentImages).toBe(2)
+    const viaLimits = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      limits: { maxAgentImages: 1 }
+    } as any
+    expect(mergePresetModel(preset, viaLimits, 'openai').maxAgentImages).toBe(1)
+    const topLevel = { providerId: 'openai', modelId: 'gpt-4o', maxAgentImages: 3 } as any
+    expect(mergePresetModel(preset, topLevel, 'openai').maxAgentImages).toBe(3)
+    expect(mergePresetModel(presetModel, null, 'openai').maxAgentImages).toBeUndefined()
+  })
 })
 
 describe('CherryIN Qwen media capability overrides', () => {

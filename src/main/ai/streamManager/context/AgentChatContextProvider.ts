@@ -21,6 +21,7 @@ import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AgentImageLimitError, assertAgentImageLimit } from '@shared/ai/agentImageLimits'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -50,6 +51,29 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
   }
+}
+
+/**
+ * Capability-driven multi-image guard (#20030): validate the turn's image
+ * count against the turn model's limit BEFORE any DB writes, so an over-limit
+ * submission never leaves a committed user row or a pending assistant row
+ * without a stream to settle it. Unresolvable models keep the legacy
+ * unlimited behavior instead of blocking on missing metadata.
+ */
+function assertDispatchImageLimit(
+  uniqueModelId: UniqueModelId,
+  parts: readonly CherryMessagePart[] | undefined,
+  agentType: string
+): void {
+  let model: Parameters<typeof assertAgentImageLimit>[1]
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    model = modelService.getByKey(providerId, modelId)
+  } catch (error) {
+    if (error instanceof AgentImageLimitError) throw error
+    return
+  }
+  assertAgentImageLimit(parts, model, { runtime: agentType })
 }
 
 export type ValidatedAgentDispatch = {
@@ -175,6 +199,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
+    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    // Fail closed before any DB writes: an over-limit turn never commits a
+    // user row or a pending assistant row without a stream to settle it.
+    assertDispatchImageLimit(uniqueModelId, userMessageParts, agent.type)
     return {
       sessionId,
       parentMessageId,
@@ -201,7 +229,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }
@@ -369,6 +397,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
         req.editTarget,
         (tx, nativeSessionId, nativeContextId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+          // Revalidate inside the transaction: fork preparation runs
+          // asynchronously, and a cap may have become enforceable for the same
+          // model while preparing. Failing here rolls back the branch
+          // replacement, so an over-limit edit leaves the original rows intact
+          // instead of committing a replacement with no stream to settle it.
+          assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
           const result = this.persistDispatchTx(
             tx,
             validated,
@@ -415,6 +449,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
+      // Re-check after `await prepareBranch`: a cap may have appeared while
+      // opening (model added/updated). Fail before the user row is committed.
+      assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
         parentId: validated.parentMessageId,
@@ -426,15 +463,29 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
-        headless: validated.headless,
-        trustedNotifyChannels: validated.trustedNotifyChannels,
-        messageSnapshot: validated.messageSnapshot,
-        reasoningEffort: validated.reasoningEffort,
-        serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode,
-        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
-      })
+      try {
+        application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
+          headless: validated.headless,
+          trustedNotifyChannels: validated.trustedNotifyChannels,
+          messageSnapshot: validated.messageSnapshot,
+          reasoningEffort: validated.reasoningEffort,
+          serviceTier: validated.serviceTier,
+          fastMode: validated.fastMode,
+          followUp: req.trigger === 'submit-message' ? req.followUp : undefined
+        })
+      } catch (error) {
+        if (error instanceof AgentImageLimitError) {
+          // The busy check already rejected before queueing, but the user row
+          // was committed above — remove it so retry keeps the full draft and
+          // no unqueued row or remote reservation is left behind.
+          try {
+            agentSessionMessageService.deleteSessionMessage(validated.sessionId, savedUserMessage.id)
+          } catch {
+            // Best-effort: the limit error stays authoritative.
+          }
+        }
+        throw error
+      }
 
       return {
         topicId: validated.topicId,
@@ -444,13 +495,32 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
+    // Re-check after `await prepareBranch` for the same reason: fail before
+    // committing the user + pending assistant rows.
+    assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
     const persisted = application.get('DbService').withWriteTx((tx) => {
       ctx?.beforePersist?.()
       const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
-    return this.activateDispatch(persisted, subscriber)
+    try {
+      return this.activateDispatch(persisted, subscriber)
+    } catch (error) {
+      if (error instanceof AgentImageLimitError) {
+        // `beginTurn` validates the same model/parts, so this only fires on a
+        // race — settle the just-committed rows explicitly so no pending reply
+        // is left without a stream.
+        for (const messageId of [persisted.userMessage.id, persisted.assistantMessageId]) {
+          try {
+            agentSessionMessageService.deleteSessionMessage(validated.sessionId, messageId)
+          } catch {
+            // Best-effort: the limit error stays authoritative.
+          }
+        }
+      }
+      throw error
+    }
   }
 }
 

@@ -77,9 +77,13 @@ export const ProviderModelOverrideSchema = z.object({
     .object({
       contextWindow: z.number().optional(),
       maxOutputTokens: z.number().optional(),
-      maxInputTokens: z.number().optional()
+      maxInputTokens: z.number().optional(),
+      /** Per-provider Agent image cap (#20030, registry-owned, not user-editable). */
+      maxAgentImages: z.number().int().nonnegative().optional()
     })
     .optional(),
+  /** Top-level Agent image cap alias (defensive: older catalogs may carry it here). */
+  maxAgentImages: z.number().int().nonnegative().optional(),
   pricing: PartialModelPricingSchema.optional(),
   /** Exact reasoning behavior keyed by the endpoint used for this provider-model pair. */
   reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),

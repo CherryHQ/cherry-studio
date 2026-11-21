@@ -37,6 +37,14 @@ import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
+import {
+  AgentImageLimitError,
+  AGENT_IMAGE_EXTS,
+  countAgentImageFileParts,
+  normalizeAgentImageLimitFailure,
+  parseUpstreamImageLimit,
+  resolveMaxAgentImages
+} from '@shared/ai/agentImageLimits'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -46,7 +54,6 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -156,6 +163,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  /** Submitted native image-block counts for provider result-boundary normalization. */
+  private pendingImageCounts: number[] = []
+  /** Last submitted image count (legacy single-value view of the pending queue). */
+  private lastImageCount?: number
   private readonly currentSources = new Set<string>()
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private assistantFileToolsEnabled = false
@@ -310,15 +321,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(
-      withAgentContext(input.message, input.context),
-      this.resumeToken,
-      input.systemReminder,
-      {
-        supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: resolveModelImageSupport(this.input.modelId)
-      }
-    )
+    const merged = withAgentContext(input.message, input.context)
+    const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages: resolveModelImageSupport(this.input.modelId),
+      maxImages: resolveModelImageLimit(this.input.modelId)
+    })
+    // Remember for the provider result boundary: a later `result` failure
+    // names only the limit, so the count must come from the submitted turn.
+    // Record actual native image blocks (including replayed history) and keep
+    // a queue so a text-only steer does not overwrite a pending image count.
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -328,7 +341,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
-    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    if (result.status !== 'acknowledged')
+      throw normalizeImageLimitRejection(result.error?.message ?? result.status, merged.data.parts)
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -346,15 +360,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(
-      withAgentContext(input.message, input.context),
-      this.resumeToken,
-      input.systemReminder,
-      {
-        supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: resolveModelImageSupport(this.input.modelId)
-      }
-    )
+    const merged = withAgentContext(input.message, input.context)
+    const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages: resolveModelImageSupport(this.input.modelId),
+      maxImages: resolveModelImageLimit(this.input.modelId)
+    })
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -364,7 +376,64 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
-    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    if (result.status !== 'acknowledged')
+      throw normalizeImageLimitRejection(result.error?.message ?? result.status, merged.data.parts)
+  }
+
+  /**
+   * Record the actual submitted native image blocks (including replayed history)
+   * so the provider `result` boundary can correlate a limit failure with native
+   * request membership. Queued so a text-only steer cannot overwrite a pending
+   * image count before native placement.
+   */
+  private recordSubmittedImageCount(
+    content: SDKUserMessage['message']['content'],
+    merged: AgentSessionMessageEntity
+  ): void {
+    const blocks = Array.isArray(content) ? content.filter((part) => part.type === 'image').length : 0
+    // Fall back to merged file-part count when no native blocks were produced
+    // (e.g. vision disabled or all images took the path fallback) so a later
+    // limit failure still carries the attached count.
+    const count = blocks > 0 ? blocks : countAgentImageFileParts(merged.data.parts)
+    this.pendingImageCounts.push(count)
+    this.lastImageCount = count
+  }
+
+  /**
+   * Consume the pending image count that best matches a provider `result`
+   * failure (first count exceeding the parsed limit, else the most recent).
+   * Returns undefined when no pending submission exists.
+   */
+  private consumeImageCountForResult(failure: unknown): number | undefined {
+    if (this.pendingImageCounts.length === 0) return this.lastImageCount
+    const message =
+      typeof failure === 'string'
+        ? failure
+        : failure instanceof Error
+          ? failure.message
+          : typeof (failure as { message?: unknown }).message === 'string'
+            ? String((failure as { message?: unknown }).message)
+            : undefined
+    const limit = parseUpstreamImageLimit(message)
+    if (limit !== undefined) {
+      let best = -1
+      for (let i = 0; i < this.pendingImageCounts.length; i++) {
+        if (
+          this.pendingImageCounts[i] > limit &&
+          (best === -1 || this.pendingImageCounts[i] > this.pendingImageCounts[best])
+        ) {
+          best = i
+        }
+      }
+      if (best !== -1) {
+        const [count] = this.pendingImageCounts.splice(best, 1)
+        this.lastImageCount = count
+        return count
+      }
+    }
+    const count = this.pendingImageCounts.pop()
+    this.lastImageCount = count
+    return count
   }
 
   async reconcile(input: {
@@ -737,11 +806,25 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
       if (control.failure) {
-        const error = new ClaudeCodeResultError(control.failure)
+        // Provider result failures bypass the admission normalizer: the
+        // workspace owner already acknowledged `submit` before yielding the
+        // input to the SDK, so an image-limit rejection surfaces here as a
+        // `ClaudeCodeResultError`. Normalize to the typed limit error with
+        // sent-aware wording (the request was already sent). Use the pending
+        // queue so a text-only steer cannot overwrite a pending image count,
+        // and include replayed blocks via the recorded native submission.
+        const count = this.consumeImageCountForResult(control.failure)
+        const normalized = normalizeResultImageLimitFailure(control.failure, count)
+        const error = normalized ?? new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
         return { type: 'error', error }
       }
       if (!control.terminal) return
+      // Turn complete: drop one pending image count (the settled submission).
+      if (this.pendingImageCounts.length > 0) {
+        this.pendingImageCounts.shift()
+        this.lastImageCount = this.pendingImageCounts[this.pendingImageCounts.length - 1]
+      }
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
         runtime: 'claude-code',
@@ -1036,16 +1119,78 @@ function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
   }
 }
 
+/**
+ * Capability-driven multi-image limit for the turn's model (#20030).
+ * Unresolvable models keep the legacy unlimited behavior; only a declared
+ * limit enforces a pre-send rejection.
+ */
+function resolveModelImageLimit(uniqueModelId: UniqueModelId): number | undefined {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return resolveMaxAgentImages(modelService.getByKey(providerId, modelId))
+  } catch (error) {
+    logger.warn('Failed to resolve model for image limit; assuming unlimited', {
+      uniqueModelId,
+      error
+    })
+    return undefined
+  }
+}
+
+/**
+ * Convert an SDK admission rejection into the image-limit error shape when its
+ * text names an upstream image cap the turn exceeds. Anything else passes
+ * through untouched.
+ */
+function normalizeImageLimitRejection(message: string | undefined, parts: readonly unknown[] | undefined): Error {
+  const failure = new Error(message ?? 'unknown')
+  return (
+    normalizeAgentImageLimitFailure(failure, countAgentImageFileParts(parts), { runtime: 'claude-code' }) ?? failure
+  )
+}
+
+/**
+ * Convert a provider `result` failure into the typed image-limit error when
+ * its text names an upstream cap. The result payload carries only the limit,
+ * so the attached count comes from the last submitted turn. Returns
+ * `undefined` for unrelated failures. Uses sent-aware wording because the
+ * request was already sent.
+ *
+ * Exported for regression coverage: a provider result event carrying an image
+ * cap must arrive as a typed `AgentImageLimitError`, not a generic
+ * `ClaudeCodeResultError`.
+ */
+export function normalizeResultImageLimitFailure(
+  failure: { message?: unknown } | string | unknown,
+  lastImageCount: number | undefined
+): AgentImageLimitError | undefined {
+  if (lastImageCount === undefined) return undefined
+  const message =
+    typeof failure === 'string'
+      ? failure
+      : failure instanceof Error
+        ? failure.message
+        : typeof (failure as { message?: unknown }).message === 'string'
+          ? ((failure as { message?: string }).message as string)
+          : undefined
+  if (!message) return undefined
+  return normalizeAgentImageLimitFailure(new Error(message), lastImageCount, {
+    runtime: 'claude-code',
+    sent: true
+  })
+}
+
 async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
   {
     supportsAttachmentReads = false,
-    supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+    supportsImages = true,
+    maxImages
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean; maxImages?: number } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads, maxImages)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1090,7 +1235,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
   supportsImages: boolean,
-  supportsAttachmentReads: boolean
+  supportsAttachmentReads: boolean,
+  maxImages?: number
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
@@ -1135,6 +1281,24 @@ async function materializeUserContent(
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
+  // Capability-driven multi-image guard (#20030): static pre-check on the
+  // parts that would become native image blocks — before file I/O and before
+  // the paid SDK call. Supported models keep every image in the user's order;
+  // over-limit turns throw with the actual limit and the draft stays intact.
+  if (maxImages !== undefined && supportsImages) {
+    const nativeCandidates = [
+      ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
+      ...firstPartyPathParts,
+      ...externalFileParts
+    ].filter((part) => {
+      const fileEntryId = readCherryMeta(part)?.fileEntryId
+      const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
+      return isImageFilePart(originalPart) && canBeClaudeImage(part)
+    })
+    if (nativeCandidates.length > maxImages) {
+      throw new AgentImageLimitError({ limit: maxImages, count: nativeCandidates.length, runtime: 'claude-code' })
+    }
+  }
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
@@ -1272,7 +1436,11 @@ function isImageFilePart(part: FileUIPart): boolean {
   if (part.url?.startsWith('data:') && toClaudeImageMediaType(parseDataUrl(part.url)?.mediaType)) return true
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+  // Agent counting superset (shared imageExts plus AVIF/HEIC/TIFF): routing
+  // itself still uses the shared `imageExts` table, so AVIF/HEIC stay OTHER
+  // for non-vision OCR fallback and keep their local-path fallback here via
+  // `canBeClaudeImage` below.
+  return AGENT_IMAGE_EXTS.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 /**

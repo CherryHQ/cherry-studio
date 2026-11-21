@@ -701,3 +701,25 @@ describe('Claude native forks', () => {
     await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
   })
 })
+
+describe('Claude image-limit result boundary (#20030)', () => {
+  it('normalizes a provider result cap to a typed sent-aware limit error', async () => {
+    const { normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+    const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+
+    const error = normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, 2)
+    expect(error).toBeInstanceOf(AgentImageLimitError)
+    expect(error).toMatchObject({ limit: 1, count: 2, sent: true })
+    expect(error?.i18nKey).toBe('agent_image_limit_exceeded_after_send')
+  })
+
+  it('passes through unrelated result failures and unknown counts', async () => {
+    const { normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+
+    expect(normalizeResultImageLimitFailure({ message: 'boom' }, 2)).toBeUndefined()
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided' }, undefined)
+    ).toBeUndefined()
+    expect(normalizeResultImageLimitFailure({ message: 'At most 2 image(s) may be provided' }, 2)).toBeUndefined()
+  })
+})

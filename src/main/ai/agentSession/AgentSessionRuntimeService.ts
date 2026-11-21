@@ -33,6 +33,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { assertAgentImageLimit } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -426,6 +427,31 @@ export class AgentSessionRuntimeService extends BaseService {
 
   assertSessionWritable(sessionId: string): void {
     if (this.forks.edits.has(sessionId) || this.entries.get(sessionId)?.closing) throw new AgentSessionEditError('busy')
+  }
+
+  /**
+   * Capability-driven multi-image guard (#20030): count the turn's image
+   * attachments in the user's order and reject before any paid provider
+   * request when the turn's model declares fewer than attached. Supported
+   * combinations pass through untouched and receive every image in order.
+   * Unresolvable models keep the legacy unlimited behavior instead of
+   * blocking on missing metadata.
+   */
+  private assertTurnImageLimit(
+    modelId: UniqueModelId | undefined,
+    parts: readonly CherryMessagePart[] | undefined,
+    agentType: string | undefined
+  ): void {
+    if (!modelId || !isUniqueModelId(modelId)) return
+    let model: ReturnType<typeof modelService.getByKey> | undefined
+    try {
+      const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+      model = modelService.getByKey(providerId, rawModelId)
+    } catch (error) {
+      logger.warn('Failed to resolve model for agent image-limit validation; skipping', { modelId, error })
+      return
+    }
+    assertAgentImageLimit(parts, model, { runtime: agentType })
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
@@ -842,6 +868,7 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    this.assertTurnImageLimit(input.modelId, userMessage.data.parts, input.agentType)
     // oxlint-disable-next-line no-restricted-globals -- Capture per-turn model/settings metadata before asynchronous native dispatch.
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
@@ -1349,6 +1376,10 @@ export class AgentSessionRuntimeService extends BaseService {
       agentService.getAgent(entry.agentId)?.model ??
       entry.modelId
     if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
+    // Capability-driven multi-image guard (#20030): reject before any paid
+    // provider request when the turn's model accepts fewer images than
+    // attached. The message is never queued, so retry keeps the full draft.
+    this.assertTurnImageLimit(entry.modelId, message.data.parts, entry.agentType)
     // Submit steer natively into the open turn; `steer-undelivered` queues it if delivery fails.
     // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
@@ -3337,6 +3368,19 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) !== connection
     )
       return
+    // Last gate before the paid provider call: validate against the turn's
+    // captured model, not the entry's latest default. The connection targets
+    // `turn.modelId` while live (see `connectionTarget`), so an agent-default
+    // change during connection opening must not re-gate the opening turn.
+    // Include replayed history: a fresh native context replays saved images,
+    // so a text-only send with two historical images must still fail here
+    // with the typed limit (and surface historical attachments) before the
+    // paid call, even though the draft itself is empty.
+    if (context?.length) {
+      this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType)
+    } else {
+      this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+    }
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,
