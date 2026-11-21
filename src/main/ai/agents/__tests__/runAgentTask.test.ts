@@ -110,7 +110,7 @@ import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
-import { runAgentTask } from '../runAgentTask'
+import { runAgentTask, TaskReuseBindingLostError } from '../runAgentTask'
 
 function makeJobSnapshot(scheduleId: string | null = 's1'): JobSnapshot {
   return {
@@ -471,8 +471,10 @@ describe('runAgentTask', () => {
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
     })
 
-    // Deleting the session must not break the schedule: the fire rebinds a new one.
-    it('rebinds when the constrained relation no longer has a session', async () => {
+    // Never bound (no tombstone) is the first-fire path: create and bind a new
+    // session. REUSE_ON deliberately carries no `boundKind` — with one, a
+    // missing session reads as a lost binding and must fail instead (next test).
+    it('creates and binds a fresh session when reuse was never bound', async () => {
       vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(null)
       vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
 
@@ -480,6 +482,30 @@ describe('runAgentTask', () => {
 
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-new' }))
       expect(mockBindTaskSessionReuse).toHaveBeenCalledTimes(1)
+    })
+
+    // A tombstoned binding whose session is gone (deleted, or re-owned) must fail
+    // loudly: silently substituting a fresh session would discard the
+    // conversation the user bound. The task stays enabled; rebinding from the
+    // form clears the tombstone.
+    it('fails with TaskReuseBindingLostError when the bound session is gone', async () => {
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(null)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: true, revision: 0, boundKind: 'explicit' } })
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      await expect(
+        runAgentTask(
+          makeCtx({
+            input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' }, reuseRevision: 0 }
+          })
+        )
+      ).rejects.toThrow(TaskReuseBindingLostError)
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
     })
 
     it('refuses to resume a session owned by another agent', async () => {

@@ -562,6 +562,28 @@ export class AgentSessionService {
     )
   }
 
+  /**
+   * Binding-state read for task-bind validation. The relation columns stay off
+   * the entity, so picker/command validation reads them through this method.
+   */
+  getTaskBindingTx(
+    tx: DbOrTx,
+    sessionId: string
+  ): { agentId: string | null; name: string; taskScheduleId: string | null; isTaskReuseTarget: boolean } | null {
+    const [row] = tx
+      .select({
+        agentId: sessionsTable.agentId,
+        name: sessionsTable.name,
+        taskScheduleId: sessionsTable.taskId,
+        isTaskReuseTarget: sessionsTable.isTaskReuseTarget
+      })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
+      .limit(1)
+      .all()
+    return row ?? null
+  }
+
   /** Prepare session-owned changes before the caller deletes an agent row. */
   prepareForAgentDeletionTx(
     tx: DbOrTx,

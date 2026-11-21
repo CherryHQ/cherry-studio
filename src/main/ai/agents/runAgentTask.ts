@@ -50,6 +50,21 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 
 const logger = loggerService.withContext('runAgentTask')
 
+/**
+ * A reusing task's established binding no longer yields a live session (the
+ * bound session was deleted or re-owned). Fires fail with this reason instead
+ * of silently replacing the chosen conversation; the task stays enabled and
+ * the read model marks the binding lost until the user rebinds from the form.
+ */
+export class TaskReuseBindingLostError extends Error {
+  constructor(scheduleId: string) {
+    super(
+      `The session bound to this scheduled task no longer exists. Open the task and bind a session again to resume it. (task ${scheduleId})`
+    )
+    this.name = 'TaskReuseBindingLostError'
+  }
+}
+
 export type AgentTaskInput = {
   agentId: string
   prompt: string
@@ -87,8 +102,9 @@ function makeRunSignal(
 /**
  * Load the sticky session for a reusing task, or `null` when it can no longer
  * be used — deleted, or (defensively) re-owned by a different agent. Callers
- * treat `null` as "rebind a fresh one" rather than an error: a user deleting
- * the session must not break the schedule.
+ * distinguish "never bound yet" (first fire: create and bind a fresh session)
+ * from "binding lost" (a binding existed: fail with {@link TaskReuseBindingLostError})
+ * via the reuse tombstone's `boundKind`.
  */
 function loadReusableSession(taskScheduleId: string, agentId: string) {
   const session = agentSessionService.getByTaskScheduleId(taskScheduleId)
@@ -122,6 +138,12 @@ function resolveTaskSession(params: {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
     if (existing) {
       return { session: existing, reused: true }
+    }
+    if (reuse.boundKind !== undefined) {
+      // A binding was established under this config epoch but its session is
+      // gone. Fail loudly rather than silently substitute a fresh session for
+      // the conversation the user bound (or the run log linked to).
+      throw new TaskReuseBindingLostError(reuseBinding.scheduleId)
     }
     logger.info('Reuse session unavailable — creating a new one', {
       scheduleId: reuseBinding?.scheduleId
@@ -232,21 +254,30 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     currentReuse.revision === expectedReuseRevision
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
   const sessionType = isHeartbeat ? 'background' : 'conversation'
-  const resolved = resolveTaskSession({
-    sessionType,
-    scheduleId,
-    reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
-    reuseBinding,
-    agentId,
-    name: taskName ?? 'Scheduled task',
-    workspace
-  })
-  let session = resolved.session
-  // Snapshot the task's configured recipients before starting the run. Adapter availability affects
-  // delivery, not authority: a temporarily disconnected configured channel must not hide `notify`.
+  // Snapshot the task's configured recipients before resolving the session, so a
+  // lost binding still notifies them. Adapter availability affects delivery, not
+  // authority: a temporarily disconnected configured channel must not hide `notify`.
   const subscribedChannels = scheduleId
     ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
     : []
+  let resolved: ReturnType<typeof resolveTaskSession>
+  try {
+    resolved = resolveTaskSession({
+      sessionType,
+      scheduleId,
+      reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
+      reuseBinding,
+      agentId,
+      name: taskName ?? 'Scheduled task',
+      workspace
+    })
+  } catch (error) {
+    if (error instanceof TaskReuseBindingLostError && subscribedChannels.length > 0) {
+      await notifyTaskError({ id: scheduleId, name: taskName, durationMs: 0 }, error.message, subscribedChannels)
+    }
+    throw error
+  }
+  let session = resolved.session
   const trustedNotifyChannels = subscribedChannels
     .map((channel) => ({ id: channel.id, type: channel.type }))
     .sort((left, right) => left.id.localeCompare(right.id))
@@ -400,7 +431,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       resolved.reused &&
       resolved.session.id === session.id
     ) {
-      application.get('AgentJobsService').releaseOverflowedTaskSession(reuseBinding, session.id)
+      // An explicitly chosen target keeps its binding and reports the failure;
+      // only an automatically bound target may be replaced on the next fire (AC9).
+      if (currentReuse.boundKind !== 'explicit') {
+        application.get('AgentJobsService').releaseOverflowedTaskSession(reuseBinding, session.id)
+      }
     }
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {

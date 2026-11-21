@@ -81,7 +81,7 @@ function TaskRow({
       <Button
         variant="ghost"
         className={cn(
-          'h-auto min-w-0 flex-1 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
+          'h-auto min-w-0 flex-1 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
           selected && 'text-resource-list-row-selected-foreground'
         )}
         aria-pressed={selected}
@@ -106,13 +106,38 @@ function TaskRow({
               {t('scheduledTasks.missedTime')}
             </span>
           )}
+          {task.reuseBindingLost && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="truncate text-xs text-warning-subtle-foreground"
+              title={
+                task.reuseBindingLostSessionName
+                  ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
+                  : t('agent.tasks.reuseSession.bindingLostUnknown')
+              }
+              onClick={(event) => {
+                event.stopPropagation()
+                setEditOpen(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.stopPropagation()
+                  setEditOpen(true)
+                }
+              }}>
+              {task.reuseBindingLostSessionName
+                ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
+                : t('agent.tasks.reuseSession.bindingLostUnknown')}
+            </span>
+          )}
         </span>
       </Button>
       <DropdownMenu>
         <Tooltip title={t('common.more')}>
           <DropdownMenuTrigger asChild>
             <ResourceList.HeaderActionButton
-              className="bg-transparent opacity-0 shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-transparent data-[state=open]:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 no-hover:opacity-100"
+              className="bg-transparent opacity-0 shadow-none group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset data-[state=open]:bg-transparent data-[state=open]:opacity-100 no-hover:opacity-100"
               disabled={busy}
               aria-label={`${t('common.more')} ${task.name}`}>
               <MoreHorizontal className="size-4" />
@@ -209,7 +234,7 @@ export function ScheduledTaskGroup({
       <h2 className="flex h-9 items-center">
         <Button
           variant="ghost"
-          className="h-8 w-full justify-start gap-1.5 rounded-lg px-2.5 text-[13px] font-normal leading-5 text-muted-foreground hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover"
+          className="h-8 w-full justify-start gap-1.5 rounded-lg px-2.5 text-[13px] leading-5 font-normal text-muted-foreground hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover"
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={() => setExpanded((value) => !value)}>

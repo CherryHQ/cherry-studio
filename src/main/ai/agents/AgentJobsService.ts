@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -251,9 +252,16 @@ export class AgentJobsService extends BaseService {
     this.assertNameNotReserved(form.name)
     const channelIds = form.channelIds ?? []
     this.assertChannelsBelongToAgent(agentId, channelIds)
+    // An explicit picker choice only applies while reuse is on.
+    const explicitBindSessionId = form.reuseSession === true ? (form.reuseSessionId ?? null) : null
 
     const jobManager = application.get('JobManager')
     const { id } = application.get('DbService').withWriteTx((tx) => {
+      // Validate before create: a brand-new task id can never be the current
+      // holder, so pass null as the owning task.
+      const explicitBindSessionName = explicitBindSessionId
+        ? this.assertSessionBindableTx(tx, agentId, null, explicitBindSessionId)
+        : undefined
       const created = jobManager.registerJobScheduleTx(tx, {
         type: AGENT_TASK_TYPE,
         name: form.name,
@@ -270,10 +278,18 @@ export class AgentJobsService extends BaseService {
         // a constrained relation owned by AgentSessionService.
         metadata: writeTaskSessionReuse(undefined, {
           enabled: form.reuseSession === true,
-          revision: 0
+          revision: 0,
+          ...(explicitBindSessionId ? { boundKind: 'explicit' as const, sessionName: explicitBindSessionName } : {})
         }),
         catchUpPolicy: { kind: 'skip-missed' }
       })
+      if (explicitBindSessionId) {
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: explicitBindSessionId,
+          taskScheduleId: created.id,
+          expectedAgentId: agentId
+        })
+      }
       if (channelIds.length > 0) {
         agentChannelService.replaceTaskSubscriptionsTx(tx, created.id, channelIds)
       }
@@ -312,13 +328,17 @@ export class AgentJobsService extends BaseService {
 
     const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
     const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
+    // Picker rebind: a changed selection re-points the binding; the unchanged
+    // selection is never sent, so editing other fields leaves the binding as is.
+    const pickerSessionId = nextReuseEnabled ? patch.reuseSessionId : undefined
+    const reuseSessionIdChanged = pickerSessionId !== undefined && pickerSessionId !== existing.reuseSessionId
     // A bound session keeps its OWN workspace, so re-pointing the task at a
     // different workspace would otherwise be silently ignored while the form
     // still displays the new one. Drop the pointer instead: the next fire
     // creates a session in the workspace the user actually picked.
     const workspaceChanged =
       nextReuseEnabled && patch.workspace !== undefined && !workspacesEqual(patch.workspace, existing.workspace)
-    const reuseConfigChanged = reuseChanged || workspaceChanged
+    const reuseConfigChanged = reuseChanged || workspaceChanged || reuseSessionIdChanged
 
     const jobManager = application.get('JobManager')
     application.get('DbService').withWriteTx((tx) => {
@@ -326,13 +346,28 @@ export class AgentJobsService extends BaseService {
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
       const reuseRevision = currentReuse.revision + (reuseConfigChanged ? 1 : 0)
       if (reuseConfigChanged) {
+        // Validate before mutating so a rejection rolls the whole tx back.
+        const explicitBindSessionName =
+          reuseSessionIdChanged && pickerSessionId != null
+            ? this.assertSessionBindableTx(tx, agentId, taskId, pickerSessionId)
+            : undefined
         // Read-merge-write inside the tx: `updateTx` replaces `metadata`
         // wholesale, so preserve unrelated schedule state.
         schedulePatch.metadata = writeTaskSessionReuse(snapshot?.metadata, {
           enabled: nextReuseEnabled,
-          revision: reuseRevision
+          revision: reuseRevision,
+          ...(reuseSessionIdChanged && pickerSessionId != null
+            ? { boundKind: 'explicit' as const, sessionName: explicitBindSessionName }
+            : {})
         })
         agentSessionService.clearTaskScheduleTx(tx, taskId)
+        if (reuseSessionIdChanged && pickerSessionId != null) {
+          agentSessionService.bindTaskScheduleTx(tx, {
+            sessionId: pickerSessionId,
+            taskScheduleId: taskId,
+            expectedAgentId: agentId
+          })
+        }
       }
       if (
         snapshot &&
@@ -520,6 +555,26 @@ export class AgentJobsService extends BaseService {
   }
 
   /**
+   * Picker-bind validation: the session must exist, belong to the task's
+   * Agent, and not be bound to another task. The rejection names the holding
+   * task so the form can show it (Spec AC2). Re-selecting the current binding
+   * is a no-op, never an error.
+   */
+  private assertSessionBindableTx(tx: DbOrTx, agentId: string, taskId: string | null, sessionId: string): string {
+    const binding = agentSessionService.getTaskBindingTx(tx, sessionId)
+    if (!binding || binding.agentId !== agentId) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    if (binding.taskScheduleId !== null && binding.taskScheduleId !== taskId) {
+      const otherName = jobScheduleService.getByIdTx(tx, binding.taskScheduleId)?.name ?? binding.taskScheduleId
+      throw new Error(`Session is already bound to the task "${otherName}"`)
+    }
+    // Returned so the caller can record the last-known session name in the
+    // binding tombstone (shown by the tasks page if the session is deleted).
+    return binding.name
+  }
+
+  /**
    * Atomically bind a newly created sticky session only when the queued job's
    * captured reuse configuration is still current. AgentSessionService owns
    * the constrained relation; this command service only validates task state.
@@ -547,11 +602,25 @@ export class AgentJobsService extends BaseService {
       ) {
         return false
       }
-      return agentSessionService.bindTaskScheduleTx(tx, {
+      const bound = agentSessionService.bindTaskScheduleTx(tx, {
         sessionId: params.sessionId,
         taskScheduleId: params.scheduleId,
         expectedAgentId: params.agentId
       })
+      if (bound && reuse.boundKind === undefined) {
+        // Tombstone for the auto-binding so a later loss reads as "binding
+        // lost", not "never bound". An explicit tombstone never reaches here:
+        // a fire with a lost explicit binding fails before creating a session.
+        const sessionName = agentSessionService.getTaskBindingTx(tx, params.sessionId)?.name
+        jobScheduleService.updateTx(tx, params.scheduleId, {
+          metadata: writeTaskSessionReuse(snapshot.metadata, {
+            ...reuse,
+            boundKind: 'auto',
+            ...(sessionName ? { sessionName } : {})
+          })
+        })
+      }
+      return bound
     })
     if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
     return bound
@@ -562,8 +631,20 @@ export class AgentJobsService extends BaseService {
       const schedule = jobScheduleService.getByIdTx(tx, binding.scheduleId)
       const reuse = readTaskSessionReuse(schedule?.metadata)
       if (!reuse.enabled || reuse.revision !== binding.reuseRevision) return false
+      // Overflow release applies only to auto-bound sticky sessions: an
+      // explicit picker binding is the user's choice and survives overflow
+      // (Spec AC9) — the run compacts it instead of releasing it.
+      if (reuse.boundKind === 'explicit') return false
       if (agentSessionService.getByTaskScheduleIdTx(tx, binding.scheduleId)?.id !== sessionId) return false
-      return agentSessionService.clearTaskScheduleTx(tx, binding.scheduleId)
+      const released = agentSessionService.clearTaskScheduleTx(tx, binding.scheduleId)
+      if (released && reuse.boundKind !== undefined) {
+        // The next fire auto-binds a fresh target, so the loss tombstone must
+        // not outlive the release (Spec AC9).
+        jobScheduleService.updateTx(tx, binding.scheduleId, {
+          metadata: writeTaskSessionReuse(schedule?.metadata, { enabled: reuse.enabled, revision: reuse.revision })
+        })
+      }
+      return released
     })
     if (cleared) agentTaskService.notifyReadModelChange([binding.scheduleId])
   }

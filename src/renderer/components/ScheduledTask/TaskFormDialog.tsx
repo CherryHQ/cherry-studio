@@ -40,6 +40,7 @@ import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
@@ -415,6 +416,66 @@ const TaskSessionReuseField: FC<{
   )
 }
 
+/** Picker value for the auto-bind choice; Radix Select rejects an empty-string item value. */
+const AUTO_REUSE_VALUE = '__auto__'
+
+/**
+ * Session picker for the reuse binding. Lists the agent's ordinary conversation
+ * sessions; the currently bound session (which the ordinary-conversation list
+ * filters out once it is task-owned) is fetched by id and merged in so the
+ * picker always shows the effective binding.
+ */
+const TaskSessionPickerField: FC<{
+  agentId: string | null
+  value: string | null
+  onChange: (value: string | null) => void
+  disabled?: boolean
+}> = ({ agentId, value, onChange, disabled }) => {
+  const { t } = useTranslation()
+  const { data: listPage } = useQuery('/agent-sessions', {
+    query: { agentId: agentId ?? '', limit: 200 },
+    enabled: Boolean(agentId)
+  })
+  const listed = useMemo(() => listPage?.items ?? [], [listPage?.items])
+  const valueIsListed = value !== null && listed.some((session) => session.id === value)
+  const { data: boundSession } = useQuery('/agent-sessions/:sessionId', {
+    params: { sessionId: value ?? '' },
+    enabled: Boolean(agentId && value && !valueIsListed)
+  })
+
+  const sessions = useMemo(() => {
+    const byId = new Map<string, AgentSessionEntity>()
+    if (boundSession) byId.set(boundSession.id, boundSession)
+    for (const session of listed) byId.set(session.id, session)
+    return [...byId.values()]
+  }, [listed, boundSession])
+
+  return (
+    <Field>
+      <FieldLabel htmlFor="task-form-reuse-session-id">{t('agent.tasks.reuseSession.sessionLabel')}</FieldLabel>
+      <Select
+        value={value ?? AUTO_REUSE_VALUE}
+        disabled={disabled || !agentId}
+        onValueChange={(next) => onChange(next === AUTO_REUSE_VALUE ? null : next)}>
+        <SelectTrigger id="task-form-reuse-session-id" className="w-full">
+          <SelectValue placeholder={t('agent.tasks.reuseSession.sessionPlaceholder')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value={AUTO_REUSE_VALUE}>{t('agent.tasks.reuseSession.autoOption')}</SelectItem>
+            {sessions.map((session) => (
+              <SelectItem key={session.id} value={session.id}>
+                {session.name?.trim() || t('agent.tasks.reuseSession.untitledSession')}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <ItemDescription>{t('agent.tasks.reuseSession.sessionDescription')}</ItemDescription>
+    </Field>
+  )
+}
+
 type TaskFormDialogProps = {
   agentNotice?: ReactNode
   open: boolean
@@ -446,6 +507,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [reuseSession, setReuseSession] = useState(false)
+  const [reuseSessionId, setReuseSessionId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
@@ -466,6 +528,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setChannelIds(draft?.channelIds ?? [])
       setWorkspaceId(draft?.workspaceId ?? null)
       setReuseSession(draft?.reuseSession ?? false)
+      setReuseSessionId(draft?.reuseSessionId ?? null)
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -523,6 +586,9 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
+        if (reuseSessionId !== initialDraft.reuseSessionId) {
+          updates.reuseSessionId = reuseSession ? reuseSessionId : null
+        }
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
@@ -538,6 +604,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           workspace,
           timeoutMinutes,
           reuseSession,
+          reuseSessionId: reuseSession ? reuseSessionId : undefined,
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
@@ -545,7 +612,19 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
+  }, [
+    agentId,
+    channelIds,
+    name,
+    onOpenChange,
+    prompt,
+    props,
+    reuseSession,
+    reuseSessionId,
+    schedule,
+    resolvedTrigger,
+    workspaceId
+  ])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -614,6 +693,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                   onChange={(nextAgentId) => {
                     setAgentId(nextAgentId)
                     setChannelIds([])
+                    setReuseSessionId(null)
                   }}
                   align="start"
                   mountStrategy="lazy-keep"
@@ -663,6 +743,15 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             />
 
             <TaskSessionReuseField value={reuseSession} disabled={saving} onChange={setReuseSession} />
+
+            {reuseSession && (
+              <TaskSessionPickerField
+                agentId={agentId}
+                value={reuseSessionId}
+                disabled={saving}
+                onChange={setReuseSessionId}
+              />
+            )}
 
             <TaskChannelSelector
               channels={availableChannels}

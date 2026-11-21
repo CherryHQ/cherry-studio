@@ -184,6 +184,14 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   reuseSession: z.boolean(),
   /** The sticky session bound by the last fire; null until the first fire (or while `reuseSession` is off). */
   reuseSessionId: z.string().nullable(),
+  /**
+   * Degraded signal: a sticky binding was established but the bound session no
+   * longer exists, so fires fail until the user rebinds (or disables) from the
+   * task form. Always false while `reuseSession` is off or a binding is live.
+   */
+  reuseBindingLost: z.boolean().optional(),
+  /** Last known name of the lost bound session; null when it was never recorded. Set only while `reuseBindingLost` is true. */
+  reuseBindingLostSessionName: z.string().nullable().optional(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
