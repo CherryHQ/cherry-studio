@@ -343,7 +343,7 @@ The current [message schema](../../../../src/main/data/db/schemas/agentSessionMe
 
 Some text exists in both native history and display messages because the two records have different retention and consumers. Native compaction or branching cannot delete the product archive; product edits cannot silently rewrite the model's native context. Do not store a third complete transcript or mirror Durable entries/submissions/tasks/commits into Cherry tables. Keep the submitted message version stable instead of copying its body into a mandatory input record. If a future retry consumer requires a transformed payload that the retained message cannot reproduce, justify a private payload snapshot for that path; do not infer that every input needs one.
 
-Product messages are also the portable history source when context moves between harnesses. When a session changes harness or opens a fresh context, the first run receives budgeted history built from them, and a transfer record keeps only the covered range and delivery state; this is not a third stored transcript. The [agent session timeline and context transfer](2026-11-19-agent-session-timeline-and-context-transfer.md) note owns that rule and replaces the one-binding-per-session assumption.
+A harness change or explicit context switch initializes a fresh native thread with a budgeted reference built from the selected branch's product messages. Cherry stores the native binding and input association. The [Agent session Timeline Spec](2026-11-19-agent-session-timeline-and-context-transfer.md) owns cutover, old-runtime release and native history retention, and allows multiple root bindings per session.
 
 ```mermaid
 flowchart LR
