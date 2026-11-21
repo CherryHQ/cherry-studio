@@ -11,10 +11,17 @@ const webSearchService = {
   fetchUrls: vi.fn()
 }
 
+const blacklistSubscriptionService = {
+  add: vi.fn(),
+  refresh: vi.fn(),
+  remove: vi.fn()
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   MockApplicationUtils.resetServices()
   MockApplicationUtils.setService('WebSearchService', webSearchService)
+  MockApplicationUtils.setService('BlacklistSubscriptionService', blacklistSubscriptionService)
 })
 
 // Web-search handlers ignore IpcContext (they act on shared service state, not the
@@ -137,5 +144,39 @@ describe('webSearchHandlers', () => {
     await expect(
       webSearchHandlers['web_search.search_keywords']({ providerId: 'querit', keywords: ['Cherry Studio'] }, ctx)
     ).rejects.toBe(error)
+  })
+})
+
+describe('blacklist subscription handlers', () => {
+  const subscription = { id: 's1', url: 'https://lists.example/list.txt', rules: ['*://*.a.example/*'] }
+
+  it('add forwards the url and name and returns the stored subscription', async () => {
+    blacklistSubscriptionService.add.mockResolvedValue(subscription)
+
+    const result = await webSearchHandlers['web_search.blacklist_subscriptions.add'](
+      { url: subscription.url, name: 'My list' },
+      ctx
+    )
+
+    expect(blacklistSubscriptionService.add).toHaveBeenCalledWith(subscription.url, 'My list')
+    expect(result).toEqual(subscription)
+  })
+
+  it('refresh forwards the id and returns the updated subscription', async () => {
+    blacklistSubscriptionService.refresh.mockResolvedValue(subscription)
+
+    const result = await webSearchHandlers['web_search.blacklist_subscriptions.refresh']({ id: 's1' }, ctx)
+
+    expect(blacklistSubscriptionService.refresh).toHaveBeenCalledWith('s1')
+    expect(result).toEqual(subscription)
+  })
+
+  it('remove forwards the id and resolves void', async () => {
+    blacklistSubscriptionService.remove.mockResolvedValue(undefined)
+
+    const result = await webSearchHandlers['web_search.blacklist_subscriptions.remove']({ id: 's1' }, ctx)
+
+    expect(blacklistSubscriptionService.remove).toHaveBeenCalledWith('s1')
+    expect(result).toBeUndefined()
   })
 })
