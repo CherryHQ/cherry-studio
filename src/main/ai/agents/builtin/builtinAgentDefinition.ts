@@ -30,7 +30,7 @@ const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
 export interface BuiltinAgentDefinition {
   name?: string
   instructions?: string
-  configuration?: Record<string, unknown>
+  configuration?: unknown
   skills?: string[]
   /** Core tools the bundle opts out of; narrowing only, so it may live in the data file. */
   disabledTools?: string[]
