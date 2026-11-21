@@ -92,6 +92,30 @@ describe('Claude Code process exit diagnostics', () => {
     expect(diagnostics.terminalReason).toContain('exited with code 429')
   })
 
+  it.each([
+    [3221225501, 'STATUS_ILLEGAL_INSTRUCTION'],
+    [-1073741795, 'STATUS_ILLEGAL_INSTRUCTION'],
+    [3221225477, 'STATUS_ACCESS_VIOLATION']
+  ])('names the Windows NTSTATUS exit code %i as %s', (code, name) => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('ntstatus-ref')
+    recordClaudeCodeProcessExit(diagnostics, code, null, '')
+
+    const error = createClaudeCodeProcessExitError(new Error('process exited'), diagnostics)
+
+    expect(error.message).toBe(`Claude Code process exited with code ${code} (${name})`)
+    expect(diagnostics.terminalReason).toContain(`(${name})`)
+    expect(serializeError(error)).toMatchObject({ processExitCode: code, diagnosticReference: 'ntstatus-ref' })
+  })
+
+  it('leaves unrecognized exit codes unnamed', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('plain-exit-ref')
+    recordClaudeCodeProcessExit(diagnostics, 3, null, '')
+
+    expect(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics).message).toBe(
+      'Claude Code process exited with code 3'
+    )
+  })
+
   it('clears a prior process result before a resume recovery spawns again', () => {
     const diagnostics = createClaudeCodeProcessDiagnostics('retry-ref')
     Object.assign(diagnostics, {
