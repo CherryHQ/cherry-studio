@@ -50,15 +50,6 @@ interface PaintingFileSnapshot {
   fingerprint: string
 }
 
-/**
- * Mapping from UpdatePaintingDto field → DB column for the update path.
- * Exported for test coverage — ensures no DTO field is silently dropped.
- *
- * `files` is intentionally NOT in this map: file membership is owned by
- * `painting_file_ref`, not the painting row. The update path handles it separately.
- */
-export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
-
 function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerprint?: string): Painting {
   const painting: Pick<Painting, 'id' | 'providerId' | 'modelId' | 'prompt' | 'files' | 'fileDataFingerprint'> = {
     id: row.id,
@@ -285,11 +276,9 @@ class PaintingService {
     }
 
     const updates: Partial<InsertPaintingRow> = {}
-    for (const key of UPDATE_PAINTING_FIELD_MAP) {
-      if (dto[key] !== undefined) {
-        ;(updates as Record<string, unknown>)[key] = dto[key]
-      }
-    }
+    if (dto.providerId !== undefined) updates.providerId = dto.providerId
+    if (dto.modelId !== undefined) updates.modelId = dto.modelId
+    if (dto.prompt !== undefined) updates.prompt = dto.prompt
 
     if (dto.modelId !== undefined) {
       updates.modelId = normalizeModelId(updates.providerId ?? existing.providerId, dto.modelId)
