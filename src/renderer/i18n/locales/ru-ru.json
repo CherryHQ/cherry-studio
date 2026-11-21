@@ -966,6 +966,7 @@
   "chat.message.new.context": "Новый контекст",
   "chat.message.quote": "Цитата",
   "chat.message.read_aloud.label": "Прочитать вслух",
+  "chat.message.reply_collapsed": "Ответ свёрнут",
   "chat.message.token_details.cache_read": "Чтение из кэша",
   "chat.message.token_details.cache_write": "Запись в кэш",
   "chat.message.token_details.cost": "Стоимость",

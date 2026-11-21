@@ -966,6 +966,7 @@
   "chat.message.new.context": "Bối cảnh Mới",
   "chat.message.quote": "Trích dẫn",
   "chat.message.read_aloud.label": "Đọc to",
+  "chat.message.reply_collapsed": "Đã thu gọn phản hồi",
   "chat.message.token_details.cache_read": "Đọc bộ nhớ đệm",
   "chat.message.token_details.cache_write": "Ghi vào bộ nhớ đệm",
   "chat.message.token_details.cost": "Chi phí",

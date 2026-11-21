@@ -1,11 +1,12 @@
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ASSISTANT_REPLY_DISCLOSURE } from '@renderer/services/messageUiStateCache'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
@@ -15,7 +16,9 @@ import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
-import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
+import { useOptionalMessageCaptureLease } from '../list/MessageCaptureLeaseContext'
+import { useRequestScrollReadingControl, useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -42,6 +45,7 @@ interface Props {
   messageParts?: CherryMessagePart[]
   index?: number
   total?: number
+  captureMode?: boolean
   hideMenuBar?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
@@ -59,6 +63,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   message,
   // assistant,
   index,
+  captureMode = false,
   hideMenuBar = false,
   isGrouped,
   onSelectContext,
@@ -116,6 +121,33 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
+  const captureLease = useOptionalMessageCaptureLease()
+  const capturing = captureLease?.leasedMessageIds.includes(message.id)
+  const requestReadingControl = useRequestScrollReadingControl(messageContainerRef)
+  const canCollapse = renderConfig.allowReplyCollapse && isAssistantMessage && showMenuBar && !captureMode
+  const [expanded, setExpanded] = useMessageDisclosureState(
+    canCollapse ? ASSISTANT_REPLY_DISCLOSURE : undefined,
+    true,
+    message.id
+  )
+  const collapsed = canCollapse && !capturing && !expanded
+  const moveFocus = useRef(false)
+  const expandButton = useRef<HTMLButtonElement>(null)
+  const setReplyExpanded = (next: boolean) => {
+    requestReadingControl()
+    moveFocus.current = true
+    setExpanded(next)
+  }
+  useLayoutEffect(() => {
+    if (!moveFocus.current) return
+    moveFocus.current = false
+    const target = collapsed ? expandButton.current : messageContainerRef.current
+    if (!target) return
+    target.focus({ preventScroll: !collapsed })
+    if (collapsed && !navigateWithScrollRuntime(target, 'center')) {
+      scrollIntoView(target, { block: 'nearest', container: 'nearest' })
+    }
+  }, [collapsed, navigateWithScrollRuntime])
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
@@ -179,6 +211,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!isMultiSelectMode) return
+      if (expandButton.current?.contains(event.target as Node)) return
       if ((event.target as HTMLElement | null)?.closest('[role="checkbox"]')) return
 
       event.preventDefault()
@@ -235,7 +268,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           {messageBody}
         </div>
       )}
-      {isAssistantMessage ? messageTail : <UnsentMessageNotice message={message} />}
+      {!isAssistantMessage && <UnsentMessageNotice message={message} />}
     </>
   )
 
@@ -258,30 +291,51 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     </div>
   ) : undefined
 
+  const replyContent = collapsed ? (
+    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+      {t('chat.message.reply_collapsed')} ·
+      <Button
+        ref={expandButton}
+        className="px-1 shadow-none"
+        size="sm"
+        variant="link"
+        onClick={() => setReplyExpanded(true)}>
+        {t('common.expand')}
+      </Button>
+    </div>
+  ) : (
+    plainMessageContent
+  )
+
   const assistantFooter = showAssistantFooterActions ? (
     <div
       className={cn(
         'MessageFooter mt-1 flex min-h-6.5 shrink-0 items-center justify-between gap-1.5 text-xs leading-none',
         assistantFooterVisibilityClass
       )}>
-      <HorizontalScrollContainer
-        classNames={{
-          content: cn('flex-1 flex-row items-center justify-between')
-        }}>
-        <MessageMenuBar
-          message={message}
-          isLastMessage={isLatestAssistantMessage}
-          forceVisible={isMessageMenuOpen}
-          isAssistantMessage={isAssistantMessage}
-          isGrouped={isGrouped}
-          isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={canStartEditing ? handleStartEditing : undefined}
-          onMenuOpenChange={setIsMessageMenuOpen}
-          onSelectContext={onSelectContext}
-        />
-      </HorizontalScrollContainer>
-      <SiblingNavigator messageId={message.id} />
+      {!collapsed && (
+        <>
+          <HorizontalScrollContainer
+            classNames={{
+              content: cn('flex-1 flex-row items-center justify-between')
+            }}>
+            <MessageMenuBar
+              message={message}
+              isLastMessage={isLatestAssistantMessage}
+              forceVisible={isMessageMenuOpen}
+              isAssistantMessage={isAssistantMessage}
+              isGrouped={isGrouped}
+              isProcessing={isProcessing}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+              onStartEditing={canStartEditing ? handleStartEditing : undefined}
+              onCollapse={canCollapse && !capturing ? () => setReplyExpanded(false) : undefined}
+              onMenuOpenChange={setIsMessageMenuOpen}
+              onSelectContext={onSelectContext}
+            />
+          </HorizontalScrollContainer>
+          <SiblingNavigator messageId={message.id} />
+        </>
+      )}
     </div>
   ) : undefined
 
@@ -299,6 +353,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       )}
       aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
+      tabIndex={canCollapse ? -1 : undefined}
       onClickCapture={handleMessageSelectClick}>
       {isUserBubbleMessage ? (
         <UserBubbleMessage
@@ -320,7 +375,12 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
           showModelIdentity={showModelIdentity}
-          contentSlot={plainMessageContent}
+          contentSlot={
+            <>
+              {replyContent}
+              {isAssistantMessage && messageTail}
+            </>
+          }
           footerSlot={userFooter ?? assistantFooter}
         />
       )}

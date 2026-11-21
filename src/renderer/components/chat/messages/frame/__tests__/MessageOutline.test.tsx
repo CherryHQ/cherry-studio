@@ -1,6 +1,8 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ASSISTANT_REPLY_DISCLOSURE, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
 
 import { ChatBottomOverlayInsetProvider } from '../../../layout/ChatViewportInsetContext'
 import type { MessageListItem } from '../../types'
@@ -16,6 +18,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../../blocks/MessagePartsContext', () => ({
+  useMessagePartsScopeId: () => undefined,
   useMessageParts: () => [{ type: 'text', text: '# Streaming heading' }]
 }))
 
@@ -46,6 +49,24 @@ describe('MessageOutline', () => {
 
   afterEach(() => {
     document.querySelectorAll('[data-message-outline-fixture]').forEach((element) => element.remove())
+  })
+
+  it('hides headings while the target reply is collapsed and restores them on expansion', () => {
+    const message = { id: 'outline-collapse' } as MessageListItem
+    render(
+      <MessageOutline
+        message={message}
+        getMessageElement={() => null}
+        multiModelMessageStyle="vertical"
+        onNavigateToElement={vi.fn()}
+      />
+    )
+    const setExpanded = (expanded: boolean) =>
+      act(() => updateCachedMessageUiState(message.id, { disclosures: { [ASSISTANT_REPLY_DISCLOSURE]: expanded } }))
+    setExpanded(false)
+    expect(screen.queryByText('Streaming heading')).toBeNull()
+    setExpanded(true)
+    expect(screen.getByText('Streaming heading')).toBeVisible()
   })
 
   it('routes heading navigation through the owning message list when another tab has the same message', () => {

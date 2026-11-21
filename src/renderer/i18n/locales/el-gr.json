@@ -966,6 +966,7 @@
   "chat.message.new.context": "Καθαρισμός ενδιάμεσων",
   "chat.message.quote": "Αναφορά",
   "chat.message.read_aloud.label": "Εκφώνηση",
+  "chat.message.reply_collapsed": "Η απάντηση συμπτύχθηκε",
   "chat.message.token_details.cache_read": "Ανάγνωση προσωρινής μνήμης",
   "chat.message.token_details.cache_write": "Εγγραφή κρυφής μνήμης",
   "chat.message.token_details.cost": "Κόστος",

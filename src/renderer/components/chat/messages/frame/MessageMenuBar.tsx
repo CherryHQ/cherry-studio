@@ -37,6 +37,7 @@ interface Props {
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
+  onCollapse?: () => void
   onStartEditing?: (messageId: string) => void
   onMenuOpenChange?: (open: boolean) => void
   onSelectContext?: (msgId: string) => void
@@ -52,6 +53,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isAssistantMessage,
     isProcessing,
     messageContainerRef,
+    onCollapse,
     onStartEditing,
     onMenuOpenChange,
     onSelectContext,
@@ -118,6 +120,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       translateLanguages,
       translationLanguagesStatus: messageUi.translationLanguagesStatus,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
+      onCollapse,
       startEditingMessage: onStartEditing,
       onSelectContext,
       t
@@ -143,6 +146,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageUi.translationLanguagesStatus,
       messageForExport,
       messageParts,
+      onCollapse,
       onStartEditing,
       onSelectContext,
       selection,

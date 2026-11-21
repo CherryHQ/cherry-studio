@@ -12,6 +12,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { revealCollapsedAssistantReply } from '@renderer/services/messageUiStateCache'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -335,6 +336,7 @@ export const MessageListSearch: FC<Props> = ({
         return
       }
 
+      if (match.role === 'assistant') revealCollapsedAssistantReply(match.messageId)
       pendingNavigationRef.current = { criteriaKey, match, isWaitingForHighlight: false }
       setNavigationSequence((sequence) => sequence + 1)
 

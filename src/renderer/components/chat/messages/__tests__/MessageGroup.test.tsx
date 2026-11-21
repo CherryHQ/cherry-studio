@@ -12,6 +12,7 @@ import type { Model } from '@shared/data/types/model'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
+import { MessageCaptureLeaseProvider } from '../list/MessageCaptureLeaseContext'
 import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
 
@@ -69,6 +70,11 @@ const mocks = vi.hoisted(() => ({
   )),
   MessageMenuBar: vi.fn((props: ComponentProps<typeof MessageMenuBarComponent>) => (
     <div className="message-menubar" data-message-id={props.message.id}>
+      {props.onCollapse && (
+        <button type="button" onClick={props.onCollapse}>
+          Collapse
+        </button>
+      )}
       menubar
     </div>
   )),
@@ -221,6 +227,7 @@ vi.mock('../MessageListProvider', () => ({
     return {
       userName: '',
       narrowMode: false,
+      allowReplyCollapse: settings.allowReplyCollapse,
       messageStyle: settings.messageStyle,
       messageFont: settings.messageFont,
       fontSize: settings.fontSize,
@@ -332,6 +339,50 @@ describe('MessageGroup', () => {
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
     mocks.scrollByWheel.mockReturnValue(false)
+  })
+
+  it('restores a folded reply in place after the list remounts', () => {
+    mocks.settings.mockReturnValue({ ...mocks.settings(), allowReplyCollapse: true })
+    const message = createMessage('foldable-reply', 0, 'fold')
+    const list = (
+      <MessageGroup messages={[message]} messageTail={{ messageId: message.id, content: <span>Running task</span> }} />
+    )
+    const { unmount } = render(list)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+    expect(screen.queryByTestId('message-parts-content')).toBeNull()
+    const expand = screen.getByRole('button', { name: 'common.expand' })
+    expect(screen.getByText('Running task')).toBeVisible()
+    expect(expand).toHaveFocus()
+    expect(expand.closest('.message-header .message-body-content')).not.toBeNull()
+    unmount()
+    const capture = render(<MessageGroup messages={[message]} captureMode />)
+    expect(screen.getByTestId('message-parts-content')).toBeVisible()
+    capture.unmount()
+    const selectMessage = vi.fn()
+    mocks.messageListSelection.mockReturnValue({ isMultiSelectMode: true, selectedMessageIds: [] })
+    mocks.messageListActions.mockReturnValue({ selectMessage })
+    render(list)
+    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
+    expect(screen.getByTestId('message-parts-content')).toBeVisible()
+    expect(screen.getByTestId('message-parts-content').closest('.message-assistant')).toHaveFocus()
+    expect(selectMessage).not.toHaveBeenCalled()
+  })
+
+  it('keeps the live reply expanded while an image capture holds its lease', () => {
+    mocks.settings.mockReturnValue({ ...mocks.settings(), allowReplyCollapse: true })
+    const message = createMessage('capture-reply', 0, 'fold')
+    const withLease = (leasedMessageIds: string[]) => (
+      <MessageCaptureLeaseProvider
+        value={{ leasedMessageIds, acquireMessageCaptureLease: vi.fn(), getRenderedMessageElement: vi.fn() }}>
+        <MessageGroup messages={[message]} />
+      </MessageCaptureLeaseProvider>
+    )
+    const view = render(withLease([message.id]))
+    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.getByTestId('message-parts-content')).toBeVisible()
+    view.rerender(withLease([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+    expect(screen.queryByTestId('message-parts-content')).toBeNull()
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {

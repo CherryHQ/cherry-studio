@@ -966,6 +966,7 @@
   "chat.message.new.context": "新しいコンテキスト",
   "chat.message.quote": "引用",
   "chat.message.read_aloud.label": "読み上げる",
+  "chat.message.reply_collapsed": "返信を折りたたみました",
   "chat.message.token_details.cache_read": "キャッシュ読み取り",
   "chat.message.token_details.cache_write": "キャッシュ書き込み",
   "chat.message.token_details.cost": "コスト",

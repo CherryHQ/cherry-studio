@@ -966,6 +966,7 @@
   "chat.message.new.context": "Yeni Bağlam",
   "chat.message.quote": "Alıntıla",
   "chat.message.read_aloud.label": "Sesli oku",
+  "chat.message.reply_collapsed": "Yanıt daraltıldı",
   "chat.message.token_details.cache_read": "Önbellek okuma",
   "chat.message.token_details.cache_write": "Önbellek yazma",
   "chat.message.token_details.cost": "Maliyet",

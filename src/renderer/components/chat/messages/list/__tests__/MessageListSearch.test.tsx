@@ -5,6 +5,11 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  ASSISTANT_REPLY_DISCLOSURE,
+  getCachedMessageUiState,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../../types'
@@ -122,6 +127,7 @@ describe('MessageListSearch', () => {
     const partsByMessageId = {
       a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart]
     }
+    updateCachedMessageUiState(message.id, { disclosures: { [ASSISTANT_REPLY_DISCLOSURE]: false } })
     const locateMessage = vi.fn()
     const scrollToRange = vi.fn()
 
@@ -145,6 +151,7 @@ describe('MessageListSearch', () => {
     await waitFor(() => expect(next).toBeEnabled())
 
     await user.click(next)
+    expect(getCachedMessageUiState(message.id).disclosures?.[ASSISTANT_REPLY_DISCLOSURE]).toBe(true)
     expect(locateMessage).toHaveBeenCalledTimes(1)
     expect(scrollToRange).not.toHaveBeenCalled()
 

@@ -318,9 +318,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const messageCaptureLeaseContextValue = useMemo(
     () => ({
       acquireMessageCaptureLease,
+      leasedMessageIds,
       getRenderedMessageElement: getMessageElement
     }),
-    [acquireMessageCaptureLease, getMessageElement]
+    [acquireMessageCaptureLease, getMessageElement, leasedMessageIds]
   )
 
   const scrollToBottom = useCallback(() => {

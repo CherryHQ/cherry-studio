@@ -966,6 +966,7 @@
   "chat.message.new.context": "Context nou",
   "chat.message.quote": "Citează",
   "chat.message.read_aloud.label": "Citește cu voce tare",
+  "chat.message.reply_collapsed": "Răspuns restrâns",
   "chat.message.token_details.cache_read": "Citire din cache",
   "chat.message.token_details.cache_write": "Scriere în cache",
   "chat.message.token_details.cost": "Cost",
