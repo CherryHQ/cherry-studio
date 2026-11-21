@@ -18,7 +18,12 @@ const prepareDiagnosticReportResultSchema = z.object({ ok: z.literal(true), desc
 
 export type PrepareDiagnosticReportResult = Readonly<z.infer<typeof prepareDiagnosticReportResultSchema>>
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  isError?: unknown
+  structuredContent?: unknown
+  content?: unknown
+  text?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

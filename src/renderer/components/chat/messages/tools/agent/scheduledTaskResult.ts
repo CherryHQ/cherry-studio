@@ -16,7 +16,13 @@ export interface ScheduledTaskResult {
   name: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  content?: unknown
+  text?: unknown
+  id?: unknown
+  name?: unknown
+  action?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
