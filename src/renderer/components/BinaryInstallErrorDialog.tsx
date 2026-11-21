@@ -13,6 +13,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
+import type { BinaryInstallStage, BinaryOperation } from '@shared/types/binary'
 
 /**
  * Persistent first-level notification for a failed install, rendered inside
@@ -20,7 +21,12 @@ import { toast } from '@renderer/services/toast'
  * looked. Shows the first line of the mise error; the full output opens in
  * BinaryInstallErrorDialog via onShowError.
  */
-export const BinaryInstallFailureRow: FC<{ error: string; onShowError: () => void }> = ({ error, onShowError }) => {
+export const BinaryInstallFailureRow: FC<{
+  error: string
+  onShowError: () => void
+  /** Stage the install died in; lets users tell a failed download from a failed install. */
+  stage?: BinaryInstallStage
+}> = ({ error, onShowError, stage }) => {
   const { t } = useTranslation()
   return (
     <button
@@ -29,17 +35,36 @@ export const BinaryInstallFailureRow: FC<{ error: string; onShowError: () => voi
       title={error}
       className="mt-3 flex w-full min-w-0 items-center gap-1.5 rounded-lg border border-error-border bg-error-subtle px-2.5 py-1.5 text-left text-[11px] text-error-subtle-foreground transition-colors hover:bg-error-subtle">
       <TriangleAlert className="size-3 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{error.split(/\r?\n/)[0]}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {stage && `${t('settings.dependencies.stageFailed', { stage: t(`settings.dependencies.stage.${stage}`) })} · `}
+        {error.split(/\r?\n/)[0]}
+      </span>
       <span className="shrink-0 underline underline-offset-2">{t('settings.dependencies.viewErrorDetails')}</span>
     </button>
   )
 }
 
-/** Installs can take minutes (runtime downloads) — say so instead of leaving a bare spinner. */
-export const BinaryInstallingHint: FC = () => {
+/**
+ * Installs can take minutes (runtime downloads) — show the current stage and
+ * version transition when main published them, otherwise the generic hint.
+ */
+export const BinaryInstallingHint: FC<{ operation?: BinaryOperation }> = ({ operation }) => {
   const { t } = useTranslation()
+  const progress = operation?.status === 'installing' ? operation : undefined
+  if (!progress?.stage) {
+    return (
+      <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{t('settings.dependencies.installingHint')}</p>
+    )
+  }
+  const versions =
+    progress.currentVersion && progress.targetVersion
+      ? t('settings.dependencies.versionTransition', { from: progress.currentVersion, to: progress.targetVersion })
+      : (progress.targetVersion ?? progress.currentVersion)
   return (
-    <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{t('settings.dependencies.installingHint')}</p>
+    <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground" role="status">
+      {t(`settings.dependencies.stage.${progress.stage}`)}
+      {versions && ` · ${versions}`}
+    </p>
   )
 }
 
