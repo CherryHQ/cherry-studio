@@ -1,5 +1,20 @@
 import * as z from 'zod'
 
+// Skill prerequisite declaration from SKILL.md frontmatter (Agent Note:
+// skill-dependency-preflight-and-isolation). Only these four fields are recognized.
+export const SkillRequiresSchema = z.object({
+  bins: z.array(z.string()).optional(), // executables that must resolve on PATH
+  python: z.string().optional(), // optional runtime constraint, e.g. ">=3.10"
+  packages: z
+    .object({
+      pip: z.array(z.string()).optional() // packages installed into the app-owned environment only
+    })
+    .optional(),
+  platforms: z.array(z.string()).optional() // optional; omitted means all platforms
+})
+
+export type SkillRequires = z.infer<typeof SkillRequiresSchema>
+
 // Plugin Metadata Type
 export const PluginMetadataSchema = z.object({
   // Identification
@@ -21,6 +36,9 @@ export const PluginMetadataSchema = z.object({
   category: z.string(), // derived from parent folder name
   type: z.enum(['agent', 'command', 'skill']),
   tags: z.array(z.string()).optional(),
+
+  // Prerequisites (skills only): declared `requires` frontmatter, undefined when the key is absent
+  requires: SkillRequiresSchema.optional(),
 
   // Versioning (for future updates)
   version: z.string().optional(),

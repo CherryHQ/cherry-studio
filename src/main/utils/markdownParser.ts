@@ -6,7 +6,7 @@ import matter from 'gray-matter'
 import { parse } from 'yaml'
 
 import { loggerService } from '@logger'
-import type { PluginMetadata } from '@main/utils/plugin'
+import type { PluginMetadata, SkillRequires } from '@main/utils/plugin'
 
 import { getDirectorySize } from './fileOperations'
 
@@ -99,6 +99,71 @@ function toStringArray(value: unknown): string[] | undefined {
 
 function toString(value: unknown): string | undefined {
   return isString(value) ? value : undefined
+}
+
+// The only `requires` fields the skill prerequisite preflight recognizes (Agent Note:
+// skill-dependency-preflight-and-isolation). Unknown fields produce a warning and are ignored.
+const SKILL_REQUIRES_FIELDS = new Set(['bins', 'python', 'packages', 'platforms'])
+
+/**
+ * Parse a SKILL.md `requires` frontmatter block into a SkillRequires declaration.
+ *
+ * Returns undefined when the key is absent, malformed, or carries no recognized fields, so a
+ * skill without prerequisites is indistinguishable from one that never declared the key.
+ * Unrecognized fields are logged and dropped, never persisted.
+ */
+function parseSkillRequires(value: unknown, skillMdPath: string): SkillRequires | undefined {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    logger.warn('SKILL.md requires must be a mapping; ignoring it', { skillMdPath })
+    return undefined
+  }
+
+  const raw = value as Record<string, unknown>
+  const unknownFields = Object.keys(raw).filter((field) => !SKILL_REQUIRES_FIELDS.has(field))
+  if (unknownFields.length > 0) {
+    logger.warn('SKILL.md requires contains unrecognized fields; ignoring them', { skillMdPath, unknownFields })
+  }
+
+  const requires: SkillRequires = {}
+
+  const bins = toStringArray(raw.bins)
+  if (bins && bins.length > 0) {
+    requires.bins = bins
+  }
+
+  const python = toString(raw.python)
+  if (python) {
+    requires.python = python
+  }
+
+  if (raw.packages !== undefined) {
+    if (typeof raw.packages === 'object' && raw.packages !== null && !Array.isArray(raw.packages)) {
+      const packages = raw.packages as Record<string, unknown>
+      const unknownManagers = Object.keys(packages).filter((manager) => manager !== 'pip')
+      if (unknownManagers.length > 0) {
+        logger.warn('SKILL.md requires.packages contains unrecognized package managers; ignoring them', {
+          skillMdPath,
+          unknownManagers
+        })
+      }
+      const pip = toStringArray(packages.pip)
+      if (pip && pip.length > 0) {
+        requires.packages = { pip }
+      }
+    } else {
+      logger.warn('SKILL.md requires.packages must be a mapping; ignoring it', { skillMdPath })
+    }
+  }
+
+  const platforms = toStringArray(raw.platforms)
+  if (platforms && platforms.length > 0) {
+    requires.platforms = platforms
+  }
+
+  return Object.keys(requires).length > 0 ? requires : undefined
 }
 
 function parseLooseValue(raw: string): unknown {
@@ -407,6 +472,8 @@ export async function parseSkillMetadata(
   const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)
 
+  const requires = parseSkillRequires(data.requires, skillMdPath)
+
   logger.debug('Successfully parsed skill metadata', {
     skillFolderPath,
     folderName,
@@ -428,6 +495,7 @@ export async function parseSkillMetadata(
     tags,
     version,
     author,
+    requires,
     size: folderSize,
     contentHash // Hash of SKILL.md content only
   }
