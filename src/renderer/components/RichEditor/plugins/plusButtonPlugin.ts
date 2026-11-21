@@ -31,7 +31,7 @@ export interface PlusButtonPluginOptions {
   editor: Editor
   element: HTMLElement
   insertNodeType?: string
-  insertNodeAttrs?: Record<string, any>
+  insertNodeAttrs?: NonNullable<Parameters<Node['type']['create']>[0]>
   onNodeChange?: (data: { editor: Editor; node: Node | null; pos: number }) => void
   onElementClick?: (event: MouseEvent) => void
   computePositionConfig?: ComputePositionConfig

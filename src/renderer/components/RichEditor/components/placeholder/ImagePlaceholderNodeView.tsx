@@ -1,19 +1,11 @@
-import type { Editor } from '@tiptap/core'
-import { NodeViewWrapper } from '@tiptap/react'
+import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Image as ImageIcon } from 'lucide-react'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import PlaceholderBlock from './PlaceholderBlock'
 
-interface ImagePlaceholderNodeViewProps {
-  node: any
-  updateAttributes: (attributes: Record<string, any>) => void
-  deleteNode: () => void
-  editor: Editor
-}
-
-const ImagePlaceholderNodeView: React.FC<ImagePlaceholderNodeViewProps> = ({ deleteNode, editor }) => {
+const ImagePlaceholderNodeView: React.FC<NodeViewProps> = ({ deleteNode, editor }) => {
   const { t } = useTranslation()
 
   const handleClick = useCallback(() => {
