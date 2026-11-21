@@ -39,6 +39,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
   isSeedream5xTargetModel,
@@ -68,7 +69,11 @@ import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
-import { resolveAttachmentBudget } from './messages/attachmentBudget'
+import {
+  buildFallbackOllamaNumCtxSnapshots,
+  resolveAttachmentBudget,
+  resolveAttachmentBudgetContextWindow
+} from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
@@ -88,13 +93,16 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
-  readRetryPolicy
+  hasApiKeyFallbackCandidates,
+  readRetryPolicy,
+  resolveEffectiveFallbackModelIds
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import type { AiStreamSource } from './streamManager'
 import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
+import type { RequestContext } from './tools/adapters/aiSdk/context'
 import type {
   AiChatRequest,
   AiRequest,
@@ -669,6 +677,13 @@ export class AiService extends BaseService {
       nativeFileSupport,
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    const requestContext = options.context as RequestContext | undefined
+    const streamErrorSerialization = request.streamErrorSerialization ?? (request.streamErrorSerialization = {})
+    if (requestContext?.ollamaNumCtx) {
+      streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+    } else {
+      delete streamErrorSerialization.ollamaNumCtx
+    }
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -691,6 +706,24 @@ export class AiService extends BaseService {
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
+    const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    const effectiveEndpoint = resolveEffectiveEndpoint(provider, model)
+    const hasApiKeyFallbacks = retryDisabledForRequest
+      ? false
+      : hasApiKeyFallbackCandidates({ request, provider, primaryCredentialReceipt: credentialReceipt })
+    const attachmentFallbackModelIds = resolveEffectiveFallbackModelIds(
+      request.requestOptions?.maxRetries,
+      retryDisabledForRequest,
+      hasApiKeyFallbacks
+    )
+    const primaryHasTools = !!tools && Object.keys(tools).length > 0
+    const requiredNativeFileSupport = resolveRequiredNativeFileSupport(request.messages, nativeFileSupport)
+    const fallbackEligibility = { primaryHasTools, requiredNativeFileSupport }
+    const fallbackOllamaSnapshots = buildFallbackOllamaNumCtxSnapshots(
+      attachmentFallbackModelIds,
+      model.id,
+      fallbackEligibility
+    )
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
@@ -706,6 +739,19 @@ export class AiService extends BaseService {
           ? ((await resolveAttachmentBudget({
               provider,
               model,
+              endpointType: effectiveEndpoint.endpointType,
+              runtimeProviderId: sdkConfig.providerId,
+              requestContextWindow: resolveAttachmentBudgetContextWindow({
+                provider,
+                model,
+                endpointType: effectiveEndpoint.endpointType,
+                runtimeProviderId: sdkConfig.providerId,
+                ollamaNumCtx: requestContext?.ollamaNumCtx ?? null,
+                fallbackModelIds: attachmentFallbackModelIds,
+                fallbackOllamaSnapshots,
+                primaryHasTools,
+                requiredNativeFileSupport
+              }),
               system,
               tools,
               maxOutputTokens: options.maxOutputTokens,
@@ -718,22 +764,24 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
-    const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
           activeRepairToolCall!(repairOptions)
       : undefined
+    let disposeFallbackPrepareStep: (() => void) | undefined
     let wrapModel =
       request.contextOwner === 'caller'
         ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
             agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
           )
         : undefined
+
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
+        frozenOllamaNumCtx: requestContext?.ollamaNumCtx,
         provider,
         model,
         assistant,
@@ -764,10 +812,11 @@ export class AiService extends BaseService {
           assistant,
           signal,
           primaryUniqueModelId: model.id,
-          primaryHasTools: !!tools && Object.keys(tools).length > 0,
-          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          primaryHasTools,
+          requiredNativeFileSupport,
           extraFeatures,
           retryPolicy,
+          fallbackOllamaSnapshots,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
               createCaptureContext({
@@ -783,9 +832,29 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+          disposeFallbackPrepareStep?.()
+          disposeFallbackPrepareStep = undefined
+          if (fallback.prepareStep) {
+            disposeFallbackPrepareStep = agentRef.current?.on('prepareStep', fallback.prepareStep)
+          }
+          if (fallback.streamErrorSerialization !== undefined) {
+            if (fallback.streamErrorSerialization === null) {
+              delete streamErrorSerialization.ollamaNumCtx
+            } else {
+              Object.assign(streamErrorSerialization, fallback.streamErrorSerialization)
+            }
+          }
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
+          disposeFallbackPrepareStep?.()
+          disposeFallbackPrepareStep = undefined
+          const requestContext = options.context as RequestContext | undefined
+          if (requestContext?.ollamaNumCtx) {
+            streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+          } else {
+            delete streamErrorSerialization.ollamaNumCtx
+          }
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
@@ -860,6 +929,19 @@ export class AiService extends BaseService {
     this.requests.get(requestId)?.abort()
   }
 
+  /**
+   * Lower a model's session `num_ctx` cap after a KV-cache OOM retry (backs `ai.ollama.set_num_ctx_cap`).
+   * Lower-only in one main-process owner: synchronous, so concurrent IPC calls cannot interleave, and
+   * a stale or concurrent retry can never raise an already-lowered cap.
+   */
+  lowerOllamaNumCtxCap(uniqueModelId: string, numCtxCap: number): void {
+    const cacheService = application.get('CacheService')
+    const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)
+    const current = caps?.[uniqueModelId]
+    if (typeof current === 'number' && current <= numCtxCap) return
+    cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [uniqueModelId]: numCtxCap })
+  }
+
   // ── Non-streaming text generation (agent.generate) ──
 
   /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
@@ -922,6 +1004,7 @@ export class AiService extends BaseService {
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
+        frozenOllamaNumCtx: (options.context as RequestContext | undefined)?.ollamaNumCtx,
         provider,
         model,
         assistant,

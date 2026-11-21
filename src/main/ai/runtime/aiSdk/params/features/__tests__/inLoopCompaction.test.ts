@@ -33,6 +33,8 @@ vi.mock('@main/ai/tokens/textTokenizer', async (importOriginal) => {
   }
 })
 
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
+
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
 const CONTEXT_WINDOW = 100_000
@@ -236,6 +238,88 @@ describe('inLoopCompactionFeature', () => {
     expect(JSON.stringify(prompts[1])).not.toContain('old old old')
   })
 
+  it('sizes reactive overflow recovery with the shared budget of a small compressor window', async () => {
+    const prompts: unknown[] = []
+    const compressorOutputLimits: Array<number | undefined> = []
+    const usage = {
+      inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 2, text: 2, reasoning: undefined }
+    }
+    const compressor: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'compressor',
+      supportedUrls: {},
+      async doGenerate(options) {
+        compressorOutputLimits.push(options.maxOutputTokens)
+        return {
+          content: [{ type: 'text', text: '<summary>prior context</summary>' }],
+          finishReason: { unified: 'stop', raw: undefined },
+          usage,
+          warnings: []
+        }
+      },
+      async doStream() {
+        throw new Error('not used')
+      }
+    }
+    const providerModel: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'chat',
+      supportedUrls: {},
+      async doGenerate() {
+        throw new Error('not used')
+      },
+      async doStream({ prompt }) {
+        prompts.push(prompt)
+        if (prompts.length === 1)
+          throw new APICallError({
+            message: 'context_length_exceeded',
+            statusCode: 400,
+            url: 'test',
+            requestBodyValues: {}
+          })
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          })
+        }
+      }
+    }
+    const featureScope = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      compressionModel: { languageModel: compressor, contextWindow: 4_096 }
+    })
+    const context: any = { middlewares: [] }
+    const plugin = inLoopCompactionFeature.contributeModelAdapters!(featureScope)[0]
+    await plugin.configureContext!(context)
+    const model = wrapLanguageModel({ model: providerModel, middleware: context.middlewares })
+    await model.doStream({
+      prompt: [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: [{ type: 'text', text: 'old '.repeat(1000) }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'old response' }] },
+        { role: 'user', content: [{ type: 'text', text: 'current question' }] }
+      ]
+    })
+    expect(prompts).toHaveLength(2)
+    expect(compressorOutputLimits).toEqual([resolveCompressionBudget(4_096).maxOutputTokens])
+    expect(compressorOutputLimits[0]).toBeLessThan(4_095)
+  })
+
+  it('skips reactive overflow recovery instead of throwing when the compressor window is unusable', () => {
+    const featureScope = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      compressionModel: { languageModel: {} as LanguageModelV3, contextWindow: 2 }
+    })
+    expect(inLoopCompactionFeature.contributeModelAdapters!(featureScope)).toEqual([])
+  })
+
   // --- contributeHooks: prepareStep ---
 
   const getPrepareStep = (customScope?: ReturnType<typeof scope>) => {
@@ -353,6 +437,39 @@ describe('inLoopCompactionFeature', () => {
     const messages = [userMessage(90_000)]
     await expect(prepareStep({ messages } as any)).resolves.toBeUndefined()
     expect(compactModelMessages).toHaveBeenCalledOnce()
+  })
+
+  it('budgets by a small effective compressor window (4k): input+output stays below it', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({
+        chatId: 'topic-1',
+        contextWindow: CONTEXT_WINDOW,
+        compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: 4_096 }
+      })
+    )
+    await prepareStep({ messages: [userMessage(90_000)] } as any)
+    const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
+    expect(maxOutputTokens + maxInputTokens).toBeLessThan(4_096)
+  })
+
+  it('a compressor failure after an earlier fold keeps serving the earlier folded prefix, unchanged', async () => {
+    compactModelMessages.mockClear()
+    const folded = [userMessage(10)]
+    compactModelMessages.mockResolvedValueOnce(folded)
+    compactModelMessages.mockRejectedValueOnce(new Error('context length exceeded'))
+    const prepareStep = getPrepareStep()
+    const first = [userMessage(90_000)]
+    await prepareStep({ messages: first } as any)
+    const tail = userMessage(90_000)
+    const res = (await prepareStep({ messages: [...first, tail] } as any)) as { messages: ModelMessage[] }
+    expect(compactModelMessages).toHaveBeenCalledTimes(2)
+    expect(res.messages).toEqual([...folded, tail])
+    // failure disables further attempts; fold state is not advanced or replaced
+    const res2 = (await prepareStep({ messages: [...first, tail] } as any)) as { messages: ModelMessage[] }
+    expect(compactModelMessages).toHaveBeenCalledTimes(2)
+    expect(res2.messages).toEqual([...folded, tail])
   })
 
   it('disables compaction for the rest of the request after a failure (no retry storm)', async () => {

@@ -1,11 +1,56 @@
-import type { UIMessage } from 'ai'
-import { describe, expect, it } from 'vitest'
+import os from 'node:os'
 
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { UIMessage } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as TokenProfiles from '@main/ai/tokens/profiles'
+import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { resolveAttachmentBudget } from '../attachmentBudget'
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
+import {
+  buildFallbackOllamaNumCtxSnapshots,
+  resolveAttachmentBudgetContextWindow,
+  assertPrimaryOllamaCallWithinWindow,
+  isFallbackCallWithinWindow,
+  OllamaPromptExceedsContextError,
+  resolveAttachmentBudget
+} from '../attachmentBudget'
+
+vi.mock('node:os', () => ({
+  default: { freemem: () => 8 * 1024 ** 3, totalmem: () => 16 * 1024 ** 3, homedir: () => 'C:\\Users\\test' }
+}))
+
+const { mockGetProviderById, mockGetModelByKey, mockBudgetWarn } = vi.hoisted(() => ({
+  mockBudgetWarn: vi.fn(),
+  mockGetProviderById: vi.fn(),
+  mockGetModelByKey: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ warn: mockBudgetWarn, info: vi.fn(), error: vi.fn() }) }
+}))
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mockGetProviderById }
+}))
+
+vi.mock('@main/data/services/ModelService', () => ({
+  modelService: { getByKey: mockGetModelByKey }
+}))
+
+/** One token per character, so allocations read directly as character counts. */
+const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 import { allocateAttachmentBudget, allocateInlineCaps } from '../attachmentInlineBudget'
+
+vi.mock('@main/ai/tokens/profiles', async (importOriginal) => ({
+  ...(await importOriginal<typeof TokenProfiles>()),
+  getTextTokenizer: async () => charTokenizer
+}))
 
 describe('allocateAttachmentBudget', () => {
   // The defect this replaces: the cap was `max(READ_FILE_PAGE_SIZE, share)` per
@@ -67,6 +112,524 @@ function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
 
+describe('resolveAttachmentBudgetContextWindow', () => {
+  beforeEach(() => {
+    mockGetProviderById.mockReset()
+    mockGetModelByKey.mockReset()
+  })
+
+  it('budgets against the smallest window among configured fallbacks', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131_072
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: []
+      })
+    ).toBe(131_072)
+
+    const fallbackSnapshots = new Map([
+      [
+        fallbackUniqueId,
+        {
+          uniqueModelId: fallbackUniqueId,
+          trainedContextWindow: 131_072,
+          numCtx: 32_768
+        }
+      ]
+    ])
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        fallbackOllamaSnapshots: fallbackSnapshots
+      })
+    ).toBe(32_768)
+  })
+
+  it('uses frozen fallback snapshots instead of re-sampling Ollama RAM', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131_072
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    const frozenCap = 16_384
+    const fallbackSnapshots = new Map([
+      [
+        fallbackUniqueId,
+        {
+          uniqueModelId: fallbackUniqueId,
+          trainedContextWindow: 131_072,
+          numCtx: frozenCap
+        }
+      ]
+    ])
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        fallbackOllamaSnapshots: fallbackSnapshots
+      })
+    ).toBe(frozenCap)
+  })
+
+  it('ignores request-incompatible fallbacks when budgeting attachment context', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4-vision',
+      providerId: 'openai',
+      contextWindow: 131_072,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+    const fallbackUniqueId = createUniqueModelId('openai', 'gpt-4-mini')
+    const fallbackProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const textOnlyFallback = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'openai',
+      apiModelId: 'gpt-4-mini',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockReturnValue(fallbackProvider)
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'openai' && modelId === 'gpt-4-mini') return textOnlyFallback
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false }
+      })
+    ).toBe(131_072)
+  })
+
+  it('ignores disabled fallback providers when budgeting attachment context', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'tiny')
+    const disabledFallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      isEnabled: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const tinyFallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'tiny',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return disabledFallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'tiny') return tinyFallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId]
+      })
+    ).toBe(131_072)
+  })
+
+  // The gate this guards: without the resolved PDF check, a fallback retry
+  // execution would later reject (it cannot take the file part) still shrank
+  // the primary's attachment pool to its window.
+  it('ignores pdf-ineligible fallbacks when the request needs native pdf input', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({ id: 'openai::gpt-4', providerId: 'openai', contextWindow: 131_072 })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+      })
+    ).toBe(131_072)
+  })
+
+  it('still constrains the budget with a pdf-eligible small fallback', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({ id: 'openai::gpt-4', providerId: 'openai', contextWindow: 131_072 })
+    const fallbackUniqueId = createUniqueModelId('google', 'gemini-2.5-flash')
+    const fallbackProvider = makeProvider({
+      id: 'google',
+      presetProviderId: 'google',
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'google',
+      apiModelId: 'gemini-2.5-flash',
+      contextWindow: 8_192,
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'google') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'google' && modelId === 'gemini-2.5-flash') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+      })
+    ).toBe(8_192)
+  })
+})
+
+describe('buildFallbackOllamaNumCtxSnapshots', () => {
+  beforeEach(() => {
+    mockGetProviderById.mockReset()
+    mockGetModelByKey.mockReset()
+  })
+
+  /** The Ollama fallback fixtures the window tests above use. */
+  function mockOllamaFallback(): UniqueModelId {
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') {
+        return makeProvider({
+          id: 'ollama',
+          presetProviderId: 'ollama',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+        })
+      }
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') {
+        return makeModel({ id: fallbackUniqueId, providerId: 'ollama', apiModelId: 'qwen3', contextWindow: 131_072 })
+      }
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+    return fallbackUniqueId
+  }
+
+  it('does not re-sample the active model as a redundant fallback across a RAM threshold', () => {
+    const activeId = mockOllamaFallback()
+    const provider = mockGetProviderById('ollama')
+    const model = mockGetModelByKey('ollama', 'qwen3')
+    const free = vi.spyOn(os, 'freemem').mockReturnValue(12_600_000_000)
+    const total = vi.spyOn(os, 'totalmem').mockReturnValue(32_000_000_000)
+    try {
+      const primary = resolveOllamaRequestNumCtx(model, provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)!
+      expect(primary.numCtx).toBe(65_536)
+      const primarySnapshot = {
+        uniqueModelId: activeId,
+        trainedContextWindow: primary.trainedContextWindow,
+        numCtx: primary.numCtx
+      }
+      free.mockReturnValue(12_580_000_000)
+      free.mockClear()
+      const snapshots = buildFallbackOllamaNumCtxSnapshots([activeId], activeId)
+      expect([...snapshots]).toEqual([])
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          ollamaNumCtx: primarySnapshot,
+          fallbackModelIds: [activeId],
+          fallbackOllamaSnapshots: snapshots
+        })
+      ).toBe(65_536)
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          ollamaNumCtx: primarySnapshot,
+          fallbackModelIds: [activeId],
+          fallbackOllamaSnapshots: new Map([[activeId, { ...primarySnapshot, numCtx: 32768 }]])
+        })
+      ).toBe(65_536)
+      expect(free).not.toHaveBeenCalled()
+    } finally {
+      free.mockRestore()
+      total.mockRestore()
+    }
+  })
+
+  it('skips a pdf-ineligible ollama fallback when the request needs native pdf input', () => {
+    const fallbackUniqueId = mockOllamaFallback()
+
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], createUniqueModelId('other', 'primary'), {
+      primaryHasTools: false,
+      requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+    })
+
+    // The relay adapter resolves `openai-compatible`, outside the first-party
+    // PDF set: retry would reject it after resolution, so nothing is frozen.
+    expect([...snapshots.keys()]).toEqual([])
+  })
+
+  it('freezes the memory-capped window for a dispatchable ollama fallback', () => {
+    const fallbackUniqueId = mockOllamaFallback()
+
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], createUniqueModelId('other', 'primary'), {
+      primaryHasTools: false,
+      requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    expect([...snapshots]).toEqual([
+      [fallbackUniqueId, { uniqueModelId: fallbackUniqueId, trainedContextWindow: 131_072, numCtx: 32_768 }]
+    ])
+  })
+})
+
+describe('actual SDK fallback capacity', () => {
+  it('keeps unknown/pricing-failure policy and logs only a fixed warning', async () => {
+    mockBudgetWarn.mockClear()
+    const provider = makeProvider({ id: 'openai' })
+    expect(
+      await isFallbackCallWithinWindow({
+        call: { prompt: [] },
+        fallbackProvider: provider,
+        fallbackModel: makeModel({ contextWindow: undefined })
+      })
+    ).toBe(true)
+    expect(mockBudgetWarn).not.toHaveBeenCalled()
+    const call = {
+      get prompt(): LanguageModelV3CallOptions['prompt'] {
+        throw new Error('private payload must not be logged')
+      }
+    } as LanguageModelV3CallOptions
+    expect(
+      await isFallbackCallWithinWindow({
+        call,
+        fallbackProvider: provider,
+        fallbackModel: makeModel({ contextWindow: 1000 })
+      })
+    ).toBe(true)
+    expect(mockBudgetWarn).toHaveBeenCalledExactlyOnceWith(
+      'Fallback call capacity could not be priced; allowing dispatch'
+    )
+  })
+
+  it('rejects a digit-heavy compression chunk when digits are priced one token each', async () => {
+    // Qwen2-style tokenizers split every digit; a BPE or heuristic count can treat a long run as a few
+    // tokens and admit a chunk Ollama then truncates silently.
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: 4096 })
+    const callOf = (text: string) =>
+      ({
+        prompt: [{ role: 'user', content: [{ type: 'text', text }] }],
+        maxOutputTokens: 512
+      }) as LanguageModelV3CallOptions
+    const base = { fallbackProvider: provider, fallbackModel: model, digitAware: true }
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('1234567890'.repeat(596)) })).toBe(false)
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('1234567890'.repeat(20)) })).toBe(true)
+  })
+
+  it('rejects an emoji-heavy compression chunk that a heuristic would under-count', async () => {
+    // Emoji can tokenize to several byte-fallback tokens each; 1,600 of them overflow a 4,096 window.
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({ id: 'ollama::gpt-oss', providerId: 'ollama', contextWindow: 4096 })
+    const callOf = (text: string) =>
+      ({
+        prompt: [{ role: 'user', content: [{ type: 'text', text }] }],
+        maxOutputTokens: 512
+      }) as LanguageModelV3CallOptions
+    const base = { fallbackProvider: provider, fallbackModel: model, digitAware: true }
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('\u{1F9EA}'.repeat(1600)) })).toBe(false)
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('\u{1F9EA}'.repeat(40) + ' plain text') })).toBe(
+      true
+    )
+  })
+
+  it('prices prompt-only calls, system, later tool results, retained schemas and output reservation', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::small', providerId: 'openai', contextWindow: 1000 })
+    const check = (call: LanguageModelV3CallOptions) =>
+      isFallbackCallWithinWindow({ call, fallbackProvider: provider, fallbackModel: model })
+    const prompt: LanguageModelV3CallOptions['prompt'] = [
+      { role: 'user', content: [{ type: 'text', text: 'x'.repeat(500) }] }
+    ]
+    expect(await check({ prompt })).toBe(true)
+    expect(await check({ prompt, maxOutputTokens: 800 })).toBe(false)
+    expect(await check({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(4000) }] }] })).toBe(false)
+    expect(await check({ prompt: [...prompt, { role: 'system', content: 'x'.repeat(4000) }] })).toBe(false)
+    expect(
+      await check({
+        prompt: [
+          ...prompt,
+          {
+            role: 'tool',
+            content: [
+              {
+                type: 'tool-result',
+                toolName: 'read',
+                toolCallId: '1',
+                output: { type: 'text', value: 'x'.repeat(4000) }
+              }
+            ]
+          }
+        ]
+      })
+    ).toBe(false)
+    expect(
+      await check({
+        prompt,
+        tools: [{ type: 'function', name: 'read', inputSchema: { description: 'x'.repeat(4000) } }]
+      })
+    ).toBe(false)
+  })
+})
+
+describe('resolved audio/video fallback budget parity', () => {
+  it.each([
+    ['audio', ENDPOINT_TYPE.OPENAI_RESPONSES, MODEL_CAPABILITY.AUDIO_RECOGNITION],
+    ['video', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, MODEL_CAPABILITY.VIDEO_RECOGNITION]
+  ] as const)(
+    'does not shrink primary budget for converter-incompatible native %s',
+    (modality, endpoint, capability) => {
+      const provider = makeProvider({ id: 'google', presetProviderId: 'google' })
+      const model = makeModel({ id: 'google::large', providerId: 'google', contextWindow: 131072 })
+      const fallback = makeProvider({
+        id: 'openai',
+        defaultChatEndpoint: endpoint,
+        endpointConfigs: { [endpoint]: { adapterFamily: 'openai' } }
+      })
+      const small = makeModel({
+        id: 'openai::small',
+        providerId: 'openai',
+        contextWindow: 8192,
+        capabilities: [capability],
+        endpointTypes: [endpoint]
+      })
+      mockGetProviderById.mockReturnValue(fallback)
+      mockGetModelByKey.mockReturnValue(small)
+      expect(
+        resolveAttachmentBudgetContextWindow({
+          provider,
+          model,
+          fallbackModelIds: [createUniqueModelId('openai', 'small')],
+          primaryHasTools: false,
+          requiredNativeFileSupport: {
+            image: false,
+            pdf: false,
+            audio: modality === 'audio',
+            video: modality === 'video'
+          }
+        })
+      ).toBe(131072)
+    }
+  )
+})
+
 it('#22441 prices duplicate history as one surviving pair while distinct ids cost two pairs', async () => {
   const price = (parts: UIMessage['parts']) =>
     resolveAttachmentBudget({
@@ -103,4 +666,103 @@ it('#22441 prices duplicate history as one surviving pair while distinct ids cos
   expect(duplicate?.tokens).toBe(single?.tokens)
   expect(distinct).not.toBeNull()
   expect(distinct!.tokens).toBeLessThan(single!.tokens)
+})
+
+describe('primary Ollama capacity guard', () => {
+  const provider = makeProvider({ id: 'ollama' })
+  const model = makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: 32_768 })
+  const capped = { uniqueModelId: 'ollama::qwen', trainedContextWindow: 32_768, numCtx: 4_096 }
+  const textCall = (chars: number, maxOutputTokens?: number): LanguageModelV3CallOptions => ({
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(chars) }] }],
+    maxOutputTokens
+  })
+  const check = (call: LanguageModelV3CallOptions, ollamaNumCtx = capped) =>
+    assertPrimaryOllamaCallWithinWindow({ call, provider, model, ollamaNumCtx })
+
+  it('throws an actionable error when a capped prompt cannot fit (the 9,044-token probe shape)', async () => {
+    // 9,044 prompt tokens against the 4,096 window chosen from 125 MiB free / 16 GiB total.
+    const rejected = check(textCall(9_044)).catch((error) => error)
+    const error = await rejected
+    expect(error).toBeInstanceOf(OllamaPromptExceedsContextError)
+    expect(error.message).toMatch(/4096 tokens.*supports 32768/)
+    expect(error.message).toMatch(/Shorten the message/)
+  })
+
+  it('prices the output reservation against the capped window', async () => {
+    await expect(check(textCall(1_000))).resolves.toBeUndefined()
+    await expect(check(textCall(1_000, 3_800))).rejects.toBeInstanceOf(OllamaPromptExceedsContextError)
+  })
+
+  it('allows requests that are not memory-capped, or whose window is unknown', async () => {
+    await expect(check(textCall(9_044), { ...capped, numCtx: 32_768 })).resolves.toBeUndefined()
+    await expect(
+      assertPrimaryOllamaCallWithinWindow({
+        call: textCall(9_044),
+        provider,
+        model: makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: undefined }),
+        ollamaNumCtx: capped
+      })
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('resolveAttachmentBudget pricing of the existing prompt', () => {
+  const price = (requestContextWindow: number) =>
+    resolveAttachmentBudget({
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 32_768
+      } satisfies Model,
+      requestContextWindow,
+      system: 'é'.repeat(100),
+      tools: undefined,
+      maxOutputTokens: undefined,
+      messages: [],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    })
+
+  it('prices the prompt by UTF-8 bytes when the window is memory-capped, like the dispatch guard', async () => {
+    const uncapped = await price(32_768)
+    const capped = await price(4_096)
+    // 100 two-byte characters plus 3 tokens of message overhead: 103 by the estimator, 203 by bytes.
+    expect(Math.floor(32_768 * 0.9) - uncapped!.tokens).toBe(103)
+    expect(Math.floor(4_096 * 0.9) - capped!.tokens).toBe(203)
+  })
+})
+
+describe('resolveAttachmentBudget framing parity with the dispatch guard', () => {
+  it('charges system message overhead and per-tool framing like the converted call', async () => {
+    const tools = { lookup: { description: 'find', inputSchema: { type: 'object', properties: {} } } } as never
+    const base = {
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 32_768
+      } satisfies Model,
+      requestContextWindow: 32_768,
+      maxOutputTokens: undefined,
+      messages: [],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    }
+    const plain = await resolveAttachmentBudget({ ...base, system: undefined, tools: undefined })
+    const withSystem = await resolveAttachmentBudget({ ...base, system: 'x'.repeat(50), tools: undefined })
+    const withTool = await resolveAttachmentBudget({ ...base, system: undefined, tools })
+    // One char per token in this suite: 50 text + 3 message overhead.
+    expect(plain!.tokens - withSystem!.tokens).toBe(53)
+    // The tool costs its definition plus the 10-token framing the dispatch guard adds.
+    expect(plain!.tokens - withTool!.tokens).toBeGreaterThanOrEqual(10)
+  })
 })

@@ -1,7 +1,15 @@
+import type { AppProviderId } from '../types'
+
 const VERTEX_MAAS_MODEL_ID_PATTERN = /^[^/]+\/[^/]+-maas$/i
 
 export function isVertexMaasModelId(modelId: string): boolean {
   return VERTEX_MAAS_MODEL_ID_PATTERN.test(modelId)
+}
+
+/** Same pure runtime choice used by configuration and native-media budgeting. */
+export function resolveVertexRuntimeProviderId(aiSdkProviderId: AppProviderId, modelId: string): AppProviderId {
+  if (aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')) return 'google-vertex-anthropic'
+  return isVertexMaasModelId(modelId) ? 'google-vertex-maas' : 'google-vertex'
 }
 
 /**

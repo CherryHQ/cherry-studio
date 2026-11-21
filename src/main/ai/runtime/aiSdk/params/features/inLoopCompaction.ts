@@ -31,22 +31,19 @@ import {
   fromAISDK,
   getContextTokens,
   groupIntoTurns,
-  resolveCompressionOutputTokens,
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
@@ -158,7 +155,20 @@ export const inLoopCompactionFeature: RequestFeature = {
     const window =
       resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
     if (!compressor || !window) return []
-    const maxOutputTokens = resolveCompressionOutputTokens(window)
+    // Same budget as the turn-start and in-loop paths, so a capped compressor is not asked to reserve nearly its whole window for output.
+    let budget: ReturnType<typeof resolveCompressionBudget>
+    try {
+      budget = resolveCompressionBudget(window)
+    } catch (error) {
+      // Invalid compressor metadata (a one- or two-token window) must not disable the rest of the request's
+      // features: skip reactive recovery and leave the chat to fail normally on a real overflow.
+      logger.warn('overflow recovery disabled: compressor window cannot hold a summary budget', {
+        window,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
+    }
+    const { maxOutputTokens, maxInputTokens: compressionInputBudget } = budget
     const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
       const history = fromAISDK(prompt)
       const conversation = history.filter((message) => message.role !== 'system')
@@ -175,10 +185,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           createCompressionAdapter(compressor.languageModel, maxOutputTokens, signal ?? scope.signal),
           {
             keepRecentTurns,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((window - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-            )
+            maxInputTokens: compressionInputBudget
           }
         )
         const size = (items: typeof history) =>
@@ -236,7 +243,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // rows can omit it). Casting it made `trigger`/`keepBudget` `NaN`, and
     // `estimate <= NaN` is false, so the hook fired on EVERY step. With no
     // window, contribute no hook at all.
-    const contextWindow = resolveContextWindow(scope.model.contextWindow)
+    const contextWindow = resolveContextWindow(
+      resolveRequestContextWindow(
+        scope.model,
+        scope.provider,
+        scope.endpointType,
+        scope.sdkConfig?.providerId,
+        scope.requestContext?.ollamaNumCtx
+      )
+    )
     if (contextWindow === null) {
       logger.warn('model declares no contextWindow — in-loop compaction disabled for this request', {
         modelId: scope.model.id
@@ -304,7 +319,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        const { maxOutputTokens, maxInputTokens } = resolveCompressionBudget(compressionWindow)
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
@@ -318,10 +333,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-            )
+            maxInputTokens
           })
         } catch (error) {
           // `compactModelMessages` propagates provider errors. Letting one out of

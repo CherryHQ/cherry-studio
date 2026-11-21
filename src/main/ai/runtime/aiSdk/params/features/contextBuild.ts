@@ -35,6 +35,7 @@ import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persisted
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -86,7 +87,14 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
 
   // Optional on `Model` and optional here: a window-less model gets no
   // window-derived budget rather than a `NaN` one (see resolveContextWindow).
-  const contextWindow = resolveContextWindow(scope.model.contextWindow)
+  const requestContextWindow = resolveRequestContextWindow(
+    scope.model,
+    scope.provider,
+    scope.endpointType,
+    scope.sdkConfig?.providerId,
+    scope.requestContext?.ollamaNumCtx
+  )
+  const contextWindow = resolveContextWindow(requestContextWindow)
   if (contextWindow === null) {
     logger.warn('model declares no contextWindow — window-relative budgets disabled for this request', {
       modelId: scope.model.id
@@ -104,7 +112,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     truncate: {
       threshold: resolveInFlightTruncateThreshold(
         settings.truncateThreshold,
-        scope.model.contextWindow,
+        requestContextWindow,
         resolveRequestedMaxOutputTokens(
           scope.request.callOverrides?.maxOutputTokens,
           undefined,
