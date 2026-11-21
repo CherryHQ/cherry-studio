@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-16-empty-state-ui-slices.md
+2026-11-16-empty-state-ui-slices.md: 8dfb88747cdbf5923ee118ce883482494b854bef
+2026-11-16-empty-state-ui-slices.zh.md: c3b3662cd5f3f4e20248f9b3465ac0d583a88057
