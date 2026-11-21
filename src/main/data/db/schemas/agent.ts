@@ -20,6 +20,7 @@ export const agentTable = sqliteTable(
       .notNull()
       .default(sql`'[]'`),
     configuration: text({ mode: 'json' })
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored configuration includes unvalidated extension fields; sanitation must retain them across versions.
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'`),

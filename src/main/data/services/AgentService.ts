@@ -144,11 +144,9 @@ function matchesBuiltinRole(
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted configuration may drift; retain unrelated fields while stripping a reserved role from agents that do not own it.
-function removeUntrustedSupportRole(id: string, configuration: unknown): Record<string, unknown> {
-  const next =
-    configuration && typeof configuration === 'object' && !Array.isArray(configuration)
-      ? { ...(configuration as Record<string, unknown>) }
-      : {}
+function removeUntrustedSupportRole(id: string, configuration: unknown): AgentRow['configuration'] {
+  const next: AgentRow['configuration'] =
+    configuration && typeof configuration === 'object' && !Array.isArray(configuration) ? { ...configuration } : {}
   if (id === CHERRY_SUPPORT_AGENT_ID || !matchesBuiltinRole(configuration, BUILTIN_AGENT_ROLE.SUPPORT)) {
     return next
   }
@@ -167,11 +165,9 @@ function applyAgentConfigurationPatch(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored JSON may contain historical extension fields; copy a checked record and apply only the typed public patch.
   persisted: unknown,
   patch: AgentConfiguration | undefined
-): Record<string, unknown> {
-  const next =
-    persisted && typeof persisted === 'object' && !Array.isArray(persisted)
-      ? { ...(persisted as Record<string, unknown>) }
-      : {}
+): AgentRow['configuration'] {
+  const next: AgentRow['configuration'] =
+    persisted && typeof persisted === 'object' && !Array.isArray(persisted) ? { ...persisted } : {}
 
   for (const [key, value] of Object.entries(patch ?? {})) {
     if (key === 'builtin_role') continue
@@ -832,7 +828,7 @@ export class AgentService {
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
             const value = updates[field as keyof typeof updates]
             if (value === undefined) continue
-            ;(updateData as Record<string, unknown>)[field] = value
+            Object.assign(updateData, { [field]: value })
           }
 
           const configurationPatch = updates.configuration

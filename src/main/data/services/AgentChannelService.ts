@@ -19,7 +19,8 @@ import {
   AgentChannelConfigSchemasByType,
   type AgentChannelEntity,
   type AgentChannelType,
-  type CreateAgentChannelDto
+  type CreateAgentChannelDto,
+  type UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import {
@@ -33,9 +34,9 @@ import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 const logger = loggerService.withContext('ChannelService')
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored channel configuration can contain legacy type metadata; select a record before per-channel schema validation.
-function normalizeChannelConfig(config: unknown): Record<string, unknown> {
+function normalizeChannelConfig(config: unknown): ChannelRow['config'] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return {}
-  const rest = { ...(config as Record<string, unknown>) }
+  const rest: ChannelRow['config'] = { ...config }
   delete rest.type
   return rest
 }
@@ -77,7 +78,7 @@ export class AgentChannelService {
           name: string
           agentId?: string | null
           workspace: AgentSessionWorkspaceSource
-          config: ChannelConfig | Record<string, unknown>
+          config: ChannelConfig | ChannelRow['config']
           isActive?: boolean
           // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
           // what stops an internal caller (one that bypasses the DataApi zod boundary) from
@@ -235,7 +236,7 @@ export class AgentChannelService {
     updates: Partial<
       Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
         workspace: AgentSessionWorkspaceSource
-        configPatch: Record<string, unknown>
+        configPatch: UpdateAgentChannelDto['configPatch']
       }
     >
   ): AgentChannelEntity | null {

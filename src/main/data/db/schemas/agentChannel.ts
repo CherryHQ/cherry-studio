@@ -25,6 +25,7 @@ export const agentChannelTable = sqliteTable(
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
     workspace: text({ mode: 'json' }).$type<AgentSessionWorkspaceSource>().notNull(),
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored channel blobs include legacy metadata; channel-specific schemas validate fields at the service boundary.
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
     activeChatIds: text({ mode: 'json' })
