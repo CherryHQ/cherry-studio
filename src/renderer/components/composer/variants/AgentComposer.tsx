@@ -1484,7 +1484,7 @@ const AgentComposerInner = ({
   )
 
   const restoreFollowupDraft = useCallback(
-    (item: FollowupQueueItem) => {
+    (item: Pick<FollowupQueueItem, 'id' | 'draft' | 'payload'>) => {
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
