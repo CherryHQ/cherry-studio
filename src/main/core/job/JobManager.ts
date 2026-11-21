@@ -2424,7 +2424,7 @@ export class JobManager extends BaseService {
     application.get('CacheService').setShared(`${JOB_STATE_KEY_PREFIX}${snapshot.id}`, snapshot, 60_000)
   }
 
-  private makeError(code: string, message: string, params?: Record<string, unknown>): Error {
+  private makeError(code: string, message: string, params?: JobError['params']): Error {
     return Object.assign(new Error(`${code}: ${message}`), { code, params, retryable: false })
   }
 }

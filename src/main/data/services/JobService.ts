@@ -506,7 +506,7 @@ export class JobService {
    * persist cross-restart state (e.g. remote-poll providerTaskId). Caller
    * passes the merged object — drizzle's JSON column serializes it.
    */
-  setMetadataTx(tx: DbOrTx, jobId: string, metadata: Record<string, unknown>): void {
+  setMetadataTx(tx: DbOrTx, jobId: string, metadata: JobSnapshot['metadata']): void {
     const now = Date.now()
     tx.update(jobTable).set({ metadata, updatedAt: now }).where(eq(jobTable.id, jobId)).run()
   }
