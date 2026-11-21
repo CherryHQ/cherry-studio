@@ -72,6 +72,12 @@ export function TerminalCanvas({
   const viewport = useRef<DOMRectReadOnly | null>(null)
   const current = useRef(resource)
   if (resource.id !== current.current.id || resource.revision >= current.current.revision) current.current = resource
+  const closingRef = useRef(closing)
+  closingRef.current = closing
+  const acceptsActions = useCallback(
+    () => !closingRef.current && current.current.cleanup === 'none' && current.current.process.kind === 'running',
+    []
+  )
   const callback = useRef(onResource)
   callback.current = onResource
   const view = useRef<string | null>(null)
@@ -188,6 +194,7 @@ export function TerminalCanvas({
 
   const send = useCallback(
     (intent: Action, operationId: string = crypto.randomUUID()) => {
+      if (!acceptsActions()) return Promise.resolve(false)
       const action: WireAction =
         intent.kind === 'key' || intent.kind === 'paste' ? { ...intent, geometryEpoch: epoch.current } : intent
       const controlChange = action.kind === 'take-control' || action.kind === 'return-control'
@@ -214,6 +221,7 @@ export function TerminalCanvas({
       let handled = false
       const work = queue.current
         .then(async () => {
+          if (!acceptsActions()) return
           if (view.current !== viewId) throw new Error(t('terminal.error.view_changed'))
           const submitted =
             action.kind === 'resize'
@@ -230,6 +238,8 @@ export function TerminalCanvas({
               t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
             )
           if (receipt.resource.revision >= current.current.revision) current.current = receipt.resource
+          callback.current(receipt.resource)
+          if (!acceptsActions()) return
           if (controlChange) {
             measuredGeometry.current = ''
             confirmedGeometry.current = ''
@@ -237,12 +247,11 @@ export function TerminalCanvas({
           if (action.kind === 'take-control') setControlling(true)
           if (action.kind === 'take-control') input.current?.focus()
           if (action.kind === 'return-control') setControlling(false)
-          callback.current(receipt.resource)
           handled = receipt.inputHandled === true || action.kind === 'resize'
           setError(null)
         })
         .catch((cause: unknown) => {
-          setError(cause instanceof Error ? cause.message : String(cause))
+          if (acceptsActions()) setError(cause instanceof Error ? cause.message : String(cause))
         })
         .finally(() => {
           if (controlChange) {
@@ -255,7 +264,7 @@ export function TerminalCanvas({
       queue.current = work
       return work.then(() => handled)
     },
-    [t]
+    [t, acceptsActions]
   )
 
   useEffect(() => {
@@ -416,7 +425,7 @@ export function TerminalCanvas({
       }
       force.current = true
       schedule()
-      if (controlling && current.current.control.kind === 'user' && view.current) {
+      if (acceptsActions() && controlling && current.current.control.kind === 'user' && view.current) {
         const cols = Math.max(2, Math.min(256, Math.floor((rect.width - 16) / metrics.current.width)))
         const rows = Math.max(2, Math.min(80, Math.floor((rect.height - 16) / metrics.current.height)))
         const geometry = `${view.current}:${cols}:${rows}:${metrics.current.width}:${metrics.current.height}`
@@ -460,7 +469,7 @@ export function TerminalCanvas({
       themeObserver.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [active, resource.control.kind, resource.geometryEpoch, controlling, viewReady, schedule, send])
+  }, [active, resource.control.kind, resource.geometryEpoch, controlling, viewReady, schedule, send, acceptsActions])
 
   const point = (event: { clientX: number; clientY: number }) => {
     const rect = root.current!.getBoundingClientRect()
@@ -568,12 +577,12 @@ export function TerminalCanvas({
       .join('')
     void navigator.clipboard.writeText(text).catch((cause: unknown) => setError(String(cause)))
   }
-  const controlled = controlling && resource.control.kind === 'user' && resource.process.kind === 'running'
+  const controlled = acceptsActions() && controlling && resource.control.kind === 'user'
   const canInput = controlled && geometryReady
   const menuActions: TerminalMenuAction[] = [
     {
       label: t(controlled ? 'terminal.return_control' : 'terminal.take_control'),
-      disabled: resource.process.kind !== 'running' || controlPending || takeControlOnAttach,
+      disabled: !acceptsActions() || controlPending || takeControlOnAttach,
       onSelect: () => void send({ kind: controlled ? 'return-control' : 'take-control' })
     },
     { label: t('terminal.copy'), onSelect: copy },
@@ -789,6 +798,7 @@ export function TerminalCanvas({
               queueMicrotask(() => {
                 suppressInput.current = false
               })
+              if (!acceptsActions()) return
               if (
                 !commit ||
                 !canInput ||

@@ -301,6 +301,95 @@ it('accepts input after viewport changes queued behind an unfinished resize', as
   await waitFor(() => expect(stdin).toBe('after-resize'))
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
+
+it.each(['requested', 'pending', 'unconfirmed', 'confirmed'] as const)(
+  'keeps a %s close read-only without submitting viewport mutations',
+  async (phase) => {
+    let measure: (width: number) => void = () => {}
+    vi.stubGlobal(
+      'ResizeObserver',
+      class implements ResizeObserver {
+        constructor(private callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          measure = (width) =>
+            this.callback([{ target, contentRect: { width, height: 400 } } as ResizeObserverEntry], this)
+          measure(640)
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    const rendered = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+    const area = await input()
+    const request = window.api.ipcApi.request
+    window.api.ipcApi.request = vi.fn(async (route, payload) => {
+      if (route === 'terminal.action') return { ok: true, data: { kind: 'rejected', reason: 'stale_generation' } }
+      return request(route, payload)
+    })
+    if (phase !== 'requested')
+      current = {
+        ...current,
+        cleanup: phase,
+        process: { kind: 'exited', exitCode: 0, signal: null },
+        revision: current.revision + 1
+      }
+    rendered.rerender(
+      <TerminalCanvas
+        onClose={() => {}}
+        resource={current}
+        active
+        closing={phase === 'requested'}
+        onResource={() => {}}
+      />
+    )
+    expect(area).toHaveAttribute('readonly')
+    await act(async () => {
+      measure(600)
+      fireEvent.input(area, { target: { value: 'late-input' } })
+    })
+    expect(stdin).toBe('')
+    expect(screen.queryByText(/stale_generation/)).not.toBeInTheDocument()
+    expect(screen.getByRole('log')).toHaveTextContent('LIVE_OUTPUT')
+  }
+)
+
+it('drops queued viewport changes and a late rejection once close begins', async () => {
+  let measure: (width: number) => void = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        measure = (width) =>
+          this.callback([{ target, contentRect: { width, height: 400 } } as ResizeObserverEntry], this)
+        measure(640)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const request = window.api.ipcApi.request
+  const resize = Promise.withResolvers<void>()
+  const actions: InputFor<'terminal.action'>['action'][] = []
+  window.api.ipcApi.request = vi.fn(async (route, payload) => {
+    if (route === 'terminal.action') {
+      actions.push((payload as InputFor<'terminal.action'>).action)
+      await resize.promise
+      return { ok: true, data: { kind: 'rejected', reason: 'stale_generation' } }
+    }
+    return request(route, payload)
+  })
+  const rendered = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+  await waitFor(() => expect(actions).toHaveLength(1))
+  act(() => measure(600))
+  rendered.rerender(<TerminalCanvas onClose={() => {}} resource={current} active closing onResource={() => {}} />)
+  await act(async () => resize.resolve())
+  expect(actions).toHaveLength(1)
+  expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByRole('log')).toHaveTextContent('LIVE_OUTPUT')
+})
+
 it('refuses a composition commit after control transfers', async () => {
   const rendered = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()

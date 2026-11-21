@@ -181,16 +181,18 @@ function Content({ attachment = false, emptyFiles = false }: { attachment?: bool
 function App({
   attachment = false,
   emptyFiles = false,
-  sessionId = 'resource-tabs-test'
+  sessionId = 'resource-tabs-test',
+  active = true
 }: {
   attachment?: boolean
   emptyFiles?: boolean
   sessionId?: string
+  active?: boolean
 }) {
   return (
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, errorRetryCount: 0 }}>
       <RightPanelProvider capabilities={capabilities} scope={null} defaultPanelId="files" defaultOpen>
-        <TerminalResourcesProvider sessionId={sessionId} active>
+        <TerminalResourcesProvider sessionId={sessionId} active={active}>
           <AgentResourceHeaderProvider>
             <Content attachment={attachment} emptyFiles={emptyFiles} />
           </AgentResourceHeaderProvider>
@@ -295,6 +297,28 @@ it.each(['unconfirmed', 'rejected'] as const)('keeps failed %s closure visible a
   await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
   await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
   expect(resources[0].cleanup).toBe('confirmed')
+})
+
+it.each([
+  { active: true, selectFile: false },
+  { active: true, selectFile: true },
+  { active: false, selectFile: true }
+])('finishes delayed cleanup with active=$active and selectFile=$selectFile', async ({ active, selectFile }) => {
+  closeOutcome = 'unconfirmed'
+  const user = userEvent.setup()
+  const mounted = mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  await waitFor(() => expect(screen.getByLabelText('Terminal error')).not.toBeEmptyDOMElement())
+  if (selectFile) await user.click(screen.getByRole('tab', { name: 'README.md' }))
+  mounted.rerender(<App active={active} />)
+  resources = [{ ...resources[0], cleanup: 'confirmed', revision: resources[0].revision + 1 }]
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument(), {
+    timeout: 2000
+  })
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByLabelText('Terminal error')).toBeEmptyDOMElement()
+  expect(stopCalls).toBe(1)
 })
 
 it('joins repeated close requests and preserves a file selected during cleanup', async () => {

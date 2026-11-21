@@ -10,6 +10,9 @@ import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { useRightPanelActions } from '../chat/panes/Shell'
 
+type TerminalRef = Pick<TerminalResourceView, 'id' | 'host'>
+type TerminalCloseResult = 'closed' | 'unconfirmed' | 'rejected'
+
 function useTerminalResourcesState(sessionId: string, active: boolean) {
   const { t } = useTranslation()
   const panel = useRightPanelActions()
@@ -17,7 +20,9 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   const [claimId, setClaimId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [closingIds, setClosingIds] = useState<string[]>([])
-  const closes = useRef(new Map<string, Promise<boolean>>())
+  const closes = useRef(new Map<string, Promise<TerminalCloseResult>>())
+  const [closeIntents, setCloseIntents] = useState<TerminalRef[]>([])
+  const [closeError, setCloseError] = useState<{ ref: TerminalRef; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cleanupTabs, setCleanupTabs] = useState<WorkspaceUsageRecord[]>([])
   const [selectedCleanupId, setSelectedCleanupId] = useState<string | null>(null)
@@ -39,6 +44,8 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     setClaimId(null)
     setCreating(false)
     setClosingIds([])
+    setCloseIntents([])
+    setCloseError(null)
     setError(null)
     setCleanupTabs([])
     setSelectedCleanupId(null)
@@ -63,7 +70,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
         })
       }
     },
-    { refreshInterval: active ? 500 : 0, dedupingInterval: 200 }
+    { refreshInterval: active || closeIntents.length ? 500 : 0, dedupingInterval: 200 }
   )
   const cleanup = useSWR('terminal-cleanup-status', () => ipcApi.request('terminal.cleanup.status', {}), {
     refreshInterval: active ? 2000 : 0
@@ -92,6 +99,31 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
       }
     })
   }, [data, setTabs])
+  const finishClose = useCallback(
+    (closed: TerminalRef[]) => {
+      const ids = new Set<string>(closed.map((ref) => ref.id))
+      const matches = (ref: TerminalRef) =>
+        closed.some((item) => item.id === ref.id && item.host.generation === ref.host.generation)
+      setTabs((current) => ({
+        ...current,
+        hiddenTerminalIds: [...new Set([...current.hiddenTerminalIds, ...ids])],
+        selectedTerminalId:
+          current.selectedTerminalId && ids.has(current.selectedTerminalId) ? null : current.selectedTerminalId
+      }))
+      setClaimId((current) => (current && ids.has(current) ? null : current))
+      setCloseIntents((current) => current.filter((ref) => !matches(ref)))
+      setCloseError((current) => (current && matches(current.ref) ? null : current))
+    },
+    [setTabs]
+  )
+  useEffect(() => {
+    const completed = closeIntents.filter((ref) =>
+      data?.resources.some(
+        (item) => item.id === ref.id && item.host.generation === ref.host.generation && item.cleanup === 'confirmed'
+      )
+    )
+    if (completed.length) finishClose(completed)
+  }, [data, closeIntents, finishClose])
   const update = useCallback(
     (resource: TerminalResourceState) => {
       void mutate(
@@ -127,18 +159,19 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     },
     [setTabs, mutate, panel, t]
   )
-  const close = (id: string): Promise<boolean> => {
+  const close = (id: string): Promise<TerminalCloseResult> => {
     const resource = observed.current.find((item) => item.id === id)
-    if (!resource) return Promise.resolve(false)
+    if (!resource) return Promise.resolve('rejected')
     const key = JSON.stringify([sessionId, resource.host.generation, id])
     const pending = closes.current.get(key)
     if (pending) return pending
     setClosingIds((current) => [...current, id])
-    const work = (async () => {
+    const ref = { id: resource.id, host: resource.host }
+    const work = (async (): Promise<TerminalCloseResult> => {
       try {
         if (resource.cleanup !== 'confirmed') {
           const receipt = await ipcApi.request('terminal.stop', {
-            ref: { id: resource.id, host: resource.host },
+            ref,
             operationId: crypto.randomUUID(),
             controlRevision: resource.controlRevision,
             cancelRevision: resource.cancelRevision
@@ -147,27 +180,29 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
             throw new Error(
               t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
             )
-          if (currentSession.current !== sessionId) return false
+          if (currentSession.current !== sessionId) return 'rejected'
           const current = observed.current.find((item) => item.id === id)
-          if (current?.host.generation !== resource.host.generation) return false
+          if (current?.host.generation !== resource.host.generation) return 'rejected'
           update(receipt.resource)
-          if (receipt.resource.cleanup !== 'confirmed') throw new Error(t('terminal.cleanup.protected'))
+          if (receipt.resource.cleanup !== 'confirmed') {
+            setCloseIntents((current) =>
+              current.some((item) => item.id === ref.id && item.host.generation === ref.host.generation)
+                ? current
+                : [...current, ref]
+            )
+            setCloseError({ ref, message: t('terminal.cleanup.protected') })
+            return 'unconfirmed'
+          }
         }
-        if (currentSession.current !== sessionId) return false
-        setTabs((current) => ({
-          ...current,
-          hiddenTerminalIds: [...new Set([...current.hiddenTerminalIds, id])],
-          selectedTerminalId: current.selectedTerminalId === id ? null : current.selectedTerminalId
-        }))
-        setClaimId((current) => (current === id ? null : current))
-        setError(null)
-        return true
+        if (currentSession.current !== sessionId) return 'rejected'
+        finishClose([ref])
+        return 'closed'
       } catch (cause) {
         if (currentSession.current === sessionId) {
-          setError(String(cause))
+          setCloseError({ ref, message: String(cause) })
           toast.error(String(cause))
         }
-        return false
+        return 'rejected'
       }
     })().finally(() => {
       closes.current.delete(key)
@@ -243,7 +278,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     update,
     claimId,
     clearClaim: () => setClaimId(null),
-    error: error ?? (loadError ? String(loadError) : null),
+    error: error ?? closeError?.message ?? (loadError ? String(loadError) : null),
     truncated: data?.truncated ?? false,
     cleanup,
     cleanupTabs,

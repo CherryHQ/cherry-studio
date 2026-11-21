@@ -258,8 +258,8 @@ export function AgentResourceTabs({
     } else if (tab.kind === 'file') closeFile(tab.file)
     else if (tab.kind === 'browser') browser.closePages(terminal.sessionId, [tab.id])
     else if (tab.kind === 'terminal')
-      void terminal.close(tab.id).then((closed) => {
-        if (!closed) setPendingClose((current) => (current?.key === key ? null : current))
+      void terminal.close(tab.id).then((result) => {
+        if (result === 'rejected') setPendingClose((current) => (current?.key === key ? null : current))
       })
     else terminal.closeCleanup(tab.record.id)
   }
