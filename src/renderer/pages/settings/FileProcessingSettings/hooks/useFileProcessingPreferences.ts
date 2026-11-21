@@ -98,7 +98,7 @@ export function useFileProcessingPreferences() {
       const override = overrides[processorId]
       return Boolean(
         (override?.capabilities && Object.keys(override.capabilities).length > 0) ||
-          (override?.options?.langs && override.options.langs.length > 0)
+        (override?.options?.langs && override.options.langs.length > 0)
       )
     },
     [overrides]
