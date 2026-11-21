@@ -4,19 +4,7 @@ import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
-
-interface PythonExecutionRequest {
-  id: string
-  script: string
-  context: Record<string, any>
-  timeout: number
-}
-
-interface PythonExecutionResponse {
-  id: string
-  result?: string
-  error?: string
-}
+import type { PythonExecutionRequest, PythonExecutionResponse } from '@shared/types/python'
 
 /**
  * Service for executing Python code by communicating with the PyodideService in the renderer process
@@ -62,7 +50,7 @@ export class PythonService extends BaseService {
    */
   public async executeScript(
     script: string,
-    context: Record<string, any> = {},
+    context: PythonExecutionRequest['context'] = {},
     timeout: number = 60000
   ): Promise<string> {
     if (application.get('WindowManager').getWindowsByType(WindowType.Main).length === 0) {
