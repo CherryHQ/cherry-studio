@@ -1,16 +1,32 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { parse } from 'jsonc-parser'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const binary = join(dirname(require.resolve('oxlint/package.json')), 'bin/oxlint')
-const config = fileURLToPath(new URL('../../../.oxlintrc.json', import.meta.url))
+const repositoryConfig = new URL('../../../.oxlintrc.json', import.meta.url)
 const directory = mkdtempSync(join(tmpdir(), 'cherry-anti-slop-'))
+const config = join(directory, '.oxlintrc.json')
+const contents = parse(readFileSync(repositoryConfig, 'utf8'))
+const resolvePlugin = (specifier: string) =>
+  specifier.startsWith('.') ? fileURLToPath(new URL(specifier, repositoryConfig)) : require.resolve(specifier)
+
+// Keep repository-relative overrides rooted at the isolated fixture tree.
+writeFileSync(
+  config,
+  JSON.stringify({
+    ...contents,
+    jsPlugins: contents.jsPlugins.map((plugin: string | { name: string; specifier: string }) =>
+      typeof plugin === 'string' ? resolvePlugin(plugin) : { ...plugin, specifier: resolvePlugin(plugin.specifier) }
+    )
+  })
+)
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
