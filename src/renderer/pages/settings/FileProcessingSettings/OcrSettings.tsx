@@ -15,8 +15,16 @@ const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
 const OcrSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
-  const { defaultImageProcessor, processors, setApiKeys, setCapabilityField, setDefaultProcessor, setLanguageOptions } =
-    useFileProcessingPreferences()
+  const {
+    defaultImageProcessor,
+    processors,
+    hasProcessorOptions,
+    resetProcessorOptions,
+    setApiKeys,
+    setCapabilityField,
+    setDefaultProcessor,
+    setLanguageOptions
+  } = useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
   const visibleProcessorIds = useMemo(
@@ -57,6 +65,8 @@ const OcrSettings: FC = () => {
           onSetCapabilityField={setCapabilityField}
           onSetDefaultProcessor={setDefaultProcessor}
           onSetLanguageOptions={setLanguageOptions}
+          optionsResettable={hasProcessorOptions(activeEntry.processor.id)}
+          onResetOptions={resetProcessorOptions}
         />
       ) : availableProcessors.status === 'error' ? (
         <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">

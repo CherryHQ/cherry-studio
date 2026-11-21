@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "ใช้แยกวิเคราะห์เอกสารสำหรับฐานความรู้",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "ใช้รู้จำข้อความในรูปภาพ",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "Base URL ของ API",
   "settings.tool.file_processing.fields.api_key": "API Key",
   "settings.tool.file_processing.fields.api_keys_placeholder": "คั่นหลายคีย์ด้วยจุลภาค",

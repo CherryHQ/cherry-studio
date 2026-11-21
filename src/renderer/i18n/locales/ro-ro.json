@@ -6090,6 +6090,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Pentru analizarea documentelor în bazele de cunoștințe",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Pentru recunoașterea textului din imagini în funcția de traducere",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "URL de bază API",
   "settings.tool.file_processing.fields.api_key": "Cheie API",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Separați mai multe chei cu virgule",

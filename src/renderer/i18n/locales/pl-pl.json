@@ -6163,6 +6163,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Używane do parsowania dokumentów na potrzeby baz wiedzy",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Używane do rozpoznawania tekstu na obrazach",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "Podstawowy adres URL API",
   "settings.tool.file_processing.fields.api_key": "Klucz API",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Rozdziel wiele kluczy przecinkami",

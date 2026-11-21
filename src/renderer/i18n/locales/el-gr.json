@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Για ανάλυση εγγράφων στις βάσεις γνώσης",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Για αναγνώριση κειμένου σε εικόνες στη λειτουργία μετάφρασης",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "Βασικό URL API",
   "settings.tool.file_processing.fields.api_key": "Κλειδί API",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Χωρίστε πολλαπλά κλειδιά με κόμματα",

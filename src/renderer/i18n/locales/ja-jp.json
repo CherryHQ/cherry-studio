@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "ナレッジベースでドキュメントを解析するために使用します",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "翻訳機能で画像内の文字を認識するために使用します",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "APIベースURL",
   "settings.tool.file_processing.fields.api_key": "APIキー",
   "settings.tool.file_processing.fields.api_keys_placeholder": "複数のキーはカンマで区切ってください",

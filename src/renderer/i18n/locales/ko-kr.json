@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "지식 베이스용 문서 분석에 사용합니다",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "이미지의 텍스트 인식에 사용합니다",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "API 기본 URL",
   "settings.tool.file_processing.fields.api_key": "API 키",
   "settings.tool.file_processing.fields.api_keys_placeholder": "여러 키는 쉼표로 구분하세요",

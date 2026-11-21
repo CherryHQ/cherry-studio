@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Dùng để phân tích tài liệu trong cơ sở tri thức",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Dùng để nhận dạng chữ trong hình ảnh cho tính năng dịch",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "URL Cơ Sở API",
   "settings.tool.file_processing.fields.api_key": "Khóa API",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Tách nhiều khóa bằng dấu phẩy",

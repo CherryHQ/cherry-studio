@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Pour analyser les documents dans les bases de connaissances",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Permet de reconnaître le texte dans les images",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "URL de base de l'API",
   "settings.tool.file_processing.fields.api_key": "Clé API",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Séparez plusieurs clés par des virgules",

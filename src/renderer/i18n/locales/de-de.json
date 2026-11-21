@@ -6089,6 +6089,8 @@
   "settings.tool.file_processing.features.document_to_markdown.tooltip": "Zum Parsen von Dokumenten in Wissensdatenbanken",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Dient zum Erkennen von Text in Bildern",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.file_processing.fields.api_base_url": "API-Basis-URL",
   "settings.tool.file_processing.fields.api_key": "API-Schlüssel",
   "settings.tool.file_processing.fields.api_keys_placeholder": "Mehrere Schlüssel mit Kommas trennen",

@@ -92,11 +92,52 @@ export function useFileProcessingPreferences() {
     [overrides, updateProcessor]
   )
 
+  /** Whether the processor carries user-set recognition options (capability fields or language options). */
+  const hasProcessorOptions = useCallback(
+    (processorId: FileProcessorId) => {
+      const override = overrides[processorId]
+      return Boolean(
+        (override?.capabilities && Object.keys(override.capabilities).length > 0) ||
+          (override?.options?.langs && override.options.langs.length > 0)
+      )
+    },
+    [overrides]
+  )
+
+  /**
+   * Reset a processor's recognition options (capability fields and language
+   * options) to the preset defaults. API keys are credentials, not options,
+   * and are kept.
+   */
+  const resetProcessorOptions = useCallback(
+    async (processorId: FileProcessorId) => {
+      const override = overrides[processorId]
+      if (!override) {
+        return
+      }
+
+      const next = { ...overrides }
+      const kept: FileProcessorOverride = {}
+      if (override.apiKeys && override.apiKeys.length > 0) {
+        kept.apiKeys = override.apiKeys
+      }
+      if (Object.keys(kept).length > 0) {
+        next[processorId] = kept
+      } else {
+        delete next[processorId]
+      }
+      await setOverrides(next)
+    },
+    [overrides, setOverrides]
+  )
+
   return {
     defaultDocumentProcessor: preferences.defaultDocumentProcessor,
     defaultImageProcessor: preferences.defaultImageProcessor,
     overrides,
     processors,
+    hasProcessorOptions,
+    resetProcessorOptions,
     setApiKeys,
     setCapabilityField,
     setDefaultProcessor,
