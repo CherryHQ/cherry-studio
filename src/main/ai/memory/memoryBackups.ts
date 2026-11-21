@@ -141,7 +141,7 @@ export function hasCompletedRecovery(parent: MemoryBatch, child: MemoryBatch): b
         step.outcome === 'unchanged' ||
         child.steps.some(
           (reverse) =>
-            reverse.path === step.path && reverse.outcome === 'applied' && reverse.afterHash === step.beforeHash
+            reverse.path === step.path && reverse.outcome === 'applied' && reverse.beforeHash === step.afterHash
         )
     )
   )
@@ -237,11 +237,20 @@ export async function createMemoryBackup(
     (reverse?.reservedBytes ?? 0)
   let count = existing.length + (reverse ? 0 : 1)
   const latest = existing.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))
+  // A failed ordinary write may leave the previous partial recovery as the newest usable batch.
+  const partialParents = new Set(
+    existing.filter(({ batch }) => batch.status === 'partial').map(({ batch }) => batch.id)
+  )
+  const predecessors = new Set(
+    existing.filter(({ batch }) => partialParents.has(batch.id)).map(({ batch }) => batch.recoveryOf)
+  )
   const removable = existing.filter(
     (item) =>
       item.batch.status === 'completed' &&
       item !== latest &&
       item !== reverse &&
+      !predecessors.has(item.batch.id) &&
+      !(item.batch.recoveryOf && partialParents.has(item.batch.recoveryOf)) &&
       item.batch.id !== recoveryOf &&
       item.batch.id !== parent?.recoveryOf
   )

@@ -3562,50 +3562,63 @@ describe('AiStreamManager', () => {
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
     })
 
-    it('drops the queued continuation when Stop arrives during terminal persistence', async () => {
-      const dispatch = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
-      const memory = vi.fn()
-      mgr.onMemoryResponsesCompleted(memory)
-      const started = Promise.withResolvers<void>()
-      const saved = Promise.withResolvers<void>()
-      const listener = new FakeListener('persistence:a', 'persistence')
-      listener.onDoneImpl = async () => {
-        if (listener.doneResults.length === 1) {
-          started.resolve()
-          await saved.promise
+    it.each(['persistence', 'topic lock'] as const)(
+      'finishes the topic when Stop cancels a continuation waiting on %s',
+      async (wait) => {
+        mgr['markReconciled']()
+        const dispatch = vi.spyOn(mgr, 'dispatch')
+        const memory = vi.fn()
+        mgr.onMemoryResponsesCompleted(memory)
+        const started = Promise.withResolvers<void>()
+        const saved = Promise.withResolvers<void>()
+        const listener = new FakeListener('persistence:a', 'persistence')
+        listener.onDoneImpl = async () => {
+          if (listener.doneResults.length === 1) {
+            started.resolve()
+            await saved.promise
+          }
         }
+        const firstFeed = controlledStream()
+        const secondFeed = controlledStream()
+        mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
+        mgr.send({
+          topicId: 'a',
+          isPersistentConversation: true,
+          models: [
+            { modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'first' } },
+            { modelId: 'provider-b::model-b', request: { ...req('a'), messageId: 'second' } }
+          ],
+          listeners: [listener]
+        })
+        mgr.enqueuePendingSteer('a', 'next')
+        firstFeed.close()
+        await started.promise
+        secondFeed.close()
+        await expect.poll(() => listener.doneResults.length).toBe(2)
+        await flush()
+        expect(memory).not.toHaveBeenCalled()
+        expect(dispatch).not.toHaveBeenCalled()
+        const unlock = Promise.withResolvers<void>()
+        const lock = wait === 'topic lock' ? mgr.withDispatchLock('a', () => unlock.promise) : Promise.resolve()
+        const stopping = mgr.abortAndDrain('a', 'user-requested')
+        await flush()
+        saved.resolve()
+        if (wait === 'topic lock') {
+          await expect.poll(() => dispatch.mock.calls.length).toBe(1)
+          expect(mgr.inspect('a')).toBeDefined()
+        }
+        unlock.resolve()
+        await lock
+        await stopping
+        await flush()
+        expect(memory).toHaveBeenCalledTimes(1)
+        expect(memory).toHaveBeenCalledWith(
+          expect.objectContaining({ topicId: 'a', memoryResponseIds: ['first', 'second'] })
+        )
+        expect(mockStreamText).toHaveBeenCalledTimes(2)
+        expect((sharedCacheStore.get('topic.stream.statuses.a') as { status: string }).status).toBe('done')
       }
-      const firstFeed = controlledStream()
-      const secondFeed = controlledStream()
-      mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
-      mgr.send({
-        topicId: 'a',
-        isPersistentConversation: true,
-        models: [
-          { modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'first' } },
-          { modelId: 'provider-b::model-b', request: { ...req('a'), messageId: 'second' } }
-        ],
-        listeners: [listener]
-      })
-      mgr.enqueuePendingSteer('a', 'next')
-      firstFeed.close()
-      await started.promise
-      secondFeed.close()
-      await expect.poll(() => listener.doneResults.length).toBe(2)
-      await flush()
-      expect(memory).not.toHaveBeenCalled()
-      expect(dispatch).not.toHaveBeenCalled()
-      const stopping = mgr.abortAndDrain('a', 'user-requested')
-      await flush()
-      saved.resolve()
-      await stopping
-      await flush()
-      expect(memory).toHaveBeenCalledTimes(1)
-      expect(memory).toHaveBeenCalledWith(
-        expect.objectContaining({ topicId: 'a', memoryResponseIds: ['first', 'second'] })
-      )
-      expect(dispatch).not.toHaveBeenCalled()
-    })
+    )
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)

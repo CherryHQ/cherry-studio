@@ -464,7 +464,10 @@ export class AiStreamManager extends BaseService {
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
   /** Terminal persistence listeners currently writing by topic. Unlike `hasLiveStream`, this remains
    *  true after terminal status is published and clears before runtime/renderer terminal listeners run. */
-  private readonly launchingSteers = new Map<string, AbortController>()
+  private readonly launchingSteers = new Map<
+    string,
+    { controller: AbortController; previous?: ActiveStream; request: MainDispatchRequest }
+  >()
   private readonly terminalPersistenceCounts = new Map<string, number>()
   /** Terminal dispatches still running by topic (counted, so multi-model siblings settle together).
    *  Admission waits on it so a follow-up cannot evict a stream before its terminal lifecycle ran. */
@@ -499,8 +502,8 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) => {
-      this._onMemoryResponsesCompleted.fire(event)
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event, stream) => {
+      if (stream.chainedMemoryCompletionPending !== false) this._onMemoryResponsesCompleted.fire(event)
       this._onConversationCompleted.fire(event)
     })
   }
@@ -532,7 +535,14 @@ export class AiStreamManager extends BaseService {
       // A renderer submit can land while the previous turn's terminal dispatch is still running;
       // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
       await this.whenTerminalDispatchSettled(req.topicId)
-      continuation?.signal.throwIfAborted()
+      if (continuation?.request === req) {
+        continuation.controller.signal.throwIfAborted()
+        if (this.activeStreams.get(req.topicId) !== continuation.previous) {
+          continuation.controller.abort()
+          continuation.controller.signal.throwIfAborted()
+        }
+        if (continuation.previous) this.evictStream(req.topicId)
+      }
 
       // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
       // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
@@ -1418,7 +1428,15 @@ export class AiStreamManager extends BaseService {
     await this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       if (this.pendingSteers.has(topicId)) this.dropPendingSteers(topicId, 'aborted')
-      this.launchingSteers.get(topicId)?.abort()
+      const launch = this.launchingSteers.get(topicId)
+      if (launch && !launch.controller.signal.aborted) {
+        launch.controller.abort()
+        if (
+          launch.previous?.chainedMemoryCompletionPending === false &&
+          this.activeStreams.get(topicId) === launch.previous
+        )
+          this.runTerminalLifecycle(launch.previous)
+      }
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1936,7 +1954,7 @@ export class AiStreamManager extends BaseService {
     if (!pending) {
       this.pendingSteers.delete(topicId)
       if (settling?.chainedMemoryCompletionPending && this.activeStreams.get(topicId) === settling) {
-        settling.chainedMemoryCompletionPending = false
+        settling.chainedMemoryCompletionPending = undefined
         this.runTerminalLifecycle(settling)
       }
       return
@@ -1969,8 +1987,6 @@ export class AiStreamManager extends BaseService {
         })
       }
     }
-    if (previous) this.evictStream(topicId)
-
     const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
     const req: MainDispatchRequest = {
       trigger: 'steer-continuation',
@@ -1981,7 +1997,7 @@ export class AiStreamManager extends BaseService {
       fastMode
     }
     const launch = new AbortController()
-    this.launchingSteers.set(topicId, launch)
+    this.launchingSteers.set(topicId, { controller: launch, previous, request: req })
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
