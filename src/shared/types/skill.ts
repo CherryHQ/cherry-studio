@@ -238,3 +238,6 @@ export interface SystemSkillCandidate {
 
 /** Installed catalog entry enriched by the filesystem-owned skill workflow. */
 export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }
+
+/** Error message of an install that a user-requested cancel stopped before it installed anything. */
+export const SKILL_INSTALL_CANCELLED_MESSAGE = 'Install cancelled'

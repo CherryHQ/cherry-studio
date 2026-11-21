@@ -16,7 +16,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
-import type { SkillCatalogEntry } from '@shared/types/skill'
+import { SKILL_INSTALL_CANCELLED_MESSAGE, type SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillImportSystemOptions,
   SkillInstallFromDirectoryOptions,
@@ -87,6 +87,11 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  // Marketplace installs in flight, keyed by installSource, so the UI can cancel the download.
+  private readonly installAttempts = new Map<
+    string,
+    { controller: AbortController; promise: Promise<InstalledSkill> }
+  >()
   private readonly marketplaceInstalls = new Map<string, Promise<MarketplaceInstallResult>>()
 
   constructor() {
@@ -235,16 +240,41 @@ export class SkillService {
    * or "github:{https URL of the skill's SKILL.md}".
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
-    const [source, ...rest] = options.installSource.split(':')
-    const fetched = await fetchRemoteSkill(source, rest.join(':'))
+    const { installSource } = options
+    // One attempt per source at a time: an overlapping caller (UI or MCP tool) joins the running
+    // attempt, so Cancel always targets the attempt that is actually running.
+    const running = this.installAttempts.get(installSource)
+    if (running) return running.promise
 
+    const controller = new AbortController()
+    const promise = this.runMarketplaceInstall(installSource, controller.signal).finally(() => {
+      if (this.installAttempts.get(installSource)?.controller === controller) {
+        this.installAttempts.delete(installSource)
+      }
+    })
+    this.installAttempts.set(installSource, { controller, promise })
+    return promise
+  }
+
+  private async runMarketplaceInstall(installSource: string, signal: AbortSignal): Promise<InstalledSkill> {
+    const [source, ...rest] = installSource.split(':')
+    const fetched = await fetchRemoteSkill(source, rest.join(':'), signal)
     try {
+      signal.throwIfAborted()
       const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
       return installed
     } finally {
       await safeRemoveDirectory(fetched.tempDir)
     }
+  }
+
+  /** Abort an in-flight marketplace install; its temp workspace is removed as the fetch unwinds. */
+  cancelInstall(installSource: string): boolean {
+    const attempt = this.installAttempts.get(installSource)
+    if (!attempt) return false
+    attempt.controller.abort(new Error(SKILL_INSTALL_CANCELLED_MESSAGE))
+    return true
   }
 
   installMarketplace(id: string): Promise<MarketplaceInstallResult> {
