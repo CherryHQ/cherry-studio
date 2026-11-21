@@ -7,19 +7,105 @@ export interface PptxSelectionAnchorResult {
   anchor: { format: 'pptx'; slide: number }
 }
 
+export interface PptxPick {
+  slide: number
+  nodeId?: string
+}
+
+export interface PptxSelectionResult {
+  anchor: PptxPick & { format: 'pptx' }
+  /** Raw model text; `createPreviewSelection` owns normalization and the cap. */
+  excerpt: string
+}
+
 /**
  * Maps an element the user picked inside the PPTX slide list to a slide-level anchor.
- * v1 is slide-only: no node/paragraph/table addressing (see the FilePreview README).
  * The excerpt is not read from the DOM — see `slideExcerpt`.
  */
 export function slideToPptxAnchor(element: Element): PptxSelectionAnchorResult | null {
   const slideContainer = element.closest(`[${SLIDE_INDEX_ATTRIBUTE}]`)
   if (!(slideContainer instanceof HTMLElement)) return null
 
-  const slideIndex = Number(slideContainer.dataset.slideIndex)
+  const value = slideContainer.dataset.slideIndex
+  if (!value || !/^\d+$/.test(value)) return null
+  const slideIndex = Number(value)
   if (!Number.isInteger(slideIndex) || slideIndex < 0) return null
 
   return { anchor: { format: 'pptx', slide: slideIndex + 1 } }
+}
+
+export function pickPptxSelection(
+  element: Element,
+  presentation: PresentationData,
+  point: { clientX: number; clientY: number },
+  onWarning?: (message: string, detail?: unknown) => void
+): PptxSelectionResult | null {
+  const resolved = slideToPptxAnchor(element)
+  if (!resolved) return null
+  const { slide } = resolved.anchor
+  const slideData = presentation.slides[slide - 1]
+  if (!slideData) return null
+  const fallback = (): PptxSelectionResult => ({
+    anchor: resolved.anchor,
+    excerpt: slideExcerpt(presentation, slide, onWarning)
+  })
+  const item = element.closest(`[${SLIDE_INDEX_ATTRIBUTE}]`)
+  const wrapper = item?.firstElementChild
+  const root = wrapper?.firstElementChild
+  if (!wrapper || !root || !root.contains(element)) return fallback()
+
+  const rect = root.getBoundingClientRect()
+  const clip = wrapper.getBoundingClientRect()
+  const validRect = (r: DOMRect) =>
+    [r.left, r.top, r.width, r.height].every(Number.isFinite) && r.width > 0 && r.height > 0
+  const inside = (r: DOMRect) =>
+    point.clientX >= r.left &&
+    point.clientX <= r.left + r.width &&
+    point.clientY >= r.top &&
+    point.clientY <= r.top + r.height
+  if (
+    !validRect(rect) ||
+    !validRect(clip) ||
+    !inside(rect) ||
+    !inside(clip) ||
+    ![presentation.width, presentation.height].every((n) => Number.isFinite(n) && n > 0)
+  )
+    return fallback()
+  const x = ((point.clientX - rect.left) * presentation.width) / rect.width
+  const y = ((point.clientY - rect.top) * presentation.height) / rect.height
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return fallback()
+
+  try {
+    materializeSlideNodes(presentation, slideData)
+    for (let i = slideData.nodes.length - 1; i >= 0; i--) {
+      const node = slideData.nodes[i]
+      const { x: left, y: top } = node.position
+      const { w, h } = node.size
+      if (![left, top, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return fallback()
+      // Chart and default renderer wrappers remain axis-aligned.
+      const rotates =
+        node.nodeType === 'shape' ||
+        node.nodeType === 'picture' ||
+        node.nodeType === 'table' ||
+        node.nodeType === 'group'
+      const angle = rotates && Number.isFinite(node.rotation) ? (node.rotation * Math.PI) / 180 : 0
+      const dx = x - left - w / 2
+      const dy = y - top - h / 2
+      const px = dx * Math.cos(angle) + dy * Math.sin(angle) + w / 2
+      const py = -dx * Math.sin(angle) + dy * Math.cos(angle) + h / 2
+      if (px < 0 || px > w || py < 0 || py > h) continue
+      if (node.nodeType === 'shape' && typeof node.id === 'string' && node.id.trim() && node.textBody) {
+        return { anchor: { format: 'pptx', slide, nodeId: node.id }, excerpt: paragraphLines(node.textBody).join('\n') }
+      }
+      return fallback()
+    }
+  } catch (error) {
+    onWarning?.('Failed to resolve PPTX slide selection', {
+      slide,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+  return fallback()
 }
 
 /** python-pptx's `paragraph.text`, per paragraph: one line each, its runs concatenated. */
