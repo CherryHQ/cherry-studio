@@ -541,12 +541,7 @@ describe('useChatVirtualizerRuntime', () => {
         }
         act(() => runtime!.scrollerProps.onScrollEnd())
         if (ending === 'finish') {
-          expect(scroller.scrollTop).toBe(800)
-          act(() => {
-            scroller.scrollTop = 1100
-            runtime!.scrollerProps.onScroll(1100)
-            runtime!.scrollerProps.onScrollEnd()
-          })
+          expect(scroller.scrollTop).toBe(1100)
         }
         act(() => {
           scrollHeight = 1700

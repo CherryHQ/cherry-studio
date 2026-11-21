@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Reduzir Zoom",
   "backup.restore.failed": "Restauração falhou",
   "backup.restore.retry": "A cópia de segurança não foi restaurada. Os seus dados anteriores foram mantidos. Tente restaurar novamente.",
+  "chat.cherryai.sign_in_required": "Inicie sessão no Cherry AI para usar este modelo",
   "chat.conversation.new": "Nova conversa",
   "command_approval.builtin-destructive-command": "Este agente integrado não pode efetuar operações destrutivas. Para eliminar ficheiros confirmados, utilize a reciclagem. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Não foi possível carregar a política de comandos. A execução foi bloqueada.",

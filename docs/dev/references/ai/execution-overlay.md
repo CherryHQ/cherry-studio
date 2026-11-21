@@ -46,6 +46,10 @@ when a later snapshot uses committed rather than live preview identities.
 Explicit removals persist with the checkpoint and hide those sources after reopen;
 absence from a compacted native view alone does not remove saved product history.
 
+Child model-response errors become `data-error` parts alongside any received content. Each attempt's error
+survives archive writes, later retries and reopening, including failures with no text. These message-local errors
+do not determine the child's task status, which follows the native run outcome.
+
 ## Publication
 
 `MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. `order` is included only when message membership or order changes, including removal. Otherwise the existing order is retained. Unchanged messages and parts keep stable references in the renderer.

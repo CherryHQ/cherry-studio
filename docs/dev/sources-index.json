@@ -71,7 +71,7 @@
     },
     {
       "path": "docs/dev/references/ai/image-generation-parameters.md",
-      "sources": ["packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings"]
+      "sources": ["packages/provider-registry/src/creators/bytedance.ts","packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/AiService.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings","src/shared/ai/seedreamImageContract.ts"]
     },
     {
       "path": "docs/dev/references/ai/ipc-transport.md",

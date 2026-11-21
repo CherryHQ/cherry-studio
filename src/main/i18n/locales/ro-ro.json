@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Micșorează",
   "backup.restore.failed": "Restaurare eșuată",
   "backup.restore.retry": "Copia de rezervă nu a fost restaurată. Datele anterioare au fost păstrate. Încercați din nou restaurarea.",
+  "chat.cherryai.sign_in_required": "Conectează-te la Cherry AI pentru a folosi acest model",
   "chat.conversation.new": "Conversație nouă",
   "command_approval.builtin-destructive-command": "Acest agent încorporat nu poate efectua operații distructive. Pentru ștergerea confirmată a fișierelor, utilizați coșul de gunoi. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Politica comenzilor nu a putut fi încărcată. Executarea a fost blocată.",

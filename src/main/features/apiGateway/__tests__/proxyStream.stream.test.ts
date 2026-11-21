@@ -3,6 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { Semaphore } from 'async-mutex'
 import { status } from 'elysia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -187,13 +188,16 @@ async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<strin
   return out
 }
 
-async function startStreaming(signal?: AbortSignal) {
-  const response = processMessage({
-    params: { model: 'openai:gpt-4', stream: true, messages: [] },
-    inputFormat: 'openai',
-    outputFormat: 'openai',
-    signal
-  })
+async function startStreaming(signal?: AbortSignal, release?: () => void) {
+  const response = processMessage(
+    {
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      signal
+    },
+    release
+  )
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
   return { response, listener: captured.listener! }
 }
@@ -837,6 +841,25 @@ describe('processMessage (streaming)', () => {
     expect(mockAbort).toHaveBeenCalledOnce()
     await expect(readAll(res.body)).resolves.toBe('')
   })
+
+  it.each(['completion', 'disconnect'] as const)(
+    'holds request capacity until %s after SSE commitment',
+    async (end) => {
+      const budget = new Semaphore(1)
+      const [, release] = await budget.acquire()
+      const controller = new AbortController()
+      const { response, listener } = await startStreaming(controller.signal, release)
+      commit(listener)
+      const pendingResponse = await response
+      expect(budget.getValue()).toBe(0)
+
+      if (end === 'completion') await listener.onDone({} as any)
+      else controller.abort()
+
+      await readAll(pendingResponse.body)
+      expect(budget.getValue()).toBe(1)
+    }
+  )
 
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
