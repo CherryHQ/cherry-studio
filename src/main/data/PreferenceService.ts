@@ -408,7 +408,7 @@ export class PreferenceService extends BaseService {
         .run()
 
       // Update memory cache immediately — safe after resolveKey + cache key check
-      ;(this.cache as Record<string, unknown>)[cacheKey] = value
+      Object.assign(this.cache, { [cacheKey]: value })
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
@@ -475,7 +475,9 @@ export class PreferenceService extends BaseService {
     try {
       // Reject inaccessible keys before any write. BootConfig and SQLite
       // commits are separate, not a single atomic transaction.
-      const items = Object.entries(updates).map(([key, value]) => ({ key, value, route: this.resolveKey(key) }))
+      const items = Object.entries<UnifiedPreferenceType[UnifiedPreferenceKeyType] | undefined>(updates).map(
+        ([key, value]) => ({ key, value, route: this.resolveKey(key) })
+      )
 
       // Collect all changes for unified notification at the end
       const allChanges: Array<[string, unknown, unknown]> = []
@@ -504,8 +506,11 @@ export class PreferenceService extends BaseService {
       }
 
       // Performance optimization: filter out unchanged preference values
-      const actualUpdates: Record<string, any> = {}
-      const oldValues: Record<string, any> = {}
+      const actualUpdates: Array<{
+        key: PreferenceKeyType
+        value: Exclude<UnifiedPreferenceType[UnifiedPreferenceKeyType], undefined>
+        oldValue: PreferenceDefaultScopeType[PreferenceKeyType]
+      }> = []
       let skippedCount = 0
 
       for (const { value, route } of items) {
@@ -519,17 +524,16 @@ export class PreferenceService extends BaseService {
 
         // Only include keys that actually changed
         if (!isEqual(oldValue, value)) {
-          actualUpdates[cacheKey] = value
-          oldValues[cacheKey] = oldValue
+          actualUpdates.push({ key: cacheKey, value, oldValue })
         } else {
           skippedCount++
         }
       }
 
       // Write changed preference values to DB
-      if (Object.keys(actualUpdates).length > 0) {
+      if (actualUpdates.length > 0) {
         application.get('DbService').withWriteTx((tx) => {
-          for (const [key, value] of Object.entries(actualUpdates)) {
+          for (const { key, value } of actualUpdates) {
             tx.update(preferenceTable)
               .set({
                 value
@@ -540,15 +544,15 @@ export class PreferenceService extends BaseService {
         })
 
         // Update memory cache for changed keys only
-        for (const [key, value] of Object.entries(actualUpdates)) {
+        for (const { key, value } of actualUpdates) {
           if (key in this.cache) {
-            ;(this.cache as Record<string, unknown>)[key] = value
+            Object.assign(this.cache, { [key]: value })
           }
         }
 
         // Collect preference changes for notification
-        for (const [key, value] of Object.entries(actualUpdates)) {
-          allChanges.push([key, value, oldValues[key]])
+        for (const { key, value, oldValue } of actualUpdates) {
+          allChanges.push([key, value, oldValue])
         }
       }
 
@@ -557,7 +561,7 @@ export class PreferenceService extends BaseService {
         await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
       }
 
-      if (Object.keys(actualUpdates).length === 0 && bootConfigKeyCount === 0) {
+      if (actualUpdates.length === 0 && bootConfigKeyCount === 0) {
         logger.debug(`All ${Object.keys(updates).length} preference values unchanged, skipping batch update`)
       } else {
         logger.debug(

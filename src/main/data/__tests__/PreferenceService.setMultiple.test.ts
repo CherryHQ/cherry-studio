@@ -44,4 +44,42 @@ describe('PreferenceService.setMultiple', () => {
       [SECOND_NULLABLE_KEY]: null
     })
   })
+
+  it('keeps persisted and cached values unchanged without notifications when a batch write fails', async () => {
+    const { PreferenceService } = await import('../PreferenceService')
+    const service = new PreferenceService()
+    await service._doInit()
+    const notifications: string[] = []
+    const unsubscribe = service.subscribeChange(FIRST_NULLABLE_KEY, (value) => notifications.push(String(value)))
+    dbh.sqlite.exec(`
+      CREATE TEMP TRIGGER reject_preference_batch
+      BEFORE UPDATE OF value ON preference
+      WHEN NEW.key = '${SECOND_NULLABLE_KEY}'
+      BEGIN
+        SELECT RAISE(ABORT, 'injected preference write failure');
+      END
+    `)
+
+    try {
+      await expect(service.setMultiple({ [FIRST_NULLABLE_KEY]: null, [SECOND_NULLABLE_KEY]: null })).rejects.toThrow(
+        'injected preference write failure'
+      )
+
+      const rows = dbh.db
+        .select({ key: preferenceTable.key, value: preferenceTable.value })
+        .from(preferenceTable)
+        .where(inArray(preferenceTable.key, [FIRST_NULLABLE_KEY, SECOND_NULLABLE_KEY]))
+        .all()
+      expect(Object.fromEntries(rows.map(({ key, value }) => [key, value]))).toEqual({
+        [FIRST_NULLABLE_KEY]: 'first',
+        [SECOND_NULLABLE_KEY]: 'second'
+      })
+      expect(service.get(FIRST_NULLABLE_KEY)).toBe('first')
+      expect(service.get(SECOND_NULLABLE_KEY)).toBe('second')
+      expect(notifications).toEqual([])
+    } finally {
+      unsubscribe()
+      dbh.sqlite.exec('DROP TRIGGER reject_preference_batch')
+    }
+  })
 })
