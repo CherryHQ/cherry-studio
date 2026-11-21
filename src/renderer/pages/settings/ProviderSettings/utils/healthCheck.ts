@@ -12,7 +12,7 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel
 } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 import type {
   ApiKeyWithStatus,
@@ -47,6 +47,14 @@ export function getModelCheckCredentialPolicy(
   }
 
   return { canSelectApiKey: true, requiresApiKey: provider.authOptional !== true }
+}
+
+/**
+ * External-CLI providers (e.g. Claude Code) hold no app-side credential, so the
+ * ordinary API probe cannot test their models. Never offer it for them.
+ */
+export function canRunApiModelCheck(provider: Pick<Provider, 'authMethods'> | undefined): boolean {
+  return provider !== undefined && !isExternalCliProvider(provider)
 }
 
 export function resolveModelCheckCredentials(
