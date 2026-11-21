@@ -156,10 +156,8 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
   const { t, i18n } = useTranslation()
   // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
   // the raw `message` alone would only repeat the generic headline.
-  const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
-  const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
-    | Record<string, string>
-    | undefined
+  const detailKey = error.detailI18nKey
+  const detailValues = error.detailI18nValues as Record<string, string> | undefined
   const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
   const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
   return (
