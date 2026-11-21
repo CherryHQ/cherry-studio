@@ -100,6 +100,10 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
             isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
+            hostPreview={hostPreview.hostPreview}
+            showExactPathToggle={!provider.presetProviderId}
+            isExactPath={provider.endpointConfigs?.[topology.primaryEndpoint]?.pathMode === 'complete'}
+            onExactPathChange={(checked) => void endpointActions.setApiHostPathMode(checked ? 'complete' : 'host')}
             onApiHostChange={handleApiHostChange}
             onApiHostCommit={() => void handleApiHostCommit()}
             onResetApiHost={endpointActions.resetApiHost}

@@ -5519,6 +5519,8 @@
   "settings.provider.api.url.tip": "Добавьте # в конце, чтобы отключить автоматически добавляемую версию API.",
   "settings.provider.api_host": "Хост API",
   "settings.provider.api_host_drawer_hint": "Пользовательский URL запроса API; оставьте пустым, если применяется каталог по умолчанию.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "Недопустимый адрес API",
   "settings.provider.api_host_placeholder": "Не настроено",
   "settings.provider.api_host_preview": "Предпросмотр: {{url}}",

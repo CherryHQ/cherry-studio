@@ -35,7 +35,8 @@ export function useProviderHostPreview(params: {
       primaryEndpoint: topology.primaryEndpoint,
       apiHost,
       anthropicApiHost,
-      providerAnthropicHost: topology.anthropicBaseUrl
+      providerAnthropicHost: topology.anthropicBaseUrl,
+      pathMode: provider.endpointConfigs?.[topology.primaryEndpoint]?.pathMode
     })
     return {
       ...previews,

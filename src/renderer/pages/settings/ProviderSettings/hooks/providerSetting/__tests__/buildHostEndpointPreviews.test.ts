@@ -48,3 +48,45 @@ describe('buildHostEndpointPreviews — Azure apiVersion', () => {
     expect(hostPreview).toBe(`https://example.openai.azure.com/v1/responses?apiVersion=${previewVersion}`)
   })
 })
+
+const buildCustomParams = (apiHost: string, pathMode?: 'host' | 'complete'): Parameters<typeof buildHostEndpointPreviews>[0] => ({
+  provider: {
+    id: 'custom-1',
+    name: 'Custom',
+    authType: 'api-key',
+    apiKeys: [],
+    reportsActualCost: false,
+    isEnabled: true,
+    settings: {}
+  },
+  authConfig: null,
+  primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  apiHost,
+  anthropicApiHost: '',
+  providerAnthropicHost: '',
+  pathMode
+})
+
+describe('buildHostEndpointPreviews — complete path mode (#18972)', () => {
+  it('previews the stored URL exactly as entered, with no version or endpoint appended', () => {
+    const { hostPreview } = buildHostEndpointPreviews(
+      buildCustomParams('https://gateway.example.com/router/answer', 'complete')
+    )
+
+    expect(hostPreview).toBe('https://gateway.example.com/router/answer')
+  })
+
+  it('drops the trailing # convention marker from the preview in complete mode', () => {
+    const { hostPreview } = buildHostEndpointPreviews(
+      buildCustomParams('https://gateway.example.com/custom/chat/completions#', 'complete')
+    )
+
+    expect(hostPreview).toBe('https://gateway.example.com/custom/chat/completions')
+  })
+
+  it('keeps the default construction in host mode', () => {
+    const { hostPreview } = buildHostEndpointPreviews(buildCustomParams('https://gateway.example.com/router'))
+
+    expect(hostPreview).toBe('https://gateway.example.com/router/v1/chat/completions')
+  })
+})

@@ -5517,6 +5517,8 @@
   "settings.provider.api.url.tip": "Add # at the end to disable the automatically appended API version.",
   "settings.provider.api_host": "API Host",
   "settings.provider.api_host_drawer_hint": "Custom API request URL; leave empty when the catalog default applies.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "API address is invalid",
   "settings.provider.api_host_placeholder": "Not configured",
   "settings.provider.api_host_preview": "Preview: {{url}}",

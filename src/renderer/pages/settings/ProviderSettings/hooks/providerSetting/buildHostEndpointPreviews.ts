@@ -1,4 +1,4 @@
-import { formatApiHost, formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import { formatApiHost, formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp, withoutTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import {
@@ -17,12 +17,21 @@ export function buildHostEndpointPreviews(params: {
   apiHost: string
   anthropicApiHost: string
   providerAnthropicHost: string
+  /**
+   * `complete`: the primary host is the exact request path — mirrors
+   * `main/ai/provider/config.ts` formatBaseURL, which appends no API version
+   * in this mode.
+   */
+  pathMode?: 'host' | 'complete'
 }) {
-  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
-  const appendVersion = !isWithTrailingSharp(apiHost)
+  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost, pathMode } = params
+  const isCompletePath = pathMode === 'complete'
+  const appendVersion = !isCompletePath && !isWithTrailingSharp(apiHost)
   let formattedHost: string
 
-  if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+  if (isCompletePath) {
+    formattedHost = formatApiHost(apiHost, false)
+  } else if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     formattedHost = formatApiHost(anthropicApiHost || apiHost, appendVersion)
   } else if (
     provider.id === 'copilot' ||
@@ -50,6 +59,8 @@ export function buildHostEndpointPreviews(params: {
   }
 
   const hostPreview = (() => {
+    // Complete path: the request targets the stored URL exactly as entered.
+    if (isCompletePath) return withoutTrailingSharp(formattedHost)
     if (primaryEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) return `${formattedHost}/chat`
     if (provider.id === 'gateway') return `${formattedHost}/language-model`
     if (isAzureOpenAIProvider(provider)) {

@@ -5591,6 +5591,8 @@
   "settings.provider.api.url.tip": "Dodaj # na końcu, aby wyłączyć automatycznie dołączaną wersję API.",
   "settings.provider.api_host": "Host API",
   "settings.provider.api_host_drawer_hint": "Niestandardowy adres URL żądań API; pozostaw puste, gdy obowiązuje wartość domyślna z katalogu.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "Adres API jest nieprawidłowy",
   "settings.provider.api_host_placeholder": "Nie skonfigurowano",
   "settings.provider.api_host_preview": "Podgląd: {{url}}",

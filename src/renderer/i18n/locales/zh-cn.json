@@ -5517,6 +5517,8 @@
   "settings.provider.api.url.tip": "在末尾添加 # 以禁用自动附加的API版本。",
   "settings.provider.api_host": "API 地址",
   "settings.provider.api_host_drawer_hint": "自定义 API 请求地址；留空则使用目录默认地址。",
+  "settings.provider.api_host_exact_path": "使用完整地址",
+  "settings.provider.api_host_exact_path_tooltip": "按输入的地址原样发送请求，不自动追加 API 版本或端点路径。",
   "settings.provider.api_host_no_valid": "API 地址不合法",
   "settings.provider.api_host_placeholder": "未配置",
   "settings.provider.api_host_preview": "预览：{{url}}",

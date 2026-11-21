@@ -259,6 +259,34 @@ export function useProviderEndpointActions({
     }
   }, [apiVersion, patchProvider, provider, t])
 
+  /**
+   * Persist the exact-path declaration for the primary endpoint's host.
+   * `complete` marks the stored base URL as the exact request path (no API
+   * version or default protocol path appended); `host` restores the default
+   * path construction.
+   */
+  const setApiHostPathMode = useCallback(
+    async (mode: 'host' | 'complete'): Promise<boolean> => {
+      if (!provider) {
+        return false
+      }
+
+      try {
+        const nextEndpointConfigs = {
+          ...provider.endpointConfigs,
+          [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], pathMode: mode }
+        }
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        return true
+      } catch (error) {
+        logger.error('Failed to commit provider API host path mode', { providerId: provider?.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
+      }
+    },
+    [patchProvider, primaryEndpoint, provider, t]
+  )
+
   const resetApiHost = useCallback(async (): Promise<boolean> => {
     if (!provider || !defaultApiHost || apiHost === defaultApiHost) {
       return false
@@ -304,6 +332,7 @@ export function useProviderEndpointActions({
     commitApiHost,
     commitAnthropicApiHost,
     commitApiVersion,
+    setApiHostPathMode,
     resetApiHost
   }
 }
