@@ -29,6 +29,22 @@ describe('parseVertexAIServiceAccountJson', () => {
   it('ignores JSON without required service account credentials', () => {
     expect(parseVertexAIServiceAccountJson(JSON.stringify({ project_id: 'vertex-project' }))).toBeUndefined()
   })
+
+  it('trims required credentials and ignores an unusable optional project id', () => {
+    expect(
+      parseVertexAIServiceAccountJson(
+        '\uFEFF ' + JSON.stringify({ private_key: ' key ', client_email: ' account@example.com ', project_id: 42 })
+      )
+    ).toEqual({ privateKey: 'key', clientEmail: 'account@example.com', projectId: undefined })
+  })
+
+  it.each([
+    { private_key: ['key'], client_email: 'account@example.com' },
+    { private_key: 'key', client_email: { value: 'account@example.com' } },
+    { private_key: ' ', client_email: 'account@example.com' }
+  ])('rejects malformed required credentials %j', (credentials) => {
+    expect(parseVertexAIServiceAccountJson(JSON.stringify(credentials))).toBeUndefined()
+  })
 })
 
 describe('getMissingVertexAIConfigFields', () => {
