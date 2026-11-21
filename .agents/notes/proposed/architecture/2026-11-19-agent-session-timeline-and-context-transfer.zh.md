@@ -20,38 +20,54 @@ Status: proposed
 
 ## 提议
 
-### 1. run 就是 assistant 行，steer 并入其中
+### 1. Run 负责执行，Timeline 负责内容
 
-一个 assistant 行记录一次 run：从触发它的输入到原生终态的一次智能体循环执行。run 进行中被接受的 steer 输入通过已有的 `replyId` 挂到这个 run 上。Main 在原生放置时不再预留续写行，run 只结束一次。排队和 follow-up 输入各自开始新的 run。
+harness 放置触发输入时开始一次 run，在原生终态时结算。用现有 assistant 行作为 run 的物理记录，行 ID 即 run ID，上下文、状态、统计、模型和分支祖先关系都留在行上。排队时保留已持久化的输入 ID 和排队状态，放置时才作为 steer 加入活跃 run，或开启自己的 run。`replyId` 记录执行归属，`parentId` 记录祖先关系。steer 不预留续写行。迟到事实归原 run。后台唤醒若在原 run 结算后开启新的原生执行，则分配新 run ID。
 
-run 行新增 `context_id`，即执行它的上下文，与已有的状态、统计和 `modelId` 并列。不新增 run、attempt 或 turn 表。
+时间线包含输入引用和输出 part。输入条目引用已有输入行。#24051 的 part 表是输出正文的唯一持久化来源。每个新增输出 part 恰好属于一个 run，有一个固定位置。导出、模型上下文等历史读取者可由适配器按需组装 `parts[]`。渲染分组独立于持久化归属。
 
-### 2. 有序条目：一个计数器，`pos` 与 `rev`
+根和子会话沿用同一契约，各子存档维护自己的顺序和版本。迁移保留消息 ID、分支和 fork 锚点、附件引用和已保存的 part ID。用已有的回复和 composition 事实确定历史 run 归属，证据不足时保留既有边界。在一个 run 的中间切分支或 fork 时，读取所选祖先路径及其条目截止位置，只共享 run 的前缀。将旧存档引用对应到 part ID 时，保留原始工具结果的归属。
 
-每个会话维护一个单调计数器。每个消息行和 part 行都从它取两个值：
+### 2. 条目顺序与持久化提交
 
 | 字段 | 分配时机 | 用途 |
 | --- | --- | --- |
-| `pos` | Main 接受输入或首次创建 part 时分配一次 | 时间线顺序，之后不再改变 |
-| `rev` | 该行每次提交变更时 | 变更游标 |
+| `pos` | 放置输入或首次接纳 part 时分配一次 | 存档内的时间线顺序 |
+| `rev` | 每个写事务分配一次，由该事务改变的行共享 | 持久历史游标 |
 
-即使 part 行要等到 part 完成时才写入，Main 也用一次同步的计数器递增来分配 `pos`，所以崩溃可能留下空号。计数器写入不改动 `updatedAt` 或 `lastActivityAt`。每个子存档维护自己的计数器。
+一个存档由一个 Main 所有者分配位置。将 part ID 和位置作为放置元数据一起保存。首次接纳时写入一次，或在首次提交一个依赖这个位置的后续条目时一起写入，例如 steer。这样即使前面的活跃 part 正文还没提交，恢复也能还原顺序。token 追加不写 SQLite。part 完成时原子写入变化的 part 及相关工具结果或附件引用。终态和 Stop 仅保存剩余已收到的 parts 并结算 run，保留已有 ID 和位置。保存成功后才发布相应事实。失败时保留可读的实时内容，供既有重试或终态路径处理。
 
-时间线按 `pos` 排列输入和 part，遵循 [T3 的位置规则](https://github.com/pingdotgg/t3code/blob/13aa882c22d584de5388dfce3b3ca413387ba059/apps/server/src/orchestration-v2/TurnItemPositionStore.ts)：在 steer 之前创建的 part 留在它上方，包括仍在流式输出的 part；之后创建的 part 渲染在下方。不按字符切分，不轮转成新段，也不重新分组。后续条目到达时仍未结束的 reasoning part 按已结束渲染。遗留行按现有的 `(createdAt, id)` 顺序和已存储的 part 顺序一次性获得 `pos`。
+时间线顺序在放置时固定。一个已经打开的 part 持续增长时仍留在后续 steer 的上方，新 part 按自己的位置出现。旧行依据既有证据按原来的展示顺序分配位置。切分支或改变界面分组时不重新分配位置。
 
-### 3. 由原生身份派生 part 身份
+### 3. 稳定的 part 身份和工具结果归属
 
-part ID 由它的上下文、原生消息 ID 和块键派生；块键是 `toolCallId`、data part ID，或该块在这条原生消息中的位置。`native_ref` 存储原生消息 ID 和块键，供 fork 点和诊断使用。产品侧的数组下标从不参与派生。
+首次接纳 part 时分配一个 ID，后续实时及持久化更新沿用这个 ID。原生键由上下文、规范化后的原生来源和块键共同确定。有 tool-call ID 或显式 data ID 时优先使用，原生下标只在块顺序稳定的原生来源内部使用。临时来源被提交后的来源替换时，由 adapter 报告明确的别名。接纳替换之前，别名必须解析到已接纳的 ID 和位置。无法证明对应关系时，在 adapter 边界校对该来源，或请求新基线。产品消息下标和展示分组 ID 都不承载存储身份。
 
-因此，同一个原生块在重连、快照替换和重启后都解析到同一个 part，不需要存储映射。新的写入不再添加 `checkpointMapping.root` 和 `child.composition` 条目；遗留的 offset/count 映射保持可读，不回填。无法报告稳定原生消息身份和块顺序的 harness 需要修正它的 adapter。
+Main、SQLite 和 Renderer 失效通知沿用同一 part ID 寻址当前工具结果。从原有的消息和 tool-call 归属迁移最新结果的关联，载荷留在现有 sidecar。提交前读取已接纳的实时结果，原子交接后读取持久化结果。结果替换只使对应 part 的结果缓存失效。新增写入用稳定的来源关联，旧 offset/count composition 仍可供既有历史和恢复读取。
 
-### 4. 变更游标与增量投递
+### 4. 增量接纳、投递和恢复
 
-历史读取先取 `rev` 为 N 时的快照，之后只读 `rev` 大于 N 的行。删除和切换分支返回新快照，而不是写 tombstone。
+Main 的 timeline 所有者接纳规范化的来源变化。一次应用直接产出变化的条目或文字后缀以及待持久化的内容。仍提供累积原生消息的 adapter 在入口处只校对变化的来源及其报告变化的块。持久化和发布按变化执行，无需重新扫描整条回复来推断变化。
 
-实时投影保留它的发布 revision，用于检测重复和缺口，这是工具结果 note 的要求；但它按 part ID 寻址变更：在 `pos` 处插入、向打开的 text 或 reasoning part 追加 delta、替换某个 part、或移除某个 part。追加文字时既不发送无关的 part，也不发送完整顺序。渲染端按 part ID 设 key 并订阅，沿用 message-list subscriptions 的按 key 订阅。
+```ts
+type TimelineItem =
+  | { kind: 'input'; inputId: InputId; runId: RunId; pos: Position }
+  | { kind: 'part'; partId: PartId; runId: RunId; pos: Position; payload: CherryMessagePart }
 
-Markdown 保留 Streamdown 及其 memo 的块。每个 part 缓存自己的块切分，追加时从最后一个不稳定块的起点重新切分。会让不稳定起点后移的结构（例如链接引用定义）会使该 part 整体重新切分。
+type TimelineChange =
+  | { type: 'insert'; item: TimelineItem }
+  | { type: 'append'; partId: PartId; text: string }
+  | { type: 'replace'; partId: PartId; payload: CherryMessagePart }
+  | { type: 'remove'; itemId: InputId | PartId }
+  | { type: 'settle'; runId: RunId; outcome: RunOutcome }
+  | { type: 'result-changed'; partId: PartId }
+```
+
+Renderer 完整应用一个有序批次后，按条目或 run ID 通知订阅者。文字追加只通知受影响的 part。插入和移除同时通知顺序的消费者。Main 可按 part 合并待投递操作，无需重算当前视图。attach 和恢复用有作用域的完整基线。实时批次带独立的发布 revision 和发布身份，断档、未知目标或失效发布沿用现有基线恢复。
+
+历史读取取得一致快照和它的提交游标。随后只返回游标之后变化的行，并在完整提交的边界推进游标。游标含视图作用域和存档重置版本。删除在同一事务中推进重置版本，切分支会改变视图作用域。即使读取方错过了失效通知，也会用旧游标拿到新基线。
+
+Markdown 在每个文字 part 内处理。可以从最后一个不稳定块开始重新切分，链接引用定义等结构仍可能使更早的块失效。按 part 投递的性能验证独立于 Markdown 解析修改。
 
 ### 5. 经由会话消息的上下文传递
 
@@ -62,7 +78,7 @@ Markdown 保留 Streamdown 及其 memo 的块。每个 part 缓存自己的块�
 
 `readSessionHistory` 成为这个构建器：
 
-- 只有当目标上下文已经有模型输入时才跳过。前缀其他位置的原生身份不再使它失效。
+- 首次输入的初始化只在目标尚未有模型输入时执行。回到旧上下文时，只要目标还有未覆盖的 run 就要传递，包括目标已有模型输入的情况。[DeepSeek 导入](../../implemented/feature/2026-11-17-deepseek-agent-import.md) 记录当前首次输入路径。
 - 它覆盖目标上下文未覆盖的范围；对新上下文则覆盖整条选中路径。
 - 它满足一个由目标模型上下文窗口推出的总预算。按 [T3 的优先级](https://github.com/pingdotgg/t3code/blob/13aa882c22d584de5388dfce3b3ca413387ba059/packages/provider-core/src/server/handoffBudget.ts) 保留整条消息：最后一条用户消息、最后一条 assistant 消息、第一条用户消息，然后从新到旧。前言说明被省略的数量和 `pos` 范围。
 - 它排除 reasoning 和隐藏的 data part。工具调用保留输入以及输出的首尾部分。
@@ -77,30 +93,30 @@ Markdown 保留 Streamdown 及其 memo 的块。每个 part 缓存自己的块�
 | 位置 | 变更 |
 | --- | --- |
 | `AgentSessionRuntimeService` | 把 steer 挂到当前 run、移除续写预留、编排传递 |
-| `RootMessageProjection`、`ChildThreadProjection` | 派生 part ID、分配 `pos`、停止写 composition |
-| `AgentSessionMessageService` 与 schema | 计数器、`pos` 和 `rev`、变更读取、会话级 part 位置 |
+| `RootMessageProjection`、`ChildThreadProjection` | 将原生键解析成稳定 part 并接纳 timeline 变化 |
+| `AgentSessionMessageService` 与 schema | Run 和 part 存储、原子完成写入、游标读取 |
 | `AgentSessionContextService` | 每个会话多个根上下文，以及传递记录 |
 | `sessionHistory.ts` | 触发条件、范围、预算和排除规则 |
-| `MessageProjection` 与渲染端 `aiTransport` | 按 part 寻址的 patch |
+| `MessageProjection` 与渲染端 `aiTransport` | 按 part 寻址的 patch、有作用域的基线和按键订阅 |
 | 渲染端列表与 Markdown | `pos` 顺序、part key 与增量块切分 |
 
 ### 7. 交付顺序
 
 1. 本 Spec 放在栈底，连同 runtime 契约的修订。
-2. 存储：在 #24051 和 #24100 的 part 表上加入计数器、`pos`、`rev`、派生 ID 和 `context_id`，并重新生成迁移。
-3. run 与 steer：把 steer 挂到 run 上、移除续写行、按 `pos` 渲染。
-4. 增量投递与 Markdown。
+2. 存储：复用 #24051 的 part 表，加入稳定的放置信息及 run 归属，迁移 sidecar 关联，遵循已发布迁移的追加规则。
+3. 同次交付切换 Agent timeline：根和子会话接纳条目操作，复用 #24100 的完成写入，迁移按键投递与订阅，移除 Agent 的整消息热路径。
+4. 验证迁移后的消费者，独立测量 Markdown。
 5. 上下文传递与多个根上下文，session runtime binding 在它自己的分支里修订。
 6. Electron 验收。只有这一层把 note 移到 implemented。
 
-#23873 和 #23909 保持它们的工具结果范围。message-list subscriptions 在它自己的那一层修订，在 steer 放置、part 身份和游标上以本 note 为准。
+#23873 和 #23909 保持它们的工具结果范围。在切换时让 Agent 调用者使用工具 part 地址。message-list subscriptions 在它自己的那一层修订，在 steer 放置、part 身份和游标上以本 note 为准。
 
 ## 考虑过的替代方案
 
 - run、attempt 或 turn 表，或每条原生 assistant 消息一行：要么重复已经带有状态、统计和模型的 assistant 行，要么增加本可由条目级身份关联的行数。
 - steer 时按字符切分、把打开的 part 轮转成新段、或把进行中的工具重新分组到边界之后：每一种都会增加切分或移动状态，并带来重载时的重建义务。现在的 T3 改为在首次写入时固定位置。
 - 用传输 revision 作为存储游标，或采用 T3 的完整事件日志：传输 revision 只在一个发布者和订阅内有效，而 T3 自己也会压缩删除被取代的事件，所以行上的 `rev` 不需要日志就能提供同样的游标。
-- 一次性分配 part ID 并持久化来源映射：派生方式省掉了映射存储及其恢复。
+- 从原生消息 ID 直接派生公开 ID：临时来源提交时可能被替换，直接派生会导致挂载中的 part 变更 key。沿用已接纳的身份，在入口处校对替换。
 - 把产品历史转换成原生 Durable 条目，或做原生到原生的转换器：会话消息已经通过同一个构建器到达每个 harness。
 - 默认使用 LLM 撰写的摘要，如 [#24704](https://github.com/CherryHQ/cherry-studio/pull/24704)：需要一次模型调用，质量也不稳定。它保留为兼容的可选策略。
 - 回到某个 harness 时总是打开新上下文：会丢掉增量传递所保留的原生连续性。
@@ -119,11 +135,15 @@ Markdown 保留 Streamdown 及其 memo 的块。每个 part 缓存自己的块�
 - AC10 — 每次传递都记录覆盖范围和投递状态，中断的投递不会向同一个上下文重复发送历史（verification: 带故障注入的 unit；Main 数据和 runtime 负责人）
 - AC11 — 在 Electron 中，Claude Code 和 Pi Durable 上流式文字期间和工具运行期间的 steer 都让之前的 part 保持挂载，一个 Claude Code 到 Pi Durable 再回到 Claude Code 的会话能基于传递过来的上下文作答（verification: Electron；实现负责人）
 
+- AC12 — 子会话单次回复跨两个原生消息时，attach、替换及重载后仍能按 part ID 读取后一条消息的大工具结果。无关追加或存档重读不影响该结果的订阅（verification: Main 与 Renderer 集成；工具结果和子会话负责人）
+- AC13 — steer 提交后发生崩溃，重放它之前仍打开的 part 会保留原位置和 ID。在 run 中间 fork 不会看到 fork 点之后的条目（verification: 已填充 SQLite 和原生重放测试；存储和 runtime 负责人）
+- AC14 — 纯追加只访问相应来源块，零同步 SQLite 读写。保存、Stop 或原生终态纠正都沿用已提交 part 的 ID（verification: runtime 集成测试，统计查询和通知次数；runtime 和存储负责人）
+
 ## 风险
 
-- 计数器写入会让每个被接受的输入、新建的 part 和提交的变更多一次小的同步写入。需要在长会话上测量写入量。
+- 后继依赖提交前，需要持久化未完成 part 的位置。用长会话测量放置和完成事务的次数。
 - 在 steer 上方流式输出的 part 增长时会把 steer 往下推。这是接受的 T3 行为，只有在 Electron 中有证据时才重新考虑。
-- 派生身份依赖每个 adapter 都有稳定的原生消息 ID 和块顺序。
+- 部分 adapter 在提交后会改变原生 ID。要求稳定键或已证实的别名，并对每个 adapter 验证重放。
 - 预算可能省略相关历史。本 Spec 不包含读历史的工具，且可移植历史是参考文本：历史上的工具调用不会恢复为原生工具状态。
 - #24051 和 #24100 的迁移必须在这个基础上重新生成，并能迁移已有数据的数据库。
 - 一个会话有多个根上下文，会改变那些假设只有一个绑定的恢复、fork 和删除路径。
