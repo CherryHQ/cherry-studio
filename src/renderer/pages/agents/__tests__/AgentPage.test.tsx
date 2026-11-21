@@ -2,12 +2,14 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -79,6 +81,7 @@ const agentPageMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn(),
   sessionDisplayMode: 'time' as 'time' | 'workdir' | 'agent',
   sessionPanePosition: 'right' as 'left' | 'right',
+  defaultModelLoading: false as boolean,
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
@@ -249,6 +252,29 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
     agent: id ? agentPageMocks.agents.find((a) => a.id === id) : undefined
   })
 }))
+
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({
+    createAgent: vi.fn(),
+    isCreatingAgent: false
+  })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseModelModule>()
+  return {
+    ...actual,
+    useModels: () => ({ models: [] }),
+    useDefaultModel: () => ({
+      defaultModel: undefined,
+      isDefaultModelLoading: agentPageMocks.defaultModelLoading
+    })
+  }
+})
 
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
@@ -662,15 +688,39 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   }
 }))
 
-vi.mock('../components/AgentCreateDialog', () => ({
-  AgentCreateDialog: ({ open, onCreated }: { open?: boolean; onCreated?: (agentId: string) => void }) =>
+vi.mock('../components/AgentConversationPickerDialog', () => ({
+  AgentConversationPickerDialog: ({
+    open,
+    onSelect,
+    catalogContextLoading
+  }: {
+    open?: boolean
+    onSelect?: (
+      selection: { type: 'agent'; agentId: string } | { type: 'catalog'; preset: { id: string; name: string } }
+    ) => void
+    catalogContextLoading?: boolean
+  }) =>
     open ? (
-      <div data-testid="agent-create-dialog">
-        <button type="button" onClick={() => onCreated?.('agent-b')}>
+      <div data-testid="agent-create-dialog" data-catalog-context-loading={String(Boolean(catalogContextLoading))}>
+        <button type="button" onClick={() => onSelect?.({ type: 'agent', agentId: 'agent-b' })}>
           Create resource agent
         </button>
+        <button
+          type="button"
+          onClick={() => onSelect?.({ type: 'catalog', preset: { id: 'preset-1', name: 'Preset One' } })}>
+          Select catalog preset
+        </button>
       </div>
-    ) : null
+    ) : null,
+  resolveAgentIdFromConversationSelection: async (
+    selection: { type: 'agent'; agentId: string },
+    _agents: unknown,
+    options: { isPresetModelContextReady?: boolean; onPresetModelContextLoading?: () => void }
+  ) => {
+    if (selection.type === 'agent') return selection.agentId
+    if (options.isPresetModelContextReady === false) options.onPresetModelContextLoading?.()
+    return null
+  }
 }))
 
 vi.mock('../components/sessions', () => ({
@@ -772,6 +822,7 @@ describe('AgentPage', () => {
     agentPageMocks.historyOnPending = undefined
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
+    agentPageMocks.defaultModelLoading = false
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
@@ -835,7 +886,26 @@ describe('AgentPage', () => {
     activeSessionMocks.sessionSource = 'none'
 
     ipcMocks.request.mockReset()
-    ipcMocks.request.mockResolvedValue(undefined)
+    ipcMocks.request.mockImplementation(async (command: string) =>
+      command === 'cherry_cloud.account.get'
+        ? {
+            status: { phase: 'signed-in', accountId: 'test', displayName: null, scopeId: 'test-scope', revision: 1 },
+            reason: 'models',
+            account: { freshness: 'fresh' },
+            plans: { freshness: 'unknown', error: null },
+            models: {
+              freshness: 'fresh',
+              observedRevision: 1,
+              value: {
+                freeModelIds: [],
+                entitledModelIds: [],
+                quotaExhaustedModelIds: [],
+                availableModelIds: { agent: [], general: [] }
+              }
+            }
+          }
+        : undefined
+    )
   })
 
   it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {
@@ -1102,6 +1172,161 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
   })
 
+  it('does not poll cherry-cloud availability while the add-agent picker is closed', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+
+    const view = render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+
+    await act(async () => Promise.resolve())
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('cherry_cloud.models.sync')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledWith('cherry_cloud.models.sync'))
+    view.unmount()
+  })
+
+  it('does not block All/Preset choices when the Cloud receipt fails', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    ipcMocks.request.mockImplementation((command: string) =>
+      command === 'cherry_cloud.account.get' ? Promise.reject(new Error('Cloud offline')) : Promise.resolve(undefined)
+    )
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'false')
+    )
+  })
+
+  it('keeps the add-agent picker in loading state while the default-model lookup hydrates', () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.defaultModelLoading = true
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'true')
+  })
+
+  it('defers a catalog preset while the preset model context hydrates instead of rejecting it as missing a model', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.defaultModelLoading = true
+    ipcMocks.request.mockImplementation((command: string) =>
+      command === 'cherry_cloud.models.sync' ? new Promise(() => undefined) : Promise.resolve(undefined)
+    )
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'true')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog preset' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.loading'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('keeps the picker open when catalog selection has no usable model or agent', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'false')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog preset' }))
+    await act(async () => Promise.resolve())
+    expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('settles the add-agent picker context once cloud availability resolves', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentPage />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'false')
+    )
+  })
+
+  it('switches to agent grouping when changing session position from the left sidebar', async () => {
+    agentPageMocks.sessionDisplayMode = 'workdir'
+    agentPageMocks.sessionPanePosition = 'left'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move sessions right' }))
+
+    await waitFor(() => expect(agentPageMocks.sessionDisplayMode).toBe('agent'))
+    expect(agentPageMocks.sessionPanePosition).toBe('right')
+    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(true)
+  })
+
+  it('expands only the active session agent when changing session position to the left sidebar', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' },
+      { ...agentPageMocks.persistedSession, id: 'session-b', agentId: 'agent-b' },
+      { ...agentPageMocks.persistedSession, id: 'session-c', agentId: 'agent-c' }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move sessions left' }))
+
+    await waitFor(() => expect(agentPageMocks.sessionPanePosition).toBe('left'))
+    expect(cacheService.getPersist('ui.agent.session.expansion.agent')).toEqual([
+      'session:agent:agent-b',
+      'session:agent:agent-c'
+    ])
+  })
+
+  it('renders the agent resource view inside the stable AgentChat shell', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
+  })
+
   it('renders history records inside the stable AgentChat shell and toggles them from the sidebar', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
@@ -1149,7 +1374,7 @@ describe('AgentPage', () => {
         }
       })
     )
-    expect(screen.queryByTestId('agent-create-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
 
     await act(async () => {
@@ -1168,6 +1393,7 @@ describe('AgentPage', () => {
     })
 
     await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-picker'))
+    expect(screen.queryByTestId('agent-create-dialog')).not.toBeInTheDocument()
     expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
   })
 
