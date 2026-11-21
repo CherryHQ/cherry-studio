@@ -19,6 +19,7 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { McpTool } from '@shared/types/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
@@ -33,7 +34,8 @@ export function buildMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext?: AgentNotificationContext
+  notificationContext?: AgentNotificationContext,
+  effectiveModelId?: UniqueModelId | null
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -43,7 +45,8 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    effectiveModelId
   )
 
   return Object.fromEntries(

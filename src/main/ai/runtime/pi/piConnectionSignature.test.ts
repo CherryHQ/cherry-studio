@@ -240,10 +240,25 @@ describe('capturePiConnectionSnapshot', () => {
       disabled.signature
     )
   })
-  it('retires a warm connection when the internal gateway listener changes', async () => {
+
+  it('serves a session model override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ ...agent, model: null })
+
+    const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+
+    expect(snapshot.model).toMatchObject({ id: 'provider::model' })
+  })
+
+  it('still rejects a modelless agent when no session override is passed', async () => {
+    mocks.getAgent.mockReturnValue({ ...agent, model: null })
+
+    await expect(capturePiConnectionSnapshot('session-1', agent.id)).rejects.toThrow('Invalid Pi session snapshot')
+  })
+
+  it('keeps the object connection when the unrelated HTTP listener changes', async () => {
     const before = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.gatewayOrigin = 'http://127.0.0.1:9001'
     const after = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
-    expect(after.signature).not.toBe(before.signature)
+    expect(after.signature).toBe(before.signature)
   })
 })

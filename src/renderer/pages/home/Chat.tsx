@@ -190,7 +190,7 @@ const Chat: FC<Props> = (props) => {
   const openCitationInBrowser = useCallback(
     (url: string) => {
       if (!activeTopicId) return
-      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      topicBrowserRuntimeService.openPage(activeTopicId, url)
       rightPanelActions.tryOpen('browser', { userInitiated: true })
       setCitationPanelState(null)
     },
@@ -279,6 +279,7 @@ const Chat: FC<Props> = (props) => {
                     (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
                   }
                   assistantEmoji={assistantContext.assistant?.emoji}
+                  assistantAvatarSrc={assistantContext.assistant?.avatarSrc}
                   model={assistantContext.model}
                   modelPending={
                     assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot

@@ -293,6 +293,7 @@ describe('Pi reasoning selection SDK contract', () => {
       const manager = SessionManager.create(directory, directory)
       const original = await createThinkingSession('high', manager)
       await original.session.prompt('persist high history')
+      const originalHistory = manager.getBranch()
       original.session.dispose()
       const resumed = await createThinkingSession(
         selection,
@@ -302,9 +303,9 @@ describe('Pi reasoning selection SDK contract', () => {
         await resumed.session.prompt('continue')
         expect(resumed.session.thinkingLevel).toBe(selection ?? 'high')
         expect(resumed.efforts).toEqual([selection ?? 'high'])
-        expect(resumed.manager.getBranch().filter((entry) => entry.type === 'thinking_level_change')).toMatchObject([
-          { thinkingLevel: 'high' }
-        ])
+        expect(resumed.manager.getBranch().slice(0, originalHistory.length)).toEqual(originalHistory)
+        const reopened = SessionManager.open(manager.getSessionFile()!, directory, directory)
+        expect(reopened.buildSessionContext().thinkingLevel).toBe(selection ?? 'high')
       } finally {
         resumed.session.dispose()
       }

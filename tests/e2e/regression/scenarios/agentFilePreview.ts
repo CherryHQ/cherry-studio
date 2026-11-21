@@ -41,7 +41,7 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
     }
   }
 
-  // Real provider and runtime: neither tool output nor file contents are injected after the prompt.
+  // Mock model decisions; real runtime tool execution and filesystem effects.
   const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const agentName = app.resourceName(`File preview ${Date.now()}`)
@@ -62,14 +62,6 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   const view = page.locator('[data-ui~="agent.view"]:visible').first()
   const messages = view.locator('[data-ui~="chat.message"]:visible')
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
-  const send = async (prompt: string) => {
-    const count = await messages.count()
-    await composer.fill(prompt)
-    await view.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect.poll(() => messages.count(), { timeout: 90_000 }).toBeGreaterThan(count)
-    await expect(messages.last().getByTestId('completed-process-trigger')).toBeVisible({ timeout: 90_000 })
-    return messages.last()
-  }
   const preview = page.getByTestId('artifact-file-preview-overlay')
   await openAgentPane(page, 'Files')
   await expect(page.getByTestId('artifact-pane-header')).toBeVisible()
@@ -98,14 +90,19 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
     .getByRole('button', { name: 'Close preview sample.py', exact: true })
     .click()
 
-  const edited = await send(
+  await composer.fill(
     'Edit only code/sample.py using exactly one Edit tool call covering the whole file: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
   )
+  await view.getByRole('button', { name: 'Send', exact: true }).click()
+  const edited = messages.filter({ has: page.getByText('MP52_EDIT_DONE', { exact: true }) })
+  await expect(edited).toBeVisible({ timeout: 90_000 })
   await expect.poll(() => readFile(target, 'utf8'), { timeout: 30_000 }).toBe(expected)
-  await edited.getByTestId('completed-process-trigger').click()
-  for (const group of await edited.getByTestId('child-tool-group').all()) {
-    const trigger = group.getByRole('button', { expanded: false }).first()
-    if (await trigger.isVisible()) await trigger.click()
+  const processTrigger = edited.getByTestId('completed-process-trigger')
+  if ((await processTrigger.getAttribute('aria-expanded')) !== 'true') await processTrigger.press('Enter')
+  await expect(processTrigger).toHaveAttribute('aria-expanded', 'true')
+  const groupTrigger = edited.getByTestId('child-tool-group').locator('button[data-slot="accordion-trigger"]').first()
+  if ((await groupTrigger.isVisible()) && (await groupTrigger.getAttribute('aria-expanded')) === 'false') {
+    await groupTrigger.click()
   }
   const diff = edited.getByTestId('collapse-content-MultiEdit').or(edited.getByTestId('collapse-content-Edit'))
   await expect(diff).toHaveCount(1)

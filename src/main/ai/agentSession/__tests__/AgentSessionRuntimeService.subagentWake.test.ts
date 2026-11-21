@@ -1,12 +1,12 @@
-import { defaultServiceInstances } from '@test-mocks/main/application'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Incident repro (2026-08-15): a runtime subagent settlement wake opened a
  * receive-only turn whose persisted row ended up with ZERO parts while the
  * runtime streamed a full report. Drive the real service with the incident's
  * event order and assert the receive-only stream actually carries the chunks.
  */
+import { defaultServiceInstances } from '@test-mocks/main/application'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 const mocks = vi.hoisted(() => ({
@@ -47,6 +47,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     branchTip: (_sessionId: string, messageId: string) => messageId,
+    linkReply: vi.fn(),
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
@@ -68,7 +69,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) =>
-      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mocks.applicationGet(name)
+      name === 'RuntimeActivityService' ? defaultServiceInstances[name] : mocks.applicationGet(name)
   }
 }))
 
@@ -139,7 +140,7 @@ describe('subagent settlement wake (incident replay)', () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
-    // Turn 1: the spawning user turn, streamed and settled normally.
+    // Turn 1: replay begins after the spawning input has been admitted.
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     entry.runtimeState.connection = {
@@ -154,6 +155,7 @@ describe('subagent settlement wake (incident replay)', () => {
       occupancy: {}
     }
     const turn1 = currentTurn(entry)
+    entry.runtimeState.execution.reply.admission = 'admitted'
     const turn1Reader = openChunkStream(service, {
       sessionId: 'session-1',
       turnId: turn1.turnId,

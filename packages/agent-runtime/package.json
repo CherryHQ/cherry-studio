@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime/tsconfig.json"
   },
   "dependencies": {
     "ai": "6.0.185"

@@ -29,7 +29,7 @@ create a leaky mega-abstraction:
 | GitHub Copilot | `src/main/services/CopilotService.ts` | Device flow (RFC 8628) — no redirect/callback; encrypted-file storage. |
 | Nutstore | `src/main/services/nutstore/` | Proprietary SSO with custom encryption — not standard OAuth. |
 | Feishu / WeChat | `src/main/ai/channels/adapters/` | Proprietary device/binary protocols — not OAuth. |
-| Silicon / PPIO / 302 / AIHubMix / AIOnly | `src/renderer/utils/oauth.ts` | One-shot popup that returns an **API key** (no token session / refresh). |
+| PPIO / 302 / AIHubMix / AIOnly | `src/renderer/utils/oauth.ts` | One-shot popup that returns an **API key** (no token session / refresh). |
 
 **Do not** route any of the above through this runtime. If you think you need to,
 re-read the table.
@@ -118,5 +118,6 @@ Hydra before releasing the client. The listener must bind before the browser ope
 token storage; access and refresh tokens remain in the main process. Other
 windows may observe completion through `oauth.sign_in.attach`, which returns only
 the account id. Cancellation requires a request registered by the calling window.
-API-key retrieval has a 30-second timeout; failure retains the stored OAuth tokens
-and releases the login so the user can retry.
+API-key retrieval has a 30-second timeout. An empty key list completes sign-in and
+lets the user create a key before trying again. A retrieval error retains the stored
+OAuth tokens and releases the login so the user can retry.

@@ -13,7 +13,7 @@ it('dispatches one validated platform and retains the machine-readable verdict a
     default: 'clean'
   })
   const run = workflow.jobs.test.steps.find((step: { name?: string }) => step.name === 'Run one test')
-  expect(run.env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY).toBe('${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}')
+  expect(JSON.stringify(workflow)).not.toMatch(/(?:secrets|vars)\.CHERRY_TEST_CUSTOM_PROVIDER_/)
   const preflight = workflow.jobs.resolve.steps.find((step: { id?: string }) => step.id === 'ref')
   expect(preflight.env).toEqual(run.env)
   expect(workflow.jobs.test.strategy).toBeUndefined()
@@ -36,13 +36,17 @@ it('dispatches one validated platform and retains the machine-readable verdict a
 
 it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
   const ci = parse(readFileSync(resolve(__dirname, '../../../../.github/workflows/ci.yml'), 'utf8'))
-  expect(ci.jobs['basic-checks'].needs).toContain('repository-checks')
-  const lint = ci.jobs['repository-checks'].steps.find(
-    (step: { name?: string }) => step.name === 'Lint GitHub Actions workflows'
-  )
+  const lint = ci.jobs.changes.steps.find((step: { name?: string }) => step.name === 'Lint GitHub Actions workflows')
   expect(lint.with?.args ?? '').not.toContain('-ignore')
   const config = parse(readFileSync(resolve(__dirname, '../../../../.github/actionlint.yaml'), 'utf8'))
-  expect(Object.keys(config.paths)).toEqual(['.github/workflows/qa-ondemand.yml'])
+  expect(Object.keys(config.paths).sort()).toEqual([
+    '.github/workflows/backport-release-fixes.yml',
+    '.github/workflows/post-release.yml',
+    '.github/workflows/prepare-release.yml',
+    '.github/workflows/qa-ondemand.yml',
+    '.github/workflows/release-target.yml',
+    '.github/workflows/release.yml'
+  ])
   const filters = config.paths['.github/workflows/qa-ondemand.yml'].ignore
   expect(filters).toHaveLength(1)
   const ignored = new RegExp(filters[0])
