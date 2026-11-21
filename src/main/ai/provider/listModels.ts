@@ -146,6 +146,57 @@ function warnSkippedOpenAIModelEntries(
   }
 }
 
+// Context-window keys the built-in fetchers already map, in precedence order (#20523).
+const OPENAI_CONTEXT_LIMIT_KEYS = ['context_length', 'max_context_window', 'max_context_length'] as const
+
+function parsePositiveTokenLimit(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined
+}
+
+/**
+ * Read provider-advertised token limits from a generic OpenAI-compatible model entry.
+ * Malformed values are ignored with a warning, and contradictory context keys leave the limit
+ * unset rather than guessing — the spec forbids inventing a fallback window.
+ */
+function resolveOpenAITokenLimits(
+  model: { id: string } & Record<string, unknown>,
+  providerId: string
+): { contextWindow?: number; maxOutputTokens?: number } {
+  const validContextValues = new Set<number>()
+  for (const key of OPENAI_CONTEXT_LIMIT_KEYS) {
+    const value = model[key]
+    if (value === undefined || value === null) continue
+    const parsed = parsePositiveTokenLimit(value)
+    if (parsed === undefined) {
+      logger.warn('Ignoring malformed model context limit from provider', { providerId, modelId: model.id, key })
+    } else {
+      validContextValues.add(parsed)
+    }
+  }
+
+  const limits: { contextWindow?: number; maxOutputTokens?: number } = {}
+  if (validContextValues.size === 1) {
+    limits.contextWindow = [...validContextValues][0]
+  } else if (validContextValues.size > 1) {
+    logger.warn('Ignoring contradictory model context limits from provider', {
+      providerId,
+      modelId: model.id,
+      values: [...validContextValues]
+    })
+  }
+
+  const maxTokens = model.max_tokens
+  if (maxTokens !== undefined && maxTokens !== null) {
+    const parsed = parsePositiveTokenLimit(maxTokens)
+    if (parsed === undefined) {
+      logger.warn('Ignoring malformed model output token limit from provider', { providerId, modelId: model.id })
+    } else {
+      limits.maxOutputTokens = parsed
+    }
+  }
+  return limits
+}
+
 // ── API Layer ──
 
 const ApiErrorSchema = z.object({
@@ -999,12 +1050,15 @@ async function listOpenAICompatibleModels(
   })
   warnSkippedOpenAIModelEntries(provider.id, response)
   return listing(
-    dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    dedup(response.data, (m) => m.id).map((m) => {
+      const limits = resolveOpenAITokenLimits(m, provider.id)
+      return toModel(m.id, provider, {
         name: m.name || m.id,
-        ownedBy: m.owned_by
+        ownedBy: m.owned_by,
+        ...(limits.contextWindow ? { contextWindow: limits.contextWindow } : {}),
+        ...(limits.maxOutputTokens ? { maxOutputTokens: limits.maxOutputTokens } : {})
       })
-    )
+    })
   )
 }
 
