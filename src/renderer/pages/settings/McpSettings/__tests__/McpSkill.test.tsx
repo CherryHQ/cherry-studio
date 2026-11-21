@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { useMcpServer } from '@renderer/hooks/useMcpServer'
 import en from '@renderer/i18n/locales/en-us.json'
@@ -31,7 +31,7 @@ const skill: McpSkillEntry = {
   serverId: server.id,
   serverName: server.name,
   uri: 'skill://reports/SKILL.md',
-  frontmatter: { name: 'reports', description: 'Build a report' },
+  frontmatter: { name: 'reports', description: 'Build a report', id: 'manifest-label' },
   resources: []
 }
 let savedServer = server
@@ -41,23 +41,6 @@ const panel = (value = server) => (
     <McpSkillsSection server={value} updateMcpServer={update} />
   </I18nextProvider>
 )
-
-const browserMethods = ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture', 'scrollIntoView'] as const
-const originalMethods = browserMethods.map((name) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, name))
-beforeAll(() => {
-  for (const name of browserMethods)
-    Object.defineProperty(HTMLElement.prototype, name, {
-      configurable: true,
-      value: name === 'hasPointerCapture' ? () => false : () => {}
-    })
-})
-afterAll(() => {
-  browserMethods.forEach((name, index) => {
-    const original = originalMethods[index]
-    if (original) Object.defineProperty(HTMLElement.prototype, name, original)
-    else Reflect.deleteProperty(HTMLElement.prototype, name)
-  })
-})
 
 beforeEach(() => {
   savedServer = server
@@ -75,12 +58,12 @@ beforeEach(() => {
 })
 
 describe('MCP Skill permissions', () => {
-  it('saves the selected permission for its URI and retains another Skill’s permission', async () => {
+  it('saves auto approval for its URI, retains other permissions, and restores approval on remount', async () => {
     const user = userEvent.setup()
     const view = render(panel())
-    const selector = await screen.findByRole('combobox', { name: 'Reading permission for reports' })
-    await user.click(selector)
-    await user.click(screen.getByRole('option', { name: en['settings.mcp.skills.auto'] }))
+    const autoApprove = await screen.findByRole('switch', { name: 'Auto Approve: reports' })
+    expect(autoApprove).not.toBeChecked()
+    await user.click(autoApprove)
     await waitFor(() =>
       expect(savedServer.skillPermissions).toEqual({
         'skill://other/SKILL.md': 'disabled',
@@ -88,19 +71,29 @@ describe('MCP Skill permissions', () => {
       })
     )
     view.unmount()
-    render(panel(savedServer))
-    expect(await screen.findByRole('combobox', { name: 'Reading permission for reports' })).toHaveTextContent(
-      en['settings.mcp.skills.auto']
-    )
+    const restored = render(panel(savedServer))
+    const restoredAutoApprove = await screen.findByRole('switch', { name: 'Auto Approve: reports' })
+    expect(restoredAutoApprove).toBeChecked()
+    await user.click(restoredAutoApprove)
+    await waitFor(() => expect(savedServer.skillPermissions?.[skill.uri]).toBe('prompt'))
+    restored.rerender(panel(savedServer))
+    expect(screen.getByRole('switch', { name: 'Enabled: reports' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Auto Approve: reports' })).not.toBeChecked()
   })
 
-  it('retains a disabled entry so it can be enabled again', async () => {
+  it('disables a Skill and enables it again with approval required', async () => {
     const user = userEvent.setup()
-    render(panel({ ...server, skillPermissions: { [skill.uri]: 'disabled' } }))
-    const selector = await screen.findByRole('combobox', { name: 'Reading permission for reports' })
-    expect(selector).toHaveTextContent(en['settings.mcp.skills.disabled'])
-    await user.click(selector)
-    await user.click(screen.getByRole('option', { name: en['settings.mcp.skills.prompt'] }))
-    await waitFor(() => expect(savedServer.skillPermissions).toEqual({ [skill.uri]: 'prompt' }))
+    const view = render(panel())
+    await user.click(await screen.findByRole('switch', { name: 'Enabled: reports' }))
+    await waitFor(() => expect(savedServer.skillPermissions?.[skill.uri]).toBe('disabled'))
+    view.rerender(panel(savedServer))
+    expect(screen.getByRole('switch', { name: 'Enabled: reports' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Auto Approve: reports' })).toBeDisabled()
+    await user.click(screen.getByRole('switch', { name: 'Enabled: reports' }))
+    await waitFor(() => expect(savedServer.skillPermissions?.[skill.uri]).toBe('prompt'))
+    view.rerender(panel(savedServer))
+    expect(screen.getByRole('switch', { name: 'Enabled: reports' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Auto Approve: reports' })).not.toBeChecked()
+    expect(savedServer.skillPermissions?.['skill://other/SKILL.md']).toBe('disabled')
   })
 })
