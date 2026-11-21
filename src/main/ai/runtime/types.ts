@@ -216,7 +216,7 @@ export type AgentRuntimeEvent =
   | { type: 'autonomous-turn-state'; state: 'finished' }
   /** A `retainOnStop` connection finished the requested stop; later input may start. */
   | { type: 'stop-confirmed' }
-  | { type: 'error'; error: unknown }
+  | { type: 'error'; error: unknown; fatal?: boolean }
 
 /**
  * Verdict of {@link AgentRuntimeConnection.reconcile}.

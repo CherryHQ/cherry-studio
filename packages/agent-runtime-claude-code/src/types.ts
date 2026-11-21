@@ -47,6 +47,8 @@ export interface ClaudeCodeRuntimeOptions {
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
   readonly onError?: (error: unknown) => void
+  /** Fatal delivery loss, reported without waiting for a stalled observer. */
+  readonly onObservationError?: (thread: Thread, error: Error) => void
 }
 
 /** Native SDK stream event omitted from the pinned SDKMessage declaration. */

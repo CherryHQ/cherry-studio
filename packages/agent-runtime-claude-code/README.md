@@ -102,6 +102,12 @@ shell calls and ambient notifications do not become root reply results. Main reu
 assistant message for background generation instead of creating a standalone continuation message.
 Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
+Recovery shares frozen publication-time revisions with observers. The paired
+Claude queue limits additional retained graphs to an estimated 16 MiB, excluding its current
+authoritative baseline and counting shared objects once. One complete oversized frame is allowed.
+Unrecoverable critical pressure closes that native owner and reports `onObservationError` immediately,
+even when the consumer is stalled. Other root owners remain usable. Shutdown still verifies native
+exit; the desktop retires the affected session and clears its queued input instead of retrying it.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
 `Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`
 joins native input and background occupancy without closing the SDK; the desktop backup barrier

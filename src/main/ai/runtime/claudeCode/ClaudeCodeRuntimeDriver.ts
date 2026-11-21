@@ -253,6 +253,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       load: async () => config,
       onError: (error) => {
         this.nativeError = error
+      },
+      onObservationError: (_thread, error) => {
+        this.nativeError = error
+        this.eventQueue.push({ type: 'error', error, fatal: true })
+        this.eventQueue.close()
       }
     })
     const opened = resume

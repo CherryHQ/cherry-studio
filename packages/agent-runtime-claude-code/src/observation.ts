@@ -1,4 +1,5 @@
 import {
+  HistoryRetention,
   immutable,
   ThreadFeed,
   type Observation,
@@ -18,12 +19,15 @@ export class ClaudeFeed {
   private readonly replaces = new Map<string, string>()
   private readonly pendingRetractions = new Set<string>()
   private readonly taskRuns = new Map<string, string>()
-  private readonly observers = new Set<(batch: ClaudeObservation) => void>()
+  private readonly observers = new Set<(batch: ClaudeObservation, baseline: ClaudeObservation) => void>()
   private ended = false
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
   private controlState?: ClaudeControlState['snapshot']
 
-  constructor(private readonly report: (error: unknown) => void) {
+  constructor(
+    private readonly report: (error: unknown) => void,
+    private readonly onBacklog?: (error: Error) => void
+  ) {
     this.state = new ThreadFeed(
       {
         type: 'snapshot',
@@ -68,7 +72,7 @@ export class ClaudeFeed {
     state?: ClaudeControlState['snapshot']
   ): void {
     if (this.ended) return
-    if (state) this.controlState = state
+    if (state) this.controlState = immutable(state)
     if (legacy) this.legacy = immutable(legacy)
     const replaces: Record<string, string> = {}
     // Freeze once; the state feed, the retained native map and every observer share these values.
@@ -116,6 +120,10 @@ export class ClaudeFeed {
           : message.uuid
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live')) this.native.set(key, value)
     }
+    if (!this.observers.size) {
+      this.pendingRetractions.clear()
+      return
+    }
     const batch: ClaudeObservation = immutable({
       events,
       controls,
@@ -130,7 +138,8 @@ export class ClaudeFeed {
       retracted: [...this.pendingRetractions]
     })
     this.pendingRetractions.clear()
-    for (const send of this.observers) send(batch)
+    const baseline = immutable(this.baseline())
+    for (const send of this.observers) send(batch, baseline)
   }
 
   forget(uuid: string): void {
@@ -150,6 +159,7 @@ export class ClaudeFeed {
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
     const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation =>
       immutable({ ...batch, live: baseline ? [] : batch.live?.filter((id) => !historical.has(id)) })
+    const retention = new HistoryRetention()
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
     let pending: Delivery[] = [{ batch: capture(this.baseline(), true), through: sent }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
@@ -164,6 +174,7 @@ export class ClaudeFeed {
     const stop = () => {
       stopped = true
       pending = []
+      retention.clear()
       this.observers.delete(send)
       settle()
     }
@@ -175,7 +186,7 @@ export class ClaudeFeed {
           while (!stopped && pending.length) {
             started = true
             const { batch, through } = pending.shift()!
-            await sink(batch)
+            await sink(immutable(batch))
             delivered = Math.max(delivered, through)
             settle()
             if (batch.events.some((event) => event.type === 'closed')) stop()
@@ -185,22 +196,25 @@ export class ClaudeFeed {
           this.report(error)
         } finally {
           draining = false
+          if (!pending.length) retention.clear()
         }
       })
     }
-    const send = (batch: ClaudeObservation) => {
+    const send = (batch: ClaudeObservation, baseline: ClaudeObservation) => {
       if (stopped || lost) return
       for (const [previous, replacement] of Object.entries(batch.replaces ?? {}))
         if (historical.has(previous)) historical.add(replacement)
-      const recover = () => capture({ ...this.baseline(), controls: batch.controls, invocations: batch.invocations })
+      const recover = () => capture({ ...baseline, controls: batch.controls, invocations: batch.invocations })
       const critical = Boolean(batch.controls?.length || batch.invocations?.length)
       pending.push({ batch: capture(batch), through: ++sent, ...(critical && { recovery: recover() }) })
-      if (pending.length > 100) {
+      if (pending.length > 1) retention.setBaseline(baseline)
+      if (pending.length > 100 || retention.exceeds(pending)) {
         const closed = batch.events.filter((event) => event.type === 'closed')
         const retained = pending.filter((item) => item.recovery).map((item) => ({ ...item, batch: item.recovery! }))
-        if (retained.length > 1000) {
+        if (retained.length > 1000 || retention.exceeds(retained)) {
           lost = true
           pending = [
+            ...(started ? [] : [pending[0]]),
             {
               batch: {
                 events: [
@@ -213,7 +227,10 @@ export class ClaudeFeed {
               through: sent
             }
           ]
-          this.report(new Error('Claude observer exceeded recoverable control backlog'))
+          retention.clear()
+          const error = new Error('Claude observer exceeded recoverable control backlog')
+          this.report(error)
+          this.onBacklog?.(error)
           drain()
           return
         }

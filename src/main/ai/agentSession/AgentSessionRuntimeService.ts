@@ -2788,7 +2788,9 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'error':
+        if (event.fatal) this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
         this.handleRuntimeError(entry, event.error)
+        if (event.fatal) void this.closeSession(entry.sessionId)
         break
     }
   }

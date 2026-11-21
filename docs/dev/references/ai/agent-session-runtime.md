@@ -96,6 +96,11 @@ and history opening do not generate host predictions; a resident result can be r
 | Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
+Fatal connection errors clear queued follow-ups and retire the affected session through the
+existing close barrier. Claude observation-budget failures notify this path independently of
+the stalled consumer and close its native owner. Unconfirmed exit or undrained writes keep the
+session unavailable; they do not create a replacement process or resubmit pending input.
+
 ## Context usage
 
 Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
