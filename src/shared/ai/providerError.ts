@@ -59,7 +59,7 @@ function containsEncodedContainer(text: string): boolean {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider message fields may contain structured values; accept only bounded text and reject encoded containers before display.
 function providerPayloadText(value: unknown): string {
   if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
-  let parsed: unknown = value
+  let parsed: Serializable = value
   for (let depth = 0; depth < MAX_PROVIDER_ERROR_DECODE_DEPTH && typeof parsed === 'string'; depth += 1) {
     const text = parsed
     if (text.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
@@ -87,11 +87,15 @@ function payloadText(value: unknown, decodeDepth = 0): string {
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; SDK response data may retain arbitrary native fields.
   const payload = value as Record<string, unknown>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; each message candidate is validated as bounded text before display.
   const error = payload.error && typeof payload.error === 'object' ? (payload.error as Record<string, unknown>) : null
   const detail =
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; provider detail fields remain unknown until the scalar readers validate them.
     payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
   const detailError =
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; message extraction validates the selected field before display.
     detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : null
 
   return (
@@ -112,12 +116,15 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
     }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; SDK response data may retain arbitrary native fields.
   const payload = value as Record<string, unknown>
   const detail =
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; provider detail fields remain unknown until the scalar readers validate them.
     payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
   return [payload, payload.error, detail, detail?.error]
     .flatMap((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; code and type are accepted only as bounded strings below.
       const record = entry as Record<string, unknown>
       return [record.code, record.type].filter(
         (code): code is string => typeof code === 'string' && code.length <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
@@ -142,7 +149,7 @@ export function getSafeProviderErrorMessage(source: ProviderErrorSource): string
 export function getSafeAiSdkErrorDiscriminants(source: unknown): Record<string, Serializable> {
   const discriminants: Record<string, Serializable> = {}
   if (source === null || typeof source !== 'object') return discriminants
-  // SAFETY: The object boundary is checked; every property copied to diagnostics is validated below.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; native SDK extensions are validated field by field before redaction.
   const record = source as Record<string, unknown>
 
   for (const field of SAFE_AI_SDK_STRING_FIELDS) {
@@ -174,8 +181,7 @@ function sdkResponseDiagnostic(error: unknown): string | undefined {
   return undefined
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Anthropic's synthetic responseBody and nested JSON.parse results require bounded decoding before checking the parse-error marker.
-function isEncodedJsonParseError(value: unknown, decodeDepth = 0): boolean {
+function isEncodedJsonParseError(value: Serializable, decodeDepth = 0): boolean {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return false
     try {
@@ -185,7 +191,7 @@ function isEncodedJsonParseError(value: unknown, decodeDepth = 0): boolean {
     }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const record = value as Record<string, unknown>
+  const record = value
   return record.name === 'AI_JSONParseError' && typeof record.text === 'string'
 }
 

@@ -14,13 +14,16 @@ const logger = loggerService.withContext('ApiGatewayErrors')
 
 const providerDetails = Symbol('internal provider details')
 type ProviderDetails = {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK data fallback may contain native values; authenticated dialect serialization owns its final JSON representation.
   body: Record<string, unknown>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Provider fields and native cause codes are preserved here; presentation readers validate the fields they consume.
   error: Record<string, unknown>
   headers: Record<string, string>
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider error bodies and nested fields are untrusted JSON; this helper checks the object boundary before field extraction.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Native SDK data, causes and decoded bodies share this object-container check; individual fields remain unvalidated.
 function record(value: unknown): Record<string, unknown> | undefined {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The non-array object container is checked; this view makes no claim about its native field values.
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 }
 
@@ -29,6 +32,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
   if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
   const api = APICallError.isInstance(error) ? error : undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Parsed JSON and the SDK data fallback merge here; native fallback values must survive until dialect serialization.
   let body: Record<string, unknown> = {}
   try {
     body = record(JSON.parse(api?.responseBody ?? '')) ?? {}
@@ -85,7 +89,7 @@ const anthropicEnvelope = (type: string, message: string) => ({ type: 'error' as
 const openaiEnvelope = (type: string, message: string, code: string) => ({ error: { message, type, code } })
 
 /** Cherry REST envelope — mirrors the v2 `DataApiError` vocabulary. */
-const restEnvelope = (code: string, message: string, details?: Record<string, unknown>) => {
+const restEnvelope = (code: string, message: string, details?: SerializedDataApiError['details']) => {
   const error: Pick<SerializedDataApiError, 'code' | 'message' | 'details'> = { code, message }
   if (details) error.details = details
   return { error }
@@ -440,7 +444,7 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
  */
 export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (error instanceof DataApiError) {
-    return status(error.status, restEnvelope(error.code, error.message, error.details as Record<string, unknown>))
+    return status(error.status, restEnvelope(error.code, error.message, error.details))
   }
   if (code === 'VALIDATION') {
     return status(422, restEnvelope('VALIDATION_ERROR', messageOf(error, 'Invalid request parameters')))
