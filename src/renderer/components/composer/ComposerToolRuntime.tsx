@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import React, { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tooltip } from '@cherrystudio/ui'
 import { getAllTools, getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import {
   ComposerToolDerivedStateProvider,
@@ -409,17 +410,18 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
   return (
     <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
       {activeLaunchers.map((launcher) => (
-        <button
-          key={launcher.id}
-          type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
-          data-active
-          disabled={launcher.disabled}
-          aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
-          onClick={() => dispatchLauncher(launcher, { source: 'popover', inputAdapter })}>
-          <span className="flex shrink-0 items-center justify-center text-foreground-tertiary">{launcher.icon}</span>
-          {launcher.suffix ? <span className="max-w-24 truncate">{launcher.suffix}</span> : null}
-        </button>
+        <Tooltip key={launcher.id} content={launcher.tooltip ?? launcher.label} placement="top" asChild>
+          <button
+            type="button"
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
+            data-active
+            disabled={launcher.disabled}
+            aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
+            onClick={() => dispatchLauncher(launcher, { source: 'popover', inputAdapter })}>
+            <span className="flex shrink-0 items-center justify-center text-foreground-tertiary">{launcher.icon}</span>
+            {launcher.suffix ? <span className="max-w-24 truncate">{launcher.suffix}</span> : null}
+          </button>
+        </Tooltip>
       ))}
     </div>
   )
