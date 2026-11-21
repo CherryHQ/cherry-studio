@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
-    "count": 68,
+    "version": "acb0bea049e51c4a",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -975,6 +975,10 @@
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "aistupidlevel",
+        "name": "AI Stupid Level"
       },
       {
         "id": "anthropic",
