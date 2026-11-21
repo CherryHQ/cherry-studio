@@ -20,7 +20,7 @@ interface CommonReasoningDetail {
   id?: string | null
   format?: ReasoningFormat | null
   index?: number
-  // The original schema was `.loose()`: provider-specific extra keys are allowed.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Provider-specific reasoning extensions are cached and replayed opaquely; only consumed fields are declared.
   [key: string]: unknown
 }
 

@@ -106,7 +106,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's
         // provider metadata, so carry it out on the emitted functionCall part.
-        const meta = chunk.providerMetadata as Record<string, any> | undefined
+        const meta = chunk.providerMetadata
         const thoughtSignature =
           typeof meta?.google?.thoughtSignature === 'string' ? meta.google.thoughtSignature : undefined
         this.appendFunctionCall(chunk.toolName, chunk.input, thoughtSignature)

@@ -2,6 +2,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { GeminiSseFormatter } from '../formatters/GeminiSseFormatter'
+import type { GatewayUsageMetadata } from '../interfaces'
 import { AiSdkToGeminiSse, type GeminiGenerateContentResponse } from '../stream/AiSdkToGeminiSse'
 
 const textDelta = (text: string, id = 'text_0'): UIMessageChunk => ({ type: 'text-delta', id, delta: text })
@@ -12,7 +13,7 @@ const toolCall = (toolName: string, input: unknown): UIMessageChunk => ({
   toolName,
   input
 })
-const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, unknown>): UIMessageChunk => {
+const finish = (finishReason: FinishReason = 'stop', usage?: GatewayUsageMetadata): UIMessageChunk => {
   const chunk: Extract<UIMessageChunk, { type: 'finish' }> = { type: 'finish', finishReason }
   if (usage) chunk.messageMetadata = usage
   return chunk

@@ -40,6 +40,7 @@ export interface ExtendedChatCompletionCreateParams extends ChatCompletionCreate
   /**
    * Allow additional provider-specific parameters
    */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Provider-specific request fields are unvalidated; consumed standard parameters derive from the SDK contract.
   [key: string]: unknown
 }
 

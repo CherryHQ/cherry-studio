@@ -162,7 +162,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       case 'tool-input-error':
       case 'tool-input-available': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
-        const meta = chunk.providerMetadata as Record<string, any> | undefined
+        const meta = chunk.providerMetadata
         const thoughtSignature = meta?.google?.thoughtSignature
         if (googleReasoningCache && typeof thoughtSignature === 'string') {
           googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
