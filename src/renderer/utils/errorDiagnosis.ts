@@ -34,7 +34,7 @@ async function getCherryAiDefaultFreeModel(): Promise<Model> {
   return model
 }
 
-function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
+function buildContextHint(errorInfo: Partial<SerializedError>, context?: DiagnosisContext): string {
   const messageText = String(errorInfo.message || '').toLowerCase()
   const responseBodyText = typeof errorInfo.responseBody === 'string' ? errorInfo.responseBody.toLowerCase() : ''
   const dataText = typeof errorInfo.data === 'string' ? errorInfo.data.toLowerCase() : ''
@@ -197,8 +197,8 @@ export async function diagnoseError(
   language: string,
   context?: DiagnosisContext
 ): Promise<DiagnosisResult> {
-  const errorBag = error as Record<string, unknown>
-  const errorInfo: Record<string, unknown> = {
+  const errorBag = error
+  const errorInfo: Partial<SerializedError> = {
     name: error.name,
     message: error.message
   }
