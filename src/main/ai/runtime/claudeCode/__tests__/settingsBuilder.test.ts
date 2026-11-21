@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import type { McpSdkServerConfigWithInstance, PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +15,9 @@ import {
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import type * as AgentTools from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BrowserSessionService } from '@main/features/browser'
+import type * as MainI18n from '@main/i18n'
 import type * as FileUtils from '@main/utils/file'
+import type { McpTool } from '@shared/types/mcp'
 
 import { GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
 
@@ -210,7 +212,7 @@ vi.mock('@main/i18n', async () => {
   const { default: english } = await import('@main/i18n/locales/en-us.json')
   return {
     getAppLanguage: mocks.getAppLanguage,
-    t: (key: string, params?: Record<string, unknown>) => {
+    t: (key: string, params?: Parameters<typeof MainI18n.t>[1]) => {
       if (params?.path) return `${key}:${params.path}`
       return (english as Record<string, string>)[key] ?? key
     }
@@ -253,7 +255,9 @@ const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStat
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
 const sessionStateService = new ClaudeCodeSessionStateService()
 
-async function listCherryTools(settings: { mcpServers?: Record<string, unknown> }) {
+async function listCherryTools(
+  settings: Pick<Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>, 'mcpServers'>
+) {
   const { instance } = settings.mcpServers!['cherry-tools'] as McpSdkServerConfigWithInstance
   const client = await connectMcpTestClient(instance)
   try {
@@ -1259,7 +1263,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
     const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
-    const permissionDecisions = async (toolName: string, toolInput: Record<string, unknown>) =>
+    const permissionDecisions = async (toolName: string, toolInput: PreToolUseHookInput['tool_input']) =>
       Promise.all(
         hooks.map(async (hook) => {
           const output = await hook(
@@ -1353,7 +1357,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
-    const runHooks = (toolName: string, toolInput: Record<string, unknown>) =>
+    const runHooks = (toolName: string, toolInput: PreToolUseHookInput['tool_input']) =>
       Promise.all(
         hooks.map((hook) =>
           hook(
@@ -1363,7 +1367,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           )
         )
       )
-    const permissionDecisions = async (toolName: string, toolInput: Record<string, unknown>) =>
+    const permissionDecisions = async (toolName: string, toolInput: PreToolUseHookInput['tool_input']) =>
       (await runHooks(toolName, toolInput)).map(
         (output) =>
           (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision
@@ -3232,7 +3236,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           resolveRefresh = resolve
         })
       )
-      let cachedTools: Array<Record<string, unknown>> = []
+      let cachedTools: McpTool[] = []
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') {
@@ -3268,7 +3272,17 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       // The in-flight refresh lands: the reconciliation rebuilds the snapshot from the live agent
       // and fills the same metadata object the settings (and stream adapter) hold.
-      cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
+      cachedTools = [
+        {
+          id: 'tool-x',
+          type: 'mcp',
+          serverId: 'srv-a',
+          serverName: 'srv-a',
+          name: 'tool_x',
+          description: 'X',
+          inputSchema: { type: 'object' }
+        }
+      ]
       resolveRefresh()
       await vi.waitFor(() => {
         expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
