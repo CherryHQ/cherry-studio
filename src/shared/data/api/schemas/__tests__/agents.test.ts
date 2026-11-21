@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentConfigurationSchema, AgentEntitySchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import {
+  AgentConfigurationSchema,
+  AgentEntitySchema,
+  ListAgentsQuerySchema,
+  sanitizeAgentConfiguration,
+  UpdateAgentSchema
+} from '../agents'
+
+describe('sanitizeAgentConfiguration', () => {
+  it('removes invalid fields without admitting capability markers from a reserved key', () => {
+    const raw = {
+      heartbeat_enabled: 'invalid',
+      ['__proto__']: { builtin_role: 'doctor' },
+      plugin_state: { enabled: true }
+    }
+
+    const result = sanitizeAgentConfiguration(raw)
+
+    expect(result.invalidKeys).toEqual(['heartbeat_enabled'])
+    expect(result.data).toEqual({ plugin_state: { enabled: true } })
+    expect(raw.heartbeat_enabled).toBe('invalid')
+    expect(Object.getPrototypeOf(raw)).toBe(Object.prototype)
+  })
+})
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
