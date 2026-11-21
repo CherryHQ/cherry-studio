@@ -674,6 +674,7 @@ const AgentComposerInner = ({
     getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
     rootPanelVisible ||
     skillsPanelVisible
+  const skillsDiscoveryEnabled = skillsDataEnabled && !workspaceWarning
   const knowledgeBasesDataEnabled =
     selectedKnowledgeBases.length > 0 ||
     getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
@@ -684,7 +685,7 @@ const AgentComposerInner = ({
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
-  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDiscoveryEnabled })
   const remoteSkillCatalogs = useMcpSkills(agent?.mcps ?? [], rootPanelVisible || skillsPanelVisible)
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
@@ -709,7 +710,7 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
-    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+    if (!shouldValidateSkills || !skillsDiscoveryEnabled || isAvailableSkillsLoading || availableSkillsError) return
 
     const draft = { text, tokens: draftTokens }
     const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
@@ -736,6 +737,7 @@ const AgentComposerInner = ({
     isAvailableSkillsLoading,
     setText,
     shouldValidateSkills,
+    skillsDiscoveryEnabled,
     skillByFilename,
     text
   ])
