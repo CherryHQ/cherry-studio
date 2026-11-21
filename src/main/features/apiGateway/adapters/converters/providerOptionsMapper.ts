@@ -5,6 +5,14 @@
  * them through the same descriptor-driven builders as Cherry's native chat
  * path. Native Anthropic and Gemini requests keep a lossless fast path when
  * the target speaks the same dialect.
+ *
+ * The user effort map is deliberately NOT applied here: the session boundary
+ * owns the single mapping (agentSessionWarmup for Claude Code, buildAgentParams
+ * for the direct route), because Anthropic serialization can discard the
+ * canonical key before a request reaches the gateway. Re-applying the map in
+ * this converter chains it (High -> Medium -> Low) for warmup-mapped sessions
+ * and rewrites external clients' literal effort (cherry-pr-review
+ * inv_d3a354e6550a361e).
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
@@ -38,12 +46,13 @@ function resolveProviderReasoningContext(
 ) {
   const { endpointType } = resolvedEndpoint
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
   return {
     aiSdkProviderId: resolveAiSdkProviderId(provider, endpointType),
     endpointType,
-    invocationModel: reasoningProfile.support
-      ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
-      : model,
+    invocationModel,
     providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
     reasoningProfile
   }

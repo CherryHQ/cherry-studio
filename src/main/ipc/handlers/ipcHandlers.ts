@@ -35,6 +35,7 @@ import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
 import { ovmsHandlers } from './ovms'
 import { pdfjsHandlers } from './pdfjs'
+import { preferenceHandlers } from './preference'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
@@ -98,6 +99,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...openclawHandlers,
   ...ovmsHandlers,
   ...pdfjsHandlers,
+  ...preferenceHandlers,
   ...printHandlers,
   ...assistantHandlers,
   ...profileHandlers,

@@ -33,6 +33,7 @@ import { oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
 import { pdfjsRequestSchemas } from './pdfjs'
+import { preferenceRequestSchemas } from './preference'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
@@ -94,6 +95,7 @@ export const ipcRequestSchemas = {
   ...openclawRequestSchemas,
   ...ovmsRequestSchemas,
   ...pdfjsRequestSchemas,
+  ...preferenceRequestSchemas,
   ...printRequestSchemas,
   ...assistantRequestSchemas,
   ...profileRequestSchemas,
