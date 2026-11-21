@@ -101,6 +101,19 @@ describe('extractAiSdkStandardParams', () => {
 })
 
 describe('mergeCustomProviderParameters', () => {
+  it('retains native custom values until provider serialization instead of coercing them to JSON', () => {
+    const callback = () => 'callback'
+    const serializable = { toJSON: () => 'wire value' }
+    const params = Object.freeze({ callback, serializable, omitted: undefined })
+
+    const result = mergeCustomProviderParameters({ openai: { retained: true } }, params, 'openai')
+
+    expect(result.openai.callback).toBe(callback)
+    expect(result.openai.serializable).toBe(serializable)
+    expect(Object.hasOwn(result.openai, 'omitted')).toBe(true)
+    expect(result.openai.omitted).toBeUndefined()
+  })
+
   it('preserves precedence across direct fields and provider aliases without mutating inputs', () => {
     const untouched = { flag: true }
     const initial = { openai: { retained: true }, other: untouched }

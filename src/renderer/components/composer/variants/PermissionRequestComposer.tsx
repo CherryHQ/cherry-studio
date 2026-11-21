@@ -58,7 +58,9 @@ function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpT
   return toolResponse.tool.type === 'mcp'
 }
 
-function normalizeArgs(args: ToolResponseLike['arguments']): Record<string, unknown> | unknown[] | null {
+function normalizeArgs(
+  args: ToolResponseLike['arguments']
+): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> {
   if (args === undefined || args === null) return null
   if (typeof args === 'object') return args
   return { value: args }
@@ -105,10 +107,11 @@ export function createPermissionRequestComposerOverride({
 
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
-  const input = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input)
-    : UnknownToolRenderer({ toolName, input })
+  const input = toolResponse.arguments
+  const renderedItem =
+    isValidAgentToolsType(toolName) && !Array.isArray(input)
+      ? renderTool(toolName, input)
+      : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {
     ...renderedItem,
