@@ -37,11 +37,13 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 
 const logger = loggerService.withContext('useReorder')
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Cached rows have heterogeneous fields; ordering checks the selected string identity and preserves every other value.
 type ItemList = Array<Record<string, unknown>>
 type CollectionPage = { items: ItemList }
 type SingleCollectionCache = ItemList | CollectionPage
 type InfiniteCollectionCache = CollectionPage[]
 type CollectionCache = SingleCollectionCache | InfiniteCollectionCache
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Extra body fields belong to each endpoint; this hook reads only the anchor and forwards the remaining values unchanged.
 export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<string, unknown>)
 
 /**
@@ -105,7 +107,7 @@ function updateInfiniteItems(cache: InfiniteCollectionCache, items: ItemList): I
 
 export interface UseReorderOptions<Cache = CollectionCache> {
   /** Query parameters of the collection cache to update. */
-  query?: Record<string, unknown>
+  query?: Parameters<ReturnType<typeof useReadCache>>[1]
   /** Target a useInfiniteQuery collection with the same page limit. */
   infinite?: { limit: number }
   /**
