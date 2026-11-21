@@ -61,6 +61,7 @@ const schemas = {
 }
 
 export interface BrowserAutomationResult {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Evaluations and website tools return unvalidated page values; retain them until the existing response serialization boundary.
   value: Record<string, unknown>
   observation?: boolean
   images?: { data: string; mimeType: string }[]
@@ -69,6 +70,7 @@ export interface BrowserAutomationResult {
 export async function executeBrowserOperation(
   controller: BrowserController,
   name: string,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Request fields are unparsed until the selected operation's Zod schema checks them.
   args: Record<string, unknown>,
   tabId: string | undefined,
   signal: AbortSignal
