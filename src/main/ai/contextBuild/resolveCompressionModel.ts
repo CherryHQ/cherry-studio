@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Resolve a Cherry-side compression-model selector (`<providerId>::<modelId>`
  * UniqueModelId) into a `LanguageModelV3` via the SAME path the agent uses:
  * Provider+Model rows (DataApi) → `resolveSdkConfig` → `createExecutor`
@@ -16,7 +16,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 import type { ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'
@@ -61,6 +61,24 @@ export async function resolveCompressionModel(
       providerId,
       modelId,
       error: (error as Error).message
+    })
+    return null
+  }
+
+  // Reject embedding-only models early — they can't generate text summaries.
+  // Without this check, `executor.languageModel()` fails silently and compression
+  // stops working with only a generic "resolution failed" warning.
+  const capabilities = model.capabilities ?? []
+  const hasGenerationCapability =
+    capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ||
+    capabilities.includes(MODEL_CAPABILITY.REASONING) ||
+    capabilities.length === 0 // Unknown capability set — try resolving anyway
+
+  if (!hasGenerationCapability) {
+    logger.warn('compression model is not a generation model (embedding-only)', {
+      providerId,
+      modelId,
+      capabilities
     })
     return null
   }
