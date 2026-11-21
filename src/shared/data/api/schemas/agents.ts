@@ -54,6 +54,7 @@ export const AgentConfigurationSchema = z
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
     service_tier: ServiceTierSelectionSchema.optional(),
+    stream_output: z.boolean().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),

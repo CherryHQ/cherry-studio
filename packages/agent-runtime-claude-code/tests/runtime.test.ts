@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { rename, rm } from 'node:fs/promises'
 
 import { startup } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
@@ -9,6 +10,7 @@ import { runtimeId } from '@cherrystudio/agent-runtime'
 import { claudeThread } from '../src'
 import { readArchive } from '../src/archive'
 import { confirmed, fixture, inputId, observe, spawnChild, textOf } from './nativeFixture'
+import { wireFixture } from './wireFixture'
 
 it('claims one prewarmed native process for commands, input and confirmed shutdown', async () => {
   const test = await fixture()
@@ -81,65 +83,69 @@ it('reconciles an archive read overlapping live output without losing the commit
   }
 }, 30000)
 
-it('places steer at a native tool boundary and associates one answer with both immutable inputs', async () => {
-  const test = await fixture()
-  try {
-    const root = confirmed(await test.runtime().create(test.options))
-    const view = await observe(root)
-    const first = inputId()
-    await root.input!.submit({ inputId: first, text: 'Run a child', whenBusy: 'steer' })
-    const request = await test.request()
-    request.reply.block(spawnChild('toolu_steer'))
-    request.reply.finish('tool_use')
-    const child = await test.request()
-    const second = inputId()
-    await root.input!.submit({ inputId: second, text: 'Use the revised requirement', whenBusy: 'steer' })
-    await view.event(
-      (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'queued'
-    )
-    child.reply.block({ type: 'text', text: 'Child answer' })
-    child.reply.finish()
-    const reply = await test.request()
-    await view.event(
-      (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'started'
-    )
-    expect(JSON.stringify(reply.body.messages)).toContain('Use the revised requirement')
-    reply.reply.block({ type: 'text', text: 'Shared answer' })
-    await expect.poll(() => textOf(view.snapshot)).toContain('Shared answer')
-    const boundary = view.batches.findIndex((batch) =>
-      batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(second))
-    )
-    const answer = view.batches.findIndex((batch) =>
-      batch.events.some(
-        (event) =>
-          event.type === 'message.upsert' &&
-          event.message.parts.some((part) => part.type === 'text' && part.text === 'Shared answer')
+it.each([true, false])(
+  'places steer at a native tool boundary with partials=%s and associates both immutable inputs',
+  async (includePartialMessages) => {
+    const test = await fixture({ includePartialMessages })
+    try {
+      const root = confirmed(await test.runtime().create(test.options))
+      const view = await observe(root)
+      const first = inputId()
+      await root.input!.submit({ inputId: first, text: 'Run a child', whenBusy: 'steer' })
+      const request = await test.request()
+      request.reply.block(spawnChild('toolu_steer'))
+      request.reply.finish('tool_use')
+      const child = await test.request()
+      const second = inputId()
+      await root.input!.submit({ inputId: second, text: 'Use the revised requirement', whenBusy: 'steer' })
+      await view.event(
+        (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'queued'
       )
-    )
-    expect(boundary).toBeGreaterThanOrEqual(0)
-    expect(boundary).toBeLessThan(answer)
-    reply.reply.finish()
-    await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === second)?.outcome).toBe('completed')
-    const inputs = view.snapshot.inputs.filter((input) => input.inputId === first || input.inputId === second)
-    expect(inputs.map((input) => input.outcome)).toEqual(['completed', 'completed'])
-    expect(textOf(view.snapshot)).toContain('Shared answer')
-    const resultIndex = view.batches.findIndex((batch) =>
-      batch.native.some((native) => native.message.type === 'result')
-    )
-    expect(
-      view.batches
-        .slice(0, resultIndex)
-        .flatMap((batch) => batch.events)
-        .filter((event) => event.type === 'input.changed' && event.input.outcome === 'completed')
-    ).toHaveLength(2)
-    expect(await root.input!.submit({ inputId: second, text: 'Changed payload', whenBusy: 'steer' })).toMatchObject({
-      status: 'rejected',
-      error: { code: 'duplicate-input' }
-    })
-  } finally {
-    await test.close()
-  }
-}, 30000)
+      child.reply.block({ type: 'text', text: 'Child answer' })
+      child.reply.finish()
+      const reply = await test.request()
+      await view.event(
+        (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'started'
+      )
+      expect(JSON.stringify(reply.body.messages)).toContain('Use the revised requirement')
+      reply.reply.block({ type: 'text', text: 'Shared answer' })
+      await expect.poll(() => textOf(view.snapshot)).toContain('Shared answer')
+      const boundary = view.batches.findIndex((batch) =>
+        batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(second))
+      )
+      const answer = view.batches.findIndex((batch) =>
+        batch.events.some(
+          (event) =>
+            event.type === 'message.upsert' &&
+            event.message.parts.some((part) => part.type === 'text' && part.text === 'Shared answer')
+        )
+      )
+      expect(boundary).toBeGreaterThanOrEqual(0)
+      expect(boundary).toBeLessThan(answer)
+      reply.reply.finish()
+      await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === second)?.outcome).toBe('completed')
+      const inputs = view.snapshot.inputs.filter((input) => input.inputId === first || input.inputId === second)
+      expect(inputs.map((input) => input.outcome)).toEqual(['completed', 'completed'])
+      expect(textOf(view.snapshot)).toContain('Shared answer')
+      const resultIndex = view.batches.findIndex((batch) =>
+        batch.native.some((native) => native.message.type === 'result')
+      )
+      expect(
+        view.batches
+          .slice(0, resultIndex)
+          .flatMap((batch) => batch.events)
+          .filter((event) => event.type === 'input.changed' && event.input.outcome === 'completed')
+      ).toHaveLength(2)
+      expect(await root.input!.submit({ inputId: second, text: 'Changed payload', whenBusy: 'steer' })).toMatchObject({
+        status: 'rejected',
+        error: { code: 'duplicate-input' }
+      })
+    } finally {
+      await test.close()
+    }
+  },
+  30000
+)
 
 it('keeps end-boundary steer as the next turn instead of rejecting it', async () => {
   const test = await fixture()
@@ -787,6 +793,76 @@ it('recovers real CLI API rejection identity from raw storage with a fresh owner
       view.snapshot.messages.find((message) => message.id === rejection.uuid)?.parts
     )
     expect(test.children).toHaveLength(1)
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
+it('uses final turn usage for one non-streamed invocation and projects its complete content', async () => {
+  const test = await fixture({ includePartialMessages: false })
+  try {
+    const root = confirmed(await test.runtime().create(test.options))
+    const view = await observe(root)
+    const id = inputId()
+    await root.input!.submit({ inputId: id, text: 'Reply without partials', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'Non-streamed answer' })
+    request.reply.finish()
+    await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === id)?.outcome).toBe('completed')
+    expect(textOf(view.snapshot)).toContain('Non-streamed answer')
+    const calls = view.batches.flatMap((batch) => batch.invocations ?? [])
+    expect(calls).toHaveLength(1)
+    expect(calls[0].usage).toMatchObject({ input_tokens: 10, output_tokens: 5 })
+    expect(view.native.some((message) => message.type === 'stream_event')).toBe(false)
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
+it('defers a non-streamed steer boundary past trailing blocks of the interrupted response', async () => {
+  const test = await wireFixture({ includePartialMessages: false })
+  try {
+    const original = test.assistant('Original')
+    original.message.id = 'interrupted'
+    test.send(original)
+    await expect.poll(() => textOf(test.view.snapshot)).toContain('Original')
+    const id = inputId()
+    await test.root.input!.submit({ inputId: id, text: 'Steer', whenBusy: 'steer' })
+    test.send({
+      type: 'command_lifecycle',
+      command_uuid: id,
+      state: 'started',
+      uuid: crypto.randomUUID(),
+      session_id: test.sessionId
+    } as unknown as SDKMessage)
+    await test.view.event(
+      (message) => message.type === 'command_lifecycle' && message.command_uuid === id && message.state === 'started'
+    )
+    const tail = test.assistant('Trailing old response')
+    tail.message.id = 'interrupted'
+    test.send(tail)
+    await expect.poll(() => textOf(test.view.snapshot)).toContain('Trailing old response')
+    expect(
+      test.view.batches.some((batch) =>
+        batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(id))
+      )
+    ).toBe(false)
+    const next = test.assistant('Continuation')
+    next.message.id = 'new-response'
+    test.send(next)
+    await expect.poll(() => textOf(test.view.snapshot)).toContain('Continuation')
+    const boundary = test.view.batches.findIndex((batch) =>
+      batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(id))
+    )
+    const content = test.view.batches.findIndex((batch) =>
+      batch.events.some(
+        (event) =>
+          event.type === 'message.upsert' &&
+          event.message.parts.some((part) => part.type === 'text' && part.text === 'Continuation')
+      )
+    )
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(boundary).toBeLessThan(content)
   } finally {
     await test.close()
   }

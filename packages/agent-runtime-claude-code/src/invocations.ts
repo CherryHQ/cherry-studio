@@ -20,6 +20,7 @@ type PendingInvocationUsage = Pick<SDKAssistantMessage['message'], 'id' | 'model
   metrics?: ClaudeInvocation['metrics']
   completionObserved: boolean
   isStreamStopped: boolean
+  usageFinal: boolean
 }
 
 function invocationUsage(usage: InvocationUsage): InvocationUsage | undefined {
@@ -53,13 +54,15 @@ function mergeInvocationUsage(
 
 function pendingInvocationFromAssistant(message: SDKAssistantMessage, fallbackModel: string): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
-  const assistantUsage = isComplete ? invocationUsage(message.message.usage) : undefined
+  const assistantUsage =
+    message.aborted !== true && message.error === undefined ? invocationUsage(message.message.usage) : undefined
   return {
     id: message.message.id,
     model: resolveSdkInvocationModel(message.message.model, fallbackModel),
     ...(assistantUsage ? { assistantUsage } : {}),
     completionObserved: isComplete,
-    isStreamStopped: false
+    isStreamStopped: false,
+    usageFinal: isComplete
   }
 }
 
@@ -117,7 +120,8 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
     ...(timing ? { timing } : {}),
     ...(metrics ? { metrics } : {}),
     completionObserved: current.completionObserved || next.completionObserved,
-    isStreamStopped: current.isStreamStopped || next.isStreamStopped
+    isStreamStopped: current.isStreamStopped || next.isStreamStopped,
+    usageFinal: current.usageFinal || next.usageFinal
   }
 }
 
@@ -127,12 +131,32 @@ export class ClaudeInvocations {
   private readonly streamInvocationIdsByLane = new Map<string, string>()
   private readonly committedInvocationIds = new Set<string>()
   private readonly emitted: ClaudeInvocation[] = []
+  private readonly turnTopLevelInvocationIds = new Set<string>()
 
   accept(message: SDKMessage): readonly ClaudeInvocation[] {
     if (message.type === 'assistant') this.captureAssistantInvocation(message)
     else if (message.type === 'stream_event') this.captureStreamInvocation(message)
-    else if (message.type === 'result') this.commitLaneUsage(null)
-    else if (message.type === 'system' && message.subtype === 'task_notification' && message.tool_use_id)
+    else if (message.type === 'result') {
+      if (message.subtype === 'success' && this.turnTopLevelInvocationIds.size === 1) {
+        const [id] = this.turnTopLevelInvocationIds
+        const pending = this.pendingInvocations.get(id)
+        const usage = invocationUsage(message.usage)
+        if (pending && !pending.usageFinal && usage) {
+          this.pendingInvocations.set(id, {
+            ...pending,
+            terminalUsage: usage,
+            completionObserved: true,
+            usageFinal: true
+          })
+        }
+      }
+      const id = this.streamInvocationIdsByLane.get('top-level')
+      const pending = id ? this.pendingInvocations.get(id) : undefined
+      if (pending && !pending.timing && message.subtype === 'success')
+        this.pendingInvocations.set(pending.id, { ...pending, completionObserved: true })
+      this.commitLaneUsage(null)
+      this.turnTopLevelInvocationIds.clear()
+    } else if (message.type === 'system' && message.subtype === 'task_notification' && message.tool_use_id)
       this.commitLaneUsage(message.tool_use_id)
     return this.emitted.splice(0)
   }
@@ -168,7 +192,8 @@ export class ClaudeInvocations {
           ...(ttftMs !== undefined ? { ttftMs } : {})
         },
         completionObserved: false,
-        isStreamStopped: false
+        isStreamStopped: false,
+        usageFinal: false
       })
       return
     }
@@ -193,7 +218,8 @@ export class ClaudeInvocations {
         ...finalized,
         ...(terminalUsage ? { terminalUsage } : {}),
         completionObserved: finalized.completionObserved || isStreamStopped,
-        isStreamStopped: finalized.isStreamStopped || isStreamStopped
+        isStreamStopped: finalized.isStreamStopped || isStreamStopped,
+        usageFinal: finalized.usageFinal || isStreamStopped
       })
       if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
       return
@@ -205,7 +231,8 @@ export class ClaudeInvocations {
       this.pendingInvocations.set(requestId, {
         ...this.finalizeInvocationTiming(current),
         completionObserved: true,
-        isStreamStopped: true
+        isStreamStopped: true,
+        usageFinal: true
       })
       if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
     }
@@ -269,8 +296,14 @@ export class ClaudeInvocations {
       return
     }
 
+    if (lane === 'top-level') this.turnTopLevelInvocationIds.add(next.id)
     const previousRequestId = this.streamInvocationIdsByLane.get(lane)
     if (previousRequestId && previousRequestId !== next.id) {
+      const previous = this.pendingInvocations.get(previousRequestId)
+      // A new response on the same lane closes the preceding invocation, but does not
+      // make its SDK per-block usage snapshot final.
+      if (previous?.assistantUsage && !previous.timing)
+        this.pendingInvocations.set(previousRequestId, { ...previous, completionObserved: true })
       this.commitInvocationUsage(previousRequestId)
     }
     this.streamInvocationIdsByLane.set(lane, next.id)
@@ -309,10 +342,9 @@ export class ClaudeInvocations {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
     }
     this.committedInvocationIds.add(pending.id)
-    const usage = mergeInvocationUsage(
-      mergeInvocationUsage(pending.startUsage, pending.assistantUsage),
-      pending.terminalUsage
-    )
+    const usage = pending.usageFinal
+      ? mergeInvocationUsage(mergeInvocationUsage(pending.startUsage, pending.assistantUsage), pending.terminalUsage)
+      : undefined
     this.emitted.push({
       responseId: pending.id,
       ...(pending.model ? { model: pending.model } : {}),

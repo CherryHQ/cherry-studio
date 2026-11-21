@@ -35,7 +35,6 @@ export type ClaudeSessionOptions = Omit<
   | 'forkSession'
   | 'sessionStore'
   | 'persistSession'
-  | 'includePartialMessages'
   | 'forwardSubagentText'
 > & { cwd: string }
 

@@ -136,6 +136,7 @@ export async function wireFixture(
     contextUsage?: () => Promise<SDKControlGetContextUsageResponse>
     contextWindow?: ClaudeCodeRuntimeOptions['contextWindow']
     model?: string
+    includePartialMessages?: boolean
   } = {}
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'cherry-claude-wire-'))
@@ -148,7 +149,13 @@ export async function wireFixture(
     onError: (error) => failures.push(error)
   })
   const root = confirmed(
-    await runtime.create({ cwd: directory, env: {}, model: options.model, spawnClaudeCodeProcess: () => process })
+    await runtime.create({
+      cwd: directory,
+      env: {},
+      model: options.model,
+      includePartialMessages: options.includePartialMessages,
+      spawnClaudeCodeProcess: () => process
+    })
   )
   const view = await observe(root)
   await root.input!.submit({ inputId: inputId(), text: 'Start wire replay', whenBusy: 'steer' })
