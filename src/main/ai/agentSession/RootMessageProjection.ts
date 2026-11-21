@@ -28,7 +28,14 @@ export class RootMessageProjection {
     { messageId: string; input?: Extract<UIMessageChunk, { type: 'tool-input-available' }>; approvalId?: string }
   >()
 
-  constructor(readonly contextId: string) {
+  /** Product input of the latest native user message; later answers without an owner belong to it. */
+  private answering?: string
+
+  /** `answerOwner` names the reply that still takes native answers to an input, if any. */
+  constructor(
+    readonly contextId: string,
+    private readonly answerOwner: (inputId: string) => string | undefined = () => undefined
+  ) {
     const context = contexts.context(contextId)
     const saved = context.checkpointMapping?.root
     for (const id of saved?.removed ?? []) this.removed.add(id)
@@ -132,10 +139,14 @@ export class RootMessageProjection {
     const live = new Set(update.live)
     const refresh = new Set(update.refresh)
     for (const message of update.messages) {
+      if (message.role === 'user') this.answering = update.inputs?.[message.id]
       if (message.role !== 'assistant' || this.removed.has(message.id)) continue
       const previous = this.sources.get(message.id)
       if (previous && !live.has(message.id) && !refresh.has(message.id)) continue
-      const owner = previous?.messageId ?? (live.has(message.id) ? currentMessageId : undefined)
+      const owner =
+        previous?.messageId ??
+        (live.has(message.id) ? currentMessageId : undefined) ??
+        (this.answering ? this.answerOwner(this.answering) : undefined)
       if (!owner) continue
       if (!this.extras.has(owner)) this.extras.set(owner, [])
       if (
@@ -212,6 +223,7 @@ export class RootMessageProjection {
           toolName: pending.input.toolName,
           input: pending.input.input,
           providerExecuted: pending.input.providerExecuted,
+          callProviderMetadata: pending.input.providerMetadata,
           ...(pending.approvalId
             ? { state: 'approval-requested' as const, approval: { id: pending.approvalId } }
             : { state: 'input-available' as const })
@@ -309,7 +321,8 @@ export class RootMessageProjection {
       ...part,
       state: 'approval-requested',
       approval: { id: pending.approvalId },
-      input: pending.input?.input ?? part.input
+      input: pending.input?.input ?? part.input,
+      callProviderMetadata: pending.input?.providerMetadata ?? part.callProviderMetadata
     }
   }
 

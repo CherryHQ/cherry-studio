@@ -28,6 +28,9 @@ export const agentSessionMessageTable = sqliteTable(
     runtimeResumeToken: text(),
     inputContextId: text().references(() => agentSessionContextTable.id),
     nativeInputId: text(),
+    // On an input: the reply Main opened for it. Queued inputs are saved before their replies,
+    // so row ancestry cannot say which reply answers which input. No FK, like deliveryTurnRef.
+    replyId: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -82,6 +85,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
   runtimeAnchor?: unknown
   nativeSessionId?: string
   deliveryReplyAnchor?: string
+  locallyHandled?: boolean
 }
 
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect

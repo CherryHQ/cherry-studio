@@ -33,6 +33,7 @@ import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
@@ -1965,6 +1966,58 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
+  it('appends a saved batch after the branch tip of a message that already has descendants', async () => {
+    const [branch, older, newer, deeper, tipMessage, appended] = [
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e001',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e002',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e003',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e004',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e005',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e006'
+    ]
+    const text = (value: string) => ({ parts: [{ type: 'text' as const, text: value }] })
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        { id: branch, role: 'user', data: text('branch') },
+        { id: older, role: 'assistant', data: text('older sibling') }
+      ]
+    })
+    for (const [parentId, id] of [
+      [branch, newer],
+      [newer, deeper],
+      [deeper, tipMessage]
+    ])
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId,
+        message: { id, role: 'assistant', data: text(id) }
+      })
+    // The older sibling must not win the walk: the newest child of each level does.
+    dbh.db.update(agentSessionMessageTable).set({ createdAt: 1 }).where(eq(agentSessionMessageTable.id, older)).run()
+
+    const resolveTip = vi.spyOn(agentSessionMessageService, 'branchTip')
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        { id: branch, role: 'user', data: text('branch edited') },
+        { id: appended, role: 'assistant', data: text('appended') }
+      ]
+    })
+
+    const parentOf = (id: string) =>
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!.parentId
+    expect(parentOf(appended)).toBe(tipMessage)
+    // Only the following message of a batch needs the tip, and one statement resolves it.
+    expect(resolveTip).toHaveBeenCalledTimes(1)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      parentId: tipMessage,
+      message: { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e007', role: 'user', data: text('single') }
+    })
+    expect(resolveTip).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
@@ -3165,7 +3218,7 @@ describe('AgentSessionMessageService', () => {
     const oversizedOutputB = { content: 'b'.repeat(DEFER_TOOL_OUTPUT_BYTES + 256) }
     const smallOutput = { content: 'small' }
 
-    it('defers legacy inline outputs without changing their full stored value', () => {
+    it('resolves a deferred legacy inline output through the full-result reader', async () => {
       const parts = [
         {
           type: 'dynamic-tool' as const,
@@ -3189,8 +3242,13 @@ describe('AgentSessionMessageService', () => {
 
       const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
       expect(page.items).toHaveLength(1)
-      expect(page.items[0].data.parts?.[0]).toMatchObject({
-        output: { $deferredToolResult: { messageId: ASSISTANT_MESSAGE_ID, toolCallId: 'legacy-call' } }
+      const part = page.items[0].data.parts?.[0]
+      if (part?.type !== 'dynamic-tool' || part.state !== 'output-available' || !isDeferredToolOutput(part.output))
+        throw new Error('Expected a deferred tool result')
+      const { topicId, messageId, toolCallId } = part.output.$deferredToolResult
+      await expect(findPersistedToolOutput(topicId, messageId, toolCallId)).resolves.toEqual({
+        found: true,
+        output: oversizedOutputA
       })
       expect(JSON.stringify(page).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
       expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual(parts)

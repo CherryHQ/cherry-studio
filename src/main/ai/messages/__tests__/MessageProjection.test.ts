@@ -1,3 +1,7 @@
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
+
 import { afterEach, expect, it, vi } from 'vitest'
 
 import {
@@ -12,6 +16,34 @@ import { MessageProjection } from '../MessageProjection'
 const msg = (text: string): CherryUIMessage => ({ id: 'm', role: 'assistant', parts: [{ type: 'text', text }] })
 const state: TopicProjectionState = { kind: 'topic', topicId: 'root', executions: [] }
 afterEach(() => vi.useRealTimers())
+
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+async function retainedHeap(): Promise<number> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
+
+it('isolates image parts without allocating one full image string per projection', async () => {
+  const url = JSON.parse(JSON.stringify(`data:image/png;base64,${'A'.repeat(4 * 1024 * 1024)}`)) as string
+  const source: CherryUIMessage = { id: 'image', role: 'user', parts: [{ type: 'file', mediaType: 'image/png', url }] }
+  const before = await retainedHeap()
+  const projections = Array.from({ length: 12 }, () => new MessageProjection({ ...state, messages: [source] }))
+  const retained = (await retainedHeap()) - before
+  source.parts.length = 0
+
+  expect(
+    projections.every((projection) => {
+      const part = projection.snapshot().messages[0].parts[0]
+      return part.type === 'file' && part.url === url
+    })
+  ).toBe(true)
+  expect(retained).toBeLessThan(16 * 1024 * 1024)
+  projections.forEach((projection) => projection.dispose())
+})
 
 // A dropped coalesced batch must never create an undetectable hole in the receiver's revision sequence.
 it('numbers published batches, emits suffixes, and retains immutable baselines', () => {

@@ -62,3 +62,19 @@ padding rule remains an error. Re-enabling shadcn warnings will block CI under
 `.oxlintrc.json` cover existing global CSS and DOM hooks; they do not allow arbitrary
 Tailwind utilities. `outline-dot` and `outline-text` are descendant selector hooks,
 not raw outline colors. Undefined color utilities must use the semantic tokens in DESIGN.md.
+
+## Import layout
+
+Oxlint's `import/first` keeps imports before exports and other statements.
+Test files (`*.test.*`, `*.spec.*`, and `__tests__/**`) are exempt so mock setup
+can remain next to the tested import.
+
+`import-layout/no-block-comments-between-imports` rejects block comments between
+adjacent import declarations, including type imports. It also applies to tests.
+Keep file documentation before the import group and API documentation on its
+actual declaration. Line comments and comments inside import specifiers remain
+allowed. The rule deliberately has no automatic fix: moving documentation or
+lint directives requires checking their intended scope.
+
+Run `pnpm test:scripts scripts/lint/__tests__/import-layout.test.ts` for rule and
+repository configuration coverage.

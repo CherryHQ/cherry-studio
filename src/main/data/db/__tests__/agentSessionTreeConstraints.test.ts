@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
@@ -109,42 +109,38 @@ describe('Session tree populated branch upgrade', () => {
 
   it('backfills flat history while preserving message facts, existing branches, selection and FTS', () => {
     seedSessions(dbh)
+    const insert = dbh.sqlite.prepare(`
+      INSERT INTO agent_session_message
+        (id, session_id, role, parent_id, data, status, runtime_resume_token, created_at, updated_at, searchable_text)
+      VALUES (?, ?, ?, ?, ?, 'success', ?, 100, 200, ?)
+    `)
     for (const id of ['b', 'a']) {
-      dbh.db
-        .insert(messages)
-        .values({
-          id,
-          sessionId: 'flat',
-          role: 'user',
-          status: 'success',
-          searchableText: `searchable ${id}`,
-          data: sql`${JSON.stringify({ parts: [{ type: 'text', text: `searchable ${id}` }] })}`,
-          runtimeResumeToken: 'native',
-          createdAt: 100,
-          updatedAt: 200
-        })
-        .run()
+      insert.run(
+        id,
+        'flat',
+        'user',
+        null,
+        JSON.stringify({ parts: [{ type: 'text', text: `searchable ${id}` }] }),
+        'native',
+        `searchable ${id}`
+      )
     }
-    const root = service.captureHead('branched')
-    const first = { id: 'branch-first' }
-    dbh.db
-      .insert(messages)
-      .values([
-        { id: first.id, sessionId: 'branched', parentId: root, role: 'user', data: {}, status: 'success' },
-        { id: 'branch-second', sessionId: 'branched', parentId: root, role: 'user', data: {}, status: 'success' }
-      ])
-      .run()
-    dbh.db.update(sessions).set({ activeNodeId: first.id }).where(eq(sessions.id, 'branched')).run()
-    const before = dbh.db.select().from(messages).all()
-    const sessionBefore = dbh.db.select().from(sessions).where(eq(sessions.id, 'branched')).get()
+    insert.run('root', 'branched', 'root', null, '{"parts":[]}', null, '')
+    insert.run('first', 'branched', 'user', 'root', '{"parts":[]}', null, '')
+    insert.run('second', 'branched', 'user', 'root', '{"parts":[]}', null, '')
+    dbh.sqlite.prepare("UPDATE agent_session SET active_node_id = 'first' WHERE id = 'branched'").run()
+    const before = dbh.sqlite
+      .prepare<[], { id: string; session_id: string }>('SELECT * FROM agent_session_message ORDER BY id')
+      .all()
+    const sessionBefore = dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
     for (const row of before) {
-      expect(dbh.db.select().from(messages).where(eq(messages.id, row.id)).get()).toEqual(
-        row.sessionId === 'flat' ? { ...row, data: {}, parentId: expect.any(String) } : row
+      expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message WHERE id = ?').get(row.id)).toMatchObject(
+        row.session_id === 'flat' ? { ...row, data: '{}', parent_id: expect.any(String) } : { ...row, data: '{}' }
       )
     }
-    expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'branched')).get()).toEqual(sessionBefore)
+    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual(sessionBefore)
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'flat')).get()).toMatchObject({
       createdAt: 10,
       updatedAt: 20,
@@ -173,22 +169,24 @@ for (const invalidParent of ['missing', 'foreign']) {
 
     it('rejects invalid edges and rolls back the entire upgrade without changing rows', () => {
       seedSessions(dbh)
-      const otherRoot = service.captureHead('branched')
-      dbh.db
-        .insert(messages)
-        .values({
-          id: 'broken',
-          sessionId: 'flat',
-          parentId: invalidParent === 'missing' ? 'missing' : otherRoot,
-          role: 'user',
-          status: 'success',
-          data: {}
-        })
-        .run()
-      const before = dbh.db.select().from(messages).all()
+      dbh.sqlite.exec(`
+        INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
+        VALUES ('other-root', 'branched', 'root', '{"parts":[]}', 'success', 100, 200);
+      `)
+      dbh.sqlite
+        .prepare(`
+          INSERT INTO agent_session_message (id, session_id, parent_id, role, data, status, created_at, updated_at)
+          VALUES ('broken', 'flat', ?, 'user', '{"parts":[]}', 'success', 100, 200)
+        `)
+        .run(invalidParent === 'missing' ? 'missing' : 'other-root')
+      const before = dbh.sqlite.prepare('SELECT * FROM agent_session_message ORDER BY id').all()
       const migrationsBefore = dbh.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()
-      expect(() => applyMigrations(dbh.db, resolveMigrationsPath())).toThrow()
-      expect(dbh.db.select().from(messages).all()).toEqual(before)
+      expect(() => applyMigrations(dbh.db, resolveMigrationsPath())).toThrow(
+        expect.objectContaining({
+          cause: expect.objectContaining({ code: 'SQLITE_CONSTRAINT_CHECK' })
+        })
+      )
+      expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message ORDER BY id').all()).toEqual(before)
       expect(dbh.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toEqual(migrationsBefore)
       expect(dbh.sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
     })

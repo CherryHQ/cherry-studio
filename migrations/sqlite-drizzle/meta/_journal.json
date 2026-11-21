@@ -291,15 +291,22 @@
     {
       "idx": 41,
       "version": "6",
-      "when": 1794815430612,
-      "tag": "0041_lively_ulik",
+      "when": 1795002061126,
+      "tag": "0041_agent_session_reply_link",
       "breakpoints": true
     },
     {
       "idx": 42,
       "version": "6",
-      "when": 1794912600243,
-      "tag": "0042_regular_riptide",
+      "when": 1795258551256,
+      "tag": "0042_agent_session_tool_output",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795259589525,
+      "tag": "0043_agent_session_message_part",
       "breakpoints": true
     }
   ],

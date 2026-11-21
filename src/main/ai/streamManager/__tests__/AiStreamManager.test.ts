@@ -153,7 +153,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
+const mockStopSession = vi.fn<(sessionId: string, reason: unknown) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -174,7 +174,7 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
-      closeSession: mockCloseSession
+      stopSession: mockStopSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -2235,8 +2235,8 @@ describe('AiStreamManager', () => {
       mockStreamText.mockResolvedValueOnce(feed.stream)
       const topicId = 'agent-session:session-1'
       let backgroundRunning = true
-      mockCloseSession.mockImplementationOnce(async (_sessionId: string, interrupt?: boolean) => {
-        if (interrupt) backgroundRunning = false
+      mockStopSession.mockImplementationOnce(async (_sessionId: string, reason: unknown) => {
+        if (reason === 'user-requested') backgroundRunning = false
       })
       startSingle(mgr, {
         topicId,
@@ -2256,7 +2256,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
     })
 
-    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+    it('holds same-topic admission until paused persistence and runtime stop settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
       let releasePersistence!: () => void
@@ -2265,7 +2265,7 @@ describe('AiStreamManager', () => {
           releasePersistence = resolve
         })
       let releaseRuntimeClose!: () => void
-      mockCloseSession.mockImplementationOnce(
+      mockStopSession.mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
             releaseRuntimeClose = resolve
@@ -2288,7 +2288,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(false)
 
       releasePersistence()
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 
       releaseRuntimeClose()
@@ -2322,7 +2322,7 @@ describe('AiStreamManager', () => {
       await admission
       await rejected
       expect(mgr.inspect(topicId)?.executions[0].abortSignal.aborted).toBe(false)
-      expect(mockCloseSession).not.toHaveBeenCalled()
+      expect(mockStopSession).not.toHaveBeenCalled()
     })
 
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
@@ -2355,7 +2355,7 @@ describe('AiStreamManager', () => {
         nextTurnAdmitted = true
       })
 
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       await flushUntil(() => continuationListener.pausedResults.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 
@@ -4355,17 +4355,23 @@ describe('AiStreamManager', () => {
         name: null,
         message: 'You have no credits remaining.',
         stack: null,
+        reportingHandled: true,
         streamStage: 'response-stream'
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith('AI stream error', {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        attemptId: listener.errorResults[0].attemptId,
-        stage: 'response-stream',
-        origin: 'throw',
-        cause: { errorMessage: 'You have no credits remaining.' }
-      })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'AI stream error',
+        expect.objectContaining({
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          errorMessage: 'You have no credits remaining.',
+          operation: 'chat.stream.consume',
+          attemptId: listener.errorResults[0].attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: { errorMessage: 'You have no credits remaining.' }
+        })
+      )
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -4411,6 +4417,7 @@ describe('AiStreamManager', () => {
 
       const apiError = new APICallError({
         message: 'Forbidden',
+        cause: new Error('Nested transport diagnostic'),
         url: 'https://llm.example.com/v1/chat/completions?api_key=fixture-secret',
         requestBodyValues: { messages: [{ role: 'user', content: 'private prompt' }] },
         statusCode: 403,
@@ -4445,6 +4452,7 @@ describe('AiStreamManager', () => {
         name: 'AI_APICallError',
         message: 'no access to this model',
         providerErrorCategory: 'permission',
+        reportingHandled: true,
         stack: null,
         cause: null,
         url: '',
@@ -4459,12 +4467,14 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error.mock.calls).toHaveLength(1)
       expect(mockMainLoggerService.error.mock.calls[0]).toEqual([
         'AI stream error',
-        {
+        expect.objectContaining({
           topicId: 'a',
           modelId: 'provider-a::model-a',
           attemptId: listener.errorResults[0].attemptId,
           stage: 'response-stream',
           origin: 'throw',
+          operation: 'chat.stream.consume',
+          failure: expect.objectContaining({ source: 'provider', kind: 'expected', reason: 'permission' }),
           cause: {
             errorName: 'AI_APICallError',
             errorMessage: '<string:9>',
@@ -4473,10 +4483,11 @@ describe('AiStreamManager', () => {
             url: 'https://llm.example.com/v1/chat/completions?api_key=%3Credacted%3E',
             requestShape: { messages: [{ role: 'user', content: '<string:14>' }] },
             responseHeaders: {},
-            responseBody: { detail: '<string:23>' }
+            responseBody: { detail: '<string:23>' },
+            cause: expect.objectContaining({ errorName: 'Error', errorMessage: '<string:27>' })
           },
           chunk: { errorMessage: 'Forbidden' }
-        }
+        })
       ])
       expect(JSON.stringify([listener.errorResults[0].error, mockMainLoggerService.error.mock.calls])).not.toMatch(
         /fixture-secret|private prompt/

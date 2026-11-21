@@ -9,7 +9,7 @@ import type {
 } from '@earendil-works/pi-durable'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
 import { DurableProjection, type DurableObservation } from '../src/projection'
 
@@ -40,15 +40,95 @@ function setup(initial: ConversationView) {
   onTestFinished(() => projection.close())
   return { projection, events, errors, update: (next: ConversationView) => projection.update(next) }
 }
+/** Messages each batch delivers as live product content. */
+const liveMessages = (batches: readonly DurableObservation[]) =>
+  batches.flatMap((batch) =>
+    batch.events.flatMap((event) =>
+      (event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []).filter(
+        (message) => batch.live.includes(message.id)
+      )
+    )
+  )
 const live = (attempt = 1): LiveState => ({
   run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
+it('keeps complete isolated history when updating a view without observers', () => {
+  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
+    throw error
+  })
+  const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
+  projection.update(view(entries))
+  const previous = projection.feed.snapshot
+  expect(() => {
+    previous.messages[0].parts.length = 0
+  }).toThrow(TypeError)
+  projection.update(view([...entries, entry(33, 'new')]))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
+    ...Array.from({ length: 32 }, (_, index) => [{ type: 'text', text: `saved-${index}`, state: 'done' }]),
+    [{ type: 'text', text: 'new', state: 'done' }]
+  ])
+  expect(previous.messages).toHaveLength(32)
+  previous.messages.forEach((message, index) => expect(projection.feed.snapshot.messages[index]).toBe(message))
+  onTestFinished(() => projection.close())
+})
+
+it('copies only messages that live progress or a later result changes, and rebuilds after compaction', () => {
+  const call = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
+  const before = entry(9, 'before')
+  const assistant: EntryRecord = { ...entry(10, ''), model: [call] }
+  const result: EntryRecord = {
+    id: 11 as EntryId,
+    conversationId,
+    kind: 'pi.tool_result',
+    byTaskId: 8 as TaskId,
+    model: [
+      {
+        role: 'toolResult',
+        toolCallId: 'call',
+        toolName: 'echo',
+        content: [{ type: 'text', text: 'finished' }],
+        isError: false,
+        timestamp: 0
+      }
+    ]
+  }
+  const { projection, update } = setup(view([before, assistant]))
+  const initial = projection.feed.snapshot.messages
+  update(
+    view([before, assistant], {
+      run: { taskId, inputs: [], turns: 0 },
+      tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
+    })
+  )
+  const progressed = projection.feed.snapshot.messages
+  update(view([before, assistant]))
+  const settled = projection.feed.snapshot.messages
+  update(view([before, assistant, result]))
+  const finished = projection.feed.snapshot.messages
+
+  expect(progressed[0]).toBe(initial[0])
+  expect(finished[0]).toBe(initial[0])
+  expect(progressed[1].parts[0]).toMatchObject({ output: { content: [{ text: 'partial' }] }, preliminary: true })
+  expect(settled[1]).toBe(initial[1])
+  expect(initial[1].parts[0]).toMatchObject({ toolCallId: 'call', state: 'input-available' })
+  expect(finished[1].parts[0]).toMatchObject({
+    state: 'output-available',
+    output: { content: [{ type: 'text', text: 'finished' }] },
+    preliminary: false
+  })
+
+  update(view([entry(20, 'compacted')]))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
+    [{ type: 'text', text: 'compacted', state: 'done' }]
+  ])
+})
+
 describe('Durable preview identity', () => {
   it('replaces a live answer without publishing a retraction of its identity', async () => {
     const { projection, update, events } = setup(view([], live()))
-    const preview = projection.feed.current.messages[0].id
+    const preview = projection.feed.snapshot.messages[0].id
     update(view([entry(10, 'committed answer')]))
     await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
     expect(events.filter((event) => event.type === 'message.remove')).toEqual([])
@@ -58,10 +138,10 @@ describe('Durable preview identity', () => {
         replaces: [{ session: { backendId: runtimeId('backend'), id: runtimeId('1') }, id: preview }]
       })
     )
-    expect(projection.feed.current.messages).toMatchObject([
+    expect(projection.feed.snapshot.messages).toMatchObject([
       { id: 'entry:10:0', parts: [{ text: 'committed answer' }] }
     ])
-    expect(projection.feed.current.messages).toHaveLength(1)
+    expect(projection.feed.snapshot.messages).toHaveLength(1)
   })
 
   it('keeps one nested call across repeated live views without parent progress', () => {
@@ -87,7 +167,7 @@ describe('Durable preview identity', () => {
     const { projection, update } = setup(view([parent], active))
     for (const output of ['second', 'third', 'final']) {
       update(view([parent], { ...active, nestedTools: [{ ...active.nestedTools![0], output }] }))
-      const parts = projection.feed.current.messages[0].parts
+      const parts = projection.feed.snapshot.messages[0].parts
       expect(parts).toHaveLength(2)
       expect(parts[1]).toMatchObject({ toolCallId: 'child', output: { content: [{ text: output }] } })
     }
@@ -107,7 +187,7 @@ describe('Durable preview identity', () => {
     }
     const entries = [assistant, result]
     const { projection, update, events } = setup(view(entries, live()))
-    const before = projection.feed.current.messages[0].parts[0]
+    const before = projection.feed.snapshot.messages[0].parts[0]
     Object.defineProperty(block, 'text', {
       get: () => {
         throw new Error('Text publication revisited a committed result')
@@ -126,8 +206,8 @@ describe('Durable preview identity', () => {
     )
     await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
     expect(events.filter((event) => event.type === 'snapshot')).toHaveLength(1)
-    expect(projection.feed.current.messages[0].parts[0]).toBe(before)
-    expect(projection.feed.current.messages.at(-1)?.parts).toMatchObject([{ text: 'new streamed text' }])
+    expect(projection.feed.snapshot.messages[0].parts[0]).toBe(before)
+    expect(projection.feed.snapshot.messages.at(-1)?.parts).toMatchObject([{ text: 'new streamed text' }])
   })
   it('keeps a preview stable when unrelated entries arrive and associates only its producing task', () => {
     const { projection, update } = setup(view([], live()))
@@ -223,6 +303,76 @@ describe('Durable preview identity', () => {
 })
 
 // Recovered live output must reach the product writer instead of becoming historical for the whole run.
+it.each(['placed', 'completed', 'queued', 'ambiguous'] as const)(
+  'restores committed tool output only for an unfinished placed input (%s)',
+  async (status) => {
+    const inputId = runtimeId<'input'>('recover-input')
+    const input: EntryRecord = {
+      ...entry(10, ''),
+      kind: 'pi.user',
+      data: { cherryInputId: inputId },
+      model: [{ role: 'user', content: 'continue', timestamp: 1 }]
+    }
+    const call: EntryRecord = {
+      ...entry(11, ''),
+      model: [fauxAssistantMessage(fauxToolCall('read', { path: 'page.png' }, { id: 'read-page' }))]
+    }
+    const initial = view(
+      [entry(5, 'previous answer'), ...(status === 'ambiguous' ? [{ ...input, id: 9 as EntryId }] : []), input, call],
+      { run: { taskId, inputs: [], turns: 0 } }
+    )
+    const { projection } = setup(initial)
+    projection.update(initial, 1, [
+      {
+        inputId,
+        facts: status === 'queued' ? ['accepted', 'queued'] : ['accepted', 'placed'],
+        ...(status === 'completed' && { outcome: 'completed' })
+      }
+    ])
+    const batches: DurableObservation[] = []
+    const observation = projection.observe((batch) => {
+      batches.push(batch)
+    })
+    await observation.drain()
+    const baseline = batches[0]
+    const restored = baseline.events.flatMap((event) =>
+      event.type === 'snapshot' ? event.messages.filter((message) => baseline.live.includes(message.id)) : []
+    )
+    expect(restored.map((message) => message.id)).toEqual(status === 'placed' ? ['entry:11:0'] : [])
+    if (status === 'placed') {
+      expect(restored[0].parts).toContainEqual(
+        expect.objectContaining({ type: 'dynamic-tool', toolCallId: 'read-page', input: { path: 'page.png' } })
+      )
+      projection.update(
+        view([
+          ...initial.entries,
+          {
+            ...entry(12, ''),
+            model: [
+              {
+                role: 'toolResult',
+                toolCallId: 'read-page',
+                toolName: 'read',
+                content: [{ type: 'text', text: 'restored page' }],
+                isError: false,
+                timestamp: 2
+              }
+            ]
+          }
+        ])
+      )
+      await observation.drain()
+      expect(liveMessages(batches.slice(1)).flatMap((message) => message.parts)).toContainEqual(
+        expect.objectContaining({
+          toolCallId: 'read-page',
+          state: 'output-available',
+          output: expect.objectContaining({ content: [{ type: 'text', text: 'restored page' }] })
+        })
+      )
+    }
+  }
+)
+
 it('keeps an active preview live when attaching midway through a generation', async () => {
   const { projection, update } = setup(view([entry(5, 'older committed answer')], live()))
   const batches: DurableObservation[] = []
@@ -240,13 +390,7 @@ it('keeps an active preview live when attaching midway through a generation', as
   ).toContainEqual(expect.objectContaining({ type: 'text', text: 'same text' }))
   update(view([entry(5, 'older committed answer'), entry(11, 'recovered final answer')]))
   await observation.drain()
-  const delivered = batches.slice(1).flatMap((batch) =>
-    batch.events.flatMap((event) => {
-      const messages =
-        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
-      return messages.filter((message) => batch.live.includes(message.id))
-    })
-  )
+  const delivered = liveMessages(batches.slice(1))
   expect(delivered.flatMap((message) => message.parts)).toContainEqual(
     expect.objectContaining({ type: 'text', text: 'recovered final answer' })
   )
@@ -265,4 +409,110 @@ it('gives a returning preview a fresh identity after its previous instance commi
   expect(resumed).not.toBe(interrupted)
   update(view([entry(10, 'interrupted partial'), entry(11, 'resumed final answer')]))
   expect(projection.aliases).toMatchObject({ 'entry:10:0': interrupted, 'entry:11:0': resumed })
+})
+
+/** The state an observer holds after applying its events in order. */
+function replayed(events: readonly ObservationPayload[]) {
+  const feed = new ThreadFeed(
+    { type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } },
+    (error) => {
+      throw error
+    }
+  )
+  for (const event of events) feed.publish(event)
+  return feed.snapshot
+}
+
+describe('Durable observation deltas', () => {
+  // Catches a delta stream that drops, reorders or duplicates a message, or keeps resending whole snapshots.
+  it('sends only changed messages within a run and replays to the same view as a rebuild', async () => {
+    const call = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
+    const older = entry(5, 'older')
+    const assistant: EntryRecord = { ...entry(10, ''), model: [call] }
+    const result: EntryRecord = {
+      id: 11 as EntryId,
+      conversationId,
+      kind: 'pi.tool_result',
+      byTaskId: 8 as TaskId,
+      model: [{ role: 'toolResult', toolCallId: 'call', toolName: 'echo', content: [], isError: false, timestamp: 0 }]
+    }
+    const running = { run: { taskId, inputs: [], turns: 0 } }
+    const { projection, events, update } = setup(view([older], live()))
+    const generating = (text: string): LiveState => ({
+      ...running,
+      generation: { attempt: 1, message: JSON.parse(JSON.stringify(fauxAssistantMessage(text))) }
+    })
+    update(view([older], generating('same text, longer')))
+    update(view([older], { ...running, generation: { attempt: 1, message: JSON.parse(JSON.stringify(call)) } }))
+    update(view([older, assistant], running))
+    update(view([older, assistant, result], running))
+    await expect.poll(() => events.length).toBe(5)
+    expect(events.map((event) => event.type)).toEqual([
+      'snapshot',
+      'message.upsert',
+      'message.upsert',
+      'message.upsert',
+      'message.upsert'
+    ])
+    expect(events[3]).toMatchObject({
+      message: { id: 'entry:10:0' },
+      replaces: [{ id: events[2].type === 'message.upsert' && events[2].message.id }]
+    })
+    expect(replayed(events)).toEqual(projection.feed.snapshot)
+
+    update(view([older, assistant, result]))
+    await expect.poll(() => events.length).toBe(6)
+    expect(events.at(-1)).toEqual({ type: 'activity.changed', activity: { state: 'idle' } })
+    const rebuilt = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
+      throw error
+    })
+    onTestFinished(() => rebuilt.close())
+    rebuilt.update(view([older, assistant, result]))
+    expect(replayed(events)).toMatchObject({ messages: rebuilt.feed.snapshot.messages, activity: { state: 'idle' } })
+
+    // Main begins an autonomous turn from one frame holding the run's inputs, activity and content.
+    update(view([older, assistant, result], running))
+    await expect.poll(() => events.length).toBe(7)
+    expect(events.at(-1)).toMatchObject({ type: 'snapshot', activity: { state: 'active' } })
+  })
+
+  it('sends a snapshot right after a mapping reset', async () => {
+    const { update, events } = setup(view([], live()))
+    update(view([entry(10, 'same text'), entry(11, 'same text')], live(2)))
+    await expect.poll(() => events.some((event) => event.type === 'gap')).toBe(true)
+    const gap = events.findIndex((event) => event.type === 'gap')
+    expect(events[gap + 1]?.type).toBe('snapshot')
+  })
+
+  // Catches a completion lost with the snapshot that used to carry it, or delivered before the input it reports.
+  it('delivers completion on the last frame of its update', async () => {
+    const { projection } = setup(view([]))
+    const batches: DurableObservation[] = []
+    const observation = projection.observe((batch) => {
+      batches.push(batch)
+    })
+    const inputId = runtimeId<'input'>('quiet')
+    projection.update(view([]), 1, [{ inputId, facts: ['accepted', 'queued'] }])
+    projection.update(view([]), 2, [{ inputId, facts: ['accepted', 'placed'], outcome: 'completed' }])
+    projection.beginAdmission(runtimeId<'input'>('admitted'))
+    projection.endAdmission(runtimeId<'input'>('admitted'), true)
+    await observation.drain()
+    const completed = batches.filter((batch) => batch.completion)
+    expect(completed.map((batch) => batch.events.map((event) => event.type))).toEqual([
+      ['input.changed'],
+      ['activity.changed']
+    ])
+    expect(completed[0].completion?.inputs).toMatchObject([{ inputId, outcome: 'completed' }])
+    expect(batches.filter((batch) => batch.events.some((event) => event.type === 'snapshot'))).toHaveLength(1)
+  })
+})
+
+it('does not project imported history twice when a continuation is appended', () => {
+  const imported = { ...entry(1, 'Imported answer'), kind: 'cherry.imported-history' }
+  const { projection, update } = setup(view([imported]))
+  expect(projection.feed.snapshot.messages).toEqual([])
+  update(view([imported, entry(2, 'New answer')]))
+  expect(projection.feed.snapshot.messages).toHaveLength(1)
+  expect(JSON.stringify(projection.feed.snapshot.messages)).toContain('New answer')
+  expect(JSON.stringify(projection.feed.snapshot.messages)).not.toContain('Imported answer')
 })

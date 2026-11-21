@@ -23,6 +23,13 @@ interface RegistryEntry {
   formatterClass: new () => ISseFormatter
 }
 
+type StreamAdapterMap = {
+  anthropic: AiSdkToAnthropicSse
+  openai: AiSdkToOpenAiSse
+  'openai-responses': AiSdkToOpenAiResponsesSse
+  gemini: AiSdkToGeminiSse
+}
+
 /**
  * Stream Adapter Factory
  *
@@ -80,6 +87,7 @@ export class StreamAdapterFactory {
    * @returns A stream adapter instance
    * @throws Error if format is not supported
    */
+  static createAdapter<F extends OutputFormat>(format: F, options: StreamAdapterOptions): StreamAdapterMap[F]
   static createAdapter(format: OutputFormat, options: StreamAdapterOptions): IStreamAdapter {
     const entry = this.registry.get(format)
     if (!entry) {

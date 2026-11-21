@@ -764,7 +764,7 @@ describe('applyMigrations over a populated database', () => {
     // The one-shot v1 -> v2 importer runs after schema migrations. In particular,
     // 0006 has already attempted its populated-table backfill before AgentsMigrator
     // inserts these messages, so the boot seeder must close that ordering gap.
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0043_agent_session_message_part'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
     const messageId = '88888888-8888-4888-8888-888888888888'
@@ -821,6 +821,7 @@ describe('applyMigrations over a populated database', () => {
       .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
 
     expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    applyMigrations(db, resolveMigrationsPath())
     new LegacyFileCleanupPolicySeeder().run(db)
 
     const refs = sqlite
@@ -840,7 +841,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('does not backfill agent attachments when the source message changed after migration', () => {
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0043_agent_session_message_part'))
     const now = Date.now()
     const completedAt = now + 1
     const fileEntryId = '56565656-5656-4565-8565-565656565656'
@@ -891,6 +892,7 @@ describe('applyMigrations over a populated database', () => {
         completedAt + 1
       )
 
+    applyMigrations(db, resolveMigrationsPath())
     new LegacyFileCleanupPolicySeeder().run(db)
 
     expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
@@ -959,7 +961,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0043_agent_session_message_part'))
     const now = Date.now()
     const fileEntryId = '12121212-1212-7121-8121-121212121212'
     const messageId = '34343434-3434-4343-8343-343434343434'
@@ -1013,6 +1015,7 @@ describe('applyMigrations over a populated database', () => {
         now,
         now
       )
+    applyMigrations(db, resolveMigrationsPath())
     sqlite.exec(`
       CREATE TRIGGER reject_cleanup_policy_update
       BEFORE UPDATE OF cleanup_policy ON file_entry
