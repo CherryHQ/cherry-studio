@@ -105,6 +105,8 @@
         "**/__tests__/**",
         "**/__mocks__/**",
         "**/tests/**",
+        "scripts/e2e/**",
+        "scripts/utility-process-smoke/**",
         "**/*.{test,spec}.{js,jsx,ts,tsx,cjs,mjs,cts,mts}"
       ],
       "rules": {
