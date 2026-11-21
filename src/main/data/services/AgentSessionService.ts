@@ -569,7 +569,7 @@ export class AgentSessionService {
   getTaskBindingTx(
     tx: DbOrTx,
     sessionId: string
-  ): { agentId: string; name: string; taskScheduleId: string | null; isTaskReuseTarget: boolean } | null {
+  ): { agentId: string | null; name: string; taskScheduleId: string | null; isTaskReuseTarget: boolean } | null {
     const [row] = tx
       .select({
         agentId: sessionsTable.agentId,

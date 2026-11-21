@@ -436,7 +436,7 @@ const TaskSessionPickerField: FC<{
     query: { agentId: agentId ?? '', limit: 200 },
     enabled: Boolean(agentId)
   })
-  const listed = listPage?.items ?? []
+  const listed = useMemo(() => listPage?.items ?? [], [listPage?.items])
   const valueIsListed = value !== null && listed.some((session) => session.id === value)
   const { data: boundSession } = useQuery('/agent-sessions/:sessionId', {
     params: { sessionId: value ?? '' },
