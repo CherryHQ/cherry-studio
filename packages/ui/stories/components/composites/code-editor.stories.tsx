@@ -7,16 +7,17 @@ import type { CodeMirrorTheme, LanguageConfig } from '../../../src/components/co
 
 // The app-facing getCmThemeNames/getCmThemeByName are async (themes-all loads on
 // demand); stories need sync values for argTypes, so resolve from a static import.
+const cmThemeExports = new Map<string, (typeof cmThemes)[keyof typeof cmThemes]>(Object.entries(cmThemes))
 const cmThemeNames = ['auto', 'light', 'dark']
-  .concat(Object.keys(cmThemes))
-  .filter((item) => typeof (cmThemes as Record<string, unknown>)[item] !== 'function')
+  .concat([...cmThemeExports.keys()])
+  .filter((item) => typeof cmThemeExports.get(item) !== 'function')
   .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
 
 const resolveCmTheme = (name: string): CodeMirrorTheme => {
   if (name === 'light' || name === 'dark' || name === 'none') {
     return name
   }
-  const candidate = (cmThemes as Record<string, unknown>)[name]
+  const candidate = cmThemeExports.get(name)
   return cmThemeNames.includes(name) && candidate ? (candidate as CodeMirrorTheme) : 'light'
 }
 
