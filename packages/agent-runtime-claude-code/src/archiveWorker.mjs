@@ -55,6 +55,7 @@ if (!info || info.sessionId !== sessionId) {
           retracted_message_uuids: entry.retracted_message_uuids,
           isAbortedMidStream: entry.isAbortedMidStream,
           isApiErrorMessage: entry.isApiErrorMessage,
+          ...(Object.hasOwn(entry, 'isCompactSummary') && { isCompactSummary: entry.isCompactSummary }),
           ...(Object.hasOwn(entry, 'parentAgentId') && { parentAgentId: entry.parentAgentId })
         }))
         await sendRecords({ kind: 'entries', subpath: key.subpath }, entries)
