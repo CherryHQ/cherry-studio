@@ -113,7 +113,7 @@ export const parseManifest = (content: string): PairingManifest => {
   const parsed: unknown = JSON.parse(content)
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
     throw new Error('manifest must be an object')
-  const record = parsed as Record<string, unknown>
+  const record: { roots?: unknown; excluded?: unknown } = parsed
   const unknown = Object.keys(record).filter((key) => key !== 'roots' && key !== 'excluded')
   if (unknown.length) throw new Error(`unsupported manifest field(s): ${unknown.join(', ')}`)
   if (
@@ -223,7 +223,9 @@ const firstDifference = (label: string, left: readonly unknown[], right: readonl
 const deepEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right)
 
 const checkFrontmatter = (source: string, zh: string): string[] => {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML fields may include dates and other heterogeneous values; pairing compares every original field before validating the owned description field.
   const sourceData = matter(source).data as Record<string, unknown>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The translated YAML must retain the same raw field contract for the full key/value comparison.
   const zhData = matter(zh).data as Record<string, unknown>
   const errors: string[] = []
   const keys = [...new Set([...Object.keys(sourceData), ...Object.keys(zhData)])].sort()
