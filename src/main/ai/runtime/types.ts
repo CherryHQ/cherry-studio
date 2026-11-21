@@ -136,7 +136,8 @@ export interface RuntimeMessageProjection {
 export type AgentRuntimeEvent =
   | { type: 'message-projection'; projection: RuntimeMessageProjection }
   | { type: 'response-start'; responseId: string; messageId?: string }
-  | { type: 'chunk'; chunk: UIMessageChunk }
+  // Input-owned controls must follow that input's reply, even before a steer ownership boundary.
+  | { type: 'chunk'; chunk: UIMessageChunk; inputId?: string }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | {
       type: 'usage'

@@ -135,7 +135,18 @@ export interface PrepareChatContext {
    * has the file reference.
    */
   keepUnroutableFileParts?: boolean
+  /**
+   * Called for each first-party image that was sent as OCR text because the model does not
+   * accept native image input, so the caller can tell the user (#21446).
+   */
+  onImageOcrFallback?: (event: ImageOcrFallbackEvent) => void
   signal?: AbortSignal
+}
+
+export interface ImageOcrFallbackEvent {
+  messageId: string
+  /** User-facing attachment name. */
+  displayName: string
 }
 
 function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boolean {
@@ -300,6 +311,7 @@ async function prepareChatMessage<T extends UIMessage>(
           throw new NonVisionImageOcrError(outcome)
         }
         defer(kept, pending, handle, outcome.text)
+        ctx.onImageOcrFallback?.({ messageId: message.id, displayName })
         continue
       }
 

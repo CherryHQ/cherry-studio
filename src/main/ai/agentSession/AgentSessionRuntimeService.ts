@@ -337,6 +337,7 @@ type AgentSessionRuntimeEntry = {
       input: AgentRuntimeUserInput
       generation?: string
       contextId?: string
+      chunks?: UIMessageChunk[]
     }
   >
   lastResumeToken?: string
@@ -983,10 +984,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (deferred && ids.includes(deferred.userMessage.id)) {
       if (followUp) this.awaitFollowedOutcome(entry)
       this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn: deferred })
+      this.deliverBufferedChunks(entry, this.takeBufferedChunks(entry, ids), deferred)
       return true
     }
     const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
     const placed = ids.filter((id) => !owned.has(id))
+    const bufferedChunks = this.takeBufferedChunks(entry, placed)
     const inputs = this.pendingInputValues(entry, placed, true)
     if (connection?.followUp && connection.contextId)
       for (const id of placed) {
@@ -1000,8 +1003,28 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!inputs.length) return false
     const turn = this.reserveSteerContinuation(entry, inputs)
     if (turn && followUp) this.awaitFollowedOutcome(entry)
-    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    if (turn) {
+      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+      this.deliverBufferedChunks(entry, bufferedChunks, turn)
+    }
     return turn !== undefined
+  }
+
+  /** Collects chunks buffered while their input awaited admission (e.g. OCR notices). */
+  private takeBufferedChunks(entry: AgentSessionRuntimeEntry, ids: readonly string[]): UIMessageChunk[] {
+    return ids.flatMap((id) => {
+      const pending = entry.pendingInputs?.get(id)
+      return pending?.generation === entry.connectionGeneration ? (pending?.chunks ?? []) : []
+    })
+  }
+
+  /** Redelivers buffered chunks onto the turn their input was steered into. */
+  private deliverBufferedChunks(
+    entry: AgentSessionRuntimeEntry,
+    chunks: readonly UIMessageChunk[],
+    turn: AgentSessionTurn
+  ): void {
+    for (const chunk of chunks) this.deliverRuntimeChunk(entry, chunk, turn)
   }
 
   /** A follow-up settles the open reply as answered; Durable reports its input's outcome only when the run ends. */
@@ -2585,7 +2608,18 @@ export class AgentSessionRuntimeService extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        this.deliverRuntimeChunk(entry, event.chunk)
+        if (event.inputId) {
+          const pending = entry.pendingInputs?.get(event.inputId)
+          if (pending && pending.generation === entry.connectionGeneration) {
+            // Dispatch acknowledgement can precede the native ownership boundary.
+            // Keep this input's notice off the currently answering assistant row.
+            ;(pending.chunks ??= []).push(event.chunk)
+          } else {
+            const inputId = event.inputId
+            const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find((turn) => turn.taskIds.includes(inputId))
+            if (turn) this.deliverRuntimeChunk(entry, event.chunk, turn)
+          }
+        } else this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -3500,8 +3534,11 @@ export class AgentSessionRuntimeService extends BaseService {
     this._onTurnTerminal.fire({ sessionId: entry.sessionId, assistantMessageId: replyId, status, boundary: 'turn' })
   }
 
-  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+  private deliverRuntimeChunk(
+    entry: AgentSessionRuntimeEntry,
+    chunk: UIMessageChunk,
+    turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+  ): boolean {
     if (!turn) return false
     const contextId = this.currentConnection(entry)?.contextId
     if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)

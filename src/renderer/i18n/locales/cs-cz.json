@@ -2487,6 +2487,7 @@
   "message.api.check.model.title": "Vyberte model pro kontrolu",
   "message.api.connection.failed": "Připojení se nezdařilo",
   "message.api.connection.success": "Připojení je v pořádku",
+  "message.attachment_notice.image_ocr": "Soubor {{names}} byl odeslán jako rozpoznaný text (OCR), protože tento model nepodporuje obrazový vstup. Chcete-li odesílat obrázky přímo, vyberte model s podporou obrázků nebo v nastavení poskytovatele povolte pro tento model Vision.",
   "message.attachments.pasted_image": "Vložený obrázek",
   "message.attachments.pasted_text": "Vložený text",
   "message.backup.cleanup_failed": "Záloha byla dokončena, ale staré zálohy se nepodařilo vyčistit.",

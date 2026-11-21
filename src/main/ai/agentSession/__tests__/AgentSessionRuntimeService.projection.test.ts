@@ -880,6 +880,97 @@ it('retains a reserved steer reply until its stream takes ownership', async () =
   )
 })
 
+it.each(['before', 'after'] as const)(
+  'keeps input-owned OCR notice on the steer reply when emitted %s the boundary',
+  async (order) => {
+    let next: StartRuntimeTurnInput | undefined
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+        next = input
+      }
+    })
+    const f = await fixture()
+    await f.project([text('first', 'Original answer')])
+    const followup = messages.saveMessage({
+      sessionId: 'root',
+      parentId: f.reply.id,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Revised requirement' }] } }
+    })
+    f.service.enqueueUserMessage('root', followup)
+    const notice = {
+      type: 'data-attachment-notice' as const,
+      id: `attachment-notice:${followup.id}`,
+      data: { kind: 'image-ocr' as const, fileNames: ['image.png'] }
+    }
+    if (order === 'before') await f.emit({ type: 'chunk', inputId: followup.id, chunk: notice })
+    expect(f.views.at(-1)?.parts).not.toContainEqual(notice)
+    await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+    if (order === 'after') await f.emit({ type: 'chunk', inputId: followup.id, chunk: notice })
+    const first = await f.done
+    await f.project([text('second', 'Continuation before handoff')])
+    const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
+    await f.handle.listeners[0].onDone(result)
+    await f.handle.listeners[1].onDone(result)
+    await expect.poll(() => next).toBeDefined()
+    const runtime = next!.request.runtime
+    if (runtime?.kind !== 'agent-session') throw new Error('Expected continuation runtime')
+    const source = f.service.openTurnStream({
+      sessionId: 'root',
+      turnId: runtime.turnId,
+      signal: next!.abortController!.signal
+    })
+    if (source.kind !== 'messages') throw new Error('Expected message source')
+    const views: CherryUIMessage[] = []
+    const done = pipeMessageStream(
+      source.stream,
+      next!.abortController!.signal,
+      { id: next!.request.messageId!, role: 'assistant', parts: [] },
+      (message) => views.push(message),
+      () => {}
+    )
+    await vi.waitFor(() =>
+      expect(views.at(-1)?.parts).toEqual([...text('', 'Continuation before handoff').parts, notice])
+    )
+    await f.emit({ type: 'turn-complete' })
+    await next!.listeners[0].onDone({ status: 'success', finalMessage: (await done).finalMessage })
+    expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'Original answer').parts)
+    expect(messages.getSessionMessage('root', next!.request.messageId!).data.parts).toEqual([
+      ...text('', 'Continuation before handoff').parts,
+      notice
+    ])
+  }
+)
+
+it('delivers the initial non-steer input OCR notice to its answering reply', async () => {
+  const f = await fixture()
+  const notice = {
+    type: 'data-attachment-notice' as const,
+    id: `attachment-notice:${f.user.id}`,
+    data: { kind: 'image-ocr' as const, fileNames: ['first-image.png'] }
+  }
+  await f.emit({ type: 'chunk', inputId: f.user.id, chunk: notice })
+  await f.project([text('first', 'Answering the initial image')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toContainEqual(notice))
+  await f.emit({ type: 'turn-complete' })
+  const result = await f.done
+  expect(result.finalMessage?.parts).toEqual([...text('', 'Answering the initial image').parts, notice])
+  await f.handle.listeners[0].onDone({ status: 'success', finalMessage: result.finalMessage, isTopicDone: false })
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toContainEqual(notice)
+})
+
+it('drops a notice for an unknown input rather than attaching it to the current reply', async () => {
+  const f = await fixture()
+  await f.project([text('first', 'Original answer')])
+  await f.emit({
+    type: 'chunk',
+    inputId: 'unknown-input',
+    chunk: { type: 'data-attachment-notice', id: 'unknown', data: { kind: 'image-ocr', fileNames: ['wrong.png'] } }
+  })
+  expect(f.views.at(-1)?.parts).toEqual(text('', 'Original answer').parts)
+  await f.emit({ type: 'turn-complete' })
+  expect((await f.done).finalMessage?.parts).toEqual(text('', 'Original answer').parts)
+})
+
 // A closed stream's snapshot must not overwrite updates arriving before the synchronous DB commit.
 it('hands late source changes from an open stream to terminal persistence and idle history', async () => {
   const naming = Promise.withResolvers<void>()
