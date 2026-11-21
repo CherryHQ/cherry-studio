@@ -6,6 +6,7 @@ import { agentRuntimeBackendTable } from './agentRuntimeBackend'
 import { agentSessionTable } from './agentSession'
 
 export interface AgentSessionCheckpoints {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native runtimes and stored revisions own checkpoint values; the persistence layer retains them without imposing the newest runtime's field schema.
   fork?: Record<string, unknown>
   root?: {
     version?: 2

@@ -193,7 +193,12 @@ class AgentSessionContextService {
       .find((binding) => binding !== undefined)
   }
 
-  publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
+  publishBranchTx(
+    tx: DbOrTx,
+    sessionId: string,
+    nativeId: string,
+    checkpointMapping: NonNullable<AgentSessionCheckpoints['fork']>
+  ): void {
     const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
     if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     tx.update(contexts)
