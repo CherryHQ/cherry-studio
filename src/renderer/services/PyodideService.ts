@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils/uuid'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { PythonExecutionRequest, PythonExecutionResponse } from '@shared/types/python'
 
 const logger = loggerService.withContext('PyodideService')
 
@@ -135,7 +136,7 @@ class PyodideService {
    */
   public async runScript(
     script: string,
-    context: Record<string, any> = {},
+    context: PythonExecutionRequest['context'] = {},
     timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
   ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
@@ -267,19 +268,6 @@ export const pyodideService = new PyodideService()
 
 // Set up IPC handler for main process requests
 if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
-  interface PythonExecutionRequest {
-    id: string
-    script: string
-    context: Record<string, any>
-    timeout: number
-  }
-
-  interface PythonExecutionResponse {
-    id: string
-    result?: string
-    error?: string
-  }
-
   window.electron.ipcRenderer.on(IpcChannel.Python_ExecutionRequest, async (_, request: PythonExecutionRequest) => {
     try {
       const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
