@@ -108,3 +108,10 @@ describe('dedupePathSegments', () => {
     expect(result).toEqual(['/usr/bin', '/usr/bin\\'])
   })
 })
+
+describe('dedupePathSegments NUL handling', () => {
+  it('strips NUL bytes from segments and drops segments that become empty', async () => {
+    const { dedupePathSegments } = await import('../binaryEnv')
+    expect(dedupePathSegments(['/a\u0000/b', '\u0000', ' /c\u0000 '])).toEqual(['/a/b', '/c'])
+  })
+})
