@@ -5,6 +5,7 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileEntry } from '@shared/data/types/file'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FileType } from '@shared/types/file'
 
 import { useFileHydration } from '../useFileHydration'
@@ -90,8 +91,8 @@ describe('Files hydration cache', () => {
   })
 
   it('keeps refreshed records when a late pre-refresh response is followed by pagination', async () => {
-    let resolve!: (records: Record<string, unknown>) => void
-    const pending = new Promise<Record<string, unknown>>((done) => {
+    let resolve!: (records: OutputFor<'file.batch_get_metadata'>) => void
+    const pending = new Promise<OutputFor<'file.batch_get_metadata'>>((done) => {
       resolve = done
     })
     let attempts = 0
@@ -111,7 +112,7 @@ describe('Files hydration cache', () => {
     expect(result.current.metadataById.text?.size).toBe(2048)
     await waitFor(() => expect(result.current.metadataById.image).toBeNull())
     await act(async () => {
-      resolve({ text: { size: 1024 } })
+      resolve({ text: { kind: 'file', type: 'text', mime: 'text/plain', size: 1024, createdAt: 1, modifiedAt: 1 } })
     })
     expect(result.current.metadataById.text?.size).toBe(2048)
     rerender({ pages: [{ items: [text] }] })
@@ -173,11 +174,14 @@ describe('Files hydration cache', () => {
 
   it('does not apply a pending result to a different first-page key after unmount', async () => {
     const cache = new Map()
-    let resolve!: (records: Record<string, unknown>) => void
-    const pending = new Promise<Record<string, unknown>>((done) => {
+    let resolve!: (records: OutputFor<'file.batch_get_metadata'>) => void
+    const pending = new Promise<OutputFor<'file.batch_get_metadata'>>((done) => {
       resolve = done
     })
-    request.mockReturnValue(pending)
+    const implementation = request.getMockImplementation()!
+    request.mockImplementation((route, input) =>
+      route === 'file.batch_get_metadata' ? pending : implementation(route, input)
+    )
     const view = setup({ pages: [{ items: [text] }] }, cache)
     await waitFor(() => expect(request).toHaveBeenCalled())
     view.unmount()
@@ -185,7 +189,7 @@ describe('Files hydration cache', () => {
     const next = setup({ pages: [{ items: [image] }] }, cache)
     await waitFor(() => expect(next.result.current.metadataById).toEqual({ image: null }))
     await act(async () => {
-      resolve({ text: { size: 4096 } })
+      resolve({ text: { kind: 'file', type: 'text', mime: 'text/plain', size: 4096, createdAt: 1, modifiedAt: 1 } })
     })
     expect(next.result.current.metadataById).toEqual({ image: null })
   })
