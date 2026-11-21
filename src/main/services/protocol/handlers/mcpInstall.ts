@@ -9,7 +9,7 @@ function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): Prot
     throw new Error('MCP server config must be an object')
   }
 
-  const candidate = { ...(value as Record<string, unknown>) }
+  const candidate: { url?: unknown; name?: unknown; baseUrl?: unknown } = { ...value }
   const legacyUrl = candidate.url
 
   delete candidate.url
