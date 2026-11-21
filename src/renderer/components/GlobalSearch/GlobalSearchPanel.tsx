@@ -55,6 +55,8 @@ import {
   GlobalSearchMessagePreviewPanel,
   type GlobalSearchMessagePreviewTarget
 } from './GlobalSearchMessagePreviewPanel'
+import { GlobalSearchQueryHistory } from './GlobalSearchQueryHistory'
+import { rememberGlobalSearchQuery, sanitizeGlobalSearchQueries } from './globalSearchQueryHistory'
 import {
   GlobalMessageSearchGroupHeader,
   GlobalMessageSearchRow,
@@ -281,7 +283,7 @@ function TimeFilterDropdown({
         <Button
           type="button"
           variant="ghost"
-          className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+          className="h-7 gap-1.5 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           aria-label={`${t(getTimeFilterAriaLabelKey(panelMode))}: ${t(getTimeFilterLabelKey(timeFilter))}`}>
           <Clock3 className="size-3.5" />
           <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
@@ -294,7 +296,7 @@ function TimeFilterDropdown({
             <DropdownMenuRadioItem
               key={filterOption}
               value={filterOption}
-              className="h-8 rounded-[7px] font-medium text-xs data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
+              className="h-8 rounded-[7px] text-xs font-medium data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
               {t(getTimeFilterLabelKey(filterOption))}
             </DropdownMenuRadioItem>
           ))}
@@ -314,6 +316,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const messageListRef = useRef<DynamicVirtualListRef>(null)
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
+  const isComposingRef = useRef(false)
+  const [isComposing, setIsComposing] = useState(false)
+  const [queryHistory, setQueryHistory] = usePersistCache('ui.global_search.query_history')
+  const historyEntries = useMemo(() => sanitizeGlobalSearchQueries(queryHistory), [queryHistory])
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
@@ -366,6 +372,19 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     recentItems: sanitizedRecentItems,
     timeFilter
   })
+  const canRememberQuery =
+    !isComposing &&
+    !isLoading &&
+    !!query.trim() &&
+    query.trim() === debouncedQuery &&
+    debouncedQuery === deferredQuery &&
+    !(isMessageSearchMode ? isMessageSearchFetching || messageError : isEntitySearchRefreshing || error)
+  const rememberQuery = useCallback(() => {
+    if (isComposingRef.current || !canRememberQuery || inputRef.current?.value.trim() !== deferredQuery) return false
+    setQueryHistory((current) => rememberGlobalSearchQuery(current, deferredQuery, Date.now()))
+    return true
+  }, [canRememberQuery, deferredQuery, setQueryHistory])
+  const focusInput = useCallback(() => inputRef.current?.focus({ preventScroll: true }), [])
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
     useGlobalSearchKeyboard({
       groups,
@@ -481,10 +500,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     setMessagePreviewTarget(null)
   }, [deferredQuery, filter, updatedAtFrom])
 
-  const handleSearchScopeChange = useCallback((nextScope: GlobalSearchScope) => {
-    setPanelMode(nextScope === 'messages' ? 'message-search' : 'search')
-    setMessagePreviewTarget(null)
-  }, [])
+  const handleSearchScopeChange = useCallback(
+    (nextScope: GlobalSearchScope) => {
+      if (nextScope === 'messages') rememberQuery()
+      setPanelMode(nextScope === 'messages' ? 'message-search' : 'search')
+      setMessagePreviewTarget(null)
+    },
+    [rememberQuery]
+  )
 
   const openTopic = useCallback(
     async (topicId: string) => {
@@ -652,38 +675,43 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     [openSessionMessageById, openTopicMessageById, t]
   )
 
-  const openMessagePanelItem = useCallback((item: GlobalMessageSearchPanelItem) => {
-    if (item.kind === 'more') {
-      setExpandedMessageParentIds((current) => {
-        const next = new Set(current)
-        next.add(item.parentId)
-        return next
-      })
-      return
-    }
+  const openMessagePanelItem = useCallback(
+    (item: GlobalMessageSearchPanelItem) => {
+      if (item.kind === 'more') {
+        setExpandedMessageParentIds((current) => {
+          const next = new Set(current)
+          next.add(item.parentId)
+          return next
+        })
+        return
+      }
 
-    if (item.result.sourceType === 'topic') {
+      if (!rememberQuery()) return
+
+      if (item.result.sourceType === 'topic') {
+        setMessagePreviewTarget({
+          sourceType: 'topic',
+          topicId: item.result.topicId,
+          title: item.result.topicName,
+          messageId: item.result.messageId,
+          assistantId: item.result.topicAssistantId,
+          createdAt: item.result.topicCreatedAt,
+          updatedAt: item.result.topicUpdatedAt
+        })
+        return
+      }
+
       setMessagePreviewTarget({
-        sourceType: 'topic',
-        topicId: item.result.topicId,
-        title: item.result.topicName,
+        sourceType: 'session',
+        sessionId: item.result.sessionId,
+        title: item.result.sessionName,
         messageId: item.result.messageId,
-        assistantId: item.result.topicAssistantId,
-        createdAt: item.result.topicCreatedAt,
-        updatedAt: item.result.topicUpdatedAt
+        agentId: item.result.agentId,
+        createdAt: item.result.createdAt
       })
-      return
-    }
-
-    setMessagePreviewTarget({
-      sourceType: 'session',
-      sessionId: item.result.sessionId,
-      title: item.result.sessionName,
-      messageId: item.result.messageId,
-      agentId: item.result.agentId,
-      createdAt: item.result.createdAt
-    })
-  }, [])
+    },
+    [rememberQuery]
+  )
 
   const jumpMessagePanelItem = useCallback(
     (item: GlobalMessageSearchPanelItem) => {
@@ -692,9 +720,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         return
       }
 
+      if (!rememberQuery()) return
       jumpToMessage(getMessageSearchResultJumpTarget(item.result))
     },
-    [jumpToMessage, openMessagePanelItem]
+    [jumpToMessage, openMessagePanelItem, rememberQuery]
   )
 
   const openMessagePreviewMessage = useCallback(
@@ -706,20 +735,24 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     [jumpToMessage, messagePreviewTarget]
   )
 
-  const openGlobalSearchFooter = useCallback((footer: GlobalSearchPanelGroupFooter) => {
-    if (footer.kind === 'expand-results') {
-      setExpandedSearchGroupIds((current) => {
-        const next = new Set(current)
-        next.add(footer.groupId)
-        return next
-      })
-      return
-    }
+  const openGlobalSearchFooter = useCallback(
+    (footer: GlobalSearchPanelGroupFooter) => {
+      if (footer.kind === 'expand-results') {
+        setExpandedSearchGroupIds((current) => {
+          const next = new Set(current)
+          next.add(footer.groupId)
+          return next
+        })
+        return
+      }
 
-    setMessageSourceFilter('all')
-    setMessagePreviewTarget(null)
-    setPanelMode('message-search')
-  }, [])
+      if (!rememberQuery()) return
+      setMessageSourceFilter('all')
+      setMessagePreviewTarget(null)
+      setPanelMode('message-search')
+    },
+    [rememberQuery]
+  )
 
   const handleLoadMoreMessageResults = useCallback(() => {
     if (isLoadingMoreMessageResults) return
@@ -756,6 +789,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           }
         }
 
+        if (!rememberQuery()) return
         const result = item.result
 
         switch (result.type) {
@@ -797,7 +831,17 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         toast.error(t('globalSearch.open_failed'))
       }
     },
-    [onClose, openGlobalSearchFooter, openKnowledgeBase, openMessagePanelItem, openSession, openTab, openTopic, t]
+    [
+      onClose,
+      openGlobalSearchFooter,
+      openKnowledgeBase,
+      openMessagePanelItem,
+      openSession,
+      openTab,
+      openTopic,
+      rememberQuery,
+      t
+    ]
   )
 
   const handleInputKeyDown = useCallback(
@@ -968,7 +1012,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     onMouseEnter={() => setActiveItemId(GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID)}
                     onClick={handleLoadMoreMessageResults}
                     className={cn(
-                      'h-8 w-full rounded-[8px] font-medium text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-8 w-full rounded-[8px] text-xs font-medium hover:bg-muted/50 hover:text-foreground',
                       active ? 'bg-muted/60 text-accent-foreground' : 'text-muted-foreground'
                     )}>
                     {isLoadingMoreMessageResults
@@ -999,11 +1043,20 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="shrink-0 px-5 pt-4 pb-2">
         <div className="relative">
-          <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 size-5 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={inputRef}
             value={query}
-            {...searchInputCompositionHandlers}
+            onCompositionStart={() => {
+              isComposingRef.current = true
+              setIsComposing(true)
+              searchInputCompositionHandlers.onCompositionStart()
+            }}
+            onCompositionEnd={(event) => {
+              isComposingRef.current = false
+              setIsComposing(false)
+              searchInputCompositionHandlers.onCompositionEnd(event)
+            }}
             onChange={(event) => commitQueryValue(event.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
@@ -1015,8 +1068,22 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-24 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground"
           />
+          {query && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-1/2 right-11 size-7 -translate-y-1/2 rounded-full"
+              aria-label={t('globalSearch.history.search')}
+              disabled={!canRememberQuery}
+              onClick={() => {
+                if (rememberQuery()) focusInput()
+              }}>
+              <Search className="size-4" />
+            </Button>
+          )}
           {query && (
             <button
               type="button"
@@ -1027,7 +1094,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setMessagePreviewTarget(null)
                 inputRef.current?.focus({ preventScroll: true })
               }}
-              className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              className="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
             </button>
           )}
@@ -1059,7 +1126,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     aria-pressed={messageSourceFilter === filterOption}
                     onClick={() => handleMessageSourceFilterSelect(filterOption)}
                     className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-7 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                       messageSourceFilter === filterOption && 'bg-muted text-foreground hover:bg-muted'
                     )}>
                     {t(getMessageSourceFilterLabelKey(filterOption))}
@@ -1078,7 +1145,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     aria-pressed={filter === filterOption}
                     onClick={() => handleFilterSelect(filterOption)}
                     className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-7 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                       filter === filterOption && 'bg-muted text-foreground hover:bg-muted'
                     )}>
                     {t(getFilterLabelKey(filterOption))}
@@ -1091,7 +1158,22 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         )}
       </div>
 
-      <div className={cn('min-h-0 flex-1', showSearchControls && 'border-border-subtle border-t')}>
+      {!query.trim() && (
+        <GlobalSearchQueryHistory
+          entries={historyEntries}
+          onRecall={(value) => {
+            commitQueryValue(value)
+            setMessagePreviewTarget(null)
+            focusInput()
+          }}
+          onRemove={(value) =>
+            setQueryHistory((current) => sanitizeGlobalSearchQueries(current).filter((entry) => entry.query !== value))
+          }
+          onClear={() => setQueryHistory([])}
+          onFocusInput={focusInput}
+        />
+      )}
+      <div className={cn('min-h-0 flex-1', showSearchControls && 'border-t border-border-subtle')}>
         {isMessageSearchMode ? (
           messagePreviewTarget ? (
             <GlobalSearchMessagePreviewPanel
@@ -1176,7 +1258,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       </div>
 
       {showSearchControls && (
-        <div className="flex h-10 shrink-0 items-center gap-4 border-border-subtle border-t bg-background/95 px-5 text-muted-foreground text-xs">
+        <div className="flex h-10 shrink-0 items-center gap-4 border-t border-border-subtle bg-background/95 px-5 text-xs text-muted-foreground">
           <KbdGroup>
             <Kbd className="bg-muted text-muted-foreground shadow-none">↑↓</Kbd>
             <span>{t('globalSearch.keyboard.select')}</span>

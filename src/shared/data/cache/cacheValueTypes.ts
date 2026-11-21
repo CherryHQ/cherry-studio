@@ -88,6 +88,11 @@ export interface TabsState {
   activeTabId: string
 }
 
+export type GlobalSearchQueryEntry = {
+  query: string
+  lastUsedAt: number
+}
+
 export type GlobalSearchRecentEntry =
   | {
       kind: 'route'
