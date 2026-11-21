@@ -13,10 +13,10 @@ interface IconEntry {
  * Build IconEntry[] from a barrel module's exports.
  * Each export is a compound icon (React component with `variant` prop + .Avatar).
  */
-function toIconEntries(mod: Record<string, unknown>): IconEntry[] {
-  return Object.entries(mod)
+function toIconEntries(mod: typeof Providers | typeof Models): IconEntry[] {
+  return Object.entries<CompoundIcon>(mod)
     .filter(([, value]) => typeof value === 'function')
-    .map(([name, value]) => ({ Component: value as CompoundIcon, name }))
+    .map(([name, value]) => ({ Component: value, name }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
