@@ -6207,6 +6207,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Systemowy OCR wywołuje bezpośrednio natywny silnik systemu. Jest najszybszy, ale dokładność zależy od wersji systemu operacyjnego.",
   "settings.tool.file_processing.processors.tesseract.description": "Silnik OCR open source firmy Google, działający w pełni lokalnie.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Analizuje klatki wyjęte z wideo i przekazuje modelowi czatu, co na nich widać. Klatki są wysyłane do dostawcy tego modelu. Można wybrać tylko modele z tagiem „Wizja”.",
+  "settings.tool.file_processing.video_vision.title": "Model rozpoznawania obrazów",
   "settings.tool.websearch.blacklist": "Czarna lista",
   "settings.tool.websearch.blacklist_invalid_entries": "Nieprawidłowe wpisy czarnej listy: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Użyj następującego formatu (rozdzielając nowymi liniami)\nDopasowywanie wzorca: *://*.example.com/*\nWyrażenie regularne: /example\\.(net|org)/",

@@ -6133,6 +6133,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "L’OCR système appelle directement le moteur natif du système. Il est le plus rapide, mais la précision dépend de la version du système d’exploitation.",
   "settings.tool.file_processing.processors.tesseract.description": "Moteur OCR open-source de Google qui fonctionne entièrement en local.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Examine des images extraites d'une vidéo et indique au modèle de chat ce qu'elles montrent. Les images sont envoyées au fournisseur de ce modèle. Seuls les modèles avec l'étiquette « Image » peuvent être sélectionnés.",
+  "settings.tool.file_processing.video_vision.title": "Modèle de reconnaissance d'images",
   "settings.tool.websearch.blacklist": "Liste noire",
   "settings.tool.websearch.blacklist_invalid_entries": "Entrées de liste noire invalides : {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Veuillez utiliser le format suivant (séparé par des sauts de ligne)\nModèle de correspondance : *://*.example.com/*\nExpression régulière : /example\\.(net|org)/",

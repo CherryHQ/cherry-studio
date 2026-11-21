@@ -6133,6 +6133,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "시스템 OCR은 기본 시스템 엔진을 직접 호출합니다. 가장 빠르지만 정확도는 OS 버전에 따라 다릅니다.",
   "settings.tool.file_processing.processors.tesseract.description": "완전히 로컬에서 실행되는 Google의 오픈 소스 OCR 엔진입니다.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "동영상에서 추출한 프레임을 보고 그 내용을 채팅 모델에 알려 줍니다. 프레임은 이 모델의 제공자에게 전송됩니다. “비전” 태그가 있는 모델만 선택할 수 있습니다.",
+  "settings.tool.file_processing.video_vision.title": "이미지 인식 모델",
   "settings.tool.websearch.blacklist": "차단 목록",
   "settings.tool.websearch.blacklist_invalid_entries": "잘못된 차단 목록 항목: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "다음 형식을 사용하세요(줄바꿈으로 구분)\n패턴 일치: *://*.example.com/*\n정규식: /example\\.(net|org)/",
