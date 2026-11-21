@@ -1,11 +1,7 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import type { ExtraProps } from 'streamdown'
 
-export function FootnoteSection({
-  children,
-  node,
-  ...props
-}: ComponentPropsWithoutRef<'section'> & ExtraProps & Record<string, unknown>) {
+export function FootnoteSection({ children, node, ...props }: ComponentPropsWithoutRef<'section'> & ExtraProps) {
   // Streamdown memoizes generated nodes without positions as equal even when their contents change.
   return (
     <section key={JSON.stringify(node)} {...props}>
@@ -14,11 +10,7 @@ export function FootnoteSection({
   )
 }
 
-export function FootnoteLink({
-  children,
-  node,
-  ...props
-}: ComponentPropsWithoutRef<'a'> & ExtraProps & Record<string, unknown>) {
+export function FootnoteLink({ children, node, ...props }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
   void node
   return (
     <a
