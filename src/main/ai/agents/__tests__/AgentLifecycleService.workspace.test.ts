@@ -15,10 +15,12 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { loggerService } from '@logger'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
 import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
+import { agentArchiveWorkspaceJobHandler } from '../agentArchiveWorkspaceJobHandler'
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
 import * as workspaceArchive from '../agentWorkspaceStorage'
@@ -27,7 +29,9 @@ import { agentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
 const mocks = vi.hoisted(() => ({
   busyForArchive: vi.fn().mockReturnValue(false),
   closeSession: vi.fn().mockResolvedValue(undefined),
-  closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
+  closeSessionForArchive: vi.fn().mockResolvedValue(undefined),
+  enqueueTx: vi.fn(),
+  cancelJob: vi.fn().mockResolvedValue({ outcome: 'cancelled' })
 }))
 
 vi.mock('@application', async () => {
@@ -54,7 +58,12 @@ vi.mock('@application', async () => {
       kick: () => {}
     },
     ChannelManager: { reconcileAgent: () => {} },
-    JobManager: { syncJobScheduleTimerById: () => {} }
+    JobManager: {
+      syncJobScheduleTimerById: () => {},
+      enqueue: (type: string, input: unknown, opts: unknown) => mocks.enqueueTx(undefined, type, input, opts),
+      enqueueTx: mocks.enqueueTx,
+      cancel: mocks.cancelJob
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -104,6 +113,25 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     BaseService.resetInstances()
     await rm(root, { recursive: true, force: true })
   })
+
+  beforeEach(() => {
+    mocks.enqueueTx.mockReset()
+    mocks.cancelJob.mockClear()
+  })
+
+  /** Replay every queued archive task through the real job handler (the JobManager stub only captures enqueues). */
+  const flushArchiveJobs = async () => {
+    const calls = mocks.enqueueTx.mock.calls.filter((call) => call[1] === 'agent.archive-system-workspace')
+    for (const call of calls) {
+      await agentArchiveWorkspaceJobHandler.execute({
+        jobId: 'test-job',
+        input: call[2] as { sessionId: string },
+        signal: new AbortController().signal,
+        logger: loggerService.withContext('test')
+      } as never)
+    }
+    mocks.enqueueTx.mockClear()
+  }
 
   const workspacePath = (root: string, id: string) => path.join(root, '2026-10-12', id)
   const registerWorkspace = async (workspacePath: string) => {
@@ -214,6 +242,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('restores the shared workspace once and restores child history with the agent', async () => {
     const childIds = ['system', 'user'].map(createChild)
     await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    await flushArchiveJobs()
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
 
     await lifecycle.restoreAgent('agent')
@@ -308,6 +337,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     await symlink(parent, alias, 'junction')
     await registerWorkspace(path.join(alias, 'project'))
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
     expect(existsSync(`${parent}.tar.gz`)).toBe(false)
   })
@@ -315,6 +345,9 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('releases the storage reservation when strict runtime shutdown fails', async () => {
     mocks.closeSessionForArchive.mockRejectedValueOnce(new Error('shutdown failed'))
     await lifecycle.archiveSessions(['system'])
+    // The background task runs the strict shutdown; its failure fails the task
+    // (retained for retry) and must release the storage reservation.
+    await expect(flushArchiveJobs()).rejects.toThrow('shutdown failed')
     const nested = path.join(workspacePath(root, 'system'), 'project')
     expect((await registerWorkspace(nested)).path).toBe(nested)
   })
@@ -327,7 +360,10 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       entered.resolve()
       await resume.promise
     })
-    const archiving = lifecycle.archiveSessions(['system'])
+    // The archive request resolves up front; the storage reservation is held by
+    // the background archive task while it quiesces the runtime.
+    await lifecycle.archiveSessions(['system'])
+    const archiving = flushArchiveJobs()
     await entered.promise
     try {
       await expect(registerWorkspace(nested)).rejects.toThrow()
@@ -349,8 +385,12 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ['agent', '']
   ] as const)('blocks %s restore when user files occupy the %s storage path', async (mode, suffix) => {
     const parent = workspacePath(root, 'system')
-    if (mode === 'agent') await lifecycle.archiveAgent('agent', { archiveSessions: true })
-    else await lifecycle.archiveSessions(['system'])
+    if (mode === 'agent') {
+      await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    } else {
+      await lifecycle.archiveSessions(['system'])
+    }
+    await flushArchiveJobs()
     const originalArchive = await readFile(`${parent}.tar.gz`)
     const nested = path.join(`${parent}${suffix}`, 'project')
     await mkdir(nested, { recursive: true })
@@ -383,8 +423,12 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it.each(['session', 'agent'] as const)('holds the storage reservation throughout %s restoration', async (mode) => {
     const parent = workspacePath(root, 'system')
     const caseAlias = existsSync(workspacePath(root, 'SYSTEM'))
-    if (mode === 'agent') await lifecycle.archiveAgent('agent', { archiveSessions: true })
-    else await lifecycle.archiveSessions(['system'])
+    if (mode === 'agent') {
+      await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    } else {
+      await lifecycle.archiveSessions(['system'])
+    }
+    await flushArchiveJobs()
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
     const restoreFiles = workspaceArchive.unpackWorkspaceArchive
@@ -422,11 +466,13 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
     if (mode === 'agent') {
       await lifecycle.archiveAgent('agent', { archiveSessions: true })
+      await flushArchiveJobs()
       expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
       await lifecycle.restoreAgent('agent')
       expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent')).get()?.deletedAt).toBeNull()
     } else {
       await lifecycle.archiveSessions(['system'])
+      await flushArchiveJobs()
       expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
       await lifecycle.restoreSession('system')
     }
@@ -437,9 +483,10 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id)).get()?.path).toBe(
       claimed
     )
-    expect(agentWorkspaceStorageService.reserveWorkspaceStorage([old])).toBeUndefined()
+    expect(agentWorkspaceStorageService.reserveWorkspaceStorage([old])).toBe('claimed')
     expect(await readFile(old, 'utf8')).toBe('replaced directory')
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     await lifecycle.purgeSessions(['system'])
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
   })
@@ -450,7 +497,8 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     const caseAlias = existsSync(path.join(root, 'caf\u00e9.RESTORING'))
     const unicodeAlias = existsSync(path.join(root, 'cafe\u0301.restoring'))
     await rm(target, { recursive: true })
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([target])!
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([target])
+    if (typeof release !== 'function') throw new Error('expected a storage reservation')
     try {
       const registration = registerWorkspace(path.join(root, 'caf\u00e9.RESTORING', 'project'))
       if (caseAlias) await expect(registration).rejects.toThrow()
@@ -467,7 +515,9 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('rejects restore while storage is reserved and permits it after release', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)!
+    await flushArchiveJobs()
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)
+    if (typeof release !== 'function') throw new Error('expected a storage reservation')
     try {
       await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
       expect(existsSync(parent)).toBe(false)
@@ -506,6 +556,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'user')).run()
 
     await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    await flushArchiveJobs()
 
     for (const id of ['system', 'user']) {
       expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.deletedAt).toEqual(
@@ -516,6 +567,21 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   it('archives only system files and restores them before making the session active', async () => {
     await lifecycle.archiveSessions(['system', 'user'])
+    // AC1: the request resolves before compression runs. The directory is still
+    // intact, one archive task was queued for the system workspace only, and
+    // the business archive state is already committed.
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+    expect(mocks.enqueueTx).toHaveBeenCalledTimes(1)
+    expect(mocks.enqueueTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'agent.archive-system-workspace',
+      { sessionId: 'system' },
+      expect.objectContaining({ idempotencyKey: 'archive-system-workspace:system' })
+    )
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt).toEqual(
+      expect.any(Number)
+    )
+    await flushArchiveJobs()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
     expect(await readFile(path.join(workspacePath(root, 'user'), 'output.txt'), 'utf8')).toBe('user output')
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(2)
@@ -530,6 +596,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     'removes archived system files on %s without removing user files',
     async (mode) => {
       await lifecycle.archiveSessions(['system', 'user'])
+      await flushArchiveJobs()
       if (mode === 'purge') await lifecycle.purgeSessions(['system', 'user'])
       else await lifecycle.purgeExpiredSessions(Number.MAX_SAFE_INTEGER, 10)
       expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
@@ -540,6 +607,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   it('restores system files for sessions archived together with an agent', async () => {
     await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    await flushArchiveJobs()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
     await lifecycle.restoreAgent('agent')
     expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
@@ -567,6 +635,14 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     await lifecycle.archiveSessions(['system'])
     expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+    // AC4: the close failure is logged and the archive task stays queued, so a
+    // later retry finishes the archive.
+    expect(mocks.enqueueTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'agent.archive-system-workspace',
+      { sessionId: 'system' },
+      expect.objectContaining({ idempotencyKey: 'archive-system-workspace:system' })
+    )
   })
 
   it('retains files across sweep retries when permissive close resolves but strict shutdown fails', async () => {
@@ -577,10 +653,30 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
     mocks.closeSessionForArchive.mockResolvedValue(undefined)
     await lifecycle.sweepOrphans()
+    await flushArchiveJobs()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
     await lifecycle.restoreSession('system')
     expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
   })
+  it('routes sweep packs through the archive queue instead of packing inline (AC6)', async () => {
+    // A sweep firing while both queue slots are busy must not start a third
+    // pack: it enqueues into the concurrency-capped queue instead.
+    const pack = vi.spyOn(workspaceArchive, 'packWorkspaceDirectory')
+    await lifecycle.archiveSessions(['system'])
+    mocks.enqueueTx.mockClear()
+    await lifecycle.sweepOrphans()
+    expect(pack).not.toHaveBeenCalled()
+    expect(existsSync(workspacePath(root, 'system'))).toBe(true)
+    expect(mocks.enqueueTx).toHaveBeenCalledWith(
+      undefined,
+      'agent.archive-system-workspace',
+      { sessionId: 'system' },
+      expect.objectContaining({ idempotencyKey: 'archive-system-workspace:system' })
+    )
+    await flushArchiveJobs()
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
+  })
+
   it('keeps a session archived when its workspace cannot be restored', async () => {
     await lifecycle.archiveSessions(['system'])
     await writeFile(`${workspacePath(root, 'system')}.tar.gz`, 'corrupt')
@@ -595,6 +691,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     async (type) => {
       const parent = workspacePath(root, 'system')
       await lifecycle.archiveSessions(['system'])
+      await flushArchiveJobs()
       const archive = await readFile(`${parent}.tar.gz`)
       if (type === 'file') await writeFile(parent, 'unrelated')
       else {
@@ -617,6 +714,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('retains the archive after DB activation fails and resumes on retry', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     const archive = await readFile(`${parent}.tar.gz`)
     const fail = vi.spyOn(agentSessionService, 'restore').mockImplementationOnce(() => {
       throw new Error('DB commit failed')
@@ -642,6 +740,10 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       if (source === 'pending')
         vi.spyOn(workspaceArchive, 'packWorkspaceDirectory').mockRejectedValueOnce(new Error('disk full'))
       await lifecycle.archiveSessions(['system'])
+      // The pack failure now surfaces through the background task, which retains
+      // the pending archive record for retry exactly as the synchronous path did.
+      if (source === 'pending') await expect(flushArchiveJobs()).rejects.toThrow('disk full')
+      else await flushArchiveJobs()
       const write = workspaceArchive.writeWorkspaceStorageRecord
       const interruption = vi
         .spyOn(workspaceArchive, 'writeWorkspaceStorageRecord')
@@ -669,6 +771,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('retries failed cleanup after activation through the orphan sweep', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     vi.spyOn(workspaceArchive, 'removeWorkspaceArtifact').mockRejectedValueOnce(new Error('cleanup interrupted'))
     await lifecycle.restoreSession('system')
     expect(existsSync(`${parent}.tar.gz`)).toBe(true)
@@ -684,6 +787,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('keeps registration blocked through DB activation and final cleanup', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
     const finalize = workspaceArchive.removeWorkspaceArtifact
@@ -722,6 +826,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       .values({ id: 'system2', agentId: 'agent', workspaceId: 'system2', name: 'system2', orderKey: 'a2' })
       .run()
     await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    await flushArchiveJobs()
     const archive = await readFile(`${second}.tar.gz`)
     await writeFile(`${second}.tar.gz`, 'corrupt')
     await expect(lifecycle.restoreAgent('agent')).rejects.toThrow()
@@ -755,6 +860,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       await writeFile(path.join(distinct, 'keep.txt'), 'distinct user directory')
       await registerWorkspace(distinct)
       await lifecycle.archiveSessions(['system'])
+      await flushArchiveJobs()
       expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
       await lifecycle.restoreSession('system')
       expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
@@ -764,6 +870,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   it('preserves claimed archives in the orphan sweep and reclaims them after their rows disappear', async () => {
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     const archive = `${workspacePath(root, 'system')}.tar.gz`
     const pending = `${workspacePath(root, 'system')}.restoring`
     await mkdir(pending)
@@ -779,10 +886,167 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(pending)).toBe(false)
   })
 
+  /** Make the JobManager stub write a real job row through the caller's transaction. */
+  const insertJobThroughTx = (observed: { visibleInTx?: boolean } = {}) =>
+    mocks.enqueueTx.mockImplementation((tx: typeof dbh.db, type: string, input: { sessionId: string }) => {
+      tx.insert(jobTable)
+        .values({
+          type,
+          status: 'pending',
+          queue: 'agent.workspace-archive',
+          idempotencyKey: 'archive-system-workspace:' + input.sessionId,
+          scheduledAt: 0,
+          input,
+          metadata: {}
+        })
+        .run()
+      observed.visibleInTx = tx.select().from(jobTable).all().length === 1
+    })
+
+  const sessionDeletedAt = () =>
+    dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+
+  it('rolls the business archive and the job row back together', async () => {
+    // AC2: the lifecycle layer enqueues through the trash transaction, so a
+    // failure after the job row is written reverts both.
+    const observed: { visibleInTx?: boolean } = {}
+    insertJobThroughTx(observed)
+    const original = mocks.enqueueTx.getMockImplementation()!
+    mocks.enqueueTx.mockImplementation((...args: Parameters<typeof original>) => {
+      original(...args)
+      throw new Error('roll back the archive')
+    })
+    await expect(lifecycle.archiveSessions(['system'])).rejects.toThrow('roll back the archive')
+    expect(observed.visibleInTx).toBe(true)
+    expect(sessionDeletedAt()).toBeNull()
+    expect(dbh.db.select().from(jobTable).all()).toHaveLength(0)
+  })
+
+  it('persists the business archive and the job row together on commit', async () => {
+    const observed: { visibleInTx?: boolean } = {}
+    insertJobThroughTx(observed)
+    await lifecycle.archiveSessions(['system'])
+    expect(observed.visibleInTx).toBe(true)
+    expect(sessionDeletedAt()).not.toBeNull()
+    expect(dbh.db.select().from(jobTable).all()).toHaveLength(1)
+  })
+
+  const seedArchiveJob = (status: 'pending' | 'running') => {
+    dbh.db
+      .insert(jobTable)
+      .values({
+        type: 'agent.archive-system-workspace',
+        status,
+        queue: 'agent.workspace-archive',
+        idempotencyKey: 'archive-system-workspace:system',
+        scheduledAt: 0,
+        input: { sessionId: 'system' },
+        metadata: {}
+      })
+      .run()
+  }
+
+  it('cancels a queued archive task when the archive is undone', async () => {
+    // AC3, queued state: undo cancels the task before the workspace activates.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('pending')
+    await lifecycle.restoreSession('system')
+    expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(mocks.cancelJob.mock.calls[0][1]).toContain('restored')
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).toBeNull()
+    // A stale replay of the cancelled task re-reads the state and skips.
+    await flushArchiveJobs()
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+  })
+
+  it('waits for an in-flight archive task when the archive is undone', async () => {
+    // AC3, in-progress state: undo waits for the task instead of aborting the pack.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    const started = Date.now()
+    const timer = setTimeout(() => {
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'completed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 200)
+    try {
+      await lifecycle.restoreSession('system')
+    } finally {
+      clearTimeout(timer)
+    }
+    expect(Date.now() - started).toBeGreaterThanOrEqual(150)
+    expect(mocks.cancelJob).not.toHaveBeenCalled()
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).toBeNull()
+  })
+
+  it('cancels an archive task that falls back to a retry wait while undo is waiting', async () => {
+    // A failed pack re-queues the same task as delayed; it no longer holds the
+    // workspace, so undo cancels it instead of waiting out the full timeout.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    const timer = setTimeout(() => {
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'delayed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 200)
+    const started = Date.now()
+    try {
+      await lifecycle.restoreSession('system')
+    } finally {
+      clearTimeout(timer)
+    }
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(sessionDeletedAt()).toBeNull()
+  })
+
+  it('cancels a queued archive task before purging a permanently deleted session', async () => {
+    // The purge needs the workspace's storage reservation; a queued pack would
+    // take it first and leave the deleted session's directory behind.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('pending')
+    await lifecycle.purgeSessions(['system'])
+    expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(mocks.cancelJob.mock.calls[0][1]).toContain('permanently deleted')
+    expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
+  it('waits for an in-flight archive task before purging a permanently deleted session', async () => {
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    const started = Date.now()
+    const timer = setTimeout(() => {
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'completed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 200)
+    try {
+      await lifecycle.purgeSessions(['system'])
+    } finally {
+      clearTimeout(timer)
+    }
+    expect(Date.now() - started).toBeGreaterThanOrEqual(150)
+    expect(mocks.cancelJob).not.toHaveBeenCalled()
+    expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
   it('does not restore a workspace belonging to an independently archived session with its agent', async () => {
     await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
     dbh.db.update(agentSessionTable).set({ deletedAt: 1 }).where(eq(agentSessionTable.id, 'system')).run()
     await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    await flushArchiveJobs()
     await lifecycle.restoreAgent('agent')
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)

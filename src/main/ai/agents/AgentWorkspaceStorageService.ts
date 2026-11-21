@@ -65,10 +65,16 @@ class AgentWorkspaceStorageService {
     return agentWorkspaceService.findOrCreateByPathResult(workspacePath, options).workspace
   }
 
+  /**
+   * Returns the release function, or why the reservation was denied: 'claimed'
+   * when a registered workspace's storage claim overlaps (persists until the
+   * claim is removed), 'in-use' when another in-flight operation holds the
+   * reservation (transient — safe to retry).
+   */
   reserveWorkspaceStorage(
     paths: readonly string[],
     ownerPaths: string | readonly string[] = []
-  ): (() => void) | undefined {
+  ): (() => void) | 'claimed' | 'in-use' | undefined {
     const managedRoot = application.getPath('feature.agents.system_workspaces')
     if (!existsSync(managedRoot)) return undefined
     const rootStat = lstatSync(managedRoot)
@@ -80,7 +86,7 @@ class AgentWorkspaceStorageService {
       .listStorageClaims()
       .filter((row) => row.type !== AGENT_WORKSPACE_TYPE.SYSTEM || !owners.includes(path.resolve(row.path)))
     const exactOverlap = createPathOverlapCheck(paths, new Map())
-    if (claims.some((row) => exactOverlap(row.path))) return undefined
+    if (claims.some((row) => exactOverlap(row.path))) return 'claimed'
     const behaviors = new Map<string, PathNameBehavior>()
     for (const target of paths) {
       let current = path.resolve(managedRoot)
@@ -127,12 +133,12 @@ class AgentWorkspaceStorageService {
     }
     const overlaps = createPathOverlapCheck(paths, behaviors)
     for (const row of claims) {
-      if (overlaps(row.path)) return undefined
+      if (overlaps(row.path)) return 'claimed'
     }
     if (
       [...this.reservations].some((reservation) => paths.some(reservation.overlaps) || reservation.paths.some(overlaps))
     )
-      return undefined
+      return 'in-use'
     const reservation = { paths, overlaps }
     this.reservations.add(reservation)
     return () => {
@@ -150,7 +156,7 @@ class AgentWorkspaceStorageService {
     orphan = false
   ): Promise<T | undefined> {
     const release = this.reserveWorkspaceStorage(this.workspaceStoragePaths(workspace), orphan ? [] : workspace)
-    if (!release) return undefined
+    if (typeof release !== 'function') return undefined
     try {
       return await operation()
     } finally {
@@ -158,17 +164,31 @@ class AgentWorkspaceStorageService {
     }
   }
 
-  async archiveWorkspace(workspace: Workspace): Promise<void> {
+  /**
+   * Returns why no pack happened when it does not: 'busy' when another
+   * in-flight operation holds the storage reservation (transient — the caller
+   * retries), 'blocked' when a registered workspace's claim overlaps and
+   * packing is refused until that claim is removed. This lets the archive job
+   * handler tell contention apart from a completed pack instead of settling
+   * the task with the directory unpacked.
+   */
+  async archiveWorkspace(workspace: Workspace): Promise<'archived' | 'busy' | 'blocked'> {
     if (!existsSync(application.getPath('feature.agents.system_workspaces'))) await this.quiesce(workspace.id)
-    await this.withSystemWorkspaceStorage(workspace.path, async () => {
+    const release = this.reserveWorkspaceStorage(this.workspaceStoragePaths(workspace.path), workspace.path)
+    if (release === undefined) return 'archived' // no managed storage root: nothing to pack
+    if (typeof release !== 'function') return release === 'claimed' ? 'blocked' : 'busy'
+    try {
       await this.quiesce(workspace.id)
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
-      if (!state) return
+      if (!state) return 'archived'
       if (state.record?.operation === 'restore') await this.commitRestore(root, workspace.path, state.record)
       else if (state.record?.operation === 'purge') throw new Error('Workspace deletion is pending')
       await this.archive(root, workspace)
-    })
+      return 'archived'
+    } finally {
+      release()
+    }
   }
 
   async restoreWorkspaces<T>(workspaces: Workspace[], activate: () => T): Promise<T> {
@@ -183,7 +203,7 @@ class AgentWorkspaceStorageService {
       paths.flatMap((workspace) => this.workspaceStoragePaths(workspace)),
       paths
     )
-    if (!release)
+    if (typeof release !== 'function')
       throw DataApiErrorFactory.conflict('Workspace storage is in use; cannot safely restore this session', 'Workspace')
     try {
       const restored: Array<{ path: string; record: RestoreRecord }> = []
@@ -206,7 +226,20 @@ class AgentWorkspaceStorageService {
     }
   }
 
-  async reconcileWorkspace(workspace: Workspace, lifecycle: 'active' | 'archived'): Promise<void> {
+  /**
+   * `pack` replaces the inline compression of an archived workspace: callers
+   * that must keep packing inside the archive queue's concurrency cap (the
+   * trash sweep, per AC6) pass a callback that enqueues the pack instead of
+   * running it here. The callback fires only after this workspace's storage
+   * reservation is released, so an idle worker never sees the reservation it
+   * would report as contention. Restore-record recovery always stays inline.
+   */
+  async reconcileWorkspace(
+    workspace: Workspace,
+    lifecycle: 'active' | 'archived',
+    options: { pack?: () => Promise<void> } = {}
+  ): Promise<void> {
+    let packNeeded = false
     await this.withSystemWorkspaceStorage(workspace.path, async () => {
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
@@ -215,9 +248,12 @@ class AgentWorkspaceStorageService {
       if (state.record?.operation === 'restore') {
         const record = await this.restore(root, workspace)
         if (record && lifecycle === 'active') await this.commitRestore(root, workspace.path, record)
-      } else if (lifecycle === 'archived') await this.archive(root, workspace)
+      } else if (lifecycle === 'archived') packNeeded = await this.archive(root, workspace, options.pack !== undefined)
       else throw new Error('Active session has an unfinished workspace storage operation')
     })
+    // Enqueue only after the reservation is released: a worker starting before
+    // release would read it as contention and spend a retry without packing.
+    if (packNeeded && options.pack) await options.pack()
   }
 
   async purgeWorkspace(workspace: Workspace): Promise<void> {
@@ -257,13 +293,22 @@ class AgentWorkspaceStorageService {
     return state
   }
 
-  private async archive(root: string, workspace: Workspace): Promise<void> {
+  /** Returns true when packing was deferred to the caller's queue callback. */
+  private async archive(root: string, workspace: Workspace, deferPack?: boolean): Promise<boolean> {
     const state = await this.inspect(root, workspace)
-    if (!state) return
+    if (!state) return false
     let record = state.record
     if (record && record.operation !== 'archive') throw new Error('Workspace has another pending storage operation')
+    if (deferPack) {
+      // Pack work exists only when an interrupted pack resumes or unpacked
+      // content remains; an already-packed workspace needs nothing enqueued.
+      if (!record && !state.directory && !state.pending) return false
+      if (!record && (state.archive || (state.directory && state.pending)))
+        throw new Error('Workspace storage has unverified copies')
+      return true
+    }
     if (!record) {
-      if (!state.directory && !state.pending) return
+      if (!state.directory && !state.pending) return false
       if (state.archive || (state.directory && state.pending))
         throw new Error('Workspace storage has unverified copies')
       record = {
@@ -280,6 +325,7 @@ class AgentWorkspaceStorageService {
       await storage.writeWorkspaceStorageRecord(workspace.path, record)
     }
     await this.finishArchive(root, workspace.path, record)
+    return false
   }
 
   private async finishArchive(root: string, workspace: string, initial: ArchiveRecord): Promise<void> {

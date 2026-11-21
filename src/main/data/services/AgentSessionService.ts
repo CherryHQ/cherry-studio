@@ -96,6 +96,13 @@ type JoinedSessionRow = {
   workspace: AgentWorkspaceRow
 }
 
+/**
+ * Caller-supplied hook run inside the trash transaction with the root sessions
+ * whose system workspace needs a background archive. Lets the lifecycle layer
+ * enqueue jobs atomically without this data service owning the side effect.
+ */
+export type ArchivedSystemWorkspacesHook = (tx: DbOrTx, sessionIds: string[]) => void
+
 export type AgentSessionDeletionOutcome = {
   deletedIds: string[]
   taskScheduleIds: string[]
@@ -179,6 +186,13 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
     return false
   }
 }
+
+/**
+ * Idempotency-key prefix for the `agent.archive-system-workspace` JobManager
+ * task enqueued by `AgentLifecycleService`: undo finds a queued archive task by
+ * `<prefix><root session id>`. Exported for the job handler and lifecycle undo.
+ */
+export const ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX = 'archive-system-workspace:'
 
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
@@ -1212,7 +1226,11 @@ export class AgentSessionService {
 
   deleteByIdsWithImpact(
     ids: string[],
-    options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+    options: {
+      permanent?: boolean
+      targetState?: 'active' | 'trashed'
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ): AgentSessionBatchDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) {
@@ -1221,7 +1239,9 @@ export class AgentSessionService {
 
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const { trashedIds, taskScheduleIds, deliveryResults } = this.trashByIdsTx(tx, uniqueIds)
+        const { trashedIds, taskScheduleIds, deliveryResults } = this.trashByIdsTx(tx, uniqueIds, {
+          onArchivedSystemWorkspacesTx: options.onArchivedSystemWorkspacesTx
+        })
         return { deletedIds: trashedIds, taskScheduleIds, deliveryResults, purgedSystemWorkspacePaths: [] }
       }
 
@@ -1280,7 +1300,11 @@ export class AgentSessionService {
   trashByIdsTx(
     tx: DbOrTx,
     ids: string[],
-    options: { requireAll?: boolean; deletedAt?: number } = {}
+    options: {
+      requireAll?: boolean
+      deletedAt?: number
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     const children = chunk(ids, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       tx
@@ -1318,13 +1342,42 @@ export class AgentSessionService {
       tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, idChunk)).run()
     }
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
+    // Root sessions that own a system workspace need a background archive
+    // (issue #21645). This data service only reports them: the lifecycle command
+    // layer composes the job enqueue into the same transaction through the hook,
+    // so the trash commit and the job commit or roll back together.
+    if (options.onArchivedSystemWorkspacesTx) {
+      const archivedSystemWorkspaceSessionIds = chunk(trashedIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+        tx
+          .select({ id: sessionsTable.id })
+          .from(sessionsTable)
+          .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+          .where(
+            and(
+              inArray(sessionsTable.id, idChunk),
+              isNull(sessionsTable.ownerSessionId),
+              eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)
+            )
+          )
+          .all()
+          .map((row) => row.id)
+      )
+      if (archivedSystemWorkspaceSessionIds.length > 0) {
+        options.onArchivedSystemWorkspacesTx(tx, archivedSystemWorkspaceSessionIds)
+      }
+    }
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
 
   trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
-    options: { validateAgent?: boolean; deletedAt?: number; sessionTypes?: readonly AgentSessionType[] } = {}
+    options: {
+      validateAgent?: boolean
+      deletedAt?: number
+      sessionTypes?: readonly AgentSessionType[]
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
@@ -1340,7 +1393,8 @@ export class AgentSessionService {
       .all()
       .map((row) => row.id)
     return this.trashByIdsTx(tx, ids, {
-      deletedAt: options.deletedAt
+      deletedAt: options.deletedAt,
+      onArchivedSystemWorkspacesTx: options.onArchivedSystemWorkspacesTx
     })
   }
 
@@ -1495,12 +1549,19 @@ export class AgentSessionService {
   /** Session type filtering applies only to trash moves; permanent deletion always includes all types. */
   deleteByAgentIdWithImpact(
     agentId: string,
-    options: { permanent?: boolean; sessionTypes?: readonly AgentSessionType[] } = {}
+    options: {
+      permanent?: boolean
+      sessionTypes?: readonly AgentSessionType[]
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ): AgentSessionDeletionOutcome {
     const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const trashed = this.trashByAgentIdTx(tx, agentId, { sessionTypes: options.sessionTypes })
+        const trashed = this.trashByAgentIdTx(tx, agentId, {
+          sessionTypes: options.sessionTypes,
+          onArchivedSystemWorkspacesTx: options.onArchivedSystemWorkspacesTx
+        })
         deliveryResults.push(...trashed.deliveryResults)
         return { deletedIds: trashed.trashedIds, taskScheduleIds: trashed.taskScheduleIds, deliveryResults }
       }
