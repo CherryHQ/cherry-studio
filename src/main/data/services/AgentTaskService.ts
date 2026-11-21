@@ -82,7 +82,8 @@ function taskRunSessionId(job: JobSnapshot): string | null {
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
 
-  const template = value as Partial<AgentTaskJobInputTemplate>
+  // SAFETY: Only the object container is known here; each consumed task field is checked below.
+  const template = value as { agentId?: unknown; prompt?: unknown; timeoutMinutes?: unknown; workspace?: unknown }
   if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') return null
 
   const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
@@ -112,6 +113,7 @@ const TASK_REUSE_METADATA_KEY = 'reuse'
 const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
 
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored task inputs, outputs and metadata are handler-specific; this checks the container before field-level validation.
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -128,13 +130,14 @@ export function isCircuitBreakerPaused(metadata: unknown): boolean {
 
 /** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Snapshot metadata comes directly from stored JSON; discard primitive/array containers instead of spreading them into replacement metadata.
-export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
+export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): JobScheduleSnapshot['metadata'] {
   if (!isPlainRecord(metadata)) return { [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
   const next = { ...metadata }
   next[CIRCUIT_BREAKER_PAUSED_KEY] = paused
   return next
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Only workspace identity is parsed; the rest of the stored template must remain intact when its workspace is reset.
 function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
   if (!isPlainRecord(value)) return false
   const workspace = AgentSessionWorkspaceSourceSchema.safeParse(value.workspace)
@@ -144,6 +147,7 @@ function referencesWorkspace(value: unknown, workspaceId: string): value is Reco
 }
 
 function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], workspaceId: string) {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Referenced templates retain unvalidated handler fields; workspace deletion replaces only their validated workspace reference.
   const references: Array<{ schedule: JobScheduleSnapshot; template: Record<string, unknown> }> = []
   for (const schedule of schedules) {
     if (referencesWorkspace(schedule.jobInputTemplate, workspaceId)) {
@@ -158,12 +162,11 @@ export function normalizeTaskSessionReuseRevision(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
-export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
+export function readTaskSessionReuse(metadata: JobScheduleSnapshot['metadata'] | undefined): TaskSessionReuse {
   const raw = metadata?.[TASK_REUSE_METADATA_KEY]
   if (!isPlainRecord(raw)) return { enabled: false, revision: 0 }
-  const reuse = raw as Partial<TaskSessionReuse>
-  const enabled = reuse.enabled === true
-  return { enabled, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
+  const enabled = raw.enabled === true
+  return { enabled, revision: normalizeTaskSessionReuseRevision(raw.revision) }
 }
 
 /**
@@ -172,20 +175,20 @@ export function readTaskSessionReuse(metadata: Record<string, unknown> | undefin
  * wholesale, so a partial write would drop unrelated keys.
  */
 export function writeTaskSessionReuse(
-  metadata: Record<string, unknown> | undefined,
+  metadata: JobScheduleSnapshot['metadata'] | undefined,
   reuse: TaskSessionReuse
-): Record<string, unknown> {
+): JobScheduleSnapshot['metadata'] {
   if (!isPlainRecord(metadata)) return { [TASK_REUSE_METADATA_KEY]: reuse }
   const next = { ...metadata }
   next[TASK_REUSE_METADATA_KEY] = reuse
   return next
 }
 
-export function isMissedTask(metadata: Record<string, unknown>): boolean {
+export function isMissedTask(metadata: JobScheduleSnapshot['metadata']): boolean {
   return isPlainRecord(metadata.missed) && metadata.missed.reason === 'agent_archived'
 }
 
-export function clearMissedTask(metadata: Record<string, unknown>): Record<string, unknown> {
+export function clearMissedTask(metadata: JobScheduleSnapshot['metadata']): JobScheduleSnapshot['metadata'] {
   const next = { ...metadata }
   delete next.missed
   return next
