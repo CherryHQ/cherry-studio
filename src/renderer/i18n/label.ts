@@ -34,6 +34,7 @@ const providerKeyMap = {
   'claude-code': 'provider.claude-code',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
+  deapi: 'provider.deapi',
   deepseek: 'provider.deepseek',
   dmxapi: 'provider.dmxapi',
   doubao: 'provider.doubao',
