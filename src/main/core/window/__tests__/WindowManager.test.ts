@@ -1,12 +1,18 @@
 import type { mockApplicationFactory } from '@test-mocks/main/application'
-import { shell } from 'electron'
+import { type BrowserWindowConstructorOptions, shell } from 'electron'
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
-import type { WarmupState } from '../types'
+import type { WarmupState, WindowOptions, WindowTypeMetadata } from '../types'
+
+// Fixture names exercise lifecycles independently of the application's registered window types.
+type FixtureWindowMetadata<T extends WindowTypeMetadata = WindowTypeMetadata> = T extends WindowTypeMetadata
+  ? Omit<T, 'type'> & { type: string }
+  : never
 
 /**
  * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed) now
@@ -36,7 +42,7 @@ vi.mock('@main/core/platform', () => ({
 
 interface MockBrowserWindow {
   id: number
-  constructorOptions?: Record<string, unknown>
+  constructorOptions?: BrowserWindowConstructorOptions
   show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   hide: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   focus: ReturnType<typeof vi.fn<(...args: any[]) => any>>
@@ -151,7 +157,7 @@ const createdWindows: MockBrowserWindow[] = []
 
 vi.mock('electron', () => {
   class BrowserWindowMock {
-    constructor(opts?: Record<string, unknown>) {
+    constructor(opts?: BrowserWindowConstructorOptions) {
       const win = createMockBrowserWindow()
       win.constructorOptions = opts
       createdWindows.push(win)
@@ -226,7 +232,7 @@ const lazyStandbyPoolConfig = {
 }
 
 vi.mock('../windowRegistry', () => {
-  const registry: Record<string, unknown> = {
+  const registry: Partial<Record<string, FixtureWindowMetadata>> = {
     pooled: {
       type: 'pooled',
       lifecycle: 'pooled',
@@ -350,8 +356,8 @@ vi.mock('../windowRegistry', () => {
       if (!meta) throw new Error(`WindowType '${type}' is not registered`)
       return meta
     },
-    mergeWindowOptions: (type: string, overrides?: Record<string, unknown>) => {
-      const meta = registry[type] as { windowOptions?: Record<string, unknown> }
+    mergeWindowOptions: (type: string, overrides?: Partial<WindowOptions>) => {
+      const meta = registry[type]
       return { ...meta?.windowOptions, ...overrides, webPreferences: {} }
     }
   }
@@ -1845,7 +1851,7 @@ describe('WindowManager', () => {
   describe('bounds persistence (rememberBounds)', () => {
     const cache = () => application.get('CacheService')
 
-    const savedRect = (overrides: Record<string, unknown> = {}) => ({
+    const savedRect = (overrides: Partial<WindowBoundsState> = {}) => ({
       x: 200,
       y: 150,
       width: 1000,
