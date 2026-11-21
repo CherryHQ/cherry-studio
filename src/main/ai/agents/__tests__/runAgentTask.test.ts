@@ -445,8 +445,14 @@ describe('runAgentTask', () => {
       )
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
       captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
-      await expect(run).rejects.toThrow(message)
+      const error = await run.catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toContain(message)
       expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
+      // A released-overflow throw must be terminal: the job runner must not
+      // resubmit the full prompt in a fresh session (repeating committed
+      // effects). Ordinary failures stay unmarked (retryable by policy).
+      expect((error as { retryable?: boolean }).retryable).toBe(releases === 1 ? false : undefined)
     })
 
     it('runs one-off when a queued job has a stale reuse revision', async () => {
@@ -541,6 +547,27 @@ describe('runAgentTask', () => {
           makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
         )
       ).resolves.toMatchObject({ kind: 'skipped', result: 'Skipped (session busy)' })
+    })
+
+    it('fails retryably instead of skipping when a retry finds the reused session busy', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      // A retry must not settle as a completed skip while the previous attempt
+      // still owns the session: that would clear the original timeout error.
+      await expect(
+        runAgentTask(
+          makeCtx({
+            attempt: 1,
+            input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } }
+          })
+        )
+      ).rejects.toThrow('Agent session still busy from the previous attempt')
     })
 
     it('starts a freshly created session through the locked require-idle path', async () => {

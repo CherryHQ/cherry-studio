@@ -926,7 +926,11 @@ export class JobManager extends BaseService {
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
-    const maxAttempts = opts.maxAttempts ?? handler.defaultRetryPolicy?.maxAttempts ?? DEFAULT_RETRY_POLICY.maxAttempts
+    const maxAttempts =
+      opts.maxAttempts ??
+      handler.resolveRetryPolicy?.(input)?.maxAttempts ??
+      handler.defaultRetryPolicy?.maxAttempts ??
+      DEFAULT_RETRY_POLICY.maxAttempts
 
     const insertRow: InsertJobRow = {
       type,
@@ -1847,10 +1851,14 @@ export class JobManager extends BaseService {
             : {
                 code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
                 message: (err as Error).message || String(err),
-                retryable: true
+                // Handlers can mark a throw terminal (e.g. a context overflow that
+                // already released its session binding): retrying would resubmit
+                // the full input and can repeat committed side effects.
+                retryable: (err as { retryable?: unknown }).retryable !== false
               }
 
-        const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
+        const retryPolicy =
+          handler.resolveRetryPolicy?.(row.input) ?? handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
         const userCancel = isAbort && !isTimeout
         const canRetry = !userCancel && error.retryable && row.attempt + 1 < row.maxAttempts
 
@@ -1995,7 +2003,11 @@ export class JobManager extends BaseService {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
-    // A completed job frees a global slot. If a dispatch was previously blocked
+    this.dispatchFreedSlot(snapshot.queue)
+  }
+
+  private dispatchFreedSlot(queue: string): void {
+    // A completed or delayed job frees a global slot. If a dispatch was previously blocked
     // solely by the global cap, re-kick every queue so a queue starved by the
     // cap (with its own slots free) wakes now instead of waiting for the next
     // promotion tick. The flag self-corrects: if the cap is still binding, the
@@ -2004,7 +2016,7 @@ export class JobManager extends BaseService {
       this.globalCapReached = false
       this.dispatchAll()
     } else {
-      void this.dispatch(snapshot.queue)
+      void this.dispatch(queue)
     }
   }
 
@@ -2063,6 +2075,22 @@ export class JobManager extends BaseService {
     const dbService = application.get('DbService')
     try {
       jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
+      const row = jobService.getById(jobId)
+      const handler = row ? this.handlers.get(row.type) : undefined
+      if (row && handler?.onRetryScheduled) {
+        try {
+          handler.onRetryScheduled({
+            jobId,
+            type: row.type,
+            scheduleId: row.scheduleId,
+            nextAttempt,
+            scheduledAt,
+            error
+          })
+        } catch (hookErr) {
+          logger.warn('handler.onRetryScheduled threw — ignoring', { jobId, type: row.type, err: hookErr })
+        }
+      }
     } catch (retryWriteErr) {
       // The single-statement write commits on the one better-sqlite3
       // connection; this fallback defends against persistent failures
@@ -2090,6 +2118,7 @@ export class JobManager extends BaseService {
       this.promoteDueAtFire(retryId, jobId, queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
+    this.dispatchFreedSlot(queue)
   }
 
   // ---------------- Schedule arming + catch-up ----------------
@@ -2283,7 +2312,11 @@ export class JobManager extends BaseService {
       this.suppressedPromotionFires.set(scheduleId, { jobId, queue })
       return
     }
+    // Promotion is global: wake every queue it promoted, not only this
+    // timer's queue — a recovered retry in another queue has no timer and
+    // would otherwise wait for an unrelated dispatch trigger.
     jobService.promoteDelayedDue(Date.now())
+    const promotedQueues = jobService.takeLastPromotedQueues()
     const row = jobService.getById(jobId)
     if (row?.status === 'delayed' && !this._isShuttingDown) {
       logger.debug('once-fire preceded wall-clock scheduledAt — re-arming', { jobId, scheduleId })
@@ -2293,7 +2326,9 @@ export class JobManager extends BaseService {
       })
       return
     }
-    void this.dispatch(queue)
+    for (const promotedQueue of new Set([queue, ...promotedQueues])) {
+      void this.dispatch(promotedQueue)
+    }
   }
 
   /**

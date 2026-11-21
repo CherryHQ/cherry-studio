@@ -30,6 +30,7 @@ declare module '@main/core/job/jobRegistry' {
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
+      retry?: AgentTaskInput['retry']
     }
   }
 }
@@ -55,9 +56,28 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
    */
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
+  /** Per-task retry config; tasks without one keep the single-attempt default. */
+  resolveRetryPolicy: (input) =>
+    input.retry
+      ? {
+          maxAttempts: input.retry.max + 1,
+          backoff: 'fixed',
+          baseDelayMs: input.retry.backoffSeconds * 1000,
+          maxDelayMs: input.retry.backoffSeconds * 1000
+        }
+      : undefined,
+
   onEnqueued(snapshot) {
     if (snapshot.scheduleId) {
       agentTaskService.notifyRunChange(snapshot.scheduleId, snapshot.id, 'membership')
+    }
+  },
+
+  onRetryScheduled(event) {
+    // The row is `delayed` now; publish so open task details leave "running"
+    // for the backoff instead of waiting for the next terminal onSettled.
+    if (event.scheduleId) {
+      agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
     }
   },
 

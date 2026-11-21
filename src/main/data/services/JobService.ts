@@ -671,7 +671,20 @@ export class JobService {
    * The `WHERE status='delayed'` guard is intrinsic — only delayed rows are
    * promotion candidates — so the operation is naturally idempotent.
    */
+  // Queues whose rows the most recent promotion pass moved to pending. A
+  // promotion pass is global across queues; a caller dispatching on behalf of
+  // one queue's timer must wake every promoted queue or a recovered retry
+  // elsewhere is left pending without any timer of its own.
+  private lastPromotedQueues: string[] = []
+
   promoteDelayedDueTx(tx: DbOrTx, now: number): number {
+    this.lastPromotedQueues = tx
+      .select({ queue: jobTable.queue })
+      .from(jobTable)
+      .where(and(eq(jobTable.status, 'delayed'), lte(jobTable.scheduledAt, now)))
+      .groupBy(jobTable.queue)
+      .all()
+      .map((row) => row.queue)
     const result = tx
       .update(jobTable)
       .set({ status: 'pending', updatedAt: now })
@@ -682,6 +695,13 @@ export class JobService {
 
   promoteDelayedDue(now: number): number {
     return this.promoteDelayedDueTx(application.get('DbService').getDb(), now)
+  }
+
+  /** Queues the latest promotion pass moved to pending; consumes the record. */
+  takeLastPromotedQueues(): string[] {
+    const queues = this.lastPromotedQueues
+    this.lastPromotedQueues = []
+    return queues
   }
 
   // ---------------- GC ----------------
