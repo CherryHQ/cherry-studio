@@ -4,6 +4,11 @@ sources:
   - src/main/services/file/internal/entryCleanup.ts
   - src/main/data/services/FileEntryService.ts
   - src/main/data/services/FileRefService.ts
+  - src/main/data/services/MessageService.ts
+  - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/ai/tools/painting.ts
+  - src/main/ai/mcp/servers/cherryBuiltinTools.ts
+  - src/main/ai/runtime/claudeCode/ClaudeMessageMetadata.ts
   - src/main/data/db/schemas/file.ts
   - src/main/data/db/schemas/fileRelations.ts
 ---
@@ -52,6 +57,12 @@ The database defaults to `manual` as a safe fallback, but TypeScript creation sc
 explicit policy. Business-owned copies and generated/transient artifacts generally use
 `delete_when_unreferenced`; user-library imports and other independently retained files use
 `manual`. The caller that understands the ownership outcome chooses the policy.
+
+Direct AI SDK `generate_image` outputs use `delete_when_unreferenced`; `chat_message_file_ref`
+rows with role `generated` hold them while their message exists. The MCP bridge uses `manual`
+until every caller preserves ownership across nested execution, including Pi codemode. Claude
+structured image IDs are projected into `agent_session_message_file_ref` rows when available,
+but a missing agent ref must not make an MCP-generated original eligible for automatic cleanup.
 
 ### 4.2 Policy Transitions
 
