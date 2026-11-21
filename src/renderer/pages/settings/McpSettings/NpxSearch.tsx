@@ -18,7 +18,7 @@ interface SearchResult {
   npmLink: string
   fullName: string
   type: McpServer['type']
-  configSample?: McpServer['configSample']
+  configSample?: ReturnType<typeof getMcpConfigSampleFromReadme>
 }
 
 const npmScopes = ['@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
