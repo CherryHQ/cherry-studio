@@ -149,6 +149,8 @@ const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
 )
 
+const MiniAppPreviewPane = lazy(() => import('@renderer/pages/home/components/MiniAppPreviewPane'))
+
 /** Any non-ignored entry counts: a directory-only workspace is still browsable by expanding it. */
 function containsEntry(root: TreeDirRoot | null): boolean {
   return (root?.childCount ?? 0) > 0
@@ -281,6 +283,7 @@ interface AgentRightPaneActions {
 
 interface AgentRightPanelScope {
   browserTitle: string
+  previewsTitle: string
   developerMode: boolean
   filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceEntries: boolean
@@ -992,6 +995,7 @@ function AgentRightPaneStateProvider({
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
       browserTitle: t('agent.right_pane.tabs.browser'),
+      previewsTitle: t('miniApp.preview.pane.title'),
       developerMode: enableDeveloperMode,
       filePreviewSelection: previewFileSelection,
       hasSystemWorkspaceEntries,
@@ -1243,6 +1247,22 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       toolbarActions={<RightPanelHeaderControls canMaximize />}
       onEmpty={panelActions.close}
     />
+  )
+}
+
+/**
+ * The Mini App preview surface for agent sessions (issue #21646, stage 3): the same
+ * pane the home topics right panel mounts, keyed by the agent-session TOPIC id the
+ * cherry-tools `mini_app` MCP tool binds previews and artifact tokens to.
+ * Browser automation (`miniapp-browser`) needs this surface to hold the preview's
+ * live guest.
+ */
+function AgentMiniAppPreviewRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  if (!scope.meta.sessionId) return null
+  return (
+    <Suspense fallback={null}>
+      <MiniAppPreviewPane open={active} sessionId={buildAgentSessionTopicId(scope.meta.sessionId)} />
+    </Suspense>
   )
 }
 
@@ -1743,6 +1763,7 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 /** Stable capability registry; runtime messages are intentionally absent. */
 const TRACE_PANE_ID = 'trace'
 const BROWSER_PANE_ID = 'browser'
+const MINIAPP_PREVIEW_PANE_ID = 'mini-app-previews'
 const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
   instanceKey: 'agent-resources'
 })
@@ -1766,6 +1787,16 @@ const AGENT_BROWSER_PANE_CAPABILITY = {
     canMaximize: true
   })
 } satisfies RightPanelCapability<AgentRightPanelScope>
+const AGENT_MINIAPP_PREVIEW_PANE_CAPABILITY = {
+  component: AgentMiniAppPreviewRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: MINIAPP_PREVIEW_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:mini-app-previews`,
+    title: scope.previewsTitle,
+    readiness: scope.meta.sessionId ? ('ready' as const) : ('unavailable' as const),
+    canMaximize: true
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
   AGENT_RESOURCE_PANE_CAPABILITY,
   {
@@ -1780,6 +1811,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
     })
   },
   AGENT_BROWSER_PANE_CAPABILITY,
+  AGENT_MINIAPP_PREVIEW_PANE_CAPABILITY,
   AGENT_TRACE_PANE_CAPABILITY,
   {
     component: AgentFlowRightPanel,

@@ -86,10 +86,26 @@ vi.mock('@renderer/utils/platform', () => ({
   platform: 'darwin'
 }))
 
-const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue['actions'] = {}) => {
+// The stage-3 mini app actions are covered by their own suite; here a stub
+// records the props the card hands over so the wiring itself is assertable.
+const { miniAppActionProps } = vi.hoisted(() => ({
+  miniAppActionProps: [] as { handle: unknown; topicId: string }[]
+}))
+vi.mock('../../../frame/MiniAppArtifactActions', () => ({
+  default: (props: { handle: unknown; topicId: string }) => {
+    miniAppActionProps.push(props)
+    return <div data-testid="miniapp-artifact-actions" />
+  }
+}))
+
+const renderWithProvider = (
+  ui: ReactElement,
+  actions: MessageListProviderValue['actions'] = {},
+  topicId = 'topic-1'
+) => {
   const value: MessageListProviderValue = {
     state: {
-      topic: { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic'],
+      topic: { id: topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
       messages: [],
       partsByMessageId: {},
       messageNavigation: 'none',
@@ -109,6 +125,7 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 describe('MessageReportArtifacts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    miniAppActionProps.length = 0
     setInlineFilePathHomePath(undefined)
   })
 
@@ -169,6 +186,53 @@ describe('MessageReportArtifacts', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle).toHaveAccessibleName(`Show remaining files (${count - 3})`)
     expect(toggle).toHaveFocus()
+  })
+
+  it('connects a .miniapp deliverable to the artifact actions with the session identity and a path handle', () => {
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'tool-call-miniapp',
+            toolCallId: 'tool-call-miniapp',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: {
+              artifacts: [{ path: '/workspace/dist/com.example.timer-1.0.0.miniapp', description: 'Packaged app' }]
+            }
+          }
+        ]}
+      />,
+      {},
+      'agent-session:session-7'
+    )
+
+    expect(screen.getByTestId('miniapp-artifact-actions')).toBeInTheDocument()
+    expect(miniAppActionProps).toEqual([
+      {
+        topicId: 'agent-session:session-7',
+        handle: { kind: 'path', path: '/workspace/dist/com.example.timer-1.0.0.miniapp' }
+      }
+    ])
+  })
+
+  it('leaves non-package deliverables without the mini app actions', () => {
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'tool-call-md',
+            toolCallId: 'tool-call-md',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: [{ path: '/workspace/dist/report.md' }] }
+          }
+        ]}
+      />
+    )
+
+    expect(screen.queryByTestId('miniapp-artifact-actions')).not.toBeInTheDocument()
+    expect(miniAppActionProps).toEqual([])
   })
 
   it('renders declared deliverables from tool arguments', () => {

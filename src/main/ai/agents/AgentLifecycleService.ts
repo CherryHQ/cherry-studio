@@ -576,6 +576,19 @@ export class AgentLifecycleService extends BaseService {
         error: result.reason
       })
     })
+    // Mini-app previews belong to the session's TOPIC identity (agent-session:<id>),
+    // and a deleted session's previews, temporary stores and artifact tokens must not
+    // outlive it until restart (AC4) — only Topic deletion had this integration.
+    // Fire-and-log like the topic path; the preview service's startup sweep is the
+    // backstop for a failed close.
+    const previews = application.getExisting('MiniAppPreviewService')
+    if (previews) {
+      for (const sessionId of sessionIds) {
+        void previews.closeSessionPreviews(buildAgentSessionTopicId(sessionId)).catch((error: unknown) => {
+          logger.warn('Failed to close mini app previews for deleted Agent Session', { sessionId, error })
+        })
+      }
+    }
     await this.archiveSystemWorkspaces(sessionIds.filter((_, index) => closed[index].status === 'fulfilled'))
   }
 

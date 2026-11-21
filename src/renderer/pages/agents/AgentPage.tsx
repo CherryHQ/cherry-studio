@@ -35,6 +35,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { handOffAgentDraft, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -810,6 +811,11 @@ const AgentPage = () => {
     closeSurface()
     clearLocate()
     setMissingAgentSelection(false)
+    // Reserve the one-shot handoff BEFORE awaiting: while the Skill fetch and cache
+    // invalidation run, the composer can mount without launch options and consume the
+    // queue itself — this handler would then seed the generic Skill prompt and the
+    // launch-key remount would REPLACE the user's handed-off requirement with it.
+    const reservedHandoffs = routeSessionId ? takeAgentDraftHandoffs(routeSessionId) : []
     try {
       if (!routeSessionId || !routeSkillId) throw new Error('Skill intent is missing its prepared session or Skill')
       const skillPath = resolveTemplate('/skills/:skillId', { skillId: routeSkillId }) as ConcreteApiPaths
@@ -822,10 +828,26 @@ const AgentPage = () => {
           })
         })
       ])
+      // A requirement handed off by the surface that prepared this session (e.g.
+      // the mini apps "Create using Agent" tab) becomes the launch draft; the
+      // default template only fills in when nobody wrote anything.
+      const handedOff = reservedHandoffs
+        .map((handed) => handed.text.trim())
+        .filter(Boolean)
+        .join('\n\n')
       setSkillComposerLaunch(
-        createSkillComposerLaunch(routeSessionId, skill, t('settings.skills.launchDraft', { name: skill.name }))
+        createSkillComposerLaunch(
+          routeSessionId,
+          skill,
+          handedOff || t('settings.skills.launchDraft', { name: skill.name })
+        )
       )
     } catch (err) {
+      // Return the reserved handoffs to the queue so the composer can still take
+      // them — a failed preparation must not eat the user's requirement.
+      if (routeSessionId) {
+        for (const draft of reservedHandoffs) handOffAgentDraft(routeSessionId, draft)
+      }
       setSkillComposerLaunch(null)
       logger.error('Failed to prepare Skill session', err as Error, {
         sessionId: routeSessionId,

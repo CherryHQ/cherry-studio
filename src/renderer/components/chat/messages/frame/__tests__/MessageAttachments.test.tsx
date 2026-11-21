@@ -14,7 +14,9 @@ const { actions, getFileView } = vi.hoisted(() => ({ actions: {} as MessageListA
 
 vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => actions,
-  useOptionalMessageListUi: () => ({ getFileView })
+  useOptionalMessageListUi: () => ({ getFileView }),
+  // No topic in these fixtures: the artifact actions stay off (they need one).
+  useOptionalMessageListTopicId: () => undefined
 }))
 
 const handle = { kind: 'path', path: AbsoluteFilePathSchema.parse('/managed/report.pdf') } as const

@@ -34,7 +34,7 @@ const {
   createBuiltinSupportSession: vi.fn(),
   openRequestPath: vi.fn()
 }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@application', () => ({ application: { get: appGetMock, getExisting: () => undefined } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))

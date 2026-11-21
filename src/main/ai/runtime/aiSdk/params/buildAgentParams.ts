@@ -3,10 +3,12 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
@@ -22,6 +24,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import {
   type Assistant,
@@ -89,6 +92,25 @@ import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSu
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
+
+/** The request's workspace roots, resolved from the agent session record — never from model input. */
+function sessionWorkspaceRoots(topicId: string | undefined): RequestContext['roots'] {
+  if (!topicId) return undefined
+  // Agent sessions reach this builder as `agent-session:<id>` topics, while the session
+  // row is keyed by the RAW id — an exact lookup on the topic id always misses and would
+  // silently strip the mini_app tool's workspace authorization.
+  const sessionId = isAgentSessionTopic(topicId) ? extractAgentSessionId(topicId) : topicId
+  try {
+    const session = agentSessionService.getById(sessionId)
+    return [{ uri: session.workspace.path, name: 'session-workspace' }]
+  } catch (error) {
+    // An ordinary chat topic simply has no agent session; anything else is worth a line.
+    if (!(error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND)) {
+      logger.warn('Failed to resolve session workspace roots', { topicId, error })
+    }
+    return undefined
+  }
+}
 const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
@@ -301,6 +323,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
     windowId: request.interactionWindowId,
+    // Trusted, host-side workspace authorization (the mini_app authoring tool's
+    // `validate` never leaves it): the workspace of the agent session this
+    // conversation IS. Ordinary chat topics have no session row and authorize
+    // nothing — and the model can never supply this itself.
+    roots: sessionWorkspaceRoots(request.conversation.topicId),
     model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
     abortSignal: signal,
