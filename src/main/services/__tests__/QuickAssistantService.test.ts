@@ -37,7 +37,7 @@ vi.mock('electron', () => ({
   screen: {}
 }))
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     registerDisposable = vi.fn()
   }
