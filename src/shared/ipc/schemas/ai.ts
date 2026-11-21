@@ -111,6 +111,13 @@ const agentTaskFormSchema = z.strictObject({
    * enable and save in a separate update.
    */
   reuseSession: z.boolean().optional(),
+  /**
+   * Explicit sticky-session choice while `reuseSession` is on: an existing
+   * session of the task's Agent to continue across fires. Null or omitted
+   * keeps the first-fire auto-binding. One session binds to at most one task;
+   * a session already bound elsewhere is rejected with the other task's name.
+   */
+  reuseSessionId: z.string().min(1).nullable().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>

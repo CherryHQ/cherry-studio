@@ -105,6 +105,20 @@ export type TaskSessionReuse = {
   enabled: boolean
   /** Monotonic config epoch captured by each queued job. */
   revision: number
+  /**
+   * Tombstone recording that a sticky binding was established under this
+   * config epoch, and how. The session→schedule relation stays the source of
+   * truth for *which* session is bound; this only lets a fire tell "binding
+   * lost" (deleted/re-owned session) apart from "never bound yet" (first
+   * fire). Dropped on every reuse config change and on overflow release.
+   */
+  boundKind?: 'explicit' | 'auto'
+  /**
+   * Last known name of the bound session, captured at bind time. Surfaces in
+   * the read model only while the binding reads as lost, so the tasks page can
+   * name the missing session after it was deleted. May be stale after a rename.
+   */
+  sessionName?: string
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
@@ -156,7 +170,12 @@ export function readTaskSessionReuse(metadata: Record<string, unknown> | undefin
   if (!isPlainRecord(raw)) return { enabled: false, revision: 0 }
   const reuse = raw as Partial<TaskSessionReuse>
   const enabled = reuse.enabled === true
-  return { enabled, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
+  return {
+    enabled,
+    revision: normalizeTaskSessionReuseRevision(reuse.revision),
+    ...(reuse.boundKind === 'explicit' || reuse.boundKind === 'auto' ? { boundKind: reuse.boundKind } : {}),
+    ...(typeof reuse.sessionName === 'string' && reuse.sessionName ? { sessionName: reuse.sessionName } : {})
+  }
 }
 
 /**
@@ -610,6 +629,13 @@ export class AgentTaskService {
       workspace: tmpl.workspace,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,
+      // Degraded signal: a binding was established under this config epoch but
+      // the relation no longer yields a live session (the bound session was
+      // deleted). The task stays enabled; rebinding from the form clears it.
+      reuseBindingLost: reuse.enabled && reuse.boundKind !== undefined && reuseSessionId === null,
+      ...(reuse.enabled && reuse.boundKind !== undefined && reuseSessionId === null
+        ? { reuseBindingLostSessionName: reuse.sessionName ?? null }
+        : {}),
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,
