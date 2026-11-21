@@ -25,10 +25,11 @@ const GENERATE_IMAGE_PROMPT_FIELD = z
 
 type ToolMode = Extract<ImageGenerationMode, 'generate' | 'edit'>
 
-export type GenerateImageToolInput = {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Model-selected schemas own canonical validation; catalog fallbacks do not establish a universal static value type.
+export type GenerateImageToolInput = Partial<Record<CanonicalParamKey, unknown>> & {
   prompt: string
   image_ids?: string[] | null
-} & Partial<Record<CanonicalParamKey, unknown>>
+}
 
 function describeParam(key: CanonicalParamKey, spec: SupportSpec, modes: readonly ToolMode[]): string {
   const prefix = `Canonical painting parameter for ${modes.join('/')} mode: ${key}.`

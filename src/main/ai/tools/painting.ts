@@ -18,7 +18,7 @@
 import * as z from 'zod'
 
 import { application } from '@application'
-import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import { buildParamsSchema, type CanonicalParamKey, type ParamValues } from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -120,9 +120,10 @@ function extractParamValues(
   const supports = support?.modes[mode]?.supports
   if (!supports) return {}
 
-  const candidate: Record<string, unknown> = {}
-  for (const key of Object.keys(supports)) {
-    const value = input[key as keyof GenerateImageToolInput]
+  const candidate: Partial<Pick<GenerateImageToolInput, CanonicalParamKey>> = {}
+  // Registry supports are validated against the finite canonical-key schema.
+  for (const key of Object.keys(supports) as CanonicalParamKey[]) {
+    const value = input[key]
     if (value !== undefined && value !== null && value !== '') candidate[key] = value
   }
 
