@@ -9,7 +9,11 @@ import { definePlugin } from '../'
 import { mergeProviderOptions } from '../../options'
 import { extensionRegistry } from '../../providers'
 import type { ToolCapability } from '../../providers/types/toolFactory'
-export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
+export const providerToolPlugin = (
+  capability: ToolCapability,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Dynamically resolved provider factories own distinct config types, including native callbacks; forward each value to its factory without claiming a shared schema.
+  config: Record<string, unknown> = {}
+) =>
   definePlugin({
     name: capability,
     enforce: 'pre',

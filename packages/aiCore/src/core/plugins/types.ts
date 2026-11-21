@@ -56,8 +56,8 @@ export interface AiRequestContext<TParams = unknown, TResult = unknown> {
 
   middlewares?: LanguageModelMiddleware[]
 
-  // 向后兼容：允许插件动态添加属性（临时保留）
-  [key: string]: any
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Third-party plugins own undeclared context fields; retain arbitrary values and require narrowing before use.
+  [key: string]: unknown
 }
 
 /**

@@ -11,6 +11,7 @@ export class AiCoreError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Validation errors retain rejected caller values in context; toJSON exposes those diagnostics without recursively validating them as JSON.
     public readonly context?: Record<string, unknown>,
     public readonly cause?: Error
   ) {
