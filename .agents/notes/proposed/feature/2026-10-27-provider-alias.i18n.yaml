@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-27-provider-alias.md
+2026-10-27-provider-alias.md: 24eb446f2fe28e4ceecbe687d5076e019fdddfae
+2026-10-27-provider-alias.zh.md: 25a191ec22e1349fb9e0fdeb07c74463447e3379
