@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-anthropic-encrypted-search-replay.md
+2026-10-31-anthropic-encrypted-search-replay.md: 116595f383e08363f894319ca139acba98dd9d1b
+2026-10-31-anthropic-encrypted-search-replay.zh.md: 223f410043dc3fd0ec10d54273b9055499aee712
