@@ -8,7 +8,8 @@ const {
   deleteTagMock,
   setEntitiesMock,
   getTagsByEntityMock,
-  syncEntityTagsMock
+  syncEntityTagsMock,
+  applyEntityTagDeltaMock
 } = vi.hoisted(() => ({
   listTagsMock: vi.fn(),
   createTagMock: vi.fn(),
@@ -17,7 +18,8 @@ const {
   deleteTagMock: vi.fn(),
   setEntitiesMock: vi.fn(),
   getTagsByEntityMock: vi.fn(),
-  syncEntityTagsMock: vi.fn()
+  syncEntityTagsMock: vi.fn(),
+  applyEntityTagDeltaMock: vi.fn()
 }))
 
 vi.mock('@data/services/TagService', () => ({
@@ -29,7 +31,8 @@ vi.mock('@data/services/TagService', () => ({
     delete: deleteTagMock,
     setEntities: setEntitiesMock,
     getTagsByEntity: getTagsByEntityMock,
-    syncEntityTags: syncEntityTagsMock
+    syncEntityTags: syncEntityTagsMock,
+    applyEntityTagDelta: applyEntityTagDeltaMock
   }
 }))
 
@@ -242,6 +245,57 @@ describe('tagHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(syncEntityTagsMock).not.toHaveBeenCalled()
+    })
+
+    it('should delegate a valid PATCH delta to the service', async () => {
+      applyEntityTagDeltaMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].PATCH({
+          params: { entityType: 'assistant', entityId: ENTITY_ID },
+          body: { add: [TAG_ID], remove: [OTHER_TAG_ID] }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(applyEntityTagDeltaMock).toHaveBeenCalledWith('assistant', ENTITY_ID, {
+        add: [TAG_ID],
+        remove: [OTHER_TAG_ID]
+      })
+    })
+
+    it('should default missing PATCH delta sides to empty arrays', async () => {
+      applyEntityTagDeltaMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].PATCH({
+          params: { entityType: 'assistant', entityId: ENTITY_ID },
+          body: { add: [TAG_ID] }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(applyEntityTagDeltaMock).toHaveBeenCalledWith('assistant', ENTITY_ID, { add: [TAG_ID], remove: [] })
+    })
+
+    it('should reject a PATCH delta that adds and removes the same tag', async () => {
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].PATCH({
+          params: { entityType: 'assistant', entityId: ENTITY_ID },
+          body: { add: [TAG_ID], remove: [TAG_ID] }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(applyEntityTagDeltaMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid tag ids in a PATCH delta before calling the service', async () => {
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].PATCH({
+          params: { entityType: 'assistant', entityId: ENTITY_ID },
+          body: { add: ['not-a-uuid'] }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(applyEntityTagDeltaMock).not.toHaveBeenCalled()
     })
   })
 })
