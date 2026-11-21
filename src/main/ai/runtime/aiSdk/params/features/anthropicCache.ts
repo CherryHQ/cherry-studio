@@ -232,21 +232,22 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       rank = holder.rank
       continue
     }
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Inspected paths cross different SDK object and array types; copying only that path preserves untouched request references.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Inspected paths cross native SDK containers with non-JSON tool inputs; copying the path preserves opaque fields and untouched references.
     const remove = (node: unknown, depth: number): Record<string, unknown> | unknown[] => {
       if (depth === path.length) {
-        const holder = node as { providerOptions: { anthropic: Record<string, unknown> } }
+        // SAFETY: inspect recorded this SDK holder only after finding an Anthropic cache marker on it.
+        const holder = node as { providerOptions: ProviderOptions }
         const anthropic = { ...holder.providerOptions.anthropic }
         delete anthropic.cacheControl
         delete anthropic.cache_control
         return { ...holder, providerOptions: { ...holder.providerOptions, anthropic } }
       }
-      const copy = Array.isArray(node) ? [...node] : { ...(node as Record<string, unknown>) }
+      // SAFETY: inspect builds paths through existing object/array containers before this copy pass.
+      const source = node as Record<string | number, unknown> // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- A traversal view of native SDK containers; unrelated values stay opaque.
+      const copy = Array.isArray(node) ? [...node] : { ...source }
       const index = path[depth]
-      ;(copy as Record<string | number, unknown>)[index] = remove(
-        (node as Record<string | number, unknown>)[index],
-        depth + 1
-      )
+      // SAFETY: copy has the same container kind; the recorded path selects the existing child slot.
+      ;(copy as typeof source)[index] = remove(source[index], depth + 1)
       return copy
     }
     result = remove(result, 0)
