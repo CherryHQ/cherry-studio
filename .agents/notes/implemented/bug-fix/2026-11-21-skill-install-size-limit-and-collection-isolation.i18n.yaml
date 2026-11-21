@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-21-skill-install-size-limit-and-collection-isolation.md
+2026-11-21-skill-install-size-limit-and-collection-isolation.md: 0abe8c775b54f96d2cb76ceb15ffaab30b56d172
+2026-11-21-skill-install-size-limit-and-collection-isolation.zh.md: 52911596dd336c4c99467ab501187c62dc62ec83
