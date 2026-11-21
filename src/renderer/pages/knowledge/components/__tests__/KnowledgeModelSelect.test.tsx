@@ -9,13 +9,15 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ModelSelectorSingleIdProps } from '@renderer/components/ModelSelector'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { KnowledgeModelSelect } from '../KnowledgeModelSelect'
 
 const { mockModelSelectorProps, mockModels } = vi.hoisted(() => ({
-  mockModelSelectorProps: [] as Array<Record<string, any>>,
+  // SAFETY: Only the typed selector mock below appends to this initially empty capture list.
+  mockModelSelectorProps: [] as ModelSelectorSingleIdProps[],
   mockModels: { value: [] as Model[] }
 }))
 
@@ -24,7 +26,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: (props: Record<string, any>) => {
+  ModelSelector: (props: ModelSelectorSingleIdProps) => {
     mockModelSelectorProps.push(props)
     return (
       <div>

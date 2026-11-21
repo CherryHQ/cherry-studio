@@ -1,7 +1,7 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
-import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ComponentProps, HTMLAttributes, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
@@ -96,8 +96,7 @@ vi.mock('@cherrystudio/ui', () => {
     }: {
       children: ReactNode
       onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void
-      [key: string]: unknown
-    }) => {
+    } & ComponentProps<'button'>) => {
       const { openValues, toggleValue } = React.use(AccordionContext)
       const value = React.use(AccordionItemContext)
       const open = value ? openValues.includes(value) : false
@@ -124,8 +123,7 @@ vi.mock('@cherrystudio/ui', () => {
     }: {
       children: ReactNode
       type?: 'button' | 'reset' | 'submit'
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type={type} {...props}>
         {children}
       </button>
@@ -169,7 +167,7 @@ vi.mock('@cherrystudio/ui', () => {
         {description}
       </div>
     ),
-    Input: (props: Record<string, unknown>) => <input {...props} />,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
     MenuDivider: () => <hr />,
     MenuItem: ({
       active,
@@ -182,8 +180,7 @@ vi.mock('@cherrystudio/ui', () => {
       icon?: ReactNode
       label: string
       suffix?: ReactNode
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type="button" data-active={active ? 'true' : 'false'} {...props}>
         {icon}
         {label}
@@ -206,7 +203,7 @@ vi.mock('@cherrystudio/ui', () => {
       open?: boolean
       onOpenChange?: (open: boolean) => void
     }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
-    PopoverAnchor: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    PopoverAnchor: ({ children, ...props }: { children?: ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
     PopoverContent: ({ children, align }: { children: ReactNode; align?: string }) => {
@@ -260,19 +257,20 @@ vi.mock('@cherrystudio/ui', () => {
     }: {
       asChild?: boolean
       children?: ReactNode
-      [key: string]: unknown
-    }) => {
+    } & HTMLAttributes<HTMLElement>) => {
       const ctx = React.use(DropdownMenuContext)
       const triggerProps = {
         ...props,
         onClick: (event: ReactMouseEvent<HTMLElement>) => {
-          ;(props.onClick as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+          props.onClick?.(event)
           ctx.setOpen(true)
         }
       }
       if (asChild && React.isValidElement(children)) {
+        // SAFETY: Navigator dropdown triggers wrap controls with native DOM event props.
+        const child = children as React.ReactElement<HTMLAttributes<HTMLElement>>
         // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-        return React.cloneElement(children, triggerProps)
+        return React.cloneElement(child, triggerProps)
       }
       return (
         <button type="button" {...triggerProps}>
@@ -293,8 +291,7 @@ vi.mock('@cherrystudio/ui', () => {
       children?: ReactNode
       onSelect?: () => void
       variant?: string
-      [key: string]: unknown
-    }) => (
+    } & Omit<ComponentProps<'button'>, 'onSelect'>) => (
       <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
         {children}
       </button>
@@ -303,7 +300,7 @@ vi.mock('@cherrystudio/ui', () => {
     DropdownMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    DropdownMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    DropdownMenuSubTrigger: ({ children, ...props }: { children?: ReactNode } & ComponentProps<'button'>) => (
       <button type="button" {...props}>
         {children}
       </button>
@@ -323,28 +320,29 @@ vi.mock('@cherrystudio/ui', () => {
     }: {
       asChild?: boolean
       children?: ReactNode
-      [key: string]: unknown
-    }) => {
+    } & HTMLAttributes<HTMLElement>) => {
       const ctx = React.use(ContextMenuContext)
       const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
-        ;(props.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+        props.onContextMenu?.(event)
         event.preventDefault()
         ctx.setOpen(true)
       }
       if (asChild && React.isValidElement(children)) {
-        const childProps = (children.props ?? {}) as Record<string, unknown>
-        const merged: Record<string, unknown> = {
+        // SAFETY: Navigator slots receive DOM-compatible child event props; all other child fields are only copied.
+        const child = children as React.ReactElement<HTMLAttributes<HTMLElement>>
+        const childProps = child.props ?? {}
+        const merged = {
           ...props,
           ...childProps,
           onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
-            ;(childProps.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+            childProps.onContextMenu?.(event)
             if (!event.defaultPrevented) {
               handleContextMenu(event)
             }
           }
         }
         // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-        return React.cloneElement(children, merged)
+        return React.cloneElement(child, merged)
       }
       return (
         <div onContextMenu={handleContextMenu} {...props}>
@@ -365,8 +363,7 @@ vi.mock('@cherrystudio/ui', () => {
       children?: ReactNode
       onSelect?: () => void
       variant?: string
-      [key: string]: unknown
-    }) => (
+    } & Omit<ComponentProps<'button'>, 'onSelect'>) => (
       <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
         {children}
       </button>
@@ -378,8 +375,7 @@ vi.mock('@cherrystudio/ui', () => {
     }: {
       children?: ReactNode
       onCheckedChange?: (next: boolean) => void
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type="button" onClick={() => onCheckedChange?.(true)} {...props}>
         {children}
       </button>
@@ -402,7 +398,7 @@ vi.mock('@cherrystudio/ui', () => {
     ContextMenuSeparator: () => <hr />,
     ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     ContextMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode } & ComponentProps<'button'>) => (
       <button type="button" {...props}>
         {children}
       </button>
@@ -417,8 +413,7 @@ vi.mock('@cherrystudio/ui', () => {
       clearLabel?: string
       onClear?: () => void
       value?: string
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'input'>) => (
       <div>
         <input value={value} {...props} />
         {value && onClear ? (

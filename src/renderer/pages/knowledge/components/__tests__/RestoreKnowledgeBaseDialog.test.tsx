@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type ReactNode, useState } from 'react'
+import { type ComponentProps, type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -64,7 +64,11 @@ vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
 
   return {
-    Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
+    Button: ({
+      children,
+      loading,
+      ...props
+    }: { children: ReactNode; loading?: boolean } & ComponentProps<'button'>) => (
       <button type="button" {...props}>
         {loading ? 'loading' : children}
       </button>
@@ -79,8 +83,7 @@ vi.mock('@cherrystudio/ui', async () => {
       children: ReactNode
       closeOnOverlayClick?: boolean
       size?: string
-      [key: string]: unknown
-    }) => {
+    } & ComponentProps<'div'>) => {
       void closeOnOverlayClick
       return (
         <div role="dialog" data-size={size} {...props}>
@@ -88,25 +91,25 @@ vi.mock('@cherrystudio/ui', async () => {
         </div>
       )
     },
-    DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    DialogDescription: ({ children, ...props }: { children: ReactNode } & ComponentProps<'p'>) => (
       <p {...props}>{children}</p>
     ),
-    DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    DialogFooter: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
-    DialogHeader: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    DialogHeader: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
-    DialogTitle: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    DialogTitle: ({ children, ...props }: { children: ReactNode } & ComponentProps<'h1'>) => (
       <h1 {...props}>{children}</h1>
     ),
-    FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    FieldError: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
       <div role="alert" {...props}>
         {children}
       </div>
     ),
-    Input: (props: Record<string, unknown>) => <input {...props} />,
-    Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    Label: ({ children, ...props }: { children: ReactNode } & ComponentProps<'label'>) => (
       <label {...props}>{children}</label>
     ),
     Select: ({
@@ -126,7 +129,7 @@ vi.mock('@cherrystudio/ui', async () => {
         </button>
       )
     },
-    SelectTrigger: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    SelectTrigger: ({ children, ...props }: { children: ReactNode } & ComponentProps<'button'>) => (
       <button type="button" {...props}>
         {children}
       </button>

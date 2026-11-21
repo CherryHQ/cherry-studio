@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanelHeader from '../DataSourcePanelHeader'
@@ -10,12 +10,12 @@ vi.mock('@renderer/utils/time', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
+  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string } & ComponentProps<'button'>) => (
     <button type="button" data-variant={variant} {...props}>
       {children}
     </button>
   ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
+  MenuItem: ({ label, ...props }: { label: string } & ComponentProps<'button'>) => (
     <button type="button" {...props}>
       {label}
     </button>
@@ -29,7 +29,7 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'zh-CN' },
-    t: (key: string, opts?: Record<string, unknown>) => {
+    t: (key: string, opts?: { count?: number; time?: string; total?: number }) => {
       if (key === 'knowledge.data_source.bulk.selected_count') return `已选 ${opts?.count}`
       if (key === 'knowledge.meta.updated_at') return `更新于 ${opts?.time}`
       if (key === 'knowledge.data_source.bulk.loaded_only_hint') return `仅已加载，共 ${opts?.total} 项`

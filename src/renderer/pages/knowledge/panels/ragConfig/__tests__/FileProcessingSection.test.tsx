@@ -3,10 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 
 const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
-  showDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>(),
+  showDownloadPopup: vi.fn<typeof LocalModelDownloadPopup.show>(),
   localModel: {
     status: 'ready',
     isStatusResolved: true,

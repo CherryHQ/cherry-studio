@@ -1,12 +1,13 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { OutputFor } from '@shared/ipc/types'
 
 import RagConfigPanel from '../RagConfigPanel'
 
@@ -18,7 +19,10 @@ const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 // FileProcessingSection probes the local OCR model and Open MinerU's host on mount;
 // answering both here keeps those calls out of the embedMany spy the embedding
 // assertions read.
-const FILE_PROCESSING_PROBES: Record<string, unknown> = {
+const FILE_PROCESSING_PROBES: Record<
+  string,
+  OutputFor<'local_model.get_status'> | OutputFor<'file_processing.open_mineru.check_connectivity'>
+> = {
   'local_model.get_status': { status: 'ready' },
   'file_processing.open_mineru.check_connectivity': true
 }
@@ -68,8 +72,7 @@ vi.mock('@cherrystudio/ui', async () => {
       action?: ReactNode
       description?: ReactNode
       message?: ReactNode
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'div'>) => (
       <div {...props}>
         <div>{message}</div>
         <div>{description}</div>
@@ -85,25 +88,24 @@ vi.mock('@cherrystudio/ui', async () => {
       children: ReactNode
       loading?: boolean
       type?: 'button' | 'submit' | 'reset'
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type={type} {...props}>
         {loading ? 'loading' : children}
       </button>
     ),
-    DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    DialogFooter: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
-    FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    FieldError: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
       <div role="alert" {...props}>
         {children}
       </div>
     ),
-    Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    Label: ({ children, ...props }: { children: ReactNode } & ComponentProps<'label'>) => (
       <label {...props}>{children}</label>
     ),
     ScrollArea: MockCherrystudioUI.ScrollArea,
-    Input: (props: Record<string, unknown>) => <input {...props} />,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
     Switch: ({
       checked,
       onCheckedChange,
@@ -111,8 +113,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       checked?: boolean
       onCheckedChange?: (checked: boolean) => void
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'input'>) => (
       <input
         type="checkbox"
         role="switch"
@@ -129,7 +130,7 @@ vi.mock('@cherrystudio/ui', async () => {
       onValueChange?: (value: string) => void
       value?: string
     }) => <SelectContext value={{ onValueChange }}>{children}</SelectContext>,
-    SelectTrigger: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    SelectTrigger: ({ children, ...props }: { children: ReactNode } & ComponentProps<'button'>) => (
       <button type="button" {...props}>
         {children}
       </button>
@@ -165,8 +166,7 @@ vi.mock('@cherrystudio/ui', async () => {
       max?: number
       step?: number
       disabled?: boolean
-      [key: string]: unknown
-    }) => (
+    } & Omit<ComponentProps<'input'>, 'value'>) => (
       <input
         {...props}
         type="range"
