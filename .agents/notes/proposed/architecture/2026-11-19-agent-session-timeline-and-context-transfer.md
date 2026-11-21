@@ -20,38 +20,56 @@ This note specializes the [runtime contract](2026-10-17-agent-runtime-contract.m
 
 ## Proposal
 
-### 1. A run is the assistant row; steers join it
+### 1. Run owns execution and Timeline owns content
 
-An assistant row records one run: one agent-loop execution from its triggering input to its native terminal. Steer inputs accepted while it runs attach to it through the existing `replyId`. Main no longer reserves a continuation row at native placement, and the run settles once. Queued and follow-up inputs start their own runs.
+A run begins when the harness places its triggering input and settles at its native terminal. The existing assistant row is its physical record. Its ID is the run ID, and its context, status, statistics, model and branch ancestry stay on the row. An input accepted into a queue retains its persisted input ID and queue state. Upon placement, it joins the active run as a steer or starts its own run. `replyId` records execution ownership and `parentId` records ancestry. Steer reserves no continuation row. Late evidence applies to its original run. A background wake that begins a new native execution after settlement receives a new run ID.
 
-The run row adds `context_id`, the context that executed it, beside its existing status, statistics and `modelId`. No run, attempt or turn table is added.
+The timeline contains input references and output parts. An input item references its existing row. The part table from #24051 is the sole durable output body. Each new output part has one owner run and one position. Read adapters may assemble `parts[]` for history consumers such as export and model context. Rendering groups items independently of their durable ownership.
 
-### 2. Ordered items: one counter, `pos` and `rev`
+Root and child use the same contract. Each child archive has its own order and revision. Migration keeps existing message IDs, branch and fork anchors, attachment references, and saved part IDs. It identifies legacy run membership using existing reply and composition evidence; when evidence is incomplete, preserve the existing boundaries. A branch or fork inside a run reads the selected ancestry and its item cutoff, including only the shared prefix of the run. Preserve the original tool-result owner while resolving old archive references to part IDs.
 
-Each session keeps one monotonic counter. Every message and part row stores two values from it:
+### 2. Ordered items and durable commits
 
 | Field | Assigned | Use |
 | --- | --- | --- |
-| `pos` | Once, when Main accepts the input or first creates the part | Timeline order; never changes |
-| `rev` | On every committed change of the row | Change cursor |
+| `pos` | Once at input placement or first part admission | Timeline order within the archive |
+| `rev` | Once per write transaction, shared by its changed rows | Committed history cursor |
 
-Main allocates `pos` with a synchronous counter increment, even when the part row is written later at part completion, so a crash may leave gaps. Counter writes do not touch `updatedAt` or `lastActivityAt`. Each child archive keeps its own counter.
+One Main owner allocates positions for an archive. Keep the part ID and position together as placement metadata. Persist this metadata once when a part is admitted or in the transaction that first commits a later dependent item, such as a steer. Thus recovery can restore the order even when the earlier open part had no committed body. Token append has no SQLite write. Completion writes the changed part and its associated tool result or file references atomically. Terminal and Stop write the remaining received parts and run status, retaining existing IDs and positions. Save success is published after commit. A failed save leaves readable live content for the existing retry or terminal path.
 
-The timeline orders inputs and parts by `pos`, following [T3's position rule](https://github.com/pingdotgg/t3code/blob/13aa882c22d584de5388dfce3b3ca413387ba059/apps/server/src/orchestration-v2/TurnItemPositionStore.ts): parts created before a steer stay above it, including one still streaming, and parts created after render below. Nothing is cut by characters, rotated into a new segment or regrouped. A reasoning part still open when later items arrive renders as settled. Legacy rows receive `pos` once, in their existing `(createdAt, id)` order and stored part order.
+Timeline order is fixed at placement. An open part remains above a later steer while it grows, and new parts appear at their own positions. Legacy rows receive positions in their established display order using existing evidence. Reordering the selected branch or changing a mounted row group does not assign new positions.
 
-### 3. Part identity from native identity
+### 3. Stable part identity and result ownership
 
-A part ID is derived from its context, native message ID and block key: the `toolCallId`, a data part ID, or the block's position within that native message. `native_ref` stores the native message ID and block key for fork points and diagnostics. The product array index never feeds the derivation.
+Assign one part ID at first admission and retain it on subsequent live and persisted updates. The native key identifies the source block using its context, canonical native source and block key. Use a tool-call ID or explicit data ID when reported; a native index is valid only inside a source whose block ordering is stable. Use explicit adapter aliases for provisional-to-committed replacements. They must resolve to the admitted ID and position before accepting the replacement. For an unproven mapping, reconcile that source at the adapter boundary or request a new baseline. A product message index and a display group ID carry no storage identity.
 
-The same native block therefore resolves to the same part after reconnect, snapshot replacement and restart without a stored mapping. New writes stop adding `checkpointMapping.root` and `child.composition` entries; legacy offset/count mappings stay readable without backfill. A harness that cannot report stable native message identity and block order fixes its adapter.
+The same part ID addresses the current tool result in Main, SQLite and renderer invalidation. Migrate the existing latest-only sidecar association from its original message and tool-call owner; payload stays in the existing sidecar. A pending lookup uses the accepted live result. After atomic handoff it uses the committed result. An output replacement invalidates only that part. New writes use stable source associations; legacy offset/count compositions remain readable for existing history and recovery.
 
-### 4. Change cursor and incremental delivery
+### 4. Incremental acceptance, publication and recovery
 
-History reads take a snapshot at `rev` N, then read only rows whose `rev` exceeds N. Deletions and branch switches return a fresh snapshot instead of tombstones.
+The Main timeline owner accepts normalized source changes. Its single application produces the changed item or text suffix and any durable work. Adapters that receive cumulative native messages reconcile the changed source and its reported changed blocks once at ingress. Neither the persistence writer nor the publisher rescans a reply to infer its changes.
 
-The live projection keeps its publication revision for duplicate and gap detection, as the tool-result note requires, but addresses changes by part ID: insert at `pos`, append a delta to an open text or reasoning part, replace a part, or remove one. Appending text sends neither unrelated parts nor the full order. The renderer keys and subscribes by part ID, per the keyed subscriptions of message-list subscriptions.
 
-Markdown keeps Streamdown and its memoized blocks. Each part caches its block split and, on append, re-splits from the start of its last unstable block. A construct that moves the unstable start backward, such as a link reference definition, re-splits that part.
+```ts
+type TimelineItem =
+  | { kind: 'input'; inputId: InputId; runId: RunId; pos: Position }
+  | { kind: 'part'; partId: PartId; runId: RunId; pos: Position; payload: CherryMessagePart }
+
+type TimelineChange =
+  | { type: 'insert'; item: TimelineItem }
+  | { type: 'append'; partId: PartId; text: string }
+  | { type: 'replace'; partId: PartId; payload: CherryMessagePart }
+  | { type: 'remove'; itemId: InputId | PartId }
+  | { type: 'settle'; runId: RunId; outcome: RunOutcome }
+  | { type: 'result-changed'; partId: PartId }
+```
+
+
+The renderer applies one ordered batch before notifying subscribers by item or run ID. Only an affected part subscriber sees a text append. Inserts and removals also notify order consumers. Main coalesces pending operations by part for delivery without recomputing the current view. A complete, scoped baseline is used for attach or recovery. Live batches carry their own revision and publication identity; a gap, unknown target or stale publication triggers existing baseline recovery.
+
+History reads take a consistent snapshot and its committed cursor. Subsequent reads return changed rows after that cursor and advance at a complete commit boundary. The cursor includes the view scope and an archive reset version. Deletion advances the reset version in the same transaction; a branch switch changes the view scope. A reader with an old cursor therefore gets a baseline even if it missed the invalidate notification.
+
+Markdown stays inside a text part. Re-splitting can start from the last unstable block; constructs such as link reference definitions can invalidate earlier blocks. The performance proof for keyed delivery does not depend on changing Markdown parsing.
 
 ### 5. Context transfer through session messages
 
@@ -62,7 +80,7 @@ A session may own several root contexts over time, one per native thread. A cont
 
 `readSessionHistory` becomes that builder:
 
-- It skips only when the target context already has model input. Native identity elsewhere in the prefix no longer disables it.
+- First-input initialization runs only before the target has model input. A return transfer runs whenever that target has uncovered runs, including after it already has input. [DeepSeek import](../../implemented/feature/2026-11-17-deepseek-agent-import.md) documents the current first-input path.
 - It covers the target's uncovered range, or the whole selected path for a new context.
 - It fits a total budget derived from the target model's context window. It keeps whole messages in [T3's priority](https://github.com/pingdotgg/t3code/blob/13aa882c22d584de5388dfce3b3ca413387ba059/packages/provider-core/src/server/handoffBudget.ts): the last user message, the last assistant message, the first user message, then newest to oldest. The preamble states the omitted count and `pos` range.
 - It excludes reasoning and hidden data parts. Tool calls keep their input and head/tail output.
@@ -77,30 +95,30 @@ Children are unchanged: a fresh child receives only its task prompt, and a fork 
 | Location | Change |
 | --- | --- |
 | `AgentSessionRuntimeService` | Attach steers to the active run, remove continuation reservation, orchestrate transfers |
-| `RootMessageProjection`, `ChildThreadProjection` | Derive part IDs, allocate `pos`, stop composition writes |
-| `AgentSessionMessageService` and schemas | Counter, `pos` and `rev`, change reads, session-scoped part position |
+| `RootMessageProjection`, `ChildThreadProjection` | Resolve native keys to stable parts and accept timeline changes |
+| `AgentSessionMessageService` and schemas | Run and part storage, atomic completion and cursor reads |
 | `AgentSessionContextService` | Several root contexts per session and transfer records |
 | `sessionHistory.ts` | Gate, range, budget and exclusions |
-| `MessageProjection` and renderer `aiTransport` | Part-addressed patches |
+| `MessageProjection` and renderer `aiTransport` | Part-addressed patches, scoped baselines and keyed subscriptions |
 | Renderer list and Markdown | `pos` order, part keys and incremental block split |
 
 ### 7. Delivery order
 
 1. This Spec at the stack bottom, with the runtime contract amendment.
-2. Storage: counter, `pos`, `rev`, derived IDs and `context_id` on the part table of #24051 and #24100, with regenerated migrations.
-3. Runs and steer: attach steers, remove the continuation row and render by `pos`.
-4. Incremental delivery and Markdown.
+2. Storage: use the part table of #24051, add stable placement and run ownership, and migrate the sidecar binding without rewriting shipped migrations.
+3. Cut over the Agent timeline in one delivery: accept root and child operations, use completion persistence from #24100, migrate keyed publication and subscriptions, and remove the Agent whole-message hot path.
+4. Validate the migrated consumers and measure Markdown separately.
 5. Context transfer and multiple root contexts, with session runtime binding amended in its own branch.
 6. Electron acceptance. Only this layer moves the note to implemented.
 
-#23873 and #23909 keep their tool-result scope. Message-list subscriptions is amended in its own layer to defer to this note for steer placement, part identity and the cursor.
+#23873 and #23909 keep their tool-result scope. Apply the new tool-part address to the Agent callers in the cutover. Message-list subscriptions is amended in its own layer to defer to this note for steer placement, part identity and the cursor.
 
 ## Alternatives considered
 
 - Run, attempt or turn tables, or one row per native assistant message: they duplicate an assistant row that already carries status, statistics and model, or multiply rows that item-level identity already correlates.
 - Character cuts at steer time, segment rotation of an open part, or regrouping ongoing tools after the boundary: each adds cut or move state with reload obligations. Current T3 fixes positions at first write instead.
 - The transport revision as the storage cursor, or T3's full event log: the transport revision is scoped to one publisher and subscription, and T3 compacts superseded events itself, so a row `rev` gives the same cursor without a log.
-- Allocating part IDs once and persisting a source mapping: derivation removes the mapping storage and its recovery.
+- Deriving public IDs from raw native message IDs: a provisional source can be replaced when it commits, so direct derivation can rekey a mounted part. Preserve the admitted ID and reconcile replacements at ingress.
 - Converting product history into native Durable entries, or native-to-native converters: session messages already reach every harness through one builder.
 - An LLM-written summary by default, as in [#24704](https://github.com/CherryHQ/cherry-studio/pull/24704): it costs a model call and varies in quality. It stays a compatible optional strategy.
 - Always opening a fresh context when returning to a harness: it discards the native continuity a delta transfer keeps.
@@ -119,11 +137,15 @@ Children are unchanged: a fresh child receives only its task prompt, and a fork 
 - AC10 — Every transfer records its covered range and delivery state, and an interrupted delivery never sends duplicated history into one context (verification: unit with failure injection; Main data and runtime owners)
 - AC11 — In Electron, a steer during streaming text and during a running tool keeps earlier parts mounted on Claude Code and Pi Durable, and a Claude Code to Pi Durable to Claude Code session answers with the transferred context (verification: Electron; implementation owner)
 
+- AC12 — A child reply spanning two native messages resolves the later large tool result by its part ID after attach, replacement and reload. An unrelated append or archive reread leaves that result's subscription unchanged (verification: Main and renderer integration; tool-result and child owners)
+- AC13 — A crash after a committed steer, followed by replay of the preceding open part, preserves its original position and ID. A fork inside a run does not expose items beyond the fork point (verification: populated SQLite and native replay tests; storage and runtime owners)
+- AC14 — A pure append visits only the affected source block and performs no synchronous SQLite read or write. A save, Stop, or native terminal correction preserves IDs of already committed parts (verification: runtime integration with query and notification counts; runtime and storage owners)
+
 ## Risks
 
-- Counter writes add one small synchronous write per accepted input, created part and committed change. Measure write volume on long sessions.
+- Unfinished positions require durable placement before a later dependent commit. Measure the number of placement and completion transactions in long sessions.
 - A part streaming above a steer pushes the steer down while it grows. This is the accepted T3 behavior; revisit it only with Electron evidence.
-- Derived identity depends on stable native message IDs and block order in every adapter.
+- Some adapters change native identifiers on commit. Require stable keys or proven aliases and exercise replay in each adapter.
 - The budget can omit relevant history. No history-read tool is part of this Spec, and portable history is reference text: historical tool calls are not restored as native tool state.
 - The migrations of #24051 and #24100 must be regenerated on this base and migrate populated databases.
 - Several root contexts per session change recovery, fork and deletion paths that assume one binding.
