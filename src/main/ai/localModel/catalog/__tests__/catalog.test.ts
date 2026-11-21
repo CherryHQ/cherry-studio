@@ -8,6 +8,7 @@ import {
 } from '@shared/data/presets/localModel'
 
 import { bundleDtype, bundleFile, defaultBundleForCapability, LOCAL_MODEL_BUNDLES, SHARED_ARTIFACTS } from '../catalog'
+import type { ModelBundle } from '../types'
 
 const bundles = Object.values(LOCAL_MODEL_BUNDLES)
 const artifacts = Object.values(SHARED_ARTIFACTS)
@@ -126,6 +127,45 @@ describe('local model catalog', () => {
         })
       ])
     )
+  })
+
+  it('pins every Kokoro v1.0 file with a digest and size and requires the Sherpa runtime', () => {
+    const bundle = LOCAL_MODEL_BUNDLES['kokoro-int8-multi-lang-v1.0']
+
+    expect(bundle.runtime).toEqual({ architecture: 'kokoro-v1' })
+    expect(bundle.requires).toContain('sherpa-onnx')
+    expect(bundle.files.length).toBeGreaterThan(0)
+    expect(bundle.files.map((file) => file.relPath)).toEqual(
+      expect.arrayContaining(['model.int8.onnx', 'voices.bin', 'tokens.txt'])
+    )
+    for (const file of bundle.files) {
+      expect(file.sha256, `${file.relPath} has no sha256`).toMatch(/^[0-9a-f]{64}$/)
+      expect(file.minBytes, `${file.relPath} has no size floor`).toBeGreaterThan(0)
+    }
+  })
+
+  it.each(['kokoro-int8-multi-lang-v1.0', 'piper-pt-br-faber-medium', 'piper-pt-br-cadu-medium'] as const)(
+    'pins every %s file to an immutable revision',
+    (id) => {
+      const bundle: ModelBundle = LOCAL_MODEL_BUNDLES[id]
+      for (const file of bundle.files)
+        for (const source of file.sources ?? []) expect(source.revision, file.relPath).toMatch(/^[0-9a-f]{40}$/)
+      expect(bundle.provenance?.upstream.revision).toMatch(/^[0-9a-f]{40}$/)
+    }
+  )
+
+  it.each(['faber', 'cadu'])('installs the Piper %s voice as model.onnx and requires the Sherpa runtime', (voice) => {
+    const bundle: ModelBundle = LOCAL_MODEL_BUNDLES[`piper-pt-br-${voice}-medium` as keyof typeof LOCAL_MODEL_BUNDLES]
+    const model = bundle.files.find((file) => file.relPath === 'model.onnx')
+
+    expect(bundle.runtime).toEqual({ architecture: 'piper' })
+    expect(bundle.requires).toContain('sherpa-onnx')
+    expect(bundle.files.map((file) => file.relPath)).toEqual(expect.arrayContaining(['model.onnx', 'tokens.txt']))
+    expect(bundle.files.filter((file) => file.relPath.endsWith('.onnx'))).toHaveLength(1)
+    const sources = model?.sources ?? []
+    expect(sources.length).toBeGreaterThan(0)
+    for (const source of sources) expect(source.remoteFile).toMatch(new RegExp(`pt_BR-${voice}-medium\\.onnx$`))
+    for (const file of bundle.files) expect(file.sha256, `${file.relPath} has no sha256`).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('derives the FunASR platform contract from the sherpa artifact matrix', () => {

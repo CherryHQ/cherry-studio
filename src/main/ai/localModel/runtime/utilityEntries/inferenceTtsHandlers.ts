@@ -46,7 +46,7 @@ async function loadModel(modelDir: string): Promise<TtsModel> {
 
 export const ttsHandlers: UtilityProcessHandlers<TtsInferenceContract> = {
   async synthesize(input, { signal }) {
-    if (input.architecture === 'kokoro') {
+    if (input.architecture === 'kokoro' || input.architecture === 'kokoro-v1' || input.architecture === 'piper') {
       try {
         kokoro ??= new KokoroTts(appPath)
       } catch (cause) {

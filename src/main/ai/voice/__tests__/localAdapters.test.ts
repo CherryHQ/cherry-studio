@@ -5,6 +5,9 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   KOKORO_TTS_MODEL_ID,
+  KOKORO_V1_TTS_MODEL_ID,
+  PIPER_CADU_TTS_MODEL_ID,
+  PIPER_FABER_TTS_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   TranscriptionLanguageSource,
@@ -15,6 +18,9 @@ import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, Transcriptio
 import { voiceRequestSchemas } from '@shared/ipc/schemas/voice'
 
 import { describeVoiceModel, listVoiceModels, resolveTranscriptionRequest } from '../localAdapters'
+
+const PIPER_MODEL_IDS = [PIPER_FABER_TTS_MODEL_ID, PIPER_CADU_TTS_MODEL_ID]
+const SHERPA_TTS_MODEL_IDS = [KOKORO_TTS_MODEL_ID, KOKORO_V1_TTS_MODEL_ID, ...PIPER_MODEL_IDS]
 
 describe('device-scoped voice catalog and request policy', () => {
   it('advertises implemented audio and PCM operations through the IPC contract', () => {
@@ -39,15 +45,15 @@ describe('device-scoped voice catalog and request policy', () => {
   it.each([
     [
       { platform: 'darwin', arch: 'arm64', majorVersion: 26 },
-      [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, KOKORO_TTS_MODEL_ID]
+      [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, ...SHERPA_TTS_MODEL_IDS]
     ],
     [
       { platform: 'win32', arch: 'x64' },
-      [WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID, FUNASR_MODEL_ID, KOKORO_TTS_MODEL_ID]
+      [WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID, FUNASR_MODEL_ID, ...SHERPA_TTS_MODEL_IDS]
     ],
-    [{ platform: 'linux', arch: 'x64' }, [FUNASR_MODEL_ID, KOKORO_TTS_MODEL_ID]],
-    [{ platform: 'win32', arch: 'arm64' }, [FUNASR_MODEL_ID, KOKORO_TTS_MODEL_ID]],
-    [{ platform: 'darwin', arch: 'arm64', majorVersion: 12 }, [FUNASR_MODEL_ID, KOKORO_TTS_MODEL_ID]]
+    [{ platform: 'linux', arch: 'x64' }, [FUNASR_MODEL_ID, ...SHERPA_TTS_MODEL_IDS]],
+    [{ platform: 'win32', arch: 'arm64' }, [FUNASR_MODEL_ID, ...SHERPA_TTS_MODEL_IDS]],
+    [{ platform: 'darwin', arch: 'arm64', majorVersion: 12 }, [FUNASR_MODEL_ID, ...SHERPA_TTS_MODEL_IDS]]
   ])('offers only runnable models on %j', (environment, expected) => {
     const catalog = listVoiceModels(environment)
     expect(catalog.models.map((model) => model.id).sort()).toEqual([...expected].sort())
