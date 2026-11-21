@@ -1,0 +1,1333 @@
+import { mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createMemoryBackup, MEMORY_BACKUP_BYTES } from '../memoryBackups'
+import * as memoryBackups from '../memoryBackups'
+import { entriesIn, type MemoryEntry, parseMemoryEntries, serializeMemoryEntries } from '../memoryEntries'
+import * as memoryFiles from '../memoryFiles'
+import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemoryStore'
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return { ...actual, lstat: vi.fn(actual.lstat), open: vi.fn(actual.open) }
+})
+
+const approve: MemoryApproval = async () => () => undefined
+const access = (): MemoryAccess => ({ assertAuthorized: () => undefined })
+let fixture: string
+let root: string
+let backups: string
+let store: MemoryStore
+let caller: MemoryAccess
+
+async function removeFixtureFiles(directory: string): Promise<void> {
+  if (directory !== fixture && !directory.startsWith(`${fixture}${path.sep}`)) throw new Error('Outside test fixture')
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name)
+    if (entry.isDirectory() && !entry.isSymbolicLink()) await removeFixtureFiles(target)
+    else await unlink(target)
+  }
+  await rmdir(directory)
+}
+
+beforeEach(async () => {
+  fixture = await mkdtemp(path.join(os.tmpdir(), 'cherry-memory-'))
+  root = path.join(fixture, 'Memory')
+  backups = path.join(fixture, 'Backups')
+  store = new MemoryStore(root, backups)
+  caller = access()
+  await store.initialize()
+})
+
+afterEach(async () => {
+  vi.restoreAllMocks()
+  vi.mocked(fs.lstat).mockReset()
+  vi.mocked(fs.open).mockReset()
+  await removeFixtureFiles(fixture)
+})
+
+async function save(target: string, content: string, owner = caller) {
+  const read = await store.read(owner, target)
+  return store.commit(owner, [{ kind: 'write', receipt: read.receipt, content }], 'controlled', approve)
+}
+
+describe('structured memory disk protection', () => {
+  it.each(['changed', 'corrected'] as const)(
+    'keeps %s history while current reads and native edits remain writable',
+    async (reason) => {
+      await save('MEMORY.md', '- "Lives in Hangzhou."\n- "Prefers Chinese."\n')
+      await save('.memories/copy.md', '- "Lives in Hangzhou."\n')
+      const read = await store.read(caller, 'MEMORY.md')
+      const proposal = await store.prepareRevisions(caller, read.receipt, [
+        {
+          quote: 'Lives in Hangzhou.',
+          text: 'Lives in Suzhou.',
+          reason,
+          recordedAt: '2026-11-17T10:00:00.000Z',
+          sources: [{ kind: 'chat', conversationId: 't', messageId: 'm', sourceVersion: 'v1' }]
+        }
+      ])
+      await store.commit(caller, [proposal], 'extraction', approve)
+      const recovery = await store.previewRecovery(caller)
+      await expect(store.recover(caller, recovery!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+      const current = await store.modelRead(caller, 'MEMORY.md')
+      expect(current.content).toContain('Lives in Suzhou.')
+      expect(current.content).not.toContain('Hangzhou')
+      expect(current.content).toContain('Prefers Chinese.')
+      expect((await store.modelRead(caller, '.memories/copy.md')).content).not.toContain('Lives in Hangzhou.')
+      await expect(save('.memories/other.md', '- "Lives in Hangzhou."\n')).rejects.toMatchObject({ code: 'conflict' })
+      expect((await store.modelRead(caller, 'MEMORY.md', 'historical')).content).toContain(reason)
+      await expect(store.assertRuntimeSafe(caller)).resolves.toBeUndefined()
+      await store.commit(
+        caller,
+        [{ kind: 'write', receipt: current.receipt, content: `${current.content}- "Plays tennis."\n` }],
+        'controlled',
+        approve
+      )
+      const raw = await store.read(caller, 'MEMORY.md')
+      expect((await store.modelRead(caller, 'MEMORY.md')).content).toBe(`${current.content}- "Plays tennis."\n`)
+      expect(entriesIn(parseMemoryEntries(raw.content!))).toHaveLength(1)
+      expect(raw.content).toContain('Plays tennis.')
+      const latest = await store.modelRead(caller, 'MEMORY.md')
+      await expect(
+        store.commit(
+          caller,
+          [{ kind: 'write', receipt: latest.receipt, content: `${latest.content}- "Lives in Hangzhou."\n` }],
+          'controlled',
+          approve
+        )
+      ).rejects.toMatchObject({ code: 'conflict' })
+      const movedBack = await store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [
+        {
+          quote: 'Lives in Suzhou.',
+          text: 'Lives in Hangzhou.',
+          reason: 'changed',
+          recordedAt: '2026-11-18T10:00:00.000Z',
+          sources: [{ kind: 'chat', conversationId: 't', messageId: 'm2', sourceVersion: 'v2' }]
+        }
+      ])
+      await store.commit(caller, [movedBack], 'extraction', approve)
+      expect((await store.modelRead(caller, 'MEMORY.md')).content).toContain('Lives in Hangzhou.')
+    }
+  )
+
+  it('rejects ambiguous correction targets and edits after correction preparation', async () => {
+    await save('MEMORY.md', '- "Old fact"\n- "Old fact"\n')
+    const change = {
+      quote: 'Old fact',
+      text: 'New fact',
+      reason: 'corrected' as const,
+      recordedAt: '2026-11-17T10:00:00.000Z',
+      sources: [{ kind: 'chat' as const, conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+    }
+    await expect(
+      store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [change])
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await save('MEMORY.md', '- "Old fact"\n')
+    const proposal = await store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [change])
+    await save('MEMORY.md', '- "User edit"\n')
+    await expect(store.commit(caller, [proposal], 'extraction', approve)).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  const entry: MemoryEntry = {
+    schemaVersion: 1,
+    id: 'entry-1',
+    status: 'forgotten',
+    sources: [{ kind: 'chat', conversationId: 'topic-1', messageId: 'message-1', sourceVersion: 'v1' }],
+    text: '',
+    derivedFrom: []
+  }
+  const encode = (value: MemoryEntry) => serializeMemoryEntries([value])
+
+  it('resumes a clear after a partial recovery kept the first file forgotten', async () => {
+    const first = 'MEMORY.md'
+    const second = '.memories/b.md'
+    const original = '\n\n' + encode({ ...entry, status: 'active', text: 'First fact' })
+    await writeFile(path.join(root, first), original)
+    await writeFile(path.join(root, second), 'Second fact')
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const cleared = await readFile(path.join(root, second), 'utf8')
+    await writeFile(path.join(root, second), 'Intervening edit')
+    const partial = await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(partial.files).toContainEqual(expect.objectContaining({ path: first, outcome: 'applied' }))
+    const actual = await readFile(path.join(root, first), 'utf8')
+    expect(actual).not.toBe(original)
+    expect(entriesIn(parseMemoryEntries(actual))[0].status).toBe('forgotten')
+    await writeFile(path.join(root, second), cleared)
+    await new MemoryStore(root, backups).initialize()
+    await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(await readFile(path.join(root, second), 'utf8')).toBe('Second fact')
+    expect(await readFile(path.join(root, first), 'utf8')).toBe(actual)
+  })
+
+  it('recognizes a recovered file with preserved forgotten metadata after a lost acknowledgement', async () => {
+    const target = '.memories/protected.md'
+    const before = Buffer.from('')
+    const current = Buffer.from(
+      serializeMemoryEntries([entry, { ...entry, id: 'unrelated', status: 'active', text: 'New fact', sources: [] }])
+    )
+    await writeFile(path.join(root, target), current)
+    const original = await createMemoryBackup(backups, [{ path: target, before, after: current }], 'controlled')
+    const preview = (await store.previewRecovery(caller))!
+    const write = memoryFiles.writeMemoryBytes
+    const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (
+        args[0] === backups &&
+        args[1].endsWith(original.id + '.json') &&
+        JSON.parse(args[2]!.toString()).status === 'completed'
+      )
+        throw new Error('Lost acknowledgement')
+      return write(...args)
+    })
+    expect((await store.recover(caller, preview.token, approve)).error).toBe('Lost acknowledgement')
+    fail.mockRestore()
+    const restored = await readFile(path.join(root, target), 'utf8')
+    expect(entriesIn(parseMemoryEntries(restored))).toEqual([entry])
+    await new MemoryStore(root, backups).initialize()
+    expect((await memoryBackups.latestMemoryBackup(backups, original.id))?.status).toBe('completed')
+  })
+
+  it('refuses malformed metadata on read and leaves the original bytes intact', async () => {
+    const broken = encode(entry).replace(':v1', ':v9')
+    await writeFile(path.join(root, 'MEMORY.md'), broken)
+    await expect(store.read(caller, 'MEMORY.md')).rejects.toMatchObject({ code: 'conflict' })
+    await expect(store.entry(caller)).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(broken)
+  })
+
+  it('does not accept new source metadata from a caller claiming to be extraction', async () => {
+    const read = await store.read(caller, 'MEMORY.md')
+    await expect(
+      store.commit(
+        caller,
+        [{ kind: 'write', receipt: read.receipt, content: encode({ ...entry, status: 'active', text: 'Fact' }) }],
+        'extraction',
+        approve
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it.each(['remove', 'reactivate', 'new-id', 'new-version', 'forged-source'] as const)(
+    'rejects ordinary %s without changing disk or creating a backup',
+    async (attack) => {
+      const original = encode(entry)
+      await writeFile(path.join(root, 'MEMORY.md'), original)
+      const read = await store.read(caller, 'MEMORY.md')
+      const content =
+        attack === 'remove'
+          ? ''
+          : encode({
+              ...entry,
+              status: 'active',
+              text: 'Forgotten secret',
+              id: attack === 'new-id' ? 'entry-2' : entry.id,
+              sources: attack === 'new-version' ? [{ ...entry.sources[0], sourceVersion: 'v2' }] : entry.sources
+            })
+      await expect(
+        store.commit(
+          caller,
+          [{ kind: 'write', receipt: read.receipt, content }],
+          attack === 'forged-source' ? 'clear' : 'controlled',
+          approve
+        )
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(original)
+      expect(await readdir(backups)).toEqual([])
+    }
+  )
+
+  it('blocks recreating forbidden content in another file, including unstructured text', async () => {
+    await writeFile(path.join(root, 'MEMORY.md'), encode(entry))
+    for (const text of ['Forgotten secret', encode({ ...entry, id: 'another', status: 'active', text: 'Secret' })]) {
+      await expect(save('.memories/recreated.md', text)).rejects.toMatchObject({ code: 'conflict' })
+      await expect(readFile(path.join(root, '.memories/recreated.md'))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
+
+  it('clears bodies in entry and topic files, approves exact tombstones, and restores the original versions after restart', async () => {
+    await writeFile(path.join(root, 'MEMORY.md'), encode({ ...entry, status: 'active', text: 'Secret address' }))
+    await writeFile(
+      path.join(root, '.memories/topic.md'),
+      encode({ ...entry, id: 'unknown-source', sources: [], status: 'expired', text: 'Old fact' })
+    )
+    const preview = await store.previewClear(caller)
+    const approved = new Map<string, string | null>()
+    const result = await store.clear(caller, preview.token, async (changes) => {
+      for (const change of changes) approved.set(change.path, change.content)
+      return () => undefined
+    })
+    expect(result.error).toBeUndefined()
+    for (const [target, content] of approved) {
+      expect(await readFile(path.join(root, target), 'utf8')).toBe(content)
+      const entries = entriesIn(parseMemoryEntries(content!))
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({ status: 'forgotten', text: '' })
+    }
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const recovery = await store.previewRecovery(caller)
+    expect((await store.recover(caller, recovery!.token, approve)).error).toBeUndefined()
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toContain('Secret address')
+    const original = entriesIn(parseMemoryEntries(await readFile(path.join(root, '.memories/topic.md'), 'utf8')))
+    expect(original[0]).toMatchObject({ status: 'expired', text: 'Old fact' })
+  })
+
+  it.each(['legacy', 'changed-version'] as const)('refuses unsafe %s recovery before approval', async (kind) => {
+    const original =
+      kind === 'legacy'
+        ? 'Secret address'
+        : encode({
+            ...entry,
+            id: 'other',
+            status: 'active',
+            text: 'Secret address',
+            sources: [{ ...entry.sources[0], sourceVersion: 'v2' }]
+          })
+    const current = encode(entry)
+    await writeFile(path.join(root, 'MEMORY.md'), current)
+    await createMemoryBackup(
+      backups,
+      [{ path: 'MEMORY.md', before: Buffer.from(original), after: Buffer.from(current) }],
+      'controlled'
+    )
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files.every((file) => file.conflict)).toBe(true)
+    await expect(store.recover(caller, preview!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(current)
+  })
+
+  it('rechecks the entire scope under the lock after approval', async () => {
+    const read = await store.read(caller, 'MEMORY.md')
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'New text' }], 'controlled', async () => {
+        await writeFile(path.join(root, '.memories/tombstone.md'), encode(entry))
+        return () => undefined
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+    expect(await readdir(backups)).toEqual([])
+  })
+})
+
+describe('memory save contract', () => {
+  it.each(['write', 'noop', 'clear'] as const)(
+    'rejects %s invalidated during the final target identity check',
+    async (operation) => {
+      await save('MEMORY.md', 'Original')
+      const read = await store.read(caller, 'MEMORY.md')
+      const preview = await store.previewClear(caller)
+      const previousBackups = await readdir(backups)
+      let approved = false
+      let invalidated = false
+      const original = (await vi.importActual<typeof fs>('node:fs/promises')).lstat
+      vi.mocked(fs.lstat).mockImplementation(async (...args) => {
+        const result = await original(...args)
+        if (approved && typeof args[1] === 'object' && args[1]?.bigint && !invalidated) {
+          invalidated = true
+          store.invalidate()
+        }
+        return result
+      })
+      const approval: MemoryApproval = async () => {
+        approved = true
+        return () => undefined
+      }
+      const pending =
+        operation === 'clear'
+          ? store.clear(caller, preview.token, approval)
+          : store.commit(
+              caller,
+              [{ kind: 'write', receipt: read.receipt, content: operation === 'noop' ? 'Original' : 'Stale' }],
+              'controlled',
+              approval
+            )
+      await expect(pending).rejects.toMatchObject({ code: 'invalid-receipt' })
+      expect(invalidated).toBe(true)
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Original')
+      expect(await readdir(backups)).toEqual(previousBackups)
+    }
+  )
+
+  it.each(['validation', 'backup'] as const)(
+    'rejects recovery invalidated during %s without replacing current content',
+    async (stage) => {
+      await save('MEMORY.md', 'Before')
+      await save('MEMORY.md', 'After')
+      const preview = await store.previewRecovery(caller)
+      let approved = false
+      let invalidated = false
+      const invalidate = () => {
+        if (approved && !invalidated) {
+          invalidated = true
+          store.invalidate()
+        }
+      }
+      if (stage === 'validation') {
+        const original = memoryFiles.readMemoryBytes
+        vi.spyOn(memoryFiles, 'readMemoryBytes').mockImplementation(async (...args) => {
+          const result = await original(...args)
+          if (args[0] === root) invalidate()
+          return result
+        })
+      } else {
+        const original = memoryBackups.saveMemoryBackup
+        vi.spyOn(memoryBackups, 'saveMemoryBackup').mockImplementation(async (...args) => {
+          await original(...args)
+          invalidate()
+        })
+      }
+      await expect(
+        store.recover(caller, preview!.token, async () => {
+          approved = true
+          return () => undefined
+        })
+      ).rejects.toMatchObject({ code: 'invalid-receipt' })
+      expect(invalidated).toBe(true)
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('After')
+      expect((await store.previewRecovery(caller))?.batchId).toBe(preview!.batchId)
+    }
+  )
+
+  it('initializes missing files without replacing existing facts', async () => {
+    await writeFile(path.join(root, 'MEMORY.md'), 'Speak Chinese.\n')
+    await store.initialize()
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Speak Chinese.\n')
+    await writeFile(path.join(root, '.memories', 'topic.md'), 'A useful detail')
+    await writeFile(path.join(root, '.memories', '.draft.md'), 'temporary')
+    await writeFile(path.join(root, 'unknown.md'), 'unmanaged')
+    expect(await store.list(caller)).toEqual(['.memories/topic.md', 'MEMORY.md'])
+  })
+
+  it('binds receipts to the reader and does not replace an old edit baseline with a newer read', async () => {
+    const first = await store.read(caller, 'MEMORY.md')
+    await expect(
+      store.commit(
+        access(),
+        [{ kind: 'write', receipt: first.receipt, content: 'Wrong caller' }],
+        'controlled',
+        approve
+      )
+    ).rejects.toMatchObject({ code: 'invalid-receipt' })
+    await save('MEMORY.md', 'Changed')
+    await store.read(caller, 'MEMORY.md')
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: first.receipt, content: 'Old edit' }], 'controlled', approve)
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('rechecks the target after approval and preserves the other writer', async () => {
+    const read = await store.read(caller, 'MEMORY.md')
+    const changeDuringApproval: MemoryApproval = async (proposal) => {
+      expect(proposal).toEqual([{ path: 'MEMORY.md', expectedHash: read.hash, content: 'Approved content' }])
+      expect(Object.isFrozen(proposal[0])).toBe(true)
+      await writeFile(path.join(root, 'MEMORY.md'), 'External edit')
+      return () => undefined
+    }
+    await expect(
+      store.commit(
+        caller,
+        [{ kind: 'write', receipt: read.receipt, content: 'Approved content' }],
+        'controlled',
+        changeDuringApproval
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('External edit')
+  })
+
+  it('invalidates only the revoked caller, including an already approved pending edit', async () => {
+    const read = await store.read(caller, 'MEMORY.md')
+    const revoke: MemoryApproval = async () => {
+      caller.assertAuthorized = () => {
+        throw new Error('Caller revoked')
+      }
+      return () => undefined
+    }
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'Revoked' }], 'controlled', revoke)
+    ).rejects.toThrow('Caller revoked')
+    await save('MEMORY.md', 'Other caller still works', access())
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Other caller still works')
+  })
+
+  it('allows at most one writer to commit the same baseline', async () => {
+    const other = access()
+    const [first, second] = await Promise.all([store.read(caller, 'MEMORY.md'), store.read(other, 'MEMORY.md')])
+    const results = await Promise.allSettled([
+      store.commit(caller, [{ kind: 'write', receipt: first.receipt, content: 'A' }], 'controlled', approve),
+      store.commit(other, [{ kind: 'write', receipt: second.receipt, content: 'B' }], 'controlled', approve)
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toMatch(/^[AB]$/)
+  })
+
+  it('requires absence to remain true when creating a topic', async () => {
+    const read = await store.read(caller, '.memories/new.md')
+    expect(read.content).toBeNull()
+    await writeFile(path.join(root, '.memories', 'new.md'), 'Another creator')
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'Mine' }], 'controlled', approve)
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('does not create a recovery batch for an identical save', async () => {
+    await save('MEMORY.md', 'Unchanged')
+    const before = await readdir(backups)
+    const result = await save('MEMORY.md', 'Unchanged')
+    expect(result.batchId).toBeNull()
+    expect(result.files[0].outcome).toBe('unchanged')
+    expect(await readdir(backups)).toEqual(before)
+  })
+
+  it('leaves the target intact when the pre-change backup cannot be written', async () => {
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes) => {
+      if (directory === backups) throw new Error('Injected backup failure')
+      await originalWrite(directory, relative, bytes)
+    })
+    await expect(save('MEMORY.md', 'Must not appear')).rejects.toThrow('Injected backup failure')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('reports a replacement that succeeded before the write returned an error', async () => {
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes) => {
+      await originalWrite(directory, relative, bytes)
+      if (directory === root) throw new Error('Injected uncertain outcome')
+    })
+    const result = await save('MEMORY.md', 'Actually saved')
+    expect(result.error).toBe('Injected uncertain outcome')
+    expect(result.files[0]).toMatchObject({
+      outcome: 'applied',
+      hash: memoryFiles.memoryHash(Buffer.from('Actually saved'))
+    })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Actually saved')
+    expect((await store.previewRecovery(caller))?.files[0].conflict).toBe(false)
+  })
+})
+
+describe('limits, access, and recovery', () => {
+  it('rechecks approval revocation at the final replacement boundary', async () => {
+    let approved = true
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {
+      if (directory === root) approved = false
+      await originalWrite(directory, relative, bytes, assertCurrent)
+    })
+    const read = await store.read(caller, 'MEMORY.md')
+    const result = await store.commit(
+      caller,
+      [{ kind: 'write', receipt: read.receipt, content: 'Revoked' }],
+      'controlled',
+      async () => () => {
+        if (!approved) throw new Error('Approval revoked')
+        return undefined
+      }
+    )
+    expect(result.error).toBe('Approval revoked')
+    expect(result.files[0].outcome).toBe('unchanged')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('checks all maintenance inputs even when an unchanged input is not a write target', async () => {
+    await save('.memories/source.md', 'Original source')
+    const source = await store.read(caller, '.memories/source.md')
+    const destination = await store.read(caller, 'MEMORY.md')
+    await save('.memories/source.md', 'Changed source')
+    await expect(
+      store.commit(
+        caller,
+        [{ kind: 'write', receipt: destination.receipt, content: 'Stale summary' }],
+        'dreaming',
+        approve,
+        { readReceipts: [source.receipt] }
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await expect(
+      store.commit(caller, [], 'dreaming', approve, { readReceipts: [source.receipt] })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('persists unknown-source tombstones for cleared legacy files and restores matching originals after restart', async () => {
+    await save('MEMORY.md', 'Entry fact')
+    await save('.memories/topic.md', 'Topic fact')
+    await writeFile(path.join(root, 'JOURNAL.md'), 'Historical content')
+    await writeFile(path.join(root, '.memories', 'unknown.txt'), 'Unmanaged')
+    const preview = await store.previewClear(caller)
+    expect(preview.files.map((file) => file.path)).toEqual(['.memories/topic.md', 'MEMORY.md'])
+    await expect(store.clear(access(), preview.token, approve)).rejects.toMatchObject({ code: 'invalid-receipt' })
+    const cleared = await store.clear(caller, preview.token, approve)
+    expect(cleared.files.every((file) => file.outcome === 'applied')).toBe(true)
+    expect(await store.list(caller)).toEqual(['.memories/topic.md', 'MEMORY.md'])
+    expect(await readFile(path.join(root, 'JOURNAL.md'), 'utf8')).toBe('Historical content')
+    expect(await readFile(path.join(root, '.memories', 'unknown.txt'), 'utf8')).toBe('Unmanaged')
+    store = new MemoryStore(root, backups)
+    for (const name of ['MEMORY.md', '.memories/topic.md']) {
+      const content = await readFile(path.join(root, name), 'utf8')
+      expect(entriesIn(parseMemoryEntries(content))).toEqual([
+        expect.objectContaining({ status: 'forgotten', sources: [], text: '' })
+      ])
+      expect(content).not.toContain('fact')
+    }
+    const recovery = await store.previewRecovery(caller)
+    expect(recovery!.files.every((file) => !file.conflict)).toBe(true)
+    await store.recover(caller, recovery!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Entry fact')
+    expect(await readFile(path.join(root, '.memories/topic.md'), 'utf8')).toBe('Topic fact')
+  })
+
+  it('refuses a model receipt for a casing alias on a case-insensitive volume', async () => {
+    await save('.memories/Topic.md', 'Existing topic')
+    const alias = await memoryFiles.readMemoryBytes(root, '.memories/topic.md')
+    const view = store.modelRead(caller, '.memories/topic.md')
+    if (alias) await expect(view).rejects.toMatchObject({ code: 'conflict' })
+    else await expect(view).resolves.toMatchObject({ content: null, hash: null })
+  })
+
+  it('rejects clear when the displayed file set or version changes before confirmation', async () => {
+    await save('MEMORY.md', 'Keep')
+    const preview = await store.previewClear(caller)
+    await save('.memories/new.md', 'New file')
+    await expect(store.clear(caller, preview.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    const updated = await store.previewClear(caller)
+    await save('MEMORY.md', 'New version')
+    await expect(store.clear(caller, updated.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await store.read(caller, '.memories/new.md')).content).toBe('New file')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('New version')
+  })
+
+  it('rechecks live authority before replacement even without a revocation event', async () => {
+    let allowed = true
+    caller = {
+      assertAuthorized: () => {
+        if (!allowed) throw new Error('Shared memory disabled')
+        return undefined
+      }
+    }
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {
+      if (directory === root) allowed = false
+      await originalWrite(directory, relative, bytes, assertCurrent)
+    })
+    const result = await save('MEMORY.md', 'Must remain uncommitted')
+    expect(result.files[0].outcome).toBe('unchanged')
+    expect(result.error).toBe('Shared memory disabled')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('refuses entry injection when the full state exceeds the inspection budget', async () => {
+    const oversized = Buffer.concat([Buffer.from('Visible fact\n'), Buffer.alloc(MEMORY_BACKUP_BYTES + 1, 65)])
+    await writeFile(path.join(root, 'MEMORY.md'), oversized)
+    await store.initialize()
+    await expect(store.entry(caller)).rejects.toMatchObject({ code: 'limit' })
+    await expect(store.read(caller, 'MEMORY.md')).rejects.toMatchObject({ code: 'limit' })
+    expect((await readFile(path.join(root, 'MEMORY.md'))).equals(oversized)).toBe(true)
+  })
+
+  it.each(['writeFile', 'sync', 'stat', 'close'] as const)(
+    'rejects a write revoked during temporary-file %s',
+    async (stage) => {
+      const actual = await vi.importActual<typeof fs>('node:fs/promises')
+      let revoked = false
+      caller.assertAuthorized = () => {
+        if (revoked) throw new Error('Caller revoked')
+      }
+      vi.mocked(fs.open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args)
+        if (String(args[0]).startsWith(path.join(root, 'MEMORY.md.tmp-'))) {
+          const original = handle[stage].bind(handle)
+          vi.spyOn(handle, stage).mockImplementation(async (...values: unknown[]) => {
+            const result = await Reflect.apply(original, handle, values)
+            revoked = true
+            return result
+          })
+        }
+        return handle
+      })
+      const result = await save('MEMORY.md', 'Must remain uncommitted')
+      expect(result.error).toBe('Caller revoked')
+      expect(result.files[0].outcome).toBe('unchanged')
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+      expect((await readdir(root)).filter((name) => name.includes('.tmp-'))).toEqual([])
+    }
+  )
+
+  it('stops a merge before deleting the source when updating its entry link fails', async () => {
+    await save('.memories/source.md', 'Condition: only in production')
+    const source = await store.read(caller, '.memories/source.md')
+    const destination = await store.read(caller, '.memories/destination.md')
+    const entry = await store.read(caller, 'MEMORY.md')
+    const originalWrite = memoryFiles.writeMemoryBytes
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes) => {
+      if (directory === root && relative === 'MEMORY.md') throw new Error('Entry update failed')
+      await originalWrite(directory, relative, bytes)
+    })
+    const result = await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: destination.receipt, content: source.content! },
+        { kind: 'write', receipt: entry.receipt, content: '[[.memories/destination]]' },
+        { kind: 'delete', receipt: source.receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    expect(result.files.map((file) => file.outcome)).toEqual(['applied', 'unchanged', 'unchanged'])
+    expect(await readFile(path.join(root, '.memories', 'source.md'), 'utf8')).toBe(source.content)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it.each(['clear', 'recover'] as const)('resumes the original clear after an interrupted %s', async (operation) => {
+    await save('MEMORY.md', 'Entry')
+    await save('.memories/topic.md', 'Topic')
+    const clear = await store.previewClear(caller)
+    const write = memoryFiles.writeMemoryBytes
+    const failEntry = () =>
+      vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (args[0] === root && args[1] === 'MEMORY.md') throw new Error('Interrupted')
+        return write(...args)
+      })
+    let failure = operation === 'clear' ? failEntry() : undefined
+    const cleared = await store.clear(caller, clear.token, approve)
+    if (operation === 'recover') {
+      const recovery = await store.previewRecovery(caller)
+      failure = failEntry()
+      expect((await store.recover(caller, recovery!.token, approve)).files.map((file) => file.outcome)).toEqual([
+        'applied',
+        'unchanged'
+      ])
+    }
+    failure!.mockRestore()
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const remaining = await store.previewRecovery(caller)
+    expect(remaining).toMatchObject({
+      batchId: cleared.batchId,
+      files: [{ path: operation === 'clear' ? '.memories/topic.md' : 'MEMORY.md', conflict: false }]
+    })
+    expect((await store.recover(caller, remaining!.token, approve)).error).toBeUndefined()
+    expect((await store.read(caller, '.memories/topic.md')).content).toBe('Topic')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Entry')
+  })
+
+  it.each([false, true])(
+    'restores a merged source before reversing its index and destination (manual removal=%s)',
+    async (manualRemoval) => {
+      const target = '.memories/combined.md'
+      const source = '.memories/source.md'
+      await save(source, 'Full source')
+      const changes = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
+      await store.commit(
+        caller,
+        [
+          { kind: 'write', receipt: changes[0].receipt, content: 'Full source' },
+          { kind: 'write', receipt: changes[1].receipt, content: 'Combined link' },
+          { kind: 'delete', receipt: changes[2].receipt }
+        ],
+        'dreaming',
+        approve
+      )
+      if (manualRemoval) {
+        await unlink(path.join(root, target))
+        await writeFile(path.join(root, 'MEMORY.md'), 'Index conflict')
+        await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+        await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+        await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+        const redo = await store.previewRecovery(caller)
+        expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
+        await store.recover(caller, redo!.token, approve)
+        expect((await store.read(caller, source)).content).toBe('Full source')
+        return
+      }
+      await writeFile(path.join(root, source), 'External version')
+      const blocked = await store.previewRecovery(caller)
+      expect(blocked!.files.every((file) => file.conflict)).toBe(true)
+      await store.recover(caller, blocked!.token, approve)
+      expect((await store.read(caller, target)).content).toBe('Full source')
+      expect((await store.read(caller, 'MEMORY.md')).content).toBe('Combined link')
+      await unlink(path.join(root, source))
+      const preview = await store.previewRecovery(caller)
+      expect(preview!.files.map((file) => file.path)).toEqual([source, 'MEMORY.md', target])
+      const writes: string[] = []
+      const write = memoryFiles.writeMemoryBytes
+      vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (args[0] === root) writes.push(args[1])
+        return write(...args)
+      })
+      await store.recover(caller, preview!.token, approve)
+      expect(writes).toEqual([source, 'MEMORY.md', target])
+      await writeFile(path.join(root, target), 'External change')
+      const redo = await store.previewRecovery(caller)
+      expect(redo!.files.find((file) => file.path === source)?.conflict).toBe(true)
+      expect((await store.read(caller, source)).content).toBe('Full source')
+    }
+  )
+
+  it('undoes a partially redone transfer after its index was completed manually', async () => {
+    const source = '.memories/source.md'
+    const target = '.memories/combined.md'
+    await save(source, 'Fact')
+    await save('MEMORY.md', 'Source link')
+    const reads = await Promise.all([target, 'MEMORY.md', source].map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: reads[0].receipt, content: 'Fact', transferTarget: true },
+        { kind: 'write', receipt: reads[1].receipt, content: 'Combined link' },
+        { kind: 'delete', receipt: reads[2].receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'Conflict')
+    await recover()
+    expect((await store.read(caller, target)).content).toBe('Fact')
+    expect((await store.read(caller, source)).content).toBe('Fact')
+    await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+    const abandoned = await store.previewRecovery(caller)
+    expect(abandoned!.files.some((file) => file.path === 'MEMORY.md')).toBe(false)
+    await writeFile(path.join(root, 'MEMORY.md'), 'Source link')
+    const openAgain = await store.previewRecovery(caller)
+    expect(openAgain!.files).toContainEqual(expect.objectContaining({ path: 'MEMORY.md', conflict: false }))
+    await writeFile(path.join(root, 'MEMORY.md'), 'Combined link')
+    await recover()
+    expect((await store.read(caller, source)).content).toBeNull()
+    await recover()
+    expect((await store.read(caller, source)).content).toBe('Fact')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Source link')
+    expect((await store.read(caller, target)).content).toBeNull()
+  })
+
+  it('undoes a manually completed multi-file rewrite with no deleted files', async () => {
+    const title = '.memories/title.md'
+    await save(title, 'Old title')
+    await save('MEMORY.md', 'Old anchor')
+    const reads = await Promise.all([title, 'MEMORY.md'].map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: reads[0].receipt, content: 'New title' },
+        { kind: 'write', receipt: reads[1].receipt, content: 'New anchor' }
+      ],
+      'dreaming',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, 'MEMORY.md'), 'New anchor')
+    const write = memoryFiles.writeMemoryBytes
+    const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === root && args[1] === '.memories/busy.md') throw new Error('busy')
+      return write(...args)
+    })
+    for (let i = 0; i < 5; i++) expect((await save('.memories/busy.md', 'Unwritten')).error).toBe('busy')
+    fail.mockRestore()
+    await recover()
+    expect((await store.read(caller, title)).content).toBe('Old title')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Old anchor')
+  })
+
+  it('keeps the restored source when an unchanged transfer destination loses its content', async () => {
+    const source = '.memories/source.md'
+    const target = '.memories/target.md'
+    await save(source, 'Full source')
+    await save(target, 'Already includes Full source')
+    const destination = await store.read(caller, target)
+    const original = await store.read(caller, source)
+    await store.commit(
+      caller,
+      [
+        { kind: 'write', receipt: destination.receipt, content: destination.content!, transferTarget: true },
+        { kind: 'delete', receipt: original.receipt }
+      ],
+      'dreaming',
+      approve
+    )
+    await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await writeFile(path.join(root, target), 'External change')
+    const redo = (await store.previewRecovery(caller))!
+    expect(redo.files.find((file) => file.path === source)?.conflict).toBe(true)
+    await writeFile(path.join(root, target), 'Already includes Full source')
+    await expect(store.recover(caller, redo.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await store.read(caller, source)).content).toBe('Full source')
+  })
+
+  it('keeps an independent recovery step available when a manual step lacks its predecessor', async () => {
+    const paths = ['.memories/a.md', '.memories/b.md', '.memories/c.md']
+    for (const path of paths) await save(path, 'Original')
+    const reads = await Promise.all(paths.map((path) => store.read(caller, path)))
+    const { batchId } = await store.commit(
+      caller,
+      reads.map((r) => ({ kind: 'write', receipt: r.receipt, content: 'Updated' })),
+      'controlled',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    for (const name of paths.slice(1)) await writeFile(path.join(root, name), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, paths[1]), 'Updated')
+    await writeFile(path.join(root, paths[2]), 'Original')
+    const predecessor = (await readdir(backups)).find((name) => name.endsWith(batchId + '.json'))!
+    await unlink(path.join(backups, predecessor))
+    const preview = (await store.previewRecovery(caller))!
+    expect(preview.files.map(({ path, conflict }) => [path, conflict])).toEqual([
+      [paths[1], true],
+      [paths[2], false]
+    ])
+    await store.recover(caller, preview.token, approve)
+    expect((await store.read(caller, paths[2])).content).toBe('Updated')
+  })
+
+  it('redoes independent files after the user edits one already recovered', async () => {
+    const paths = ['.memories/a.md', '.memories/c.md']
+    for (const name of paths) await save(name, 'Original')
+    const reads = await Promise.all(paths.map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Updated' })),
+      'controlled',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await writeFile(path.join(root, paths[1]), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, paths[0]), 'User edit')
+    await writeFile(path.join(root, paths[1]), 'Updated')
+    await recover()
+    const redo = (await store.previewRecovery(caller))!
+    expect(redo.files.map(({ path, conflict }) => [path, conflict])).toEqual([
+      [paths[0], true],
+      [paths[1], false]
+    ])
+    await store.recover(caller, redo.token, approve)
+    expect((await store.read(caller, paths[0])).content).toBe('User edit')
+    expect((await store.read(caller, paths[1])).content).toBe('Updated')
+  })
+
+  it('extends the same reverse backup after an external conflict clears', async () => {
+    const topics = ['.memories/a.md', '.memories/b.md']
+    const reads = await Promise.all(topics.map((target) => store.read(caller, target)))
+    const saved = await store.commit(
+      caller,
+      reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Fact' })),
+      'controlled',
+      approve
+    )
+    await writeFile(path.join(root, topics[1]), 'External')
+    const first = await store.previewRecovery(caller)
+    const partial = await store.recover(caller, first!.token, approve)
+    await writeFile(path.join(root, topics[1]), 'Fact')
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const remaining = await store.previewRecovery(caller)
+    expect(remaining!.batchId).toBe(saved.batchId)
+    const complete = await store.recover(caller, remaining!.token, approve)
+    expect(complete.batchId).toBe(partial.batchId)
+    expect((await readdir(backups)).length).toBe(2)
+    const redo = await store.previewRecovery(caller)
+    expect(redo!.files.map((file) => file.path)).toEqual(topics)
+  })
+
+  it.each(['restart', 'admission'])(
+    'releases the restored parent after its last manifest save failed (%s)',
+    async (action) => {
+      const original = await save('MEMORY.md', 'For recovery')
+      const preview = await store.previewRecovery(caller)
+      const write = memoryFiles.writeMemoryBytes
+      const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (
+          args[0] === backups &&
+          args[1].endsWith(original.batchId + '.json') &&
+          JSON.parse(args[2]!.toString()).status === 'completed'
+        )
+          throw new Error('Final save failed')
+        return write(...args)
+      })
+      expect((await store.recover(caller, preview!.token, approve)).error).toBe('Final save failed')
+      fail.mockRestore()
+      if (action === 'restart') await new MemoryStore(root, backups).initialize()
+      else await save('.memories/another.md', 'Independent edit')
+      expect((await memoryBackups.latestMemoryBackup(backups, original.batchId!))?.status).toBe('completed')
+    }
+  )
+
+  it('undoes an extraction append while preserving earlier facts and clear markers', async () => {
+    await save('MEMORY.md', 'Forgotten fact')
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const tombstone = (await store.read(caller, 'MEMORY.md')).content!
+    const first = tombstone + '\n- "New fact one"\n'
+    const second = first + '- "New fact two"\n'
+    await writeFile(path.join(root, 'MEMORY.md'), second)
+    await createMemoryBackup(
+      backups,
+      [{ path: 'MEMORY.md', before: Buffer.from(first), after: Buffer.from(second) }],
+      'extraction'
+    )
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files[0].conflict).toBe(false)
+    await store.recover(caller, preview!.token, approve)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe(first)
+  })
+
+  it('recovers a confirmed disk write after its manifest update failed and the owner restarted', async () => {
+    const originalWrite = memoryFiles.writeMemoryBytes
+    let manifestWrites = 0
+    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes) => {
+      if (directory === backups && ++manifestWrites > 1) throw new Error('Manifest update failed')
+      await originalWrite(directory, relative, bytes)
+    })
+    const saved = await save('MEMORY.md', 'Saved before the crash')
+    expect(saved.files[0].outcome).toBe('applied')
+    vi.restoreAllMocks()
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it.each([false, true])('preserves entry deletion across restart (later pending write=%s)', async (pending) => {
+    await save('MEMORY.md', 'Keep this original')
+    const original = await store.read(caller, 'MEMORY.md')
+    const deleted = await store.commit(caller, [{ kind: 'delete', receipt: original.receipt }], 'controlled', approve)
+    if (pending) {
+      await createMemoryBackup(
+        backups,
+        [{ path: 'MEMORY.md', before: null, after: Buffer.from('Unapplied') }],
+        'controlled'
+      )
+    }
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    expect((await store.read(caller, 'MEMORY.md')).content).toBeNull()
+    const preview = await store.previewRecovery(caller)
+    expect(preview).toMatchObject({ batchId: deleted.batchId, files: [{ path: 'MEMORY.md', conflict: false }] })
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Keep this original')
+  })
+
+  it.each(['', 'A later file'])(
+    'does not mistake a later entry %j for initialization during recovery',
+    async (later) => {
+      await save('MEMORY.md', 'Original')
+      const original = await store.read(caller, 'MEMORY.md')
+      await store.commit(caller, [{ kind: 'delete', receipt: original.receipt }], 'controlled', approve)
+      await writeFile(path.join(root, 'MEMORY.md'), later)
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const preview = await store.previewRecovery(caller)
+      expect(preview!.files).toMatchObject([{ path: 'MEMORY.md', conflict: true }])
+      const result = await store.recover(caller, preview!.token, approve)
+      expect(result.files).toMatchObject([{ path: 'MEMORY.md', outcome: 'conflict' }])
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(later)
+    }
+  )
+
+  it.each([false, true])('skips an unapplied crash batch when selecting recovery (prior=%s)', async (prior) => {
+    const saved = prior ? await save('MEMORY.md', 'Saved') : undefined
+    await createMemoryBackup(
+      backups,
+      [{ path: 'MEMORY.md', before: Buffer.from(prior ? 'Saved' : ''), after: Buffer.from('Never applied') }],
+      'controlled'
+    )
+    const preview = await store.previewRecovery(caller)
+    if (!saved) {
+      expect(preview).toBeUndefined()
+      return
+    }
+    expect(preview?.batchId).toBe(saved.batchId)
+    expect(preview?.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('protects the last confirmed write while newer pending targets are unreadable', async () => {
+    const saved = await save('MEMORY.md', 'Keep this undo')
+    for (let i = 0; i < 4; i++)
+      await createMemoryBackup(
+        backups,
+        [{ path: `.memories/unverified-${i}.md`, before: null, after: Buffer.from('Pending') }],
+        'controlled'
+      )
+    const read = memoryFiles.readMemoryBytes
+    vi.spyOn(memoryFiles, 'readMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === root && args[1].startsWith('.memories/unverified-')) throw new Error('Temporarily unreadable')
+      return read(...args)
+    })
+    await expect(save('MEMORY.md', 'Another change')).rejects.toMatchObject({ code: 'backup-capacity' })
+    expect((await memoryBackups.latestMemoryBackup(backups, saved.batchId!))?.id).toBe(saved.batchId)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Keep this undo')
+  })
+
+  it.each(['save', 'clear'] as const)(
+    'reclaims completed manifests of a superseded partial recovery before %s',
+    async (operation) => {
+      const rewrite = async (names: string[]) => {
+        const reads = await Promise.all(names.map((name) => store.read(caller, name)))
+        return store.commit(
+          caller,
+          reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Changed' })),
+          'controlled',
+          approve
+        )
+      }
+      const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+      const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => '.memories/' + name + '.md')
+      for (const name of [a, b, c, d]) await writeFile(path.join(root, name), 'Original')
+      await rewrite([a, b])
+      await recover()
+      await writeFile(path.join(root, b), 'Independent edit')
+      await recover()
+      await rewrite([c, d])
+      await writeFile(path.join(root, d), 'Conflict')
+      await recover()
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const result =
+        operation === 'save'
+          ? await save('MEMORY.md', 'Still writable')
+          : await store.clear(caller, (await store.previewClear(caller)).token, approve)
+      expect(result.error).toBeUndefined()
+    }
+  )
+
+  it.each(['clear', 'recover'])('can clear a large memory again using %s after a complete undo', async (operation) => {
+    const target = path.join(root, 'MEMORY.md')
+    const original = Buffer.alloc(9 * 1024 * 1024, 65)
+    await writeFile(target, original)
+    const clear = async () => store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const first = await clear()
+    const undo = await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(undo.error).toBeUndefined()
+    expect((await readFile(target)).equals(original)).toBe(true)
+    const second =
+      operation === 'clear'
+        ? await clear()
+        : await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(second.error).toBeUndefined()
+    expect((await store.previewRecovery(caller))?.batchId).toBe(second.batchId)
+    expect(await memoryBackups.latestMemoryBackup(backups, first.batchId!)).toBeUndefined()
+    expect(await memoryBackups.latestMemoryBackup(backups, undo.batchId!)).toBeDefined()
+  })
+
+  it.each([false, true])(
+    'can undo a redone clear only while the cleared scope still matches (legacy=%s)',
+    async (legacy) => {
+      const target = path.join(root, 'MEMORY.md')
+      await writeFile(target, 'Original fact')
+      const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+      await store.clear(caller, (await store.previewClear(caller)).token, approve)
+      const cleared = await readFile(target, 'utf8')
+      await recover()
+      await recover()
+      expect(await readFile(target, 'utf8')).toBe(cleared)
+      if (legacy) {
+        for (const name of await readdir(backups)) {
+          const file = path.join(backups, name)
+          const manifest = JSON.parse(await readFile(file, 'utf8'))
+          if (manifest.source !== 'recovery') continue
+          delete manifest.clearScopeHash
+          delete manifest.undoClearScopeHash
+          await writeFile(file, JSON.stringify(manifest))
+        }
+      }
+      store = new MemoryStore(root, backups)
+      await store.initialize()
+      const other = path.join(root, '.memories/other.md')
+      await writeFile(other, 'External change')
+      await expect(recover()).rejects.toMatchObject({ code: 'conflict' })
+      await unlink(other)
+      expect((await recover()).error).toBeUndefined()
+      expect(await readFile(target, 'utf8')).toBe('Original fact')
+    }
+  )
+
+  it('protects the latest recovery batch when a second large backup would exceed capacity', async () => {
+    const original = Buffer.alloc(9 * 1024 * 1024, 65)
+    await writeFile(path.join(root, 'MEMORY.md'), original)
+    const first = await save('MEMORY.md', 'Small replacement')
+    await writeFile(path.join(root, 'MEMORY.md'), original)
+    await expect(save('MEMORY.md', 'Second replacement')).rejects.toMatchObject({ code: 'backup-capacity' })
+    expect((await readFile(path.join(root, 'MEMORY.md'))).equals(original)).toBe(true)
+    expect((await store.previewRecovery(caller))?.batchId).toBe(first.batchId)
+  })
+
+  it('preserves invalid UTF-8 instead of issuing an editable replacement baseline', async () => {
+    await writeFile(path.join(root, 'MEMORY.md'), Buffer.from([0xc3, 0x28]))
+    await expect(store.read(caller, 'MEMORY.md')).rejects.toThrow()
+    expect(await readFile(path.join(root, 'MEMORY.md'))).toEqual(Buffer.from([0xc3, 0x28]))
+  })
+
+  it('enforces UTF-8 bytes and entry lines, preserving oversized external originals', async () => {
+    await expect(save('MEMORY.md', '中'.repeat(8334))).rejects.toMatchObject({ code: 'limit' })
+    await expect(save('MEMORY.md', 'fact\n'.repeat(201))).rejects.toMatchObject({ code: 'limit' })
+    const original = 'fact\n'.repeat(201)
+    await writeFile(path.join(root, 'MEMORY.md'), original)
+    expect(await store.entry(caller)).toEqual({ content: 'fact\n'.repeat(200), truncated: true })
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(original)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe(original)
+  })
+
+  it.each([
+    '../other.md',
+    '.memories/../other.md',
+    '.memories/x/other.md',
+    'memory/FACT.md',
+    '.memories/CON.md',
+    '.memories/x:stream.md'
+  ])('rejects unmanaged target %s before exposing its content', async (target) => {
+    await expect(store.read(caller, target)).rejects.toMatchObject({ code: 'invalid-path' })
+  })
+
+  it('does not expose names when the caller is unauthorized', async () => {
+    const denied: MemoryAccess = {
+      assertAuthorized: () => {
+        throw new Error('Unauthorized')
+      }
+    }
+    await expect(store.list(denied)).rejects.toThrow('Unauthorized')
+    await expect(store.entry(denied)).rejects.toThrow('Unauthorized')
+  })
+
+  it('rejects a topic directory junction without reading its files', async () => {
+    await rmdir(path.join(root, '.memories'))
+    await symlink(backups, path.join(root, '.memories'), process.platform === 'win32' ? 'junction' : 'dir')
+    await expect(store.list(caller)).rejects.toMatchObject({ code: 'invalid-path' })
+  })
+
+  it('retains no more than five complete batches and can recover the latest one', async () => {
+    for (let index = 0; index < 7; index++) await save('MEMORY.md', `Fact ${index}`)
+    expect((await readdir(backups)).filter((name) => name.endsWith('.json'))).toHaveLength(5)
+    const preview = await store.previewRecovery(caller)
+    await store.recover(caller, preview!.token, approve)
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Fact 5')
+  })
+
+  it('rejects a backup exceeding capacity without truncating the original', async () => {
+    const original = Buffer.alloc(MEMORY_BACKUP_BYTES, 65)
+    await writeFile(path.join(root, 'MEMORY.md'), original)
+    await expect(save('MEMORY.md', 'Small replacement')).rejects.toMatchObject({ code: 'backup-capacity' })
+    expect((await readFile(path.join(root, 'MEMORY.md'))).equals(original)).toBe(true)
+  })
+
+  it('keeps later edits and the recoverable original when recovery conflicts', async () => {
+    await save('MEMORY.md', 'Before')
+    await save('MEMORY.md', 'After')
+    await writeFile(path.join(root, 'MEMORY.md'), 'Later external edit')
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files[0].conflict).toBe(true)
+    const result = await store.recover(caller, preview!.token, approve)
+    expect(result.files[0].outcome).toBe('conflict')
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Later external edit')
+    expect((await store.previewRecovery(caller))?.batchId).toBe(preview!.batchId)
+  })
+
+  it('refuses to undo deletion over a later same-name file', async () => {
+    await save('.memories/topic.md', 'Original')
+    const read = await store.read(caller, '.memories/topic.md')
+    await store.commit(caller, [{ kind: 'delete', receipt: read.receipt }], 'controlled', approve)
+    await writeFile(path.join(root, '.memories', 'topic.md'), 'New owner')
+    const preview = await store.previewRecovery(caller)
+    const result = await store.recover(caller, preview!.token, approve)
+    expect(result.files[0].outcome).toBe('conflict')
+    expect(await readFile(path.join(root, '.memories', 'topic.md'), 'utf8')).toBe('New owner')
+  })
+
+  it('invalidates old edits when recovering, even if the original hash returns', async () => {
+    const original = await store.read(caller, 'MEMORY.md')
+    await save('MEMORY.md', 'Temporary')
+    const preview = await store.previewRecovery(caller)
+    await store.recover(caller, preview!.token, approve)
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: original.receipt, content: 'Stale' }], 'controlled', approve)
+    ).rejects.toMatchObject({ code: 'invalid-receipt' })
+  })
+})
+
+describe('model state views', () => {
+  const active: MemoryEntry = {
+    schemaVersion: 1,
+    id: 'active',
+    status: 'active',
+    text: 'current fact',
+    derivedFrom: [],
+    sources: [{ kind: 'chat', conversationId: 'c', messageId: 'a', sourceVersion: '1' }]
+  }
+  const put = (target: string, entries: MemoryEntry[]) =>
+    writeFile(path.join(root, target), serializeMemoryEntries(entries))
+
+  it('renders current and historical facts without a whole-file receipt', async () => {
+    await put('MEMORY.md', [
+      active,
+      { ...active, id: 'old', status: 'expired', text: 'old fact', sources: [], validTo: '2026-01-01T00:00:00Z' }
+    ])
+    const current = await store.modelRead(caller, 'MEMORY.md')
+    expect(current.content).toContain('current fact')
+    expect(current.content).not.toContain('old fact')
+    expect(current.receipt).toBe('')
+    const history = await store.modelRead(caller, 'MEMORY.md', 'historical')
+    expect(history.content).toContain('old fact')
+    expect(history.content).toContain('2026-01-01')
+    await expect(
+      store.commit(caller, [{ kind: 'write', receipt: current.receipt, content: 'overwrite' }], 'controlled', approve)
+    ).rejects.toThrow()
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toContain('old fact')
+  })
+
+  it('suppresses cross-file sources across versions and transitive derivatives', async () => {
+    await put('.memories/state.md', [{ ...active, id: 'forgotten', status: 'forgotten', text: '' }])
+    await put('MEMORY.md', [
+      { ...active, sources: [{ ...active.sources[0], sourceVersion: '2' }] },
+      { ...active, id: 'derived', sources: [], derivedFrom: ['active'], text: 'derived secret' },
+      { ...active, id: 'safe', sources: [], text: 'safe fact' }
+    ])
+    const view = await store.modelRead(caller, 'MEMORY.md', 'historical')
+    expect(view.content).toContain('safe fact')
+    expect(view.content).not.toContain('current fact')
+    expect(view.content).not.toContain('derived secret')
+    await expect(store.modelRead(caller, 'MEMORY.md', 'extraction')).rejects.toThrow()
+  })
+
+  it('rejects malformed or duplicate scope metadata and ambiguous legacy text', async () => {
+    await put('MEMORY.md', [active])
+    await put('.memories/state.md', [active])
+    await expect(store.modelRead(caller, 'MEMORY.md')).rejects.toThrow()
+    await writeFile(path.join(root, '.memories/state.md'), '<!-- cherry-memory-entry:v9\n{}\n-->')
+    await expect(store.modelRead(caller, 'MEMORY.md')).rejects.toThrow()
+    await put('.memories/state.md', [{ ...active, id: 'forgotten', status: 'forgotten', text: '', sources: [] }])
+    await writeFile(path.join(root, 'MEMORY.md'), 'legacy secret')
+    await expect(store.modelRead(caller, 'MEMORY.md')).rejects.toThrow()
+    await expect(store.modelRead(caller, 'MEMORY.md', 'extraction')).rejects.toThrow()
+  })
+
+  it('invalidates captured views after cross-file edits, revocation, or generation changes', async () => {
+    await put('MEMORY.md', [active])
+    const view = await store.modelRead(caller, 'MEMORY.md')
+    await put('.memories/state.md', [{ ...active, id: 'forgotten', status: 'forgotten', text: '' }])
+    await expect(view.validate()).rejects.toThrow()
+    const fresh = await store.modelRead(caller, 'MEMORY.md')
+    store.invalidate()
+    await expect(fresh.validate()).rejects.toThrow()
+    let allowed = true
+    const owner = {
+      assertAuthorized: (): undefined => {
+        if (!allowed) throw new Error('revoked')
+        return undefined
+      }
+    }
+    const revoked = await store.modelRead(owner, 'MEMORY.md')
+    allowed = false
+    await expect(revoked.validate()).rejects.toThrow('revoked')
+  })
+})
