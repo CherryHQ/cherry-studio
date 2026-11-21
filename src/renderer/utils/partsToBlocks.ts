@@ -51,14 +51,18 @@ function toHostOrUrl(url: string): string {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persisted provider references have unvalidated extension fields; only the nested content string is consumed.
 function extractOpenRouterContent(entry: Record<string, unknown>): string | undefined {
   if (!entry.providerMetadata || typeof entry.providerMetadata !== 'object') return undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The metadata object is checked above; its provider-specific values remain unvalidated.
   const providerMetadata = entry.providerMetadata as Record<string, unknown>
   if (!providerMetadata.openrouter || typeof providerMetadata.openrouter !== 'object') return undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The namespace object is checked above; content is accepted only after the string check below.
   const openrouterMeta = providerMetadata.openrouter as Record<string, unknown>
   return typeof openrouterMeta.content === 'string' ? openrouterMeta.content : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored citation fields are unvalidated; only a finite positive number may enter the display projection.
 function readExplicitCitationNumber(entry: Record<string, unknown>): number {
   const value = entry.number
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
@@ -77,11 +81,14 @@ function normalizeWebResult(result: unknown): Citation | null {
   }
 
   if (!result || typeof result !== 'object') return null
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; each URL, title, content and citation number is validated before use.
   const entry = result as Record<string, unknown>
   const openAiUrlCitation =
     entry.url_citation && typeof entry.url_citation === 'object'
-      ? (entry.url_citation as Record<string, unknown>)
+      ? // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested citation object is checked; URL and title remain unknown until the string checks below.
+        (entry.url_citation as Record<string, unknown>)
       : undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The web container is checked; provider-specific fields remain unknown until the scalar readers validate them.
   const webEntry = entry.web && typeof entry.web === 'object' ? (entry.web as Record<string, unknown>) : undefined
 
   const url =
@@ -112,15 +119,18 @@ function normalizeWebResult(result: unknown): Citation | null {
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- WebCitationReference deliberately leaves persisted results untyped; distinguish Gemini grounding, result envelopes and arrays before reading individual citations.
 function normalizeWebResults(results: unknown): Citation[] {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; stored provider extension fields remain unvalidated.
+  const obj = results && typeof results === 'object' ? (results as Record<string, unknown>) : undefined
   // Gemini grounding format: { groundingChunks, groundingSupports }
-  if (results && typeof results === 'object' && Array.isArray((results as Record<string, unknown>).groundingChunks)) {
-    const obj = results as Record<string, unknown>
+  if (obj && Array.isArray(obj.groundingChunks)) {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the array container is checked; optional chunk fields stay unvalidated and web values are inspected below.
     const chunks = obj.groundingChunks as Array<Record<string, unknown>>
     const groundingSupports =
       obj.groundingSupports && Array.isArray(obj.groundingSupports) ? (obj.groundingSupports as unknown[]) : undefined
 
     return chunks
       .map((chunk, index) => {
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The web container is checked; URI and title are accepted only after their string checks.
         const web = chunk?.web && typeof chunk.web === 'object' ? (chunk.web as Record<string, unknown>) : undefined
         const url = typeof web?.uri === 'string' ? web.uri : ''
         if (!url) return null
@@ -140,11 +150,7 @@ function normalizeWebResults(results: unknown): Citation[] {
       .filter((citation) => citation !== null)
   }
 
-  const list = Array.isArray(results)
-    ? results
-    : results && typeof results === 'object' && Array.isArray((results as Record<string, unknown>).results)
-      ? ((results as Record<string, unknown>).results as unknown[])
-      : []
+  const list = Array.isArray(results) ? results : obj && Array.isArray(obj.results) ? obj.results : []
 
   return list.map(normalizeWebResult).filter((c): c is Citation => c !== null)
 }
