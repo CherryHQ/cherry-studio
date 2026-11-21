@@ -2,11 +2,16 @@ import type { Element, Root } from 'hast'
 import rehypeParse from 'rehype-parse'
 import rehypeStringify from 'rehype-stringify'
 import { defaultRehypePlugins } from 'streamdown'
-import { unified } from 'unified'
+import { type PluginTuple, unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
-import { createMarkdownSanitizeSchema, rehypePrefixSvgReferences } from '../..'
+import { createMarkdownSanitizeSchema, type MarkdownSanitizeSchema, rehypePrefixSvgReferences } from '../..'
 import { rehypeNormalizeLinkScheme } from '../../utils/normalize-link-scheme'
+
+// SAFETY: Streamdown constructs its sanitize preset as [rehypeSanitize, schema]; the schema owner describes the consumed fields.
+const [sanitizeFn, schema] = defaultRehypePlugins.sanitize as PluginTuple<[MarkdownSanitizeSchema], Root, Root>
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Streamdown constructs this plugin/options tuple but erases option types; forward its option bag unchanged to rehype-harden.
+const [hardenFn, hardenOptions] = defaultRehypePlugins.harden as PluginTuple<[Record<string, unknown>], Root, Root>
 
 describe('link scheme normalization before sanitize', () => {
   it.each([
@@ -18,13 +23,11 @@ describe('link scheme normalization before sanitize', () => {
     ['mailto:Foo@Bar.com', 'mailto:Foo@Bar.com'],
     ['MAILTO:Foo@Bar.com', 'mailto:Foo@Bar.com']
   ])('preserves the destination of %s, changing only its scheme', async (href, expected) => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
     const pipeline = unified()
       .use(rehypeParse, { fragment: true })
       .use(rehypeNormalizeLinkScheme)
       .use(sanitizeFn, createMarkdownSanitizeSchema(schema, ['zotero', 'obsidian', 'siyuan']))
-    const tree = (await pipeline.run(pipeline.parse(`<a href="${href}">Note</a>`))) as Root
+    const tree = await pipeline.run(pipeline.parse(`<a href="${href}">Note</a>`))
 
     expect((tree.children[0] as Element).properties.href).toBe(expected)
   })
@@ -32,8 +35,6 @@ describe('link scheme normalization before sanitize', () => {
   it.each(['DATA:text/html;base64,xxx', 'JAVASCRIPT:alert(1)'])(
     'still strips the dangerous href %s after normalization',
     async (href) => {
-      const { sanitize } = defaultRehypePlugins as Record<string, any>
-      const [sanitizeFn, schema] = sanitize
       const output = String(
         await unified()
           .use(rehypeParse, { fragment: true })
@@ -80,9 +81,6 @@ describe('link scheme normalization before sanitize', () => {
 
 describe('Markdown sanitize schema', () => {
   it('preserves common SVG content required for gradients and clipping', async () => {
-    const { sanitize, harden } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-    const [hardenFn, hardenOptions] = harden
     const html = `
       <svg width="100" height="50" viewBox="0 0 100 50">
         <defs>
@@ -117,9 +115,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps the default clobber prefix for non-SVG ids', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -132,9 +127,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('strips raw style elements and SVG inline style attributes from untrusted markdown html', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -156,9 +148,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('filters unsafe SVG link protocols while preserving fragment references', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -175,9 +164,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('preserves composer token placeholders without allowing unsafe span attributes', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -191,9 +177,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps preview-safe semantic HTML', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -216,9 +199,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps color-only span styles and strips unsafe declarations', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -242,8 +222,6 @@ describe('Markdown sanitize schema', () => {
   it('keeps schemeless workspace file links through sanitize while blocking file:/drive/unsafe protocols', async () => {
     // This exercises the sanitize schema in isolation. The production pipeline also runs
     // hardening, with local hrefs temporarily preserved around both security plugins.
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
     const run = (html: string) =>
       unified()
         .use(rehypeParse, { fragment: true })
@@ -267,8 +245,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps only opaque numeric citation ids', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -283,8 +259,6 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps only the fixed classes emitted by GitHub alerts', async () => {
-    const { sanitize } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
     const output = String(
       await unified()
         .use(rehypeParse, { fragment: true })
@@ -303,9 +277,6 @@ describe('Markdown sanitize schema', () => {
 
 describe('additional link protocol injection', () => {
   it.each([false, true])('keeps injected knowledge hrefs (harden: %s)', async (withHarden) => {
-    const { sanitize, harden } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize
-    const [hardenFn, hardenOptions] = harden
     const hrefs = ['zotero://select/items/Note', 'obsidian://new?vault=Notes', 'siyuan://blocks/Note']
     const html =
       hrefs.map((href) => `<a href="${href}">Note</a>`).join('') +

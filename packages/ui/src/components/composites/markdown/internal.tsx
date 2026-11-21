@@ -49,6 +49,7 @@ const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).m
 
   // Keep GFM extensions while treating single tildes as literal chat text.
   const [gfmPlugin, options] = plugin
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Streamdown supplies a GFM option object; preserve untyped plugin options while overriding only singleTilde.
   return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
 })
 
@@ -67,11 +68,12 @@ interface ResolvedDefaultRehypePlugins {
   sanitizeFn: Pluggable
   sanitizeSchema: MarkdownSanitizeSchema
   hardenFn: Pluggable
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Streamdown exposes only Pluggable, erasing harden option types; forward its option bag before overriding the two display policies.
   hardenOptions: Record<string, unknown>
 }
 
 function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
-  const plugins = defaultRehypePlugins as Partial<Record<string, unknown>>
+  const plugins = defaultRehypePlugins
   const sanitize = plugins.sanitize
   const harden = plugins.harden
 
@@ -84,10 +86,12 @@ function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   const [hardenFn, hardenOptions] = Array.isArray(harden) ? harden : [harden, undefined]
 
   return {
-    raw: plugins.raw as Pluggable,
-    sanitizeFn: sanitize[0] as Pluggable,
+    raw: plugins.raw,
+    sanitizeFn: sanitize[0],
+    // SAFETY: Streamdown constructs this checked tuple with the sanitize schema consumed by createMarkdownSanitizeSchema.
     sanitizeSchema: sanitize[1] as MarkdownSanitizeSchema,
-    hardenFn: hardenFn as Pluggable,
+    hardenFn,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The upstream tuple supplies its option object; the bare-plugin fallback supplies an empty one, retaining all foreign options.
     hardenOptions: (hardenOptions ?? {}) as Record<string, unknown>
   }
 }
