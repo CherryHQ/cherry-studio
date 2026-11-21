@@ -35,8 +35,7 @@ import {
   isSerializedAiSdkToolCallRepairError,
   isSerializedAiSdkTooManyEmbeddingValuesForCallError,
   isSerializedAiSdkTypeValidationError,
-  isSerializedAiSdkUnsupportedFunctionalityError,
-  isSerializedError
+  isSerializedAiSdkUnsupportedFunctionalityError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
@@ -506,14 +505,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       return
     }
 
-    let errorText: string
-    if (isSerializedAiSdkError(error)) {
-      errorText = formatAiSdkError(error)
-    } else if (isSerializedError(error)) {
-      errorText = formatError(error)
-    } else {
-      errorText = safeToString(error)
-    }
+    const errorText = isSerializedAiSdkError(error) ? formatAiSdkError(error) : formatError(error)
 
     void navigator.clipboard.writeText(errorText)
     toast.success(t('message.copied'))
