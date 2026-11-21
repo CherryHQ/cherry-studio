@@ -28,10 +28,11 @@ describe('boundedBodyTokens', () => {
   })
 
   it('does not throw or overflow on a pathologically deep object', () => {
-    const root: Record<string, unknown> = {}
+    type DeepNode = { next?: DeepNode }
+    const root: DeepNode = {}
     let node = root
     for (let i = 0; i < 10_000; i++) {
-      const next: Record<string, unknown> = {}
+      const next: DeepNode = {}
       node.next = next
       node = next
     }
