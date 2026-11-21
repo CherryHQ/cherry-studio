@@ -38,17 +38,11 @@ export type SuccessStatusCode = (typeof SuccessStatus)[keyof typeof SuccessStatu
  */
 export type HandlerResult<T> = T | { data: T; status: SuccessStatusCode }
 
-/**
- * Type guard: check if result is custom status format
- */
-export function isCustomStatusResult<T>(result: unknown): result is { data: T; status: SuccessStatusCode } {
-  return (
-    result !== null &&
-    typeof result === 'object' &&
-    'status' in result &&
-    typeof (result as Record<string, unknown>).status === 'number' &&
-    Object.values(SuccessStatus).includes((result as Record<string, unknown>).status as SuccessStatusCode)
-  )
+/** Recognize explicit { data, status } response wrappers; payloads remain unknown. */
+export function isCustomStatusResult(result: unknown): result is { data: unknown; status: SuccessStatusCode } {
+  if (result === null || typeof result !== 'object' || !('status' in result) || !('data' in result)) return false
+  const status = result.status
+  return typeof status === 'number' && Object.values(SuccessStatus).some((code) => code === status)
 }
 
 // ============================================================================
@@ -60,8 +54,8 @@ export function isCustomStatusResult<T>(result: unknown): result is { data: T; s
  * Requires `response` field, allows optional `params`, `query`, and `body`.
  */
 export type EndpointMethodConstraint = {
-  params?: Record<string, any>
-  query?: Record<string, any>
+  params?: object
+  query?: object
   body?: any
   response: any // response is required
 }
@@ -130,8 +124,8 @@ export interface DataRequest<T = any> {
   method: HttpMethod
   /** API path (e.g., '/topics', '/topics/123') */
   path: string
-  /** URL parameters for the request */
-  params?: Record<string, any>
+  /** Query parameters for the request */
+  params?: object
   /** Request body data */
   body?: T
   /** Request headers */
@@ -341,7 +335,7 @@ export interface ServiceOptions {
   /** User context for authorization */
   user?: any
   /** Additional service-specific options */
-  metadata?: Record<string, any>
+  metadata?: object
 }
 
 // ============================================================================
