@@ -6,6 +6,7 @@ import {
   isMcpToolDisabledBySource,
   isMcpToolForcePromptBySource,
   matchesMcpSourceToolRule,
+  resolveMcpSourceSkillAccess,
   resolveMcpSourceToolAccess
 } from '../mcpSourcePolicy'
 
@@ -29,6 +30,24 @@ describe('mcpSourcePolicy', () => {
     expect(resolveMcpSourceToolAccess(configured, { name: 'new_tool' }).approval).toBe('prompt')
     expect(isMcpAutoApprovalEnforcedBySource({ ...server, disabledAutoApproveTools: ['mcp__other__*'] })).toBe(false)
     expect(isMcpAutoApprovalEnforcedBySource({ ...server, disabledAutoApproveTools: ['search_docs'] })).toBe(false)
+  })
+
+  it('defaults Skill reads to prompting and keeps each exact URI independent', () => {
+    const uri = 'skill://reports/SKILL.md'
+    const configured = {
+      ...server,
+      skillPermissions: { [uri]: 'auto' as const, 'skill://other/SKILL.md': 'disabled' as const }
+    }
+    expect(resolveMcpSourceSkillAccess(server, uri)).toEqual({ enabled: true, approval: 'prompt' })
+    expect(resolveMcpSourceSkillAccess(configured, uri)).toEqual({ enabled: true, approval: 'auto' })
+    expect(resolveMcpSourceSkillAccess(configured, 'skill://other/SKILL.md')).toEqual({
+      enabled: false,
+      approval: 'prompt'
+    })
+    expect(resolveMcpSourceSkillAccess(configured, 'skill://new/SKILL.md')).toEqual({
+      enabled: true,
+      approval: 'prompt'
+    })
   })
 
   it('matches raw name, current id, legacy id, and server wildcard', () => {

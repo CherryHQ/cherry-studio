@@ -24,7 +24,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
-import { selectSidebarApp } from '../helpers/navigation'
+import { openConversationListOptions, selectSidebarApp } from '../helpers/navigation'
 import { switchConversationModel } from '../scenarios/switchConversationModel'
 
 test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
@@ -559,8 +559,8 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     const original = AssistantSchema.parse(created.data)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByText('Manage Assistants', { exact: true }).click()
+    await openConversationListOptions(page.locator('[data-ui~="chat.view"]:visible'))
+    await page.getByRole('menuitem', { name: 'Manage Assistants', exact: true }).click()
     const cards = page
       .getByRole('button', { name, exact: true })
       .filter({ has: page.getByRole('heading', { name, exact: true }) })

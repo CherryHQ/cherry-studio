@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { deniedReason, NOBODY_TO_APPROVE, REPEATED_CALL } from '../../../src/core/approval/approval'
 import type { HistoryEntry, RoundDetails } from '../../../src/core/facts'
 import {
   blockedStreak,
@@ -19,7 +20,6 @@ import {
   goal,
   goalEntry,
   marker,
-  PARENT,
   result,
   record,
   roundEntry,
@@ -159,27 +159,32 @@ describe('turns and round stops', () => {
   it('asks for the latest stop the round shows', () => {
     const same = callTo('read', { path: 'a' })
     const repeated = assistant('x', { calls: [same, same, same, same, same] })
-    expect(roundStopRequest([repeated], PARENT, [])).toEqual({
+    expect(roundStopRequest([repeated])).toEqual({
       code: 'no_progress',
       message: 'the same read call was repeated 5 times'
     })
     const broken = assistant('x', { calls: [same, same, callTo('ls'), same, same, same] })
-    expect(roundStopRequest([broken], PARENT, [])).toBeUndefined()
-    const risky = callTo('bash', {}, 'k9')
-    const rounds = [
-      repeated,
-      result('AskUserQuestion', { details: { outcome: 'declined' } }),
-      assistant('y', { calls: [risky] })
-    ]
-    const unavailable = [{ call: { thread: PARENT, key: risky.callKey }, state: 'unavailable' as const }]
-    expect(roundStopRequest(rounds, PARENT, unavailable)).toEqual({
+    expect(roundStopRequest([broken])).toBeUndefined()
+    const rounds = [repeated, result('AskUserQuestion', { details: { outcome: 'declined' } })]
+    expect(roundStopRequest(rounds)).toEqual({ code: 'needs_user_input', message: 'the user dismissed the question' })
+    const nobody = result('bash', { callId: 'k9', isError: true, blocked: NOBODY_TO_APPROVE })
+    expect(roundStopRequest([...rounds, nobody])).toEqual({
       code: 'awaiting_approval',
       message: 'tool call k9 needs approval and nobody can give it'
     })
-    expect(roundStopRequest(rounds, PARENT, [])).toEqual({
-      code: 'needs_user_input',
-      message: 'the user dismissed the question'
+  })
+
+  // Catches a denial the goal never stops on (D9), or one read from a result's text or from another block reason,
+  // which would stop the goal on a tool's own failure.
+  it('reads a denial only from a call the gate blocked for it', () => {
+    const failed = (options: { text?: string; blocked?: string }) =>
+      result('bash', { callId: 'k9', isError: true, ...options })
+    expect(roundStopRequest([failed({ blocked: deniedReason('not on main') })])).toEqual({
+      code: 'approval_denied',
+      message: 'tool call k9 was denied'
     })
+    expect(roundStopRequest([failed({ text: `Tool call blocked: ${deniedReason()}` })])).toBeUndefined()
+    expect(roundStopRequest([failed({ blocked: REPEATED_CALL })])).toBeUndefined()
   })
 
   // Catches a blocked streak that survives a person's message or an edit of the goal (X15).

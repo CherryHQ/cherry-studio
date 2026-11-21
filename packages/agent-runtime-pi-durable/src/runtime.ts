@@ -134,10 +134,10 @@ interface Entry {
   archived?: { through: EntryId; content: ContentProjection }
 }
 const context = BACKGROUND_CONTEXT
-const error = (operation: string, code: string): RuntimeError => ({
+const error = (operation: string, code: string, message?: string): RuntimeError => ({
   operation,
   code,
-  message: `Pi Durable ${operation}: ${code}`
+  message: message || `Pi Durable ${operation}: ${code}`
 })
 const rejected = (operation: string, code: string) => ({ status: 'rejected' as const, error: error(operation, code) })
 const nativeId = (id: string): number | undefined =>
@@ -746,7 +746,9 @@ export async function createPiDurableRuntime(
             const task = await entry.conversation.compact(instructions, context)
             const result = await native.waitForTask(task, context)
             const outcome = result.state.outcome
-            if (outcome.status !== 'completed') return rejected('compact', 'native-error')
+            if (outcome.status !== 'completed') {
+              return { status: 'rejected', error: error('compact', 'native-error', outcome.error?.message) }
+            }
             if (outcome.result.submissionId) {
               const submission = await native.submission(outcome.result.submissionId, context)
               const placed = await submission?.wait(context)
@@ -756,7 +758,10 @@ export async function createPiDurableRuntime(
             return { status: 'confirmed', value: { compacted: outcome.result.entryId !== undefined } }
           } catch (cause) {
             report(cause)
-            return { status: 'unknown', error: error('compact', 'native-error') }
+            return {
+              status: 'unknown',
+              error: error('compact', 'native-error', cause instanceof Error ? cause.message : undefined)
+            }
           }
         },
         async permissionModeChanged() {

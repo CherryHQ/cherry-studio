@@ -1,18 +1,12 @@
 import { rm } from 'node:fs/promises'
 import { isAbsolute, parse, relative, sep } from 'node:path'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { ThemeMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ALPHA = 'Active tab Alpha'
 const BETA = 'Active tab Beta'
@@ -44,7 +38,7 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
         await closeElectronApp(ownedApp)
         ownedApp = undefined
       }
-      ownedApp = await electron.launch({
+      ownedApp = await launchSmokeElectron({
         args: ['.'],
         env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
         timeout: 60_000

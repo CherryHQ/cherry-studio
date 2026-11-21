@@ -20,6 +20,10 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | `create` | Internal | `(type: WindowType, args?: OpenWindowArgs) => string` | Force fresh creation; throws if a singleton of this type already exists. Use only as a defensive assertion — consumer code should use `open()` + `onWindowCreatedByType` instead. |
 | `destroy` | Internal | `(windowId: string) => boolean` | Force destroy via `window.destroy()`, which skips the `close` event — and therefore skips the pool's `close` interception, bypassing pool recycling. Non-pooled windows: identical to `close()`. Pooled windows: use `suspendPool(type)` for pool-wide shutdown instead of destroying individual pooled windows. |
 
+### Construction Configuration
+
+`OpenWindowArgs.configureOptions` optionally mutates the merged `WindowOptions` after remembered bounds are injected and before `BrowserWindow` construction. It runs only for a fresh window, not singleton reopen or pool reuse. Consumers supply their own sizing policy; WindowManager does not branch on the window type to apply it. Warmup construction without call arguments does not run this callback.
+
 ## Window Operations
 
 | Method | Signature | Description |
