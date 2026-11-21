@@ -1,3 +1,4 @@
+import { isToolUIPart } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -5,7 +6,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { applyApprovalDecisions } from '../applyApprovalDecisions'
 import type { ApprovalDecision } from '../stream'
 
-function toolPart(overrides: Record<string, unknown> = {}): CherryMessagePart {
+type RequestedToolPart = Extract<CherryMessagePart, { state: 'approval-requested' }>
+
+function toolPart(overrides: Partial<Pick<RequestedToolPart, 'toolCallId' | 'approval'>> = {}): RequestedToolPart {
   return {
     type: 'tool-fetch_url',
     toolCallId: 'call-1',
@@ -13,13 +16,14 @@ function toolPart(overrides: Record<string, unknown> = {}): CherryMessagePart {
     input: { url: 'https://example.com' },
     approval: { id: 'ap-1' },
     ...overrides
-  } as unknown as CherryMessagePart
+  }
 }
 
-const textPart = { type: 'text', text: 'hello' } as unknown as CherryMessagePart
+const textPart: CherryMessagePart = { type: 'text', text: 'hello' }
 
 function approvalState(part: CherryMessagePart) {
-  return part as unknown as { state: string; approval?: { id: string; approved?: boolean; reason?: string } }
+  if (!isToolUIPart(part)) throw new Error('Expected a tool invocation')
+  return part
 }
 
 describe('applyApprovalDecisions', () => {
@@ -53,7 +57,11 @@ describe('applyApprovalDecisions', () => {
   })
 
   it('does not re-touch a part already in approval-responded', () => {
-    const responded = toolPart({ state: 'approval-responded', approval: { id: 'ap-1', approved: false } })
+    const responded = {
+      ...toolPart(),
+      state: 'approval-responded',
+      approval: { id: 'ap-1', approved: false }
+    } satisfies CherryMessagePart
     const [part] = applyApprovalDecisions([responded], [{ approvalId: 'ap-1', approved: true }])
     // Still the original (denied) decision — already-settled parts are skipped.
     expect(approvalState(part).approval).toEqual({ id: 'ap-1', approved: false })
@@ -80,7 +88,7 @@ describe('applyApprovalDecisions', () => {
   })
 
   it('stores updated tool input when applying an approval decision', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'tool-AskUserQuestion',
         toolCallId: 'call-1',
@@ -96,7 +104,7 @@ describe('applyApprovalDecisions', () => {
         },
         approval: { id: 'approval-1' }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
 
     const updated = applyApprovalDecisions(parts, [
       {

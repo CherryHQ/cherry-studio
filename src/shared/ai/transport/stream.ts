@@ -220,6 +220,7 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Approval edits carry tool-owned arguments; IPC checks the container, while each runtime validates the selected tool fields.
   updatedInput?: Record<string, unknown>
 }
 

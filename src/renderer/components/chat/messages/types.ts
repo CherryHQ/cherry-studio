@@ -10,6 +10,7 @@ import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { ApprovalDecision } from '@shared/ai/transport'
 import type {
   ChatMessageStyle,
   MultiModelFoldDisplayMode,
@@ -188,11 +189,8 @@ export interface MessageToolApprovalMatch {
   input?: unknown
 }
 
-export interface MessageToolApprovalInput {
+export interface MessageToolApprovalInput extends Pick<ApprovalDecision, 'approved' | 'reason' | 'updatedInput'> {
   match: MessageToolApprovalMatch
-  approved: boolean
-  reason?: string
-  updatedInput?: Record<string, unknown>
 }
 
 export interface MessageErrorDetailInput {
