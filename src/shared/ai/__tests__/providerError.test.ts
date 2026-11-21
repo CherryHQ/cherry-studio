@@ -439,6 +439,24 @@ describe('response processing diagnostics', () => {
   })
 })
 
+describe('reasoning-only provider rejection', () => {
+  it('preserves the reported cause and classifies it before discarding the provider body', () => {
+    const message = 'upstream returned reasoning without output text; retry'
+    const error = new APICallError({
+      message: 'Bad Request',
+      url: 'https://example.invalid/chat/completions',
+      statusCode: 400,
+      requestBodyValues: {},
+      responseBody: JSON.stringify({ error: { message } })
+    })
+    expect(serializeNestedProviderError(error)).toMatchObject({
+      message,
+      providerErrorCategory: 'parse',
+      responseBody: null
+    })
+  })
+})
+
 describe('interrupted response transport', () => {
   it.each(['INCOMPLETE_CHUNKED_ENCODING', 'CONNECTION_CLOSED', 'CONNECTION_RESET', 'EMPTY_RESPONSE'])(
     'preserves net::ERR_%s as a network failure without exposing provider payloads',
