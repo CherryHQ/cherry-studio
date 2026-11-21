@@ -29,3 +29,31 @@ export function findConversationTab(tabs: readonly Tab[], target: ConversationNa
     return tabBelongsToApp(app, tab.url) && app.conversationRoute?.keyFromUrl(tab.url) === target.conversationId
   })
 }
+
+export function getConversationTargetFromTab(tab: Tab | undefined): ConversationNavigationTarget | undefined {
+  if (tab?.type !== 'route') return undefined
+
+  // Scheduled Tasks hosts agent sessions on its own route; the tab's session binding
+  // (written by useTaskConversation) identifies the conversation the user is viewing,
+  // so badge clearing reaches sessions opened outside the agent conversation route.
+  const url = new URL(tab.url, 'app://x')
+  if (url.pathname === '/app/scheduled-tasks') {
+    const binding = cacheService.getCasual<{ taskId: string; runId?: string; sessionId: string }>(
+      `scheduled-task.conversation.${tab.id}`
+    )
+    if (
+      binding?.sessionId &&
+      binding.taskId === url.searchParams.get('taskId') &&
+      (binding.runId ?? null) === url.searchParams.get('runId')
+    )
+      return { conversationType: 'agent', conversationId: binding.sessionId }
+  }
+
+  for (const conversationType of ['assistant', 'agent'] as const) {
+    const app = getSidebarApp(conversationType === 'agent' ? 'agents' : 'assistants')
+    const conversationId =
+      app?.conversationRoute && tabBelongsToApp(app, tab.url) ? app.conversationRoute.keyFromUrl(tab.url) : undefined
+    if (conversationId) return { conversationType, conversationId }
+  }
+  return undefined
+}

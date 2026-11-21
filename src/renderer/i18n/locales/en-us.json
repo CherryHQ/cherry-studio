@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "Mini App Notifications (all apps)",
   "settings.notification.popups": "System popups",
   "settings.notification.system_popups": "System popups",
+  "settings.notification.taskbar_badge": "Taskbar Unread Badge (Windows)",
   "settings.notification.title": "Notifications",
   "settings.notification.update": "App Update",
   "settings.notification.usage_popups": "Usage popups",

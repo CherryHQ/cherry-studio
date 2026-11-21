@@ -13,5 +13,8 @@ export const notificationHandlers: IpcHandlersFor<typeof notificationRequestSche
   },
   'notification.activate': async ({ id }) => {
     await activateNotification(id)
+  },
+  'notification.mark_conversation_viewed': async (target) => {
+    application.get('NotificationService').markConversationViewed(target)
   }
 }

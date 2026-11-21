@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "Ειδοποιήσεις μικροπρογραμμάτων (όλα)",
   "settings.notification.popups": "Αναδυόμενες ειδοποιήσεις συστήματος",
   "settings.notification.system_popups": "Αναδυόμενες ειδοποιήσεις συστήματος",
+  "settings.notification.taskbar_badge": "Ένδειξη μη αναγνωσμένων στη γραμμή εργασιών (Windows)",
   "settings.notification.title": "Ειδοποιήσεις",
   "settings.notification.update": "Ενημέρωση Εφαρμογής",
   "settings.notification.usage_popups": "Αναδυόμενες ειδοποιήσεις χρήσης",

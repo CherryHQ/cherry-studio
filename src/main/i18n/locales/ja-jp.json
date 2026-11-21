@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "更新が確定しました。詳細は【設定 › 個人情報 › サブスクリプションを管理】で確認できます。",
   "notification.subscription.updated_message": "サブスクリプションと利用権が同期されました。開いて使用量を確認できます。",
   "notification.subscription.updated_title": "Cherry Cloud のサブスクリプションが更新されました",
+  "notification.taskbar_badge.description": "{{count}} 件の会話の確認が必要です",
   "openclaw.errors.binary_incompatible": "Cherry Studio が使用している OpenClaw バイナリは、生成された設定と互換性がありません。OpenClaw をアップグレードしてください。{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw は、Cherry Studio の管理対象プロバイダーセクション外の設定を拒否しました。その設定を修正するか、OpenClaw をアップグレードしてください。{{details}}",
   "openclaw.errors.more_issues": "ほか {{count}} 件の問題",

@@ -132,6 +132,8 @@ export class TopicService {
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
+    // Deleted topics can no longer be viewed, so they must not keep counting as unread.
+    if (options.deleted) application.get('NotificationService').dropUnreadConversations('assistant', entityIds)
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
     // and one entry can carry only one routeParams).
@@ -149,6 +151,7 @@ export class TopicService {
 
   notifyPurged(topicIds: readonly string[]): void {
     if (topicIds.length === 0) return
+    application.get('NotificationService').dropUnreadConversations('assistant', topicIds)
     this.notifyReadModelChange(topicIds, 'membership')
     notifyDataApiDataChange([
       { endpoint: '/topics/:topicId/messages', kind: 'membership' },

@@ -1,12 +1,14 @@
-import { app, Notification as ElectronNotification } from 'electron'
+import { app, nativeImage, Notification as ElectronNotification } from 'electron'
 
 import { application } from '@application'
 import { type CreateNotificationRecordInput, notificationRecordService } from '@data/services/NotificationRecordService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import { renderTaskbarBadgeBitmap } from '@main/utils/taskbarBadgeIcon'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { NotificationTaskResultSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
@@ -32,6 +34,12 @@ const OS_NOTIFICATION_PREF_KEYS = [
   'app.notification.usage.os.enabled'
 ] as const satisfies readonly UnifiedPreferenceKeyType[]
 
+const TASKBAR_BADGE_PREF_KEY = 'app.notification.taskbar_badge.enabled'
+
+function conversationKey(target: ConversationNavigationTarget): string {
+  return `${target.conversationType}:${target.conversationId}`
+}
+
 function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
   if (!meta || typeof meta !== 'object') return false
 
@@ -48,9 +56,13 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
   private readonly activeNotifications = new Set<ElectronNotification>()
+  /** Conversations with an unviewed reply or pending approval; drives the Windows taskbar badge. */
+  private readonly unreadConversations = new Set<string>()
+  private taskbarBadgeEnabled = false
 
   protected onStop(): void {
     this.activeNotifications.clear()
+    this.unreadConversations.clear()
   }
 
   protected onInit(): void {
@@ -58,6 +70,16 @@ export class NotificationService extends BaseService {
       application
         .get('PreferenceService')
         .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
+    )
+    this.taskbarBadgeEnabled = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange(TASKBAR_BADGE_PREF_KEY, () => {
+        this.taskbarBadgeEnabled = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY)
+        this.syncTaskbarBadge()
+      })
+    )
+    this.registerDisposable(
+      application.get('WindowManager').onWindowCreatedByType(WindowType.Main, () => this.syncTaskbarBadge())
     )
     this.syncDockBadgeWithNotificationPrefs()
     const purge = () => {
@@ -69,6 +91,66 @@ export class NotificationService extends BaseService {
     }
     purge()
     this.registerInterval(purge, 24 * 60 * 60 * 1000)
+    // Windows drops taskbar overlay icons when Explorer recreates the taskbar (e.g. an
+    // explorer.exe restart) without notifying apps; per Microsoft guidance overlays must
+    // be reapplied. No Electron event carries that signal, so reapply on a slow interval.
+    // syncTaskbarBadge() is a no-op off Windows and re-renders nothing when idle.
+    this.registerInterval(
+      () => {
+        if (this.unreadConversations.size > 0) this.syncTaskbarBadge()
+      },
+      5 * 60 * 1000
+    )
+  }
+
+  /** Called when the user is looking at a conversation; drops it from the taskbar badge count. */
+  public markConversationViewed(target: ConversationNavigationTarget): void {
+    if (this.unreadConversations.delete(conversationKey(target))) this.syncTaskbarBadge()
+  }
+
+  /** Drops removed conversations from the unread set so the badge stops counting them. */
+  public dropUnreadConversations(
+    conversationType: ConversationNavigationTarget['conversationType'],
+    conversationIds: readonly string[]
+  ): void {
+    let changed = false
+    for (const id of conversationIds) {
+      if (this.unreadConversations.delete(conversationKey({ conversationType, conversationId: id }))) changed = true
+    }
+    if (changed) this.syncTaskbarBadge()
+  }
+
+  /** True when the conversation is already in front of the user in a focused window. */
+  public async isConversationActiveInFocusedWindow(target: ConversationNavigationTarget): Promise<boolean> {
+    return (
+      getFullChromeWindowInfos().some((window) => window.isFocused) &&
+      application.get('ConversationNavigationService').isActiveInFocusedWindow(target)
+    )
+  }
+
+  /** Flags a conversation as needing attention; drives the Windows taskbar badge count. */
+  public markConversationUnread(target: ConversationNavigationTarget): void {
+    const key = conversationKey(target)
+    if (this.unreadConversations.has(key)) return
+    this.unreadConversations.add(key)
+    this.syncTaskbarBadge()
+  }
+
+  /** Projects the unread-conversation count onto each main window's Windows taskbar button. */
+  private syncTaskbarBadge(): void {
+    if (!isWin) return
+
+    const count = this.taskbarBadgeEnabled ? this.unreadConversations.size : 0
+    let overlay: Electron.NativeImage | null = null
+    if (count > 0) {
+      const { buffer, width, height } = renderTaskbarBadgeBitmap(count)
+      overlay = nativeImage.createFromBitmap(buffer, { width, height, scaleFactor: 2 })
+    }
+    const description = count > 0 ? t('notification.taskbar_badge.description', { count }) : ''
+
+    for (const window of application.get('WindowManager').getWindowsByType(WindowType.Main)) {
+      if (!window.isDestroyed()) window.setOverlayIcon(overlay, description)
+    }
   }
 
   public async publish(

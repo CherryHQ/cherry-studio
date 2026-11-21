@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Yenilemeniz onaylandı. Ayrıntılar için \"Ayarlar › Kişisel Bilgiler › Aboneliği yönet\" bölümüne bakın.",
   "notification.subscription.updated_message": "Aboneliğiniz ve haklarınız güncel. Kullanımı görmek için açın.",
   "notification.subscription.updated_title": "Cherry Cloud aboneliği güncellendi",
+  "notification.taskbar_badge.description": "{{count}} sohbet dikkatinizi bekliyor",
   "openclaw.errors.binary_incompatible": "Cherry Studio tarafından kullanılan OpenClaw ikili dosyası, oluşturulan yapılandırmayla uyumlu değil. OpenClaw'u yükseltin.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw, Cherry Studio'nun yönettiği sağlayıcı bölümü dışındaki yapılandırmayı reddetti. Bu yapılandırmayı düzeltin veya OpenClaw'u yükseltin.{{details}}",
   "openclaw.errors.more_issues": "ve {{count}} sorun daha",

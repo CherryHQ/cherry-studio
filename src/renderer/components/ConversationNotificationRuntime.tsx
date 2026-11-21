@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
@@ -7,7 +7,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { playCompletionSound } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
-import { findConversationTab } from '@renderer/utils/conversationNavigation'
+import { findConversationTab, getConversationTargetFromTab } from '@renderer/utils/conversationNavigation'
 import { getSidebarApp, resolveSidebarActiveItem } from '@renderer/utils/sidebar'
 
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
@@ -19,6 +19,23 @@ const logger = loggerService.withContext('ConversationNotificationRuntime')
 export function ConversationNotificationRuntime(): null {
   const { activeTab } = useTabs()
   const { t } = useTranslation()
+  const activeTarget = getConversationTargetFromTab(activeTab)
+  const activeType = activeTarget?.conversationType
+  const activeId = activeTarget?.conversationId
+
+  // Reading it from a focused window is what clears the conversation from the taskbar badge.
+  const reportViewed = useCallback(() => {
+    if (!activeType || !activeId || !document.hasFocus()) return
+    void ipcApi
+      .request('notification.mark_conversation_viewed', { conversationType: activeType, conversationId: activeId })
+      .catch((error) => logger.error('Failed to mark conversation viewed', error as Error))
+  }, [activeType, activeId])
+
+  useEffect(() => {
+    reportViewed()
+    window.addEventListener('focus', reportViewed)
+    return () => window.removeEventListener('focus', reportViewed)
+  }, [reportViewed])
 
   useEffect(() => {
     if (activeTab?.type !== 'route') return
@@ -84,7 +101,10 @@ export function ConversationNotificationRuntime(): null {
   })
 
   useIpcOn('notification.conversation', (notification) => {
-    if (activeTab && findConversationTab([activeTab], notification.meta)) return
+    if (activeTab && findConversationTab([activeTab], notification.meta)) {
+      reportViewed()
+      return
+    }
 
     toast.warning({
       key: notification.id,

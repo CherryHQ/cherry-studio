@@ -5511,6 +5511,7 @@
   "settings.notification.mini_app": "Powiadomienia miniaplikacji (wszystkie aplikacje)",
   "settings.notification.popups": "Wyskakujące okna systemowe",
   "settings.notification.system_popups": "Wyskakujące okna systemowe",
+  "settings.notification.taskbar_badge": "Odznaka nieprzeczytanych na pasku zadań (Windows)",
   "settings.notification.title": "Powiadomienia",
   "settings.notification.update": "Aktualizacja aplikacji",
   "settings.notification.usage_popups": "Wyskakujące okna użycia",

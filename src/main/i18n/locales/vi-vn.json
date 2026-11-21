@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Đã xác nhận gia hạn. Xem chi tiết tại “Cài đặt › Thông tin cá nhân › Quản lý gói đăng ký”.",
   "notification.subscription.updated_message": "Gói và quyền lợi của bạn đã được đồng bộ. Mở để xem mức sử dụng.",
   "notification.subscription.updated_title": "Đã cập nhật gói Cherry Cloud",
+  "notification.taskbar_badge.description": "{{count}} cuộc trò chuyện cần bạn chú ý",
   "openclaw.errors.binary_incompatible": "Tệp nhị phân OpenClaw mà Cherry Studio đang sử dụng không tương thích với cấu hình đã tạo. Hãy nâng cấp OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw đã từ chối cấu hình nằm ngoài phần nhà cung cấp do Cherry Studio quản lý. Hãy sửa cấu hình đó hoặc nâng cấp OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "và {{count}} vấn đề khác",

@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Tu renovación está confirmada. Consulta los detalles en «Configuración › Información personal › Gestionar suscripción».",
   "notification.subscription.updated_message": "Tu suscripción y tus derechos están al día. Ábrela para ver el uso.",
   "notification.subscription.updated_title": "Suscripción de Cherry Cloud actualizada",
+  "notification.taskbar_badge.description": "{{count}} conversaciones requieren tu atención",
   "openclaw.errors.binary_incompatible": "El binario de OpenClaw que utiliza Cherry Studio no es compatible con la configuración generada. Actualiza OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw rechazó una configuración fuera de la sección de proveedores gestionada por Cherry Studio. Corrige esa configuración o actualiza OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "y {{count}} problema(s) más",

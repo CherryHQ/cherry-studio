@@ -12,7 +12,7 @@ import { defineRoute } from '../define'
  * strip it on the request leg while the event leg carries it — is a compile error (repo
  * convention — see selection.ts / webSearch.ts).
  */
-const conversationNavigationTargetSchema: z.ZodType<ConversationNavigationTarget> = z.object({
+export const conversationNavigationTargetSchema: z.ZodType<ConversationNavigationTarget> = z.object({
   conversationType: z.enum(['assistant', 'agent']),
   conversationId: z.string().min(1)
 })

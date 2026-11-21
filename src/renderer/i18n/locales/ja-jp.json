@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "ミニアプリの通知（すべてのミニアプリ）",
   "settings.notification.popups": "システム通知",
   "settings.notification.system_popups": "システム通知",
+  "settings.notification.taskbar_badge": "タスクバーの未読バッジ (Windows)",
   "settings.notification.title": "通知",
   "settings.notification.update": "アプリ更新",
   "settings.notification.usage_popups": "使用量のポップアップ通知",

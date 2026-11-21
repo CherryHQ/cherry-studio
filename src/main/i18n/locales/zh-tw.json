@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "續費已確認，可在【設定-個人資訊-管理訂閱】查看訂閱詳情。",
   "notification.subscription.updated_message": "你的訂閱與權益已同步，點擊查看用量。",
   "notification.subscription.updated_title": "Cherry Cloud 訂閱已更新",
+  "notification.taskbar_badge.description": "{{count}} 個對話需要你處理",
   "openclaw.errors.binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
   "openclaw.errors.more_issues": "另有 {{count}} 個問題",

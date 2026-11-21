@@ -1010,6 +1010,9 @@ export class AgentService {
     agentTaskService.notifyReadModelChange(impact.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(impact.deliveryResults)
     agentSessionService.notifyReadModelChange(impact.affectedSessionIds, impact.changeKind)
+    // Sessions deleted with the agent can no longer be viewed; stop counting them as unread.
+    if (impact.deletedSessionIds && impact.deletedSessionIds.length > 0)
+      application.get('NotificationService').dropUnreadConversations('agent', impact.deletedSessionIds)
     if (impact.affectedChannelIds.length > 0)
       notifyDataApiDataChange([
         { endpoint: '/agent-channels', kind: 'projection', entityIds: impact.affectedChannelIds },

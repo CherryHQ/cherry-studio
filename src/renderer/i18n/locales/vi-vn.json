@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "Thông báo từ Mini App (tất cả)",
   "settings.notification.popups": "Thông báo hệ thống",
   "settings.notification.system_popups": "Thông báo hệ thống",
+  "settings.notification.taskbar_badge": "Huy hiệu chưa đọc trên thanh tác vụ (Windows)",
   "settings.notification.title": "Thông báo",
   "settings.notification.update": "Cập nhật Ứng dụng",
   "settings.notification.usage_popups": "Thông báo mức sử dụng",

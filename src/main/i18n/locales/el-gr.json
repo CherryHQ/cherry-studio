@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Η ανανέωσή σας επιβεβαιώθηκε. Δείτε λεπτομέρειες στις «Ρυθμίσεις › Προσωπικές πληροφορίες › Διαχείριση συνδρομής».",
   "notification.subscription.updated_message": "Η συνδρομή και τα δικαιώματά σας είναι ενημερωμένα. Ανοίξτε για να δείτε τη χρήση.",
   "notification.subscription.updated_title": "Η συνδρομή Cherry Cloud ενημερώθηκε",
+  "notification.taskbar_badge.description": "{{count}} συνομιλίες χρειάζονται την προσοχή σας",
   "openclaw.errors.binary_incompatible": "Το εκτελέσιμο αρχείο OpenClaw που χρησιμοποιεί το Cherry Studio δεν είναι συμβατό με τη διαμόρφωση που δημιουργήθηκε. Αναβαθμίστε το OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "Το OpenClaw απέρριψε διαμόρφωση εκτός της ενότητας παρόχων που διαχειρίζεται το Cherry Studio. Διορθώστε αυτή τη διαμόρφωση ή αναβαθμίστε το OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "και {{count}} ακόμη ζητήματα",

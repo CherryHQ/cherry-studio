@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Obnovení bylo potvrzeno. Podrobnosti najdete v Nastavení › Účet › Spravovat předplatné.",
   "notification.subscription.updated_message": "Vaše předplatné a nároky jsou aktuální. Kliknutím zobrazíte využití.",
   "notification.subscription.updated_title": "Předplatné Cherry Cloud bylo aktualizováno",
+  "notification.taskbar_badge.description": "Konverzace čekající na vaši pozornost: {{count}}",
   "openclaw.errors.binary_incompatible": "Binární soubor OpenClaw, který Cherry Studio používá, není kompatibilní s vygenerovanou konfigurací. Upgradujte OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw odmítl konfiguraci mimo spravovanou sekci poskytovatele Cherry Studio. Opravte tuto konfiguraci nebo upgradujte OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "a dalších {{count}} problémů",

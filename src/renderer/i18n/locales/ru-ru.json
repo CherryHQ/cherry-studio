@@ -5439,6 +5439,7 @@
   "settings.notification.mini_app": "Уведомления мини-приложений (все приложения)",
   "settings.notification.popups": "Системные уведомления",
   "settings.notification.system_popups": "Системные уведомления",
+  "settings.notification.taskbar_badge": "Значок непрочитанных на панели задач (Windows)",
   "settings.notification.title": "Уведомления",
   "settings.notification.update": "Обновление приложения",
   "settings.notification.usage_popups": "Уведомления об использовании",

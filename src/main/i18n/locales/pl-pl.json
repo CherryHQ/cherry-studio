@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Odniesienie subskrypcji zostało potwierdzone. Sprawdź szczegóły w Ustawienia › Konto › Zarządzaj subskrypcją.",
   "notification.subscription.updated_message": "Twoja subskrypcja i uprawnienia są aktualne. Otwórz, aby wyświetlić zużycie.",
   "notification.subscription.updated_title": "Subskrypcja Cherry Cloud została zaktualizowana",
+  "notification.taskbar_badge.description": "Konwersacje oczekujące na uwagę: {{count}}",
   "openclaw.errors.binary_incompatible": "Plik binarny OpenClaw używany przez Cherry Studio jest niezgodny z wygenerowaną konfiguracją. Zaktualizuj OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw odrzucił konfigurację spoza sekcji dostawców zarządzanej przez Cherry Studio. Popraw tę konfigurację lub zaktualizuj OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "i jeszcze {{count}} problem(ów)",

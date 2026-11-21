@@ -52,6 +52,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn<typeof fetch>(),
   focused: true,
   focusListeners: new Map<string, () => void>(),
+  badgePrefListener: undefined as (() => void) | undefined,
+  createFromBitmap: vi.fn((buffer: Buffer, options: unknown) => ({ buffer, options })),
   focusOrOpen: vi.fn(() => Promise.resolve()),
   isActiveInFocusedWindow: vi.fn(async () => false),
   getWindowInfosByType: vi.fn(),
@@ -61,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   preferenceValues: {} as Record<string, boolean | number | string>,
   send: vi.fn(),
   setBadgeCount: vi.fn(() => true),
+  setOverlayIcon: vi.fn(),
   showMainWindow: vi.fn(),
   streamApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   subscribeMultipleChanges: vi.fn(),
@@ -96,9 +99,14 @@ vi.mock('@main/i18n', () => ({
       })[key] ?? key
   )
 }))
+vi.mock('@main/core/platform', async (importOriginal) => ({ ...(await importOriginal()), isWin: true }))
+
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   return {
+    nativeImage: {
+      createFromBitmap: (...args: Parameters<typeof mocks.createFromBitmap>) => mocks.createFromBitmap(...args)
+    },
     net: { fetch: mocks.fetch },
     BrowserWindow: { getFocusedWindow: () => (mocks.focused ? {} : null) },
     app: {
@@ -254,11 +262,24 @@ describe('NotificationService', () => {
       }
       if (name === 'ConversationNavigationService')
         return { focusOrOpen: mocks.focusOrOpen, isActiveInFocusedWindow: mocks.isActiveInFocusedWindow }
-      if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
+      if (name === 'WindowManager') {
+        return {
+          getWindowInfosByType: mocks.getWindowInfosByType,
+          getWindowsByType: () => [{ isDestroyed: () => false, setOverlayIcon: mocks.setOverlayIcon }],
+          onWindowCreatedByType: () => ({ dispose: vi.fn() })
+        }
+      }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       if (name === 'PreferenceService') {
-        return { get: mocks.preferenceGet, subscribeMultipleChanges: mocks.subscribeMultipleChanges }
+        return {
+          get: mocks.preferenceGet,
+          subscribeChange: (_key: string, listener: () => void) => {
+            mocks.badgePrefListener = listener
+            return { dispose: vi.fn() }
+          },
+          subscribeMultipleChanges: mocks.subscribeMultipleChanges
+        }
       }
       return originalGet(name as never)
     }) as typeof application.get)
@@ -267,6 +288,7 @@ describe('NotificationService', () => {
     // Init reads notification prefs for Dock-badge sync; action tests care about later calls only.
     mocks.preferenceGet.mockClear()
     mocks.setBadgeCount.mockClear()
+    mocks.setOverlayIcon.mockClear()
   })
 
   afterEach(async () => {
@@ -275,6 +297,75 @@ describe('NotificationService', () => {
     await service._doStop()
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  describe('Windows taskbar badge', () => {
+    const lastOverlay = () => mocks.setOverlayIcon.mock.calls.at(-1)
+    const flushBadge = async () => {
+      // Unread marking runs through an async active-conversation check now (microtasks only).
+      for (let i = 0; i < 10; i++) await Promise.resolve()
+    }
+
+    it('counts distinct conversations needing attention, not repeated events', async () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitApproval({ topicId: 'topic-1' })
+      await flushBadge()
+      expect(lastOverlay()?.[1]).toBe('notification.taskbar_badge.description')
+      expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(1)
+
+      emitCompletion({ topicId: 'agent-session:session-1', turnId: 'turn-2' })
+      await flushBadge()
+      expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(2)
+      expect(mocks.createFromBitmap).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears only the viewed conversation and hides the badge when none remain', async () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitCompletion({ topicId: 'topic-2', turnId: 'turn-2' })
+      await flushBadge()
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'topic-1' })
+      expect(lastOverlay()?.[0]).not.toBeNull()
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'never-notified' })
+      const callsBefore = mocks.setOverlayIcon.mock.calls.length
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'topic-2' })
+      expect(mocks.setOverlayIcon.mock.calls.length).toBe(callsBefore + 1)
+      expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('hides the badge when the preference is disabled', async () => {
+      emitCompletion()
+      await flushBadge()
+      mocks.preferenceValues['app.notification.taskbar_badge.enabled'] = false
+      mocks.badgePrefListener?.()
+      expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('stops counting a conversation once it is deleted', async () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitCompletion({ topicId: 'topic-2', turnId: 'turn-2' })
+      await flushBadge()
+
+      service.dropUnreadConversations('assistant', ['topic-1'])
+      expect(lastOverlay()?.[0]).not.toBeNull()
+
+      service.dropUnreadConversations('assistant', ['never-notified'])
+      const callsBefore = mocks.setOverlayIcon.mock.calls.length
+
+      service.dropUnreadConversations('assistant', ['topic-2'])
+      expect(mocks.setOverlayIcon.mock.calls.length).toBe(callsBefore + 1)
+      expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('does not count a completion in the already-focused conversation as unread', async () => {
+      mocks.getWindowInfosByType.mockReturnValue([mainWindowInfo({ isVisible: true, isFocused: true })])
+      mocks.isActiveInFocusedWindow.mockResolvedValue(true)
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      await flushBadge()
+      expect(mocks.setOverlayIcon).not.toHaveBeenCalled()
+    })
   })
 
   describe('official announcement polling', () => {

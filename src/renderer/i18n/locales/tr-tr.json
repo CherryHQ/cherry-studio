@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "Mini Uygulama Bildirimleri (tüm uygulamalar)",
   "settings.notification.popups": "Sistem bildirimleri",
   "settings.notification.system_popups": "Sistem bildirimleri",
+  "settings.notification.taskbar_badge": "Görev çubuğu okunmamış rozeti (Windows)",
   "settings.notification.title": "Bildirimler",
   "settings.notification.update": "Uygulama Güncellemesi",
   "settings.notification.usage_popups": "Kullanım bildirimleri",

@@ -232,6 +232,7 @@
   "notification.subscription.renewed_message": "Продление подтверждено. Подробности — в разделе «Настройки › Личная информация › Управление подпиской».",
   "notification.subscription.updated_message": "Подписка и права доступа синхронизированы. Откройте, чтобы посмотреть использование.",
   "notification.subscription.updated_title": "Подписка Cherry Cloud обновлена",
+  "notification.taskbar_badge.description": "Бесед, требующих вашего внимания: {{count}}",
   "openclaw.errors.binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "и ещё проблем: {{count}}",

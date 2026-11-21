@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "Notificaciones de miniaplicaciones (todas)",
   "settings.notification.popups": "Notificaciones emergentes del sistema",
   "settings.notification.system_popups": "Notificaciones emergentes del sistema",
+  "settings.notification.taskbar_badge": "Insignia de no leídos en la barra de tareas (Windows)",
   "settings.notification.title": "Notificaciones",
   "settings.notification.update": "Actualización de la aplicación",
   "settings.notification.usage_popups": "Avisos emergentes de uso",

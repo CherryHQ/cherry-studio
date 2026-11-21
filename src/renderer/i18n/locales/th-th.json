@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "การแจ้งเตือนมินิแอป (ทุกแอป)",
   "settings.notification.popups": "ป๊อปอัประบบ",
   "settings.notification.system_popups": "ป๊อปอัประบบ",
+  "settings.notification.taskbar_badge": "ป้ายแจ้งเตือนที่ยังไม่ได้อ่านบนแถบงาน (Windows)",
   "settings.notification.title": "การแจ้งเตือน",
   "settings.notification.update": "อัปเดตแอป",
   "settings.notification.usage_popups": "ป๊อปอัปการใช้งาน",

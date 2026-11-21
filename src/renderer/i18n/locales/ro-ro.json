@@ -5438,6 +5438,7 @@
   "settings.notification.mini_app": "Notificări mini-aplicații (toate aplicațiile)",
   "settings.notification.popups": "Notificări de sistem",
   "settings.notification.system_popups": "Notificări de sistem",
+  "settings.notification.taskbar_badge": "Insignă de necitite în bara de activități (Windows)",
   "settings.notification.title": "Notificări",
   "settings.notification.update": "Actualizare aplicație",
   "settings.notification.usage_popups": "Alerte de utilizare",

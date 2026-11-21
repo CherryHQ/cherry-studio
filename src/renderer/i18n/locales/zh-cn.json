@@ -5437,6 +5437,7 @@
   "settings.notification.mini_app": "小程序通知（所有小程序）",
   "settings.notification.popups": "系统弹窗",
   "settings.notification.system_popups": "系统弹窗",
+  "settings.notification.taskbar_badge": "任务栏未读角标（Windows）",
   "settings.notification.title": "通知",
   "settings.notification.update": "应用更新",
   "settings.notification.usage_popups": "用量弹窗",
