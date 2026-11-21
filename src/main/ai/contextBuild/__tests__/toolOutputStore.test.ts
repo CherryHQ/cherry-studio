@@ -155,9 +155,12 @@ describe('toolOutputStore', () => {
         { id: 'a', title: 'A', content: 'alpha' },
         { id: 'b', title: 'B', content: 'beta' }
       ]
-      const spliced = spliceTextAtKey(items, '/0/content', 'SPLICED') as Array<Record<string, unknown>>
+      const spliced = spliceTextAtKey(items, '/0/content', 'SPLICED')
+      if (!Array.isArray(spliced) || spliced[0] === null || typeof spliced[0] !== 'object') {
+        throw new Error('Expected an array of entity records')
+      }
 
-      expect(spliced[0].content).toBe('SPLICED')
+      expect(spliced[0]).toHaveProperty('content', 'SPLICED')
       expect(Object.keys(spliced[0])).toEqual(['id', 'title', 'content'])
       expect(spliced[1]).toBe(items[1])
 
@@ -175,9 +178,9 @@ describe('toolOutputStore', () => {
 
     it('replaces a top-level record field', () => {
       const output = { kind: 'text', text: 'body', totalLines: 2 }
-      const spliced = spliceTextAtKey(output, '/text', 'SPLICED') as Record<string, unknown>
+      const spliced = spliceTextAtKey(output, '/text', 'SPLICED')
 
-      expect(spliced.text).toBe('SPLICED')
+      expect(spliced).toEqual({ kind: 'text', text: 'SPLICED', totalLines: 2 })
     })
 
     it.each([
@@ -204,9 +207,11 @@ describe('toolOutputStore', () => {
           { key: '/1/content', fileEntryId: 'e2', vfsFilename: 'v2', head: '', tail: '', totalChars: 1, totalLines: 1 }
         ]
       }
-      const inflated = inflateEntities(ref, { '/0/content': 'FULL A' }) as Array<Record<string, unknown>>
-      expect(inflated[0].content).toBe('FULL A')
-      expect(inflated[1].content).toBe('snippet-b')
+      const inflated = inflateEntities(ref, { '/0/content': 'FULL A' })
+      expect(inflated).toEqual([
+        { id: 'a', content: 'FULL A' },
+        { id: 'b', content: 'snippet-b' }
+      ])
     })
   })
 })

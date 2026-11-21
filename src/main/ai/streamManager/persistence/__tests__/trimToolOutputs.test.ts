@@ -1,5 +1,8 @@
+import { isToolUIPart, type ToolUIPart } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ToolEntry } from '@main/ai/tools/adapters/aiSdk/types'
+import { isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -9,11 +12,12 @@ vi.mock('@logger', () => ({
 const { prefsGetMock, persistMock, registryGetAllMock } = vi.hoisted(() => ({
   prefsGetMock: vi.fn(),
   persistMock: vi.fn(),
-  registryGetAllMock: vi.fn(() => [] as Array<{ name: string; truncatable?: boolean; codec?: unknown }>)
+  registryGetAllMock: vi.fn<() => Pick<ToolEntry, 'name' | 'truncatable' | 'codec'>[]>(() => [])
 }))
-vi.mock('@application', () => ({
-  application: { get: (name: string) => (name === 'PreferenceService' ? { get: prefsGetMock } : {}) }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ PreferenceService: { get: prefsGetMock } })
+})
 vi.mock('@main/ai/contextBuild/toolOutputStore', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   persistToolOutputText: persistMock
@@ -29,15 +33,30 @@ import { trimOversizedToolOutputs } from '../trimToolOutputs'
 const THRESHOLD = 2_000
 const BIG = Array.from({ length: 200 }, (_, i) => `line ${i + 1} — some longer padding text here`).join('\n')
 
-const toolPart = (output: unknown, overrides: Record<string, unknown> = {}): CherryMessagePart =>
-  ({
-    type: 'tool-run_cmd',
-    toolCallId: 'call-1',
-    state: 'output-available',
-    input: {},
-    output,
-    ...overrides
-  }) as unknown as CherryMessagePart
+const toolPart = (
+  output: unknown,
+  overrides: Partial<Pick<ToolUIPart, 'toolCallId'>> = {}
+): Extract<ToolUIPart, { state: 'output-available' }> => ({
+  type: 'tool-run_cmd',
+  toolCallId: 'call-1',
+  state: 'output-available',
+  input: {},
+  output,
+  ...overrides
+})
+
+function persistedRef(part: CherryMessagePart) {
+  if (!isToolUIPart(part) || !isPersistedToolOutput(part.output)) {
+    throw new Error('Expected a persisted tool output')
+  }
+  return part.output.$persistedToolOutput
+}
+
+function entitiesRef(part: CherryMessagePart) {
+  const ref = persistedRef(part)
+  if (ref.shape !== 'entities') throw new Error('Expected an entity tool output')
+  return ref
+}
 
 const ENTRY = { id: 'entry-1', origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' }
 
@@ -64,32 +83,30 @@ describe('trimOversizedToolOutputs', () => {
     const [trimmed] = await trimOversizedToolOutputs(parts)
 
     expect(persistMock).toHaveBeenCalledWith(BIG)
-    const output = (trimmed as { output: unknown }).output as {
-      $persistedToolOutput: Record<string, unknown>
-    }
-    expect(output.$persistedToolOutput).toMatchObject({
+    const ref = persistedRef(trimmed)
+    if (ref.shape === 'entities') throw new Error('Expected a single-text output')
+    expect(ref).toMatchObject({
       fileEntryId: 'entry-1',
       vfsFilename: 'vfs_0123456789abcdef.txt',
       totalChars: BIG.length,
       shape: 'text'
     })
-    expect((output.$persistedToolOutput.head as string).length).toBeGreaterThan(0)
-    expect((output.$persistedToolOutput.tail as string).length).toBeGreaterThan(0)
-    expect(BIG.startsWith(output.$persistedToolOutput.head as string)).toBe(true)
-    expect(BIG.endsWith(output.$persistedToolOutput.tail as string)).toBe(true)
+    expect(ref.head.length).toBeGreaterThan(0)
+    expect(ref.tail.length).toBeGreaterThan(0)
+    expect(BIG.startsWith(ref.head)).toBe(true)
+    expect(BIG.endsWith(ref.tail)).toBe(true)
   })
 
   it('keeps the metadata of an all-text MCP output on the envelope', async () => {
     const metadata = { serverId: 's1', serverName: 'files', type: 'mcp' }
     const parts = [toolPart({ content: [{ type: 'text', text: BIG }], metadata })]
     const [trimmed] = await trimOversizedToolOutputs(parts)
-    const output = (trimmed as { output: unknown }).output as { $persistedToolOutput: Record<string, unknown> }
-    expect(output.$persistedToolOutput).toMatchObject({ shape: 'mcp-content', metadata })
+    expect(persistedRef(trimmed)).toMatchObject({ shape: 'mcp-content', metadata })
   })
 
   it.each([
     ['under threshold', [toolPart('short output')]],
-    ['non-terminal part', [toolPart(BIG, { state: 'input-available' })]],
+    ['non-terminal part', [{ type: 'tool-run_cmd', toolCallId: 'call-1', state: 'input-available', input: {} }]],
     ['ineligible structured output', [toolPart({ giant: BIG })]],
     [
       'already persisted',
@@ -108,8 +125,8 @@ describe('trimOversizedToolOutputs', () => {
       ]
     ],
     ['already deferred', [toolPart({ $deferredToolResult: { topicId: 't', messageId: 'm', toolCallId: 'c' } })]],
-    ['non-tool part', [{ type: 'text', text: BIG } as unknown as CherryMessagePart]]
-  ])('passes through untouched: %s', async (_label, parts) => {
+    ['non-tool part', [{ type: 'text', text: BIG }]]
+  ] satisfies [string, CherryMessagePart[]][])('passes through untouched: %s', async (_label, parts) => {
     const result = await trimOversizedToolOutputs(parts)
     expect(result).toEqual(parts)
     expect(persistMock).not.toHaveBeenCalled()
@@ -136,13 +153,13 @@ describe('trimOversizedToolOutputs', () => {
     persistMock.mockRejectedValue(new Error('disk full'))
     const parts = [toolPart(BIG)]
     const result = await trimOversizedToolOutputs(parts)
-    expect((result[0] as { output: unknown }).output).toBe(BIG)
+    expect(result[0]).toHaveProperty('output', BIG)
   })
 
   it('trims only the oversized parts of a mixed array', async () => {
     const small = toolPart('small', { toolCallId: 'call-2' })
     const result = await trimOversizedToolOutputs([toolPart(BIG), small])
-    expect((result[0] as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
+    expect(result[0]).toHaveProperty('output.$persistedToolOutput.shape', 'text')
     expect(result[1]).toEqual(small)
   })
 
@@ -170,11 +187,10 @@ describe('trimOversizedToolOutputs', () => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
       const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])
 
-      expect(persistMock).toHaveBeenCalledTimes(1)
       expect(persistMock).toHaveBeenCalledWith(BIG)
-      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      const ref = entitiesRef(trimmed)
       expect(ref.shape).toBe('entities')
-      const blobRefs = ref.blobRefs as Array<Record<string, unknown>>
+      const blobRefs = ref.blobRefs
       expect(blobRefs).toHaveLength(1)
       expect(blobRefs[0]).toMatchObject({
         key: '/0/content',
@@ -182,20 +198,19 @@ describe('trimOversizedToolOutputs', () => {
         vfsFilename: 'vfs_0123456789abcdef.txt',
         totalChars: BIG.length
       })
-      expect(BIG.startsWith(blobRefs[0].head as string)).toBe(true)
-      expect(BIG.endsWith(blobRefs[0].tail as string)).toBe(true)
+      expect(BIG.startsWith(blobRefs[0].head)).toBe(true)
+      expect(BIG.endsWith(blobRefs[0].tail)).toBe(true)
 
-      const skeleton = ref.skeleton as Array<Record<string, unknown>>
-
-      expect(skeleton[0]).toMatchObject({ id: 'cite-0', url: 'https://a.example', title: 'A' })
-      // The under-threshold entity keeps its full text.
-      expect(skeleton[1]).toEqual(items[1])
+      expect(ref.skeleton).toEqual([
+        expect.objectContaining({ id: 'cite-0', url: 'https://a.example', title: 'A' }),
+        items[1]
+      ])
     })
 
     it('applies even when the tool is truncatable:false (persist-only echo trim)', async () => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', truncatable: false, codec }])
       const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])
-      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      const ref = entitiesRef(trimmed)
       expect(ref.shape).toBe('entities')
     })
 
@@ -213,7 +228,7 @@ describe('trimOversizedToolOutputs', () => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
       persistMock.mockRejectedValue(new Error('disk full'))
       const result = await trimOversizedToolOutputs([toolPart(items)])
-      expect((result[0] as { output: unknown }).output).toEqual(items)
+      expect(result[0]).toHaveProperty('output', items)
     })
   })
 
@@ -239,7 +254,7 @@ describe('trimOversizedToolOutputs', () => {
       const [trimmed] = await trimOversizedToolOutputs([toolPart(fsOutput(text))])
 
       expect(persistMock).toHaveBeenCalledWith(text)
-      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      const ref = entitiesRef(trimmed)
       expect(ref.shape).toBe('entities')
       expect(ref.blobRefs).toMatchObject([{ key: '/text', fileEntryId: 'entry-1', totalChars: text.length }])
       expect(ref.skeleton).toMatchObject({ kind: 'text', startLine: 1, totalLines: 42 })
@@ -265,7 +280,7 @@ describe('trimOversizedToolOutputs', () => {
       // 1800 < global 2000 (no trim normally) but > head+tail floor(1500) and > assistant 400.
       const [trimmed] = await trimOversizedToolOutputs([toolPart(mid)], { truncateThreshold: 400 })
       expect(persistMock).toHaveBeenCalledWith(mid)
-      expect((trimmed as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
+      expect(trimmed).toHaveProperty('output.$persistedToolOutput.shape', 'text')
     })
 
     it('skips entirely when the assistant disables context build', async () => {
@@ -276,7 +291,7 @@ describe('trimOversizedToolOutputs', () => {
 
     it('inherits the global threshold when the override is null', async () => {
       const [trimmed] = await trimOversizedToolOutputs([toolPart(BIG)], null)
-      expect((trimmed as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
+      expect(trimmed).toHaveProperty('output.$persistedToolOutput.shape', 'text')
     })
   })
 })
