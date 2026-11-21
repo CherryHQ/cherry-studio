@@ -28,10 +28,11 @@ export interface GeneratePaintingOptions {
    *  routing from the registry instead of the renderer injecting it. */
   readonly mode?: ImageGenerationMode
   /**
-   * Canonical param bag (registry param keys → coerced values; blanks dropped,
-   * customSize composed into `size`). main partitions it (`splitParamValues`)
+   * Canonical param bag (blanks dropped, customSize composed into `size`).
+   * Main validates catalog values before partitioning it (`splitParamValues`)
    * and maps it onto each vendor's wire shape — no per-vendor logic here.
    */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Failed form validation retains legacy raw values; ai.image.generate validates/coerces catalog entries at the IPC boundary.
   readonly paramValues: Record<string, unknown>
   /** Per-attempt request timeout in ms; omitted uses the transport default. */
   readonly requestTimeoutMs?: number
