@@ -7,7 +7,7 @@ export interface TableHeaderOptions {
    * @default {}
    * @example { class: 'foo' }
    */
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: Parameters<typeof mergeAttributes>[number]
 }
 
 /**
