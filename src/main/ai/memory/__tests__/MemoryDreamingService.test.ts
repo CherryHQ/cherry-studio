@@ -13,6 +13,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
+import type { AiService } from '@main/ai/AiService'
 import type { JobContext } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle'
 
@@ -26,7 +27,12 @@ describe('memory organization lifecycle and commit fences', () => {
   const dbh = setupTestDatabase()
   const scope = { kind: 'shared' } as const
   const approve = async () => () => undefined
-  const generate = vi.fn(async () => ({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }))
+  const generate = vi.fn<
+    (input: Parameters<AiService['generateText']>[0]) => Promise<{ text: string; finishReason: string }>
+  >(async () => ({
+    text: '{"writes":[],"deletes":[]}',
+    finishReason: 'stop'
+  }))
   const busy = vi.fn(() => false)
   let fixture: string
   let memory: MemoryService
