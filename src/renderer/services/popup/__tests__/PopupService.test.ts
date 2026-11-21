@@ -109,9 +109,9 @@ describe('popupService / createPopup', () => {
 
     const second = handle.show({ label: 'B' })
     expect(second).not.toBe(first)
-    expect(
-      popupService.getSnapshot().some((entry) => entry.open && entry.kind === 'component' && entry.props.label === 'B')
-    ).toBe(true)
+    expect(popupService.getSnapshot()).toContainEqual(
+      expect.objectContaining({ open: true, kind: 'component', props: { label: 'B' } })
+    )
   })
 
   it('confirm() mounts a confirm entry and settles to the given result', async () => {

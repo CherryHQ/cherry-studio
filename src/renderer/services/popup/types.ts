@@ -104,7 +104,8 @@ interface PopupEntryBase {
 export interface ComponentPopupEntry extends PopupEntryBase {
   kind: 'component'
   Component: PopupComponent<any, any>
-  props: Record<string, unknown>
+  /** Only the paired popup component interprets these heterogeneous props. */
+  props: object
 }
 
 export interface ConfirmPopupEntry extends PopupEntryBase {
