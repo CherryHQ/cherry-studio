@@ -1,5 +1,5 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
+import type { JobError, JobScheduleSnapshot, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
 import type { Serializable } from '@shared/types/serializable'
 
@@ -27,14 +27,14 @@ export interface JobContext<TPayload = unknown> {
   parentId: string | null
   signal: AbortSignal
   /** Read-only view of jobTable.metadata at the start of this attempt. */
-  metadata: Readonly<Record<string, unknown>>
+  metadata: Readonly<JobSnapshot['metadata']>
   /**
    * Shallow-merge a metadata patch and persist immediately. Useful for
    * cross-restart hand-offs (e.g. remote-poll providerTaskId — see
    * handler-authoring.md). Awaiting this call is required before the value is
    * guaranteed durable.
    */
-  patchMetadata(patch: Record<string, unknown>): Promise<void>
+  patchMetadata(patch: JobSnapshot['metadata']): Promise<void>
   /**
    * Report progress (0-100) with optional free-shape detail. Reaches the
    * renderer via CacheService.subscribeSharedChange at jobs.progress.${jobId}.
@@ -67,7 +67,7 @@ export interface JobSettledEvent<TPayload = unknown> {
   error: JobError | null
   attempt: number
   /** Final metadata value — includes every `patchMetadata` merge applied during execution. */
-  metadata: Readonly<Record<string, unknown>>
+  metadata: Readonly<JobSnapshot['metadata']>
 }
 
 export interface JobHandler<TPayload = unknown> {
@@ -156,7 +156,7 @@ export interface EnqueueOptions {
   parentId?: string
   timeoutMs?: number
   maxAttempts?: number
-  metadata?: Record<string, unknown>
+  metadata?: JobSnapshot['metadata']
   /**
    * Startup recovery for this job, overriding its handler's `recovery`. `singleton` is a per-type
    * rule, so it cannot be set per job.
@@ -171,7 +171,7 @@ export interface JobScheduleRegistrationInput<K extends JobType = JobType> {
   catchUpPolicy: CatchUpPolicy
   /** Required for multi-instance types; omit (or null) for single-instance types. */
   name?: string | null
-  metadata?: Record<string, unknown>
+  metadata?: JobScheduleSnapshot['metadata']
   /** Default true. */
   enabled?: boolean
 }
