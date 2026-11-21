@@ -8,6 +8,7 @@ import path from 'node:path'
 import { setupTestDatabase } from '@test-helpers/db'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -26,6 +27,7 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
@@ -3163,6 +3165,64 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('delivers the computed memory proposal through the streamed approval part', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      const chunks: UIMessageChunk[] = []
+      entry.currentTurn.controller = { enqueue: (chunk: UIMessageChunk) => chunks.push(chunk) } as never
+      const original = { path: 'C:/Memory/MEMORY.md', edits: [{ oldText: 'Short', newText: 'Detailed' }] }
+      const input = {
+        ...original,
+        memoryPreview: [
+          { path: 'MEMORY.md', expectedHash: 'a'.repeat(64), content: 'Detailed\nKeep the existing exception.\n' }
+        ]
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'memory-edit',
+          toolName: 'edit',
+          input: original,
+          dynamic: true,
+          providerExecuted: true
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'memory-approval',
+          toolCallId: 'memory-edit',
+          toolName: 'edit',
+          input,
+          presentation: 'stream',
+          providerMetadata: { cherry: { transport: 'pi-agent', toolName: 'edit' } }
+        }
+      })
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      expect(message?.parts).toEqual([
+        expect.objectContaining({
+          toolCallId: 'memory-edit',
+          type: 'dynamic-tool',
+          providerExecuted: true,
+          state: 'approval-requested',
+          input,
+          approval: { id: 'memory-approval' },
+          callProviderMetadata: { cherry: { transport: 'pi-agent', toolName: 'edit' } }
+        })
+      ])
+      await service.closeSession('session-1')
+    })
+
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
@@ -3808,7 +3868,7 @@ describe('AgentSessionRuntimeService', () => {
       }).getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
       await expect(reader.read()).resolves.toMatchObject({
-        value: { type: 'tool-input-available', toolCallId: 'deferred-call' }
+        value: { type: 'tool-input-available', toolCallId: 'deferred-call', input: { command: 'pwd' } }
       })
       await expect(reader.read()).resolves.toMatchObject({
         value: {

@@ -14,8 +14,11 @@
  */
 
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { application } from '@application'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { memorySearchTarget, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
   findBuiltinToolPolicy,
@@ -93,6 +96,38 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
   return decision ? {} : null
 }
 
+const uncontrolledMemoryFile = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.controlledMemory && ['Read', 'Write', 'Edit'].includes(ctx.toolName)) return null
+  const fields: Record<string, string> = { ...WORKSPACE_PATH_FIELDS, MultiEdit: 'file_path', LS: 'path' }
+  const field = fields[ctx.toolName]
+  if (!field) return null
+  const search = ctx.toolName === 'Glob' || ctx.toolName === 'Grep' || ctx.toolName === 'LS'
+  const raw = ctx.input?.[field] ?? (search ? ctx.cwd : undefined)
+  if (typeof raw !== 'string') return null
+  try {
+    const expand = (value: string) => {
+      if (value.startsWith('file://')) return fileURLToPath(value)
+      if (value === '~' || value.startsWith('~/') || value.startsWith('~\\'))
+        return path.join(application.getPath('sys.home'), value.slice(1))
+      return value
+    }
+    const target = path.resolve(ctx.cwd, expand(raw))
+    if (await memoryTarget(target)) return {}
+    if (!search) return null
+    if (ctx.toolName === 'Glob' && typeof ctx.input?.pattern === 'string') {
+      const pattern = expand(ctx.input.pattern)
+      const prefix = pattern.split(/[*?[\]{}]/, 1)[0]
+      const suffix = pattern.slice(prefix.length)
+      if (suffix.split(/[\\/]/).includes('..')) return {}
+      const anchor = suffix.length === 0 || /[\\/]$/.test(prefix) ? prefix : path.dirname(prefix)
+      return (await memorySearchTarget(path.resolve(target, anchor))) ? {} : null
+    }
+    return (await memorySearchTarget(target)) ? {} : null
+  } catch {
+    return {}
+  }
+}
+
 const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   if (ctx.supportsImages !== false) return null
   const requestedPath = ctx.input?.file_path
@@ -101,6 +136,7 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.controlledMemory && ['Read', 'Write', 'Edit'].includes(ctx.toolName)) return null
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]
@@ -151,6 +187,14 @@ function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefin
 }
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  {
+    id: 'memory-controlled-files-required',
+    bypassBehavior: 'enforce',
+    match: { when: uncontrolledMemoryFile },
+    effect: 'deny',
+    reason:
+      'This native file operation cannot exclude or safely modify protected memory. Use the memory editor or a supported controlled memory tool; narrow unrelated searches to their own directory.'
+  },
   {
     id: 'command-policy-deny',
     bypassBehavior: 'enforce',

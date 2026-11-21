@@ -3170,7 +3170,8 @@ export class AgentSessionRuntimeService extends BaseService {
         )
       if (
         turn &&
-        (request.providerMetadata?.cherry?.commandPolicy !== undefined ||
+        (['edit', 'write', 'multiedit'].includes(request.toolName.toLowerCase()) ||
+          request.providerMetadata?.cherry?.commandPolicy !== undefined ||
           (!hasBufferedInput &&
             !turn.activeToolIds.has(request.toolCallId) &&
             !turn.projection?.toolCallMessageId(request.toolCallId)))
@@ -3180,8 +3181,11 @@ export class AgentSessionRuntimeService extends BaseService {
           toolCallId: request.toolCallId,
           toolName: request.toolName,
           input: request.input,
+          dynamic: true,
           providerExecuted: true,
-          ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
+          ...(['edit', 'write', 'multiedit'].includes(request.toolName.toLowerCase()) || request.providerMetadata
+            ? { providerMetadata: request.providerMetadata }
+            : {})
         })
       const contextId = this.currentConnection(entry)?.contextId
       if (turn) {

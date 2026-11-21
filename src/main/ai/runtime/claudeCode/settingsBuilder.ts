@@ -728,7 +728,8 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages
+    supportsImages,
+    authorizeMemory: canUseTool
   })
 
   return {

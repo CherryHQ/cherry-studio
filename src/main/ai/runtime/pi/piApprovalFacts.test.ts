@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -71,6 +72,7 @@ afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 /** Exercise the installed shared gate with production desktop facts and interaction ports. */
 function buildGate(
   overrides: Partial<{
+    executionOwnedTools: ReadonlySet<string>
     workspacePath: string
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
@@ -182,7 +184,7 @@ beforeEach(() => {
           ? databaseFile
           : key === 'sys.home'
             ? testRoot
-            : `/mock/${key}`
+            : join(testRoot, 'registered', key)
     return filename ? join(base, filename) : base
   })
   mocks.rtkRewrite.mockResolvedValue(null)
@@ -190,6 +192,44 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it('removes model-supplied memory previews before ordinary write approval', async () => {
+    const { handler, emitted } = buildGate({ executionOwnedTools: new Set(['write', 'edit']) })
+    const pending = handler(
+      toolEvent('write', {
+        path: join(workspace, 'normal.txt'),
+        content: 'ACTUAL',
+        memoryPreview: [{ path: 'normal.txt', expectedHash: null, content: 'HARMLESS' }]
+      }),
+      extCtx
+    )
+    await flush()
+    const request = emitted[0].request
+    toolApprovalRegistry.dispatch(request.approvalId, { approved: false })
+    expect(await pending).toMatchObject({ block: true })
+    expect(request.input).toEqual({ path: join(workspace, 'normal.txt'), content: 'ACTUAL' })
+  })
+
+  it.each(['grep', 'find', 'ls'])('blocks %s over managed memory and its parent in full access', async (name) => {
+    const memoryRoot = application.getPath('feature.memory.data')
+    const { handler } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    for (const target of [memoryRoot, join(memoryRoot, '..')]) {
+      expect(await handler(toolEvent(name, { path: target }), extCtx)).toMatchObject({ block: true })
+    }
+    expect(await handler(toolEvent(name, { path: workspace }), extCtx)).toBeUndefined()
+  })
+
+  it('defers only managed edits to the installed controlled executor', async () => {
+    const { handler, emitted } = buildGate({ executionOwnedTools: new Set(['write', 'edit']) })
+    const memoryFile = join(application.getPath('feature.memory.data'), 'MEMORY.md')
+    expect(await handler(toolEvent('write', { path: memoryFile, content: 'memory' }), extCtx)).toBeUndefined()
+    expect(await handler(toolEvent('edit', { path: pathToFileURL(memoryFile).href }), extCtx)).toBeUndefined()
+    expect(emitted).toHaveLength(0)
+    const ordinary = handler(toolEvent('write', { path: join(workspace, 'normal.txt'), content: 'text' }), extCtx)
+    await flush()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    expect(await ordinary).toMatchObject({ block: true })
+  })
+
   // Catch session-wide shell grants bypassing each invocation or role constraints on a child.
   it('asks again for each risky call despite a saved shell grant', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto', autoApprovedTools: new Set(['bash']) })

@@ -74,7 +74,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
   }
 
   const searchPath = data.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+  const validPath = await validatePath(searchPath, baseDir, true)
 
   const matches: GrepMatch[] = []
   let truncated = false

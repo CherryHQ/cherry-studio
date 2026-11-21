@@ -2,6 +2,7 @@ import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from '
 import { type ComponentType, useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
@@ -30,6 +31,13 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+const memoryProposalSchema = z.object({
+  path: z.string().min(1),
+  memoryPreview: z
+    .array(z.object({ path: z.string().min(1), expectedHash: z.string().nullable(), content: z.string() }))
+    .min(1)
+})
 
 function isHandledElsewhere(event: KeyboardEvent) {
   return (
@@ -106,6 +114,23 @@ export function createPermissionRequestComposerOverride({
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
   const input = toolResponse.arguments as Record<string, unknown> | string | undefined
+  const memory =
+    toolName === AgentToolsType.Edit || toolName === AgentToolsType.MultiEdit || toolName === AgentToolsType.Write
+      ? memoryProposalSchema.safeParse(input)
+      : undefined
+  if (memory?.success) {
+    return (
+      <div className="space-y-2 px-3 py-2">
+        <PermissionPreviewHeader toolName={toolName} />
+        {memory.data.memoryPreview.map((file) => (
+          <label key={file.path} className="block space-y-1">
+            <span className="break-all font-mono text-xs text-muted-foreground">{file.path}</span>
+            <Textarea.Input readOnly value={file.content} className="min-h-36 font-mono text-xs" />
+          </label>
+        ))}
+      </div>
+    )
+  }
   const renderedItem = isValidAgentToolsType(toolName)
     ? renderTool(toolName, input)
     : UnknownToolRenderer({ toolName, input })

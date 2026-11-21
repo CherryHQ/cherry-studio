@@ -36,7 +36,11 @@ export function createClaudeCodeIdentityHooks(
           )
         : undefined
     ])
-    const snapshot = sections.filter(Boolean).join('\n\n')
+    const snapshot =
+      sections.filter(Boolean).join('\n\n') +
+      (sessionId
+        ? '\nUse the available native Read, Write and Edit tools for managed memory files. Read existing files completely before editing; entry snapshots are not editing baselines. Only a confirmed managed save establishes persistence.'
+        : '')
     if (signal.aborted) return {}
     if (input.hook_event_name === 'UserPromptSubmit' && snapshot === delivered) return {}
     delivered = snapshot
