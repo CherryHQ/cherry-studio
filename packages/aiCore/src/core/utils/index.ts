@@ -7,7 +7,7 @@ export const isPlainObject = (value: unknown): value is PlainObject => {
 export function deepMergeObjects<T extends PlainObject>(target: T, source: PlainObject): T {
   const result: PlainObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
-    const previous = Object.hasOwn(result, key) ? result[key] : undefined
+    const previous = Object.prototype.hasOwnProperty.call(result, key) ? result[key] : undefined
     const merged = isPlainObject(value) && isPlainObject(previous) ? deepMergeObjects(previous, value) : value
     Object.defineProperty(result, key, { value: merged, enumerable: true, writable: true, configurable: true })
   })
