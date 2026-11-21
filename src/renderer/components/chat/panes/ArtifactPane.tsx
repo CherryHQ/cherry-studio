@@ -1,8 +1,5 @@
-import type { TFunction } from 'i18next'
 import {
   AlertCircle,
-  AtSign,
-  Copy,
   Eye,
   Folder,
   List,
@@ -46,13 +43,9 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { buildOpenTargetMenuItems, loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { RightPaneTabs } from '@renderer/components/RightPaneTabs'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
-import {
-  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
-  type FileEditSession
-} from '@renderer/hooks/useFileEditSession'
+import type { FileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import {
   type ComposerFileReference,
@@ -60,19 +53,16 @@ import {
   type SelectionReference
 } from '@renderer/types/selectionReference'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 
 import { ArtifactPaneBreadcrumb } from './ArtifactPaneBreadcrumb'
 import {
   type ArtifactPaneFileSelection,
   getArtifactPaneSelectionPath,
-  getArtifactPaneSelectionDisplayPath,
   getArtifactPaneSelectionRelativePath,
   getCopyableAbsolutePath,
   getPathBasename,
@@ -84,6 +74,7 @@ import {
   type ArtifactFileTreeModel,
   isSelectableFileNode
 } from './useArtifactFileTreeModel'
+import { buildCopyMenu, canCopyFileContent, getCopyFileState, useArtifactPaneMenus } from './useArtifactPaneMenus'
 
 // Re-exported from their home modules so existing imports of these from
 // `ArtifactPane` keep working.
@@ -110,98 +101,8 @@ const ARTIFACT_FILE_TREE_ERROR_KEYS = {
 
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
-const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
-const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
-const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 const SPLIT_MIN_WIDTH_PX = 672
-
-type CopyFileState = 'ready' | 'checking' | 'unavailable'
-
-async function getCopyFileState(path: string): Promise<CopyFileState> {
-  try {
-    const status = await ipcApi.request(
-      'file.get_clipboard_status',
-      createFilePathHandle(AbsoluteFilePathSchema.parse(path))
-    )
-    return status.ok ? 'ready' : 'unavailable'
-  } catch {
-    return 'unavailable'
-  }
-}
-
-/** The shared "Copy" submenu for a file or folder in the tree and the open-file header. */
-function buildCopyMenu({
-  t,
-  copy,
-  onCopyContent,
-  absolutePath,
-  relativePath,
-  fileName,
-  copyFile
-}: {
-  t: TFunction
-  copy: (text: string) => void
-  onCopyContent?: () => void
-  absolutePath: string
-  relativePath: string | null
-  fileName: string
-  copyFile: { state: CopyFileState; onSelect: () => void }
-}): CommandContextMenuExtraItem {
-  return {
-    type: 'submenu',
-    id: 'artifact-pane.file.copy',
-    label: t('common.copy'),
-    icon: <Copy size={14} />,
-    children: [
-      ...(onCopyContent
-        ? [
-            {
-              type: 'item' as const,
-              id: 'artifact-pane.overlay.copy-content',
-              label: t('agent.preview_pane.copy_menu.content'),
-              onSelect: onCopyContent
-            }
-          ]
-        : []),
-      {
-        type: 'item',
-        id: 'artifact-pane.overlay.copy-path',
-        label: t('agent.preview_pane.copy_menu.absolute_path'),
-        onSelect: () => copy(absolutePath)
-      },
-      ...(relativePath
-        ? [
-            {
-              type: 'item' as const,
-              id: 'artifact-pane.overlay.copy-relative-path',
-              label: t('agent.preview_pane.copy_menu.relative_path'),
-              onSelect: () => copy(relativePath)
-            }
-          ]
-        : []),
-      {
-        type: 'item',
-        id: 'artifact-pane.overlay.copy-file-name',
-        label: t('agent.preview_pane.copy_menu.file_name'),
-        onSelect: () => copy(fileName)
-      },
-      {
-        type: 'item',
-        id: 'artifact-pane.overlay.copy-file',
-        label: t(
-          copyFile.state === 'ready'
-            ? 'agent.preview_pane.copy_menu.file'
-            : copyFile.state === 'checking'
-              ? 'agent.preview_pane.copy_menu.file_checking'
-              : 'agent.preview_pane.copy_menu.file_unavailable'
-        ),
-        enabled: copyFile.state === 'ready',
-        onSelect: copyFile.onSelect
-      }
-    ]
-  }
-}
 
 function FilePaneSplit({
   treeOnRight,
@@ -251,14 +152,6 @@ function getPreviewFileTitle(selection: ArtifactPaneFileSelection): string {
   // displayName is the attachment filename; filePath may be a managed copy.
   if (selection.displayName) return selection.displayName
   return getPathBasename(selection.filePath)
-}
-
-function canCopyFileContent(filePath: string | null, isText: string, fileSize: { status: string; size?: number }) {
-  if (!filePath || fileSize.status !== 'ok' || typeof fileSize.size !== 'number') return false
-  const extension = getFileExtension(filePath)
-  if (COPYABLE_DOCUMENT_EXTENSIONS.has(extension)) return fileSize.size <= DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES
-  if (NON_TEXT_DOCUMENT_EXTENSIONS.has(extension)) return false
-  return isText === 'text' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 }
 
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
@@ -545,64 +438,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [editMode, fileSession?.isDirty, fileSessionFlush, onPreviewClose, pickerActive]
   )
 
-  const copyPath = useCallback(
-    async (path: string) => {
-      try {
-        await navigator.clipboard.writeText(path)
-        toast.success(t('message.copy.success'))
-      } catch (error) {
-        logger.error('Failed to copy path', error as Error)
-        toast.error(t('message.copy.failed'))
-      }
-    },
-    [t]
-  )
-
-  const copyFile = useCallback(
-    async (path: string) => {
-      try {
-        await ipcApi.request('file.copy_to_clipboard', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
-        toast.success(t('message.copy.success'))
-      } catch (error) {
-        logger.error('Failed to copy file', error as Error)
-        toast.error(t('message.copy.failed'))
-      }
-    },
-    [t]
-  )
-
+  const fileMenus = useArtifactPaneMenus({ workspacePath, onAttachPathToContext })
+  const { buildFileMenuItems, copyPath, copyFile, copyFileContent, attachMenuItems } = fileMenus
   const handleCopyPreviewContent = useCallback(async () => {
     const { filePath, workspacePath } = overlayPathsRef.current
     if (!filePath || !workspacePath || !canCopyPreviewContentRef.current) return
-    try {
-      const absolutePath = getArtifactPaneSelectionPath({ workspacePath, filePath })
-      const extension = getFileExtension(absolutePath)
-      const content = COPYABLE_DOCUMENT_EXTENSIONS.has(extension)
-        ? await window.api.file.readExternal(absolutePath, true)
-        : await window.api.fs.readText(absolutePath)
-      await navigator.clipboard.writeText(content)
-      toast.success(t('message.copy.success'))
-    } catch (error) {
-      logger.error('Failed to copy file content', error as Error)
-      toast.error(t('message.copy.failed'))
-    }
-  }, [t])
-
-  const attachMenuItems = useCallback(
-    (path: string, kind: 'file' | 'directory', name?: string): CommandContextMenuExtraItem[] =>
-      onAttachPathToContext
-        ? [
-            {
-              type: 'item',
-              id: 'artifact-pane.file.attach',
-              label: t('agent.preview_pane.attach_as_context'),
-              icon: <AtSign size={14} />,
-              onSelect: () => onAttachPathToContext(path, kind, name)
-            }
-          ]
-        : [],
-    [onAttachPathToContext, t]
-  )
+    await copyFileContent(getArtifactPaneSelectionPath({ workspacePath, filePath }))
+  }, [copyFileContent])
 
   const getFileTreeMenuItems = useCallback(
     async (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
@@ -713,32 +555,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   )
 
   // One file menu for the breadcrumb and the tabs, built from the same pieces as the tree's.
-  const buildFileMenuItems = useCallback(
-    (
-      selection: ArtifactPaneFileSelection,
-      openItems: readonly CommandContextMenuExtraItem[],
-      copyState: CopyFileState,
-      onCopyContent?: () => void
-    ): CommandContextMenuExtraItem[] => {
-      const absolutePath = getArtifactPaneSelectionDisplayPath(selection)
-      const relativePath = getArtifactPaneSelectionRelativePath(workspacePath, selection)
-      return [
-        // Attach the file the preview reads; an attachment's original path may no longer exist.
-        ...attachMenuItems(getArtifactPaneSelectionPath(selection), 'file', getPreviewFileTitle(selection)),
-        buildCopyMenu({
-          t,
-          copy: (text) => void copyPath(text),
-          onCopyContent,
-          absolutePath: getCopyableAbsolutePath(absolutePath, isWin),
-          relativePath,
-          fileName: getPreviewFileTitle(selection),
-          copyFile: { state: copyState, onSelect: () => void copyFile(getArtifactPaneSelectionPath(selection)) }
-        }),
-        ...(openItems.length ? [{ type: 'separator' as const }, ...openItems] : [])
-      ]
-    },
-    [attachMenuItems, copyFile, copyPath, t, workspacePath]
-  )
   const activeOpenItems = useMemo(
     () => buildOpenTargetMenuItems({ targets: fileOpenTargets, onOpen: handleOpenFileTarget, t }),
     [fileOpenTargets, handleOpenFileTarget, t]
@@ -772,13 +588,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const getTabMenuItems = async (key: string): Promise<readonly CommandContextMenuExtraItem[]> => {
     const tab = findTab(key)
     if (!tab) return []
-    const active = key === activeTabKey
-    const [openItems, copyState] = await Promise.all([
-      active
-        ? Promise.resolve(activeOpenItems)
-        : loadOpenTargetMenuItems({ targetPath: getArtifactPaneSelectionPath(tab), pathKind: 'file', t }),
-      getCopyFileState(getArtifactPaneSelectionPath(tab))
-    ])
     const closeItem = (id: string, label: string, onSelect: () => void): CommandContextMenuExtraItem => ({
       type: 'item',
       id: `artifact-pane.tab.${id}`,
@@ -786,7 +595,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       onSelect
     })
     return [
-      ...buildFileMenuItems(tab, openItems, copyState, active ? copyActiveContent : undefined),
+      ...(await fileMenus.getTabMenuItems({ selection: tab, active: key === activeTabKey })),
       { type: 'separator' },
       closeItem('close', t('agent.preview_pane.tabs.close'), () => closeTab(key)),
       ...(onRetainFileTab

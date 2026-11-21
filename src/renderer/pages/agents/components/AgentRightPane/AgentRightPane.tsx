@@ -261,7 +261,8 @@ type AgentFileEditorMode = 'preview' | 'edit'
 type RequestFileSelection = (
   selection: ArtifactPaneFileSelection | null,
   onAccepted?: () => void,
-  closeActive?: boolean
+  closeActive?: boolean,
+  onCancelled?: () => void
 ) => void
 export type AgentFileNavigationRequest = (transition: () => void) => void
 
@@ -277,8 +278,9 @@ interface AgentRightPaneActions {
   openBrowserUrl?: (url: string) => void
   openExternalUrl: (url: string) => void
   closeFilePreview: () => void
+  attachPathToContext: (path: string, kind: 'file' | 'directory', name?: string) => void
   activateFileTab: (tab: ArtifactPaneFileSelection) => void
-  closeFileTab: (tab: ArtifactPaneFileSelection) => void
+  closeFileTab: (tab: ArtifactPaneFileSelection) => Promise<boolean>
   /** Keeps only `tab` open (Close others), or none (Close all). */
   retainFileTab: (tab: ArtifactPaneFileSelection | null) => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
@@ -542,10 +544,23 @@ function AgentRightPaneActionsProvider({
     [clearReturnTarget, invalidatePreviewRequests, requestFileSelection, panelActions]
   )
   const closeFileTab = useCallback(
-    (tab: ArtifactPaneFileSelection) => {
-      if (isSameFileSelection(previewFileSelection, tab)) requestFileSelection(null, clearReturnTarget, true)
-      else closeInactiveFileTab(tab)
-    },
+    (tab: ArtifactPaneFileSelection): Promise<boolean> =>
+      new Promise((resolve) => {
+        if (isSameFileSelection(previewFileSelection, tab))
+          requestFileSelection(
+            null,
+            () => {
+              clearReturnTarget()
+              resolve(true)
+            },
+            true,
+            () => resolve(false)
+          )
+        else {
+          closeInactiveFileTab(tab)
+          resolve(true)
+        }
+      }),
     [requestFileSelection, clearReturnTarget, closeInactiveFileTab, previewFileSelection]
   )
   const retainFileTab = useCallback(
@@ -554,6 +569,18 @@ function AgentRightPaneActionsProvider({
       retainFileTabs(tab, clearReturnTarget)
     },
     [clearReturnTarget, invalidatePreviewRequests, retainFileTabs]
+  )
+  const attachPathToContext = useCallback(
+    (path: string, kind: 'file' | 'directory', name?: string) => {
+      if (!sessionId) return
+      void EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
+        topicId: buildAgentSessionTopicId(sessionId),
+        path,
+        kind,
+        name
+      })
+    },
+    [sessionId]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -568,6 +595,7 @@ function AgentRightPaneActionsProvider({
       openBrowserUrl: canOpenBrowser ? openBrowserPanel : undefined,
       openExternalUrl,
       closeFilePreview,
+      attachPathToContext,
       activateFileTab,
       closeFileTab,
       retainFileTab,
@@ -585,6 +613,7 @@ function AgentRightPaneActionsProvider({
       canOpenArtifactFile,
       canPreviewInputFileInRightPane,
       closeFilePreview,
+      attachPathToContext,
       canOpenBrowser,
       openBrowserPanel,
       openAgentToolFlow,
@@ -786,7 +815,11 @@ function AgentRightPaneStateProvider({
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const [autoSave] = usePreference('feature.agent.file_pane.auto_save')
   const fileSession = useFileEditSession(editHandle, `agent-artifact:${sessionId}`, { autoSave })
-  const [pendingLeave, setPendingLeave] = useState<{ fileName: string; proceed: () => void } | null>(null)
+  const [pendingLeave, setPendingLeave] = useState<{
+    fileName: string
+    proceed: () => void
+    cancel?: () => void
+  } | null>(null)
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
     const result = AbsoluteFilePathSchema.safeParse(workspacePath)
@@ -853,7 +886,7 @@ function AgentRightPaneStateProvider({
   )
   // Without autosave, leaving a file with unsaved edits asks first; other exits still flush on release.
   const requestFileSelection = useCallback<RequestFileSelection>(
-    (selection, onAccepted, closeActive) => {
+    (selection, onAccepted, closeActive, onCancelled) => {
       if (
         autoSave ||
         !fileSession.isDirty ||
@@ -865,7 +898,8 @@ function AgentRightPaneStateProvider({
       }
       setPendingLeave({
         fileName: getPathBasename(previewFileSelection.filePath),
-        proceed: () => applyFileSelection(selection, onAccepted, closeActive)
+        proceed: () => applyFileSelection(selection, onAccepted, closeActive),
+        cancel: onCancelled
       })
     },
     [applyFileSelection, autoSave, fileSession.isDirty, previewFileSelection]
@@ -1061,7 +1095,10 @@ function AgentRightPaneStateProvider({
             <ConfirmDialog
               open={pendingLeave !== null}
               onOpenChange={(open) => {
-                if (!open) setPendingLeave(null)
+                if (!open) {
+                  pendingLeave?.cancel?.()
+                  setPendingLeave(null)
+                }
               }}
               title={t('agent.preview_pane.edit.leave.title')}
               description={t('agent.preview_pane.edit.leave.tab_description', { name: pendingLeave?.fileName ?? '' })}
@@ -1148,18 +1185,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     },
     [sessionId]
   )
-  const attachPathToContext = useCallback(
-    (path: string, kind: 'file' | 'directory', name?: string) => {
-      if (!sessionId) return
-      void EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
-        topicId: buildAgentSessionTopicId(sessionId),
-        path,
-        kind,
-        name
-      })
-    },
-    [sessionId]
-  )
   const pane = (
     <ArtifactPaneView
       paneTitle={scope.filesTitle}
@@ -1171,7 +1196,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onActivateFileTab={actions.activateFileTab}
       onCloseFileTab={actions.closeFileTab}
       onRetainFileTab={actions.retainFileTab}
-      onAttachPathToContext={attachPathToContext}
+      onAttachPathToContext={actions.attachPathToContext}
       onPreviewClose={actions.closeFilePreview}
       fileSession={state.fileSession}
       editMode={state.previewFileSelection?.readOnly ? 'preview' : state.editMode}
@@ -1844,6 +1869,8 @@ const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
             dirty={files.fileSession.isDirty}
             activateFile={actions.activateFileTab}
             closeFile={actions.closeFileTab}
+            attachPathToContext={actions.attachPathToContext}
+            workspacePath={files.workspacePath}
           />
         )}
         <div className="min-h-0 flex-1">

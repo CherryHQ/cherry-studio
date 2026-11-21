@@ -6,6 +6,8 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode
@@ -34,8 +36,10 @@ import {
   useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
-import { RightPaneTabs, type RightPaneTab } from '@renderer/components/RightPaneTabs'
+import { useArtifactPaneMenus } from '@renderer/components/chat/panes/useArtifactPaneMenus'
+import { buildTabCloseMenuItems, RightPaneTabs, type RightPaneTab } from '@renderer/components/RightPaneTabs'
 import { useTerminalResources } from '@renderer/components/terminal/TerminalResourcesProvider'
+import { useSessionBrowserTabMenu } from '@renderer/components/useSessionBrowserTabMenu'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { agentBrowserRuntimeService as browser } from '@renderer/services/AgentBrowserRuntimeService'
@@ -78,13 +82,17 @@ export function AgentResourceTabs({
   selectedFile,
   dirty,
   activateFile,
-  closeFile
+  closeFile,
+  attachPathToContext,
+  workspacePath
 }: {
+  workspacePath?: string
+  attachPathToContext?: (path: string, kind: 'file' | 'directory', name?: string) => void
   files: ArtifactPaneFileSelection[]
   selectedFile: ArtifactPaneFileSelection | null
   dirty: boolean
   activateFile: (file: ArtifactPaneFileSelection) => void
-  closeFile: (file: ArtifactPaneFileSelection) => void
+  closeFile: (file: ArtifactPaneFileSelection) => boolean | Promise<boolean>
 }) {
   const { t } = useTranslation()
   const terminal = useTerminalResources()
@@ -93,6 +101,15 @@ export function AgentResourceTabs({
   const slot = use(HeaderSlotContext)
   const prefix = useId()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [closingBatch, setClosingBatch] = useState(false)
+  const batchRunning = useRef(false)
+  const currentSession = useRef<string | null>(terminal.sessionId)
+  useEffect(() => {
+    currentSession.current = terminal.sessionId
+    return () => {
+      currentSession.current = null
+    }
+  }, [terminal.sessionId])
   const [pendingClose, setPendingClose] = useState<{
     key: string
     kind: ResourceTab['kind']
@@ -107,9 +124,9 @@ export function AgentResourceTabs({
   const setTabs = terminal.setTabs
   const filesActive = panel.activePanelId === 'files' && panel.presentationOpen
   useEffect(() => {
-    if (!filesActive || files.length) return
+    if (closingBatch || !filesActive || files.length) return
     setTabs((current) => (current.fileBrowserOpen ? current : { ...current, fileBrowserOpen: true }))
-  }, [filesActive, files.length, terminal.sessionId, setTabs])
+  }, [filesActive, files.length, terminal.sessionId, setTabs, closingBatch])
   const all: ResourceTab[] = [
     ...(!files.length && terminal.tabs.fileBrowserOpen
       ? [
@@ -239,6 +256,7 @@ export function AgentResourceTabs({
     [tabs, activateFile, actions, terminal]
   )
   useEffect(() => {
+    if (closingBatch) return
     if (pendingClose?.kind === 'terminal' && activeKey && activeKey !== pendingClose.key) {
       setPendingClose(null)
       return
@@ -251,25 +269,78 @@ export function AgentResourceTabs({
       if (pendingClose.keyboard) requestAnimationFrame(() => document.getElementById(`${prefix}-${next}`)?.focus())
     }
     setPendingClose(null)
-  }, [pendingClose, tabs, activate, prefix, activeKey])
-  const close = (key: string, keyboard: boolean) => {
+  }, [pendingClose, tabs, activate, prefix, activeKey, closingBatch])
+  const closeBrowserPages = (pageIds: readonly string[], keyboard = false) => {
+    const removed = new Set(pageIds.map((id) => `browser:${id}`))
+    if (activeKey && removed.has(activeKey)) {
+      const index = tabs.findIndex((tab) => tab.key === activeKey)
+      const next =
+        tabs.slice(index + 1).find((tab) => !removed.has(tab.key)) ??
+        tabs
+          .slice(0, index)
+          .reverse()
+          .find((tab) => !removed.has(tab.key))
+      setPendingClose({ key: activeKey, kind: 'browser', next: next?.key ?? null, keyboard })
+      if (!next) actions.close()
+    }
+    browser.closePages(terminal.sessionId, pageIds)
+  }
+  const getBrowserMenuItems = useSessionBrowserTabMenu({
+    runtime: browser,
+    sessionId: terminal.sessionId
+  })
+  const fileMenus = useArtifactPaneMenus({ workspacePath, onAttachPathToContext: attachPathToContext })
+  const close = async (key: string, keyboard: boolean): Promise<boolean> => {
     const index = tabs.findIndex((item) => item.key === key)
     const tab = tabs[index]
-    if (!tab) return
+    if (!tab) return true
     if (key === activeKey)
       setPendingClose({ key, kind: tab.kind, next: tabs[index + 1]?.key ?? tabs[index - 1]?.key ?? null, keyboard })
     if (tab.kind === 'file-browser') {
       setTabs((current) => ({ ...current, fileBrowserOpen: false }))
       if (key === activeKey && tabs.length === 1) actions.close()
-    } else if (tab.kind === 'file') closeFile(tab.file)
-    else if (tab.kind === 'browser') browser.closePages(terminal.sessionId, [tab.id])
-    else if (tab.kind === 'terminal')
-      void terminal.close(tab.id).then((result) => {
-        if (result === 'rejected' || result === 'cancelled')
-          setPendingClose((current) => (current?.key === key ? null : current))
-      })
-    else terminal.closeCleanup(tab.record.id)
+    } else if (tab.kind === 'file') {
+      const closed = await closeFile(tab.file)
+      if (!closed) setPendingClose((current) => (current?.key === key ? null : current))
+      return closed
+    } else if (tab.kind === 'browser') closeBrowserPages([tab.id], keyboard)
+    else if (tab.kind === 'terminal') {
+      const result = await terminal.close(tab.id)
+      if (result === 'rejected' || result === 'cancelled')
+        setPendingClose((current) => (current?.key === key ? null : current))
+      return result === 'closed'
+    } else terminal.closeCleanup(tab.record.id)
+    return true
   }
+  const currentActions = useRef({ tabs, activeKey, close, activate })
+  useLayoutEffect(() => {
+    currentActions.current = { tabs, activeKey, close, activate }
+  })
+  const closeMany = async (targets: readonly string[]) => {
+    if (batchRunning.current) return
+    batchRunning.current = true
+    setClosingBatch(true)
+    const closed = new Set<string>()
+    try {
+      for (const key of targets) {
+        if (currentSession.current !== terminal.sessionId || !(await currentActions.current.close(key, false))) break
+        closed.add(key)
+      }
+      if (currentSession.current === terminal.sessionId) {
+        const remaining = currentActions.current.tabs.filter((tab) => !closed.has(tab.key))
+        const next = remaining.find((tab) => tab.key === currentActions.current.activeKey) ?? remaining[0]
+        setPendingClose(null)
+        if (!remaining.some((tab) => tab.kind === 'file' || tab.kind === 'file-browser'))
+          setTabs((current) => ({ ...current, fileBrowserOpen: false }))
+        if (next) currentActions.current.activate(next.key)
+        else actions.close()
+      }
+    } finally {
+      batchRunning.current = false
+      setClosingBatch(false)
+    }
+  }
+
   return (
     <div
       className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-1 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]"
@@ -284,7 +355,33 @@ export function AgentResourceTabs({
         overflowLabel={t('webview.tabs.all')}
         tabIdPrefix={prefix}
         onActivate={activate}
-        onClose={close}
+        onClose={(key, keyboard) => {
+          if (!batchRunning.current) void close(key, keyboard)
+        }}
+        getMenuItems={async (key) => {
+          const tab = tabs.find((item) => item.key === key)
+          if (!tab) return []
+          const extra =
+            tab.kind === 'file'
+              ? await fileMenus.getTabMenuItems({ selection: tab.file, active: key === activeKey })
+              : tab.kind === 'browser'
+                ? getBrowserMenuItems(tab.id)
+                : []
+          return [
+            ...extra,
+            ...(extra.length ? [{ type: 'separator' as const }] : []),
+            ...buildTabCloseMenuItems({
+              keys,
+              key,
+              t,
+              enabled: !closingBatch,
+              close: () => {
+                if (!batchRunning.current) void close(key, false)
+              },
+              closeMany: (targets) => void closeMany(targets)
+            })
+          ]
+        }}
       />
       <div ref={slot?.setElement} className="flex shrink-0 items-center gap-1" />
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

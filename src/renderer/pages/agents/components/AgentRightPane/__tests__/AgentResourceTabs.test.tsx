@@ -1,6 +1,6 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { resetPopupMocks } from '@test-mocks/renderer/popup'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from 'i18next'
 import { useState } from 'react'
@@ -20,6 +20,7 @@ import {
   TerminalResourcesProvider,
   useTerminalResources
 } from '@renderer/components/terminal/TerminalResourcesProvider'
+import { agentBrowserRuntimeService as browser } from '@renderer/services/AgentBrowserRuntimeService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { InputFor } from '@shared/ipc/types'
@@ -56,6 +57,8 @@ let closeOutcome: 'confirmed' | 'unconfirmed' | 'rejected'
 let stopWait: Promise<void> | undefined
 let stopCalls: number
 let stopCompleted: boolean
+let fileCloseWait: Promise<boolean> | undefined
+let fileCloseStarted: boolean
 const record = {
   id: '33333333-3333-4333-8333-333333333333',
   sessionId: 'purged-conversation',
@@ -65,6 +68,7 @@ const record = {
 }
 beforeEach(() => {
   resetPopupMocks()
+  browser.declare('resource-tabs-test', 'resource-tab-owner')
   resources = [structuredClone(original)]
   requests = []
   recovered = false
@@ -73,9 +77,27 @@ beforeEach(() => {
   stopWait = undefined
   stopCalls = 0
   stopCompleted = false
+  fileCloseWait = undefined
+  fileCloseStarted = false
   window.api.file.select = vi.fn().mockResolvedValue(null)
   window.api.ipcApi.request = vi.fn(async (route, payload) => {
     requests.push(route)
+    if (route === 'file.get_clipboard_status') return { ok: true, data: { ok: true } }
+    if (route === 'file.get_metadata')
+      return {
+        ok: true,
+        data: { kind: 'file', type: 'text', size: 12, createdAt: 1, modifiedAt: 1, mime: 'text/plain' }
+      }
+    if (route === 'external_app.target.list')
+      return {
+        ok: true,
+        data: {
+          targetPath: '/workspace/README.md',
+          pathKind: 'file',
+          targets: [{ id: 'file_manager', kind: 'file_manager', name: 'Finder' }]
+        }
+      }
+
     if (route === 'terminal.list') return { ok: true, data: { resources, truncated: false } }
     if (route === 'terminal.cleanup.status')
       return { ok: true, data: { count: recovered ? 1 : 0, recoveryFailed: false } }
@@ -131,6 +153,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  browser.dispose()
   MockCacheUtils.resetMocks()
 })
 
@@ -167,11 +190,18 @@ function Content({ attachment = false, emptyFiles = false }: { attachment?: bool
         files={files}
         selectedFile={selectedFile}
         dirty={false}
+        workspacePath="/workspace"
         activateFile={(file) => {
           setSelectedFile(file)
           panel.requestOpen('files')
         }}
-        closeFile={(file) => setFiles((current) => current.filter((item) => item !== file))}
+        closeFile={async (file) => {
+          fileCloseStarted = true
+          if (fileCloseWait && !(await fileCloseWait)) return false
+          setFiles((current) => current.filter((item) => item !== file))
+          setSelectedFile((current) => (current === file ? null : current))
+          return true
+        }}
       />
       <ShellExecutionActions toolCallId="pending-bash" />
       <output aria-label="Terminal error">{terminal.error}</output>
@@ -316,6 +346,39 @@ it('waits for a single confirmation before stopping a repeatedly closed terminal
   expect(stopCalls).toBe(1)
   expect(resources[0].cleanup).toBe('confirmed')
   expect(popup.confirm).toHaveBeenCalledTimes(1)
+})
+
+it('closes the right-clicked terminal through confirmation without activating it or closing the selected file', async () => {
+  const confirmation = Promise.withResolvers<boolean>()
+  vi.mocked(popup.confirm).mockReturnValueOnce(confirmation.promise)
+  const user = userEvent.setup()
+  mount()
+  const terminal = await screen.findByRole('tab', { name: 'zsh 1' })
+  await user.pointer({ target: terminal, keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('tab.close') }))
+  expect(stopCalls).toBe(0)
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+  await act(async () => confirmation.resolve(false))
+  expect(resources[0].process.kind).toBe('running')
+  await user.pointer({ target: terminal, keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('tab.close') }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
+  expect(resources[0].cleanup).toBe('confirmed')
+  expect(stopCalls).toBe(1)
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+})
+
+it('routes a file tab context-menu close to that file without stopping the selected terminal', async () => {
+  const user = userEvent.setup()
+  mount({ attachment: true })
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.pointer({ target: screen.getByRole('tab', { name: 'Attachment.md' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('tab.close') }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'Attachment.md' })).not.toBeInTheDocument())
+  expect(screen.getByRole('tab', { name: 'README.md' })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+  expect(resources[0].process.kind).toBe('running')
+  expect(stopCalls).toBe(0)
 })
 
 it('ignores confirmation completed after switching conversations', async () => {
@@ -488,4 +551,134 @@ it('does not apply an old close receipt to another conversation', async () => {
   expect(resources[0].process.kind).toBe('running')
   expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getByLabelText('Terminal error')).toBeEmptyDOMElement()
+})
+
+it('copies the right-clicked file path through its domain menu without activating it', async () => {
+  const user = userEvent.setup()
+  mount({ attachment: true })
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.pointer({ target: screen.getByRole('tab', { name: 'Attachment.md' }), keys: '[MouseRight]' })
+  const copy = await screen.findByRole('menuitem', { name: t('common.copy') })
+  await user.click(copy)
+  await user.keyboard('{ArrowRight}')
+  const pathItem = await screen.findByRole('menuitem', { name: t('agent.preview_pane.copy_menu.absolute_path') })
+  pathItem.focus()
+  await user.keyboard('{Enter}')
+  await waitFor(async () => expect(await navigator.clipboard.readText()).toBe('/workspace/README.md'))
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+  expect(resources[0].process.kind).toBe('running')
+})
+
+it('copies a background Browser link without mounting its content panel or switching resources', async () => {
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.pointer({ target: screen.getByRole('tab', { name: 'Docs' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('webview.tabs.copy_link') }))
+  await waitFor(async () => expect(await navigator.clipboard.readText()).toBe('https://example.com/docs'))
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+  expect(browser.get('resource-tabs-test', docs)).toBeDefined()
+  expect(resources[0].process.kind).toBe('running')
+})
+
+it('uses the shared Close Others action across file, Browser and terminal resources', async () => {
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  browser.declare('other-conversation', 'other-owner')
+  const other = browser.openPage('other-conversation', 'https://other.test/')!
+  mount({ attachment: true })
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.pointer({ target: screen.getByRole('tab', { name: 'Docs' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('tab.close_others') }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(screen.queryByRole('tab', { name: 'README.md' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('tab', { name: 'Attachment.md' })).not.toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'Docs' })).toHaveAttribute('aria-selected', 'true')
+  expect(resources[0].cleanup).toBe('confirmed')
+  expect(browser.get('other-conversation')?.pageId).toBe(other)
+})
+
+it('uses shared tab order for Close to the Right from a file tab', async () => {
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  mount({ attachment: true })
+  await screen.findByRole('tab', { name: 'zsh 1' })
+  await user.pointer({ target: screen.getByRole('tab', { name: 'Attachment.md' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('tab.close_to_right') }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(browser.getPages('resource-tabs-test')).toHaveLength(0)
+  expect(screen.getByRole('tab', { name: 'README.md' })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'Attachment.md' })).toBeInTheDocument()
+  expect(resources[0].cleanup).toBe('confirmed')
+})
+
+it('waits for file close protection and cancels the rest of Close All when the user keeps editing', async () => {
+  const confirmation = Promise.withResolvers<boolean>()
+  fileCloseWait = confirmation.promise
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  mount()
+  await screen.findByRole('tab', { name: 'zsh 1' })
+  await user.pointer({ target: screen.getByRole('tab', { name: 'README.md' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('webview.tabs.close_all') }))
+  await waitFor(() => expect(fileCloseStarted).toBe(true))
+  expect(stopCalls).toBe(0)
+  expect(browser.get('resource-tabs-test', docs)).toBeDefined()
+  await act(async () => confirmation.resolve(false))
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('tab', { name: 'Docs' })).toBeInTheDocument()
+  expect(resources[0].process.kind).toBe('running')
+  expect(stopCalls).toBe(0)
+})
+
+it('moves keyboard focus to the surviving resource after deleting a Browser tab', async () => {
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  mount()
+  await user.click(screen.getByRole('tab', { name: 'Docs' }))
+  await user.keyboard('{Delete}')
+  const terminal = await screen.findByRole('tab', { name: 'zsh 1' })
+  await waitFor(() => expect(terminal).toHaveFocus())
+  expect(terminal).toHaveAttribute('aria-selected', 'true')
+  expect(resources[0].process.kind).toBe('running')
+})
+
+it('closes every resource without recreating the file browser after confirmed Close All', async () => {
+  const user = userEvent.setup()
+  const docs = browser.openPage('resource-tabs-test', 'https://example.com/docs')!
+  browser.update('resource-tabs-test', { title: 'Docs' }, docs)
+  mount()
+  await screen.findByRole('tab', { name: 'zsh 1' })
+  await user.pointer({ target: screen.getByRole('tab', { name: 'README.md' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('webview.tabs.close_all') }))
+  await waitFor(() => expect(screen.queryAllByRole('tab')).toHaveLength(0))
+  expect(browser.getPages('resource-tabs-test')).toHaveLength(0)
+  expect(resources[0].cleanup).toBe('confirmed')
+})
+
+it('keeps a resource opened while Close All is awaiting terminal cleanup', async () => {
+  const stopped = Promise.withResolvers<void>()
+  stopWait = stopped.promise
+  const user = userEvent.setup()
+  mount()
+  await screen.findByRole('tab', { name: 'zsh 1' })
+  await user.pointer({ target: screen.getByRole('tab', { name: 'README.md' }), keys: '[MouseRight]' })
+  await user.click(await screen.findByRole('menuitem', { name: t('webview.tabs.close_all') }))
+  await waitFor(() => expect(stopCalls).toBe(1))
+  let newPage: string | undefined
+  act(() => {
+    newPage = browser.openPage('resource-tabs-test', 'https://example.com/new')
+    browser.update('resource-tabs-test', { title: 'New page' }, newPage)
+  })
+  await screen.findByRole('tab', { name: 'New page' })
+  await act(async () => stopped.resolve())
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'New page' })).toHaveAttribute('aria-selected', 'true'))
+  expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument()
+  expect(browser.get('resource-tabs-test', newPage)).toBeDefined()
 })

@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { ChevronDown, X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -20,6 +21,49 @@ export interface RightPaneTab {
   path: string
   icon?: ReactNode
   status?: ReactNode
+}
+
+export function buildTabCloseMenuItems({
+  keys,
+  key,
+  t,
+  close,
+  closeMany,
+  enabled = true
+}: {
+  keys: readonly string[]
+  key: string
+  t: TFunction
+  close: () => void
+  closeMany: (keys: readonly string[]) => void
+  enabled?: boolean
+}): CommandContextMenuExtraItem[] {
+  const others = keys.filter((candidate) => candidate !== key)
+  const right = keys.slice(keys.indexOf(key) + 1)
+  return [
+    { type: 'item', id: 'resource-tab.close', label: t('tab.close'), enabled, onSelect: close },
+    {
+      type: 'item',
+      id: 'resource-tab.close-others',
+      label: t('tab.close_others'),
+      enabled: enabled && others.length > 0,
+      onSelect: () => closeMany(others)
+    },
+    {
+      type: 'item',
+      id: 'resource-tab.close-right',
+      label: t('tab.close_to_right'),
+      enabled: enabled && right.length > 0,
+      onSelect: () => closeMany(right)
+    },
+    {
+      type: 'item',
+      id: 'resource-tab.close-all',
+      label: t('webview.tabs.close_all'),
+      enabled,
+      onSelect: () => closeMany(keys)
+    }
+  ]
 }
 
 interface RightPaneTabsProps {

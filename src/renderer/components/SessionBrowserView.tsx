@@ -6,28 +6,18 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, AvatarImage, Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { BrowserChrome } from '@renderer/components/BrowserChrome'
 import { BrowserOverlays } from '@renderer/components/BrowserOverlays'
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
-import { RightPaneTabs } from '@renderer/components/RightPaneTabs'
+import { buildTabCloseMenuItems, RightPaneTabs } from '@renderer/components/RightPaneTabs'
+import { useSessionBrowserTabMenu } from '@renderer/components/useSessionBrowserTabMenu'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { WebviewImportBanner } from '@renderer/components/WebviewImportBanner'
-import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { ipcApi } from '@renderer/ipc'
 import {
   agentBrowserRuntimeService,
   type AgentBrowserRuntimeService
 } from '@renderer/services/AgentBrowserRuntimeService'
-import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
-import { openExternalWebsite } from '@renderer/services/website'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { isHttpUrl } from '@shared/utils/url'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-
-const logger = loggerService.withContext('SessionBrowserView')
 
 export interface SessionBrowserViewProps {
   runtime?: AgentBrowserRuntimeService
@@ -49,8 +39,6 @@ export function SessionBrowserView({
 }: SessionBrowserViewProps) {
   const { t } = useTranslation()
   const { sessionId, initialUrl, securityProfile, toolbarActions, onEmpty } = props
-  const tabs = useOptionalTabsContext()
-  const frame = useWindowFrame()
   const pages = useSyncExternalStore(browserRuntime.subscribe, () => browserRuntime.getPages(sessionId))
   const active = useSyncExternalStore(browserRuntime.subscribe, () => browserRuntime.get(sessionId))
   const tabPrefix = useId()
@@ -75,98 +63,18 @@ export function SessionBrowserView({
         document.getElementById(`${tabPrefix}-${next.pageId}`)?.focus()
       })
   }
-  const getMenuItems = (pageId: string): readonly CommandContextMenuExtraItem[] => {
-    const page = browserRuntime.get(sessionId, pageId)
-    if (!page) return []
-    const pages = browserRuntime.getPages(sessionId)
-    const openElsewhere = (destination: 'tab' | 'window') => {
-      const current = browserRuntime.get(sessionId, pageId)
-      if (!current) return
-      const url = `/app/browser?${new URLSearchParams({ url: current.url })}`
-      if (destination === 'window') {
-        void ipcApi
-          .request('tab.detach', { id: crypto.randomUUID(), url, title: title(current), type: 'route' })
-          .catch((error) => logger.error('Failed to open browser tab in a new window', error))
-      } else if (tabs && frame.mode === 'embedded') {
-        tabs.openTab(url, { title: title(current), forceNew: true })
-      } else {
-        openRoute('/app/browser', { url: current.url })
-      }
-    }
-    const closeGroup = (group: 'others' | 'right' | 'all') => {
-      const current = browserRuntime.getPages(sessionId)
-      const index = current.findIndex((entry) => entry.pageId === pageId)
-      if (index < 0) return
-      const targets = group === 'right' ? current.slice(index + 1) : current
-      closePages(targets.filter((entry) => group !== 'others' || entry.pageId !== pageId).map((entry) => entry.pageId))
-    }
-    return [
-      {
-        type: 'item',
-        id: 'browser.tab.open-new-tab',
-        label: t('common.open_in_new_tab'),
-        onSelect: () => openElsewhere('tab')
-      },
-      {
-        type: 'item',
-        id: 'browser.tab.open-new-window',
-        label: t('tab.open_in_new_window'),
-        onSelect: () => openElsewhere('window')
-      },
-      {
-        type: 'item',
-        id: 'browser.tab.copy-link',
-        label: t('webview.tabs.copy_link'),
-        enabled: page.url !== 'about:blank',
-        onSelect: () => {
-          const current = browserRuntime.get(sessionId, pageId)
-          if (!current || current.url === 'about:blank') return
-          void navigator.clipboard.writeText(current.url).then(
-            () => toast.success(t('message.copy.success')),
-            (error) => {
-              logger.error('Failed to copy browser tab link', error)
-              toast.error(t('common.copy_failed'))
-            }
-          )
-        }
-      },
-      {
-        type: 'item',
-        id: 'browser.tab.open-external',
-        label: t('webview.navigation.open_external'),
-        enabled: isHttpUrl(page.url),
-        onSelect: () => {
-          const current = browserRuntime.get(sessionId, pageId)
-          if (current && isHttpUrl(current.url))
-            void openExternalWebsite(current.url).catch((error) =>
-              logger.error('Failed to open browser tab externally', error)
-            )
-        }
-      },
-      { type: 'separator' },
-      { type: 'item', id: 'browser.tab.close', label: t('tab.close'), onSelect: () => close(pageId, false) },
-      {
-        type: 'item',
-        id: 'browser.tab.close-others',
-        label: t('tab.close_others'),
-        enabled: pages.length > 1,
-        onSelect: () => closeGroup('others')
-      },
-      {
-        type: 'item',
-        id: 'browser.tab.close-right',
-        label: t('tab.close_to_right'),
-        enabled: pages.at(-1)?.pageId !== pageId,
-        onSelect: () => closeGroup('right')
-      },
-      {
-        type: 'item',
-        id: 'browser.tab.close-all',
-        label: t('webview.tabs.close_all'),
-        onSelect: () => closeGroup('all')
-      }
-    ]
-  }
+  const getBrowserMenuItems = useSessionBrowserTabMenu({ runtime: browserRuntime, sessionId })
+  const getMenuItems = (pageId: string) => [
+    ...getBrowserMenuItems(pageId),
+    { type: 'separator' as const },
+    ...buildTabCloseMenuItems({
+      keys: pages.map((page) => page.pageId),
+      key: pageId,
+      t,
+      close: () => close(pageId, false),
+      closeMany: closePages
+    })
+  ]
   const executing = pages.find((page) => page.executing)
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
