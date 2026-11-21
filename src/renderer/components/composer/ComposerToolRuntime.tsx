@@ -91,13 +91,13 @@ const ComposerToolRuntimeEntry = ({
   t
 }: ComposerToolRuntimeEntryProps) => {
   const context = useMemo<AnyToolRenderContext>(() => {
-    const state: Record<string, unknown> = {}
-    for (const key of tool.dependencies?.state ?? []) state[key] = toolState[key]
+    const state: Partial<AnyToolRenderContext['state']> = {}
+    for (const key of tool.dependencies?.state ?? []) Object.assign(state, { [key]: toolState[key] })
 
-    const actions: Record<string, unknown> = {}
+    const actions: Partial<AnyToolRenderContext['actions']> = {}
     for (const key of tool.dependencies?.actions ?? []) {
       const action = toolActions[key]
-      if (action) actions[key] = action
+      if (action) Object.assign(actions, { [key]: action })
     }
 
     return {
@@ -242,12 +242,12 @@ interface ReconcileContextInputs {
 /** Builds the (launcher-less) render context a tool's `tokens.reconcile` runs against. */
 const buildReconcileContext = (tool: AnyToolDefinition, inputs: ReconcileContextInputs): AnyToolRenderContext => {
   const deps = tool.dependencies
-  const state: Record<string, unknown> = {}
-  for (const key of deps?.state ?? []) state[key] = inputs.toolState[key]
-  const actions: Record<string, unknown> = {}
+  const state: Partial<AnyToolRenderContext['state']> = {}
+  for (const key of deps?.state ?? []) Object.assign(state, { [key]: inputs.toolState[key] })
+  const actions: Partial<AnyToolRenderContext['actions']> = {}
   for (const key of deps?.actions ?? []) {
     const value = inputs.dispatch[key]
-    if (value) actions[key] = value
+    if (value) Object.assign(actions, { [key]: value })
   }
 
   return {
