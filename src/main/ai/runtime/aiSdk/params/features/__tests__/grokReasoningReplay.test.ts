@@ -11,7 +11,7 @@ const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [
 const providerOptions = { openai: { store: false, forceReasoning: true, reasoningEffort: 'high' } }
 
 function createModel(providerId = 'grok-cli', modelId = 'grok-4.7', streaming = false) {
-  const requests: Record<string, any>[] = []
+  const requests: ReturnType<typeof rewriteGrokCliResponsesBody>[] = []
   const model = createOpenAI({
     apiKey: 'test',
     fetch: async (_input, init) => {
@@ -67,9 +67,17 @@ describe('Grok reasoning replay attribution', () => {
       ],
       providerOptions
     })
-    const encrypted = target.requests[0].input.filter((item: Record<string, unknown>) => item.type === 'reasoning')
+    const input = target.requests[0].input
+    if (!Array.isArray(input)) throw new Error('Expected a Responses input array')
+    const encrypted = input.filter(
+      (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && item.type === 'reasoning'
+    )
     expect(encrypted).toEqual(replay ? [reasoning] : [])
-    expect(target.requests[0].input.some((item: Record<string, unknown>) => item.role === 'assistant')).toBe(true)
+    expect(
+      input.some(
+        (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && item.role === 'assistant'
+      )
+    ).toBe(true)
   })
 
   it('keeps streamed encrypted-only reasoning with its model attribution', async () => {
@@ -104,8 +112,12 @@ describe('Grok reasoning replay attribution', () => {
       ],
       providerOptions
     })
-    expect(requests[0].input.some((item: Record<string, unknown>) => item.type === 'reasoning')).toBe(
-      providerId === 'openai'
-    )
+    const input = requests[0].input
+    if (!Array.isArray(input)) throw new Error('Expected a Responses input array')
+    expect(
+      input.some(
+        (item) => item !== null && typeof item === 'object' && !Array.isArray(item) && item.type === 'reasoning'
+      )
+    ).toBe(providerId === 'openai')
   })
 })
