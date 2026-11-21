@@ -37,6 +37,8 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
   let childStarted = false
   let parentRequests = 0
   let watch = false
+  let closingOwner = false
+  let closeConversationScans = 0
   let queued: SubmissionRecord | undefined
   const step: FauxResponseStep = async (context, options) => {
     const input = context.messages.findLast((message) => message.role === 'user')
@@ -64,6 +66,11 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
         const storage = await openNodeSqliteStorage(file)
         return new Proxy(storage, {
           get(target, key) {
+            if (key === 'scanConversations')
+              return (...args: Parameters<Storage['scanConversations']>) => {
+                if (closingOwner) closeConversationScans++
+                return target.scanConversations(...args)
+              }
             if (key === 'commit')
               return (...[batches, receive, context]: Parameters<Storage['commit']>) =>
                 target.commit(
@@ -114,11 +121,13 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
     await root.input.submit({ inputId: runtimeId('root'), text: 'Start a child', whenBusy: 'reject' })
     await expect.poll(() => childStarted).toBe(true)
     const child = confirmed(await root.durable.openChild('spawn')).handle
+    expect(await child.durable.runState()).toEqual({ state: 'active' })
     watch = true
     steering = child.input.submit({ inputId: runtimeId('steer'), text: 'Queued correction', whenBusy: 'steer' })
     await expect.poll(() => queued?.status).toBe('queued')
     const accepted = queued!
     let ended: OperationResult<void> | undefined
+    closingOwner = true
     const closing = runtime.shutdown().then((result) => {
       ended = result
       return result
@@ -130,6 +139,7 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
       await closing
       await steering
     }
+    expect(closeConversationScans).toBe(0)
     const storage = await openNodeSqliteStorage(file)
     try {
       const saved = await storage.scanSubmissions(

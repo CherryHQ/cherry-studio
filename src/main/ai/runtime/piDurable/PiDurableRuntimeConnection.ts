@@ -644,13 +644,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                     event.type === 'input.changed'
                   ) {
                     if (this.closing) return
-                    const facts = await access.durable.facts()
+                    const run = await access.durable.runState()
                     this.childTasks.publish(
                       id,
-                      facts.live.idle
-                        ? facts.live.runEnd?.outcome === 'completed'
+                      run.state === 'idle'
+                        ? run.outcome === 'completed'
                           ? 'completed'
-                          : facts.live.runEnd?.outcome === 'aborted'
+                          : run.outcome === 'aborted'
                             ? 'stopped'
                             : 'error'
                         : 'in_progress'
@@ -658,7 +658,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                     if (resource) {
                       // An input without an outcome means more work is coming even while the run is idle.
                       resource.finished =
-                        facts.live.idle && facts.live.runEnd !== undefined && inputs.every((input) => input.outcome)
+                        run.state === 'idle' && run.outcome !== undefined && inputs.every((input) => input.outcome)
                       this.releaseFinishedChild(key)
                     }
                   }

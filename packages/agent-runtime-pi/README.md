@@ -267,7 +267,7 @@ or stop comes from the handlers `install` registers and the steps they decide. T
 | H9 `ToolGate` | `tool_call` and `tool_result`. `before` gets the call with the run's abort signal (the handler context's `signal`), which aborts when the call's turn stops; `after` gets the call `before` saw, `nested` included, with the arguments the call ran with. The call key is `<sessionId>:<toolCallId>`. `GateFacts.plan` is the latest `plan` record on the branch; `goalRound` and `callWindow` come from the run's starting input and its calls so far (nested calls left out), kept in memory per run. A blocked call's result reads `Tool call blocked: <reason>`, as on Durable, and projects back as an error result with that text. |
 | H10 `ContextFilter` | The `context` event, before every model request; see the note on omitted markers. |
 | H11 `RequestMeter` | Wraps each native model request, including every summary request, and enforces the initiating run limit. |
-| H12 `Lifecycle` | Calls `onOpen` for opened sessions, `onCompacted` after successful native compaction, and `onClose` at shutdown. |
+| H12 `Lifecycle` | Calls `onOpen` for opened sessions, `onCompacted` after successful native compaction, and a registered `onClose` at shutdown. |
 
 ### Declared differences
 

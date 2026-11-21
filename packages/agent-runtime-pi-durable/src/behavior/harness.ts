@@ -919,14 +919,17 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     },
     async close() {
       unsubscribe?.()
-      const conversations = await harness.commit(
-        (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
-        context
-      )
-      for (const conversation of conversations) {
-        const thread = threadId(conversation.id)
-        if (options.owns && !options.owns(thread)) continue
-        await withCall(thread, (ports) => lifecycle?.onClose(thread, ports) ?? Promise.resolve())
+      const onClose = lifecycle?.onClose
+      if (onClose) {
+        const conversations = await harness.commit(
+          (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
+          context
+        )
+        for (const conversation of conversations) {
+          const thread = threadId(conversation.id)
+          if (options.owns && !options.owns(thread)) continue
+          await withCall(thread, (ports) => onClose(thread, ports))
+        }
       }
       closed = true
       await Promise.all([...admissions.values()])

@@ -318,7 +318,7 @@ export interface LifecycleHandlers {
   /** A committed child's native session failed to open; runs before that commit's jobs start. */
   onChildOpenFailed?(parent: ThreadId, child: ThreadId, error: string, ports: BoundPorts): Promise<void>
   onCompacted(thread: ThreadId, ports: BoundPorts): Promise<void>
-  onClose(thread: ThreadId, ports: BoundPorts): Promise<void>
+  onClose?(thread: ThreadId, ports: BoundPorts): Promise<void>
 }
 /**
  * H12. Let the package settle a conversation when it opens, before and after it is compacted, and when it closes.

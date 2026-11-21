@@ -66,7 +66,7 @@ const recorded =
         ports.lifecycle.register({
           onOpen: (thread, open, p) => handlers.onOpen(thread, open, recording(p, log)),
           onCompacted: (thread, p) => handlers.onCompacted(thread, recording(p, log)),
-          onClose: (thread, p) => handlers.onClose(thread, recording(p, log))
+          onClose: (thread, p) => handlers.onClose?.(thread, recording(p, log)) ?? Promise.resolve()
         })
     }
   })
