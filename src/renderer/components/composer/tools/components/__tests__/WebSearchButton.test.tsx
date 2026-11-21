@@ -245,6 +245,34 @@ describe('WebSearchButton', () => {
     expect(button).not.toHaveFocus()
   })
 
+  it("lets the shared resolver pick the request endpoint instead of pinning the model's first endpoint", async () => {
+    // Regression: bundled QwenCloud GLM-5.2 declares Responses first, but request routing
+    // falls to Chat Completions when no client search backend is ready. Pinning
+    // endpointTypes[0] here advertised built-in search the request never reached.
+    mocks.model = {
+      ...mocks.model!,
+      endpointTypes: ['openai-responses', 'openai-chat-completions']
+    }
+    mocks.provider = {
+      id: 'anthropic',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.anthropic.com' } },
+      serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+    }
+    const providerUtils = await import('@shared/utils/provider')
+    const routesSpy = vi.spyOn(providerUtils, 'resolveWebToolRoutes')
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(routesSpy).toHaveBeenCalled())
+    expect(routesSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ endpointType: undefined })
+    )
+    routesSpy.mockRestore()
+  })
+
   it('enables model-native search when configured services are preferred but unavailable', async () => {
     mocks.provider = {
       id: 'anthropic',
