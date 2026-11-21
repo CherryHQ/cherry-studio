@@ -1,65 +1,183 @@
-import type * as NodePath from 'node:path'
+import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { getBinaryShimsDir } from '@main/utils/binaryEnv'
 
-import { buildPiLoginPathPrefix, mergePiShellExecutionEnv } from './piShell'
+import { mergeMiseEnvEntries, mergePiToolSpawnEnv, resolvePiLoginEnv } from './piShell'
 
-vi.mock('@main/core/platform', () => ({ isWin: true, isMac: false, isLinux: false, isDev: false, isPortable: false }))
-vi.mock('path', async () => {
-  const { win32 } = await vi.importActual<typeof NodePath>('node:path')
-  return { ...win32, default: win32 }
+const { CHERRY_MISE_DIR, CHERRY_SHIMS, USER_MISE_DIR, USER_SHIMS } = vi.hoisted(() => {
+  const CHERRY_MISE_DIR = '/cherry/Toolchain/mise'
+  const CHERRY_SHIMS = `${CHERRY_MISE_DIR}/shims`
+  const USER_MISE_DIR = '/home/user/.local/share/mise'
+  const USER_SHIMS = `${USER_MISE_DIR}/shims`
+  return { CHERRY_MISE_DIR, CHERRY_SHIMS, USER_MISE_DIR, USER_SHIMS }
 })
 
-describe('Pi Windows shell environment', () => {
-  afterEach(() => vi.restoreAllMocks())
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => null }))
 
-  beforeEach(() => {
-    const original = vi.mocked(application.getPath).getMockImplementation()
-    if (!original) throw new Error('The unified application mock must provide paths')
-    vi.spyOn(application, 'getPath').mockImplementation((key, ...args) => {
-      if (key === 'feature.binary.data') return 'C:\\Cherry\\binary'
-      if (key === 'cherry.bin') return 'C:\\Cherry\\bin'
-      return original(key, ...args)
-    })
+// Point the application path registry at the Cherry mise contract so the real
+// binaryEnv helpers (getBinaryShimsDir/getBinarySearchDirs/getBinaryExecutionEnv
+// and everything layered on them) resolve the stubbed layout. Mocking the
+// derived exports instead leaves module-internal calls reading the raw mock
+// paths (mergeBinaryExecutionEnv calls its own getBinaryExecutionEnv).
+beforeEach(() => {
+  vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+    if (key === 'feature.binary.data') return CHERRY_MISE_DIR
+    if (key === 'cherry.bin') return '/cherry/bin'
+    return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
   })
+})
 
-  it('preserves PowerShell environment variables and combines Windows PATH casings', () => {
-    const base = {
-      Path: 'C:\\Program Files\\PowerShell\\7;C:\\Windows\\System32',
-      PATH: 'c:\\windows\\system32;C:\\Tools',
-      SystemRoot: 'C:\\Windows',
-      ComSpec: 'C:\\Windows\\System32\\cmd.exe',
-      PSModulePath: 'C:\\Program Files\\PowerShell\\Modules;C:\\User\\Modules',
-      UNUSED: undefined
-    }
-    const env = mergePiShellExecutionEnv(base)
-    expect(env).toMatchObject({ SystemRoot: base.SystemRoot, ComSpec: base.ComSpec, PSModulePath: base.PSModulePath })
-    expect(Object.keys(env).filter((key) => key.toLowerCase() === 'path')).toEqual(['Path'])
-    expect(env.Path.split(';')).toEqual([
-      'C:\\Cherry\\binary\\shims',
-      'C:\\Cherry\\bin',
-      'C:\\Program Files\\PowerShell\\7',
-      'C:\\Windows\\System32',
-      'C:\\Tools'
+describe('mergePiToolSpawnEnv', () => {
+  it('layers Cherry-managed tools onto Pi bash without dropping Pi PATH entries', () => {
+    const result = mergePiToolSpawnEnv(
+      { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter), PI_ONLY: 'preserved' },
+      { loginPath: '/opt/homebrew/bin:/usr/bin', rawShellEnv: { PATH: '/usr/bin' } }
+    )
+
+    expect(result.PATH?.split(path.delimiter)).toEqual([
+      CHERRY_SHIMS,
+      '/cherry/bin',
+      '/pi/agent/bin',
+      '/system/bin',
+      '/opt/homebrew/bin',
+      '/usr/bin'
     ])
-    expect(env).not.toHaveProperty('UNUSED')
-    expect(buildPiLoginPathPrefix('C:\\Tools', 'win32')).toBeUndefined()
+    expect(result).toMatchObject({
+      PI_ONLY: 'preserved',
+      MISE_DATA_DIR: CHERRY_MISE_DIR,
+      MISE_SHIMS_DIR: CHERRY_SHIMS
+    })
   })
 
-  it('preserves a caller-owned mise environment for PowerShell', () => {
-    const env = mergePiShellExecutionEnv({
-      Path: 'C:\\User\\mise\\shims;C:\\Cherry\\binary\\shims;C:\\Windows',
-      MISE_DATA_DIR: 'C:\\User\\mise',
-      MISE_SHELL: 'pwsh',
-      PSModulePath: 'C:\\User\\Modules'
+  it('preserves a caller-owned mise environment instead of redirecting its shims', () => {
+    const result = mergePiToolSpawnEnv(
+      {
+        PATH: [USER_SHIMS, CHERRY_SHIMS, '/system/bin'].join(path.delimiter),
+        MISE_DATA_DIR: USER_MISE_DIR,
+        MISE_SHIMS_DIR: USER_SHIMS
+      },
+      { loginPath: '/opt/homebrew/bin:/usr/bin', rawShellEnv: { PATH: '/usr/bin' } }
+    )
+
+    expect(result.PATH?.split(path.delimiter)).toEqual([
+      USER_SHIMS,
+      '/system/bin',
+      '/opt/homebrew/bin',
+      '/usr/bin',
+      '/cherry/bin'
+    ])
+    expect(result).toMatchObject({
+      MISE_DATA_DIR: USER_MISE_DIR,
+      MISE_SHIMS_DIR: USER_SHIMS
     })
-    expect(env.Path.split(';')).toEqual(['C:\\User\\mise\\shims', 'C:\\Windows', 'C:\\Cherry\\bin'])
-    expect(env).toMatchObject({
-      MISE_DATA_DIR: 'C:\\User\\mise',
-      MISE_SHELL: 'pwsh',
-      PSModulePath: 'C:\\User\\Modules'
-    })
+    expect(result.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.PATH?.split(path.delimiter)).not.toContain(CHERRY_SHIMS)
+  })
+
+  it('drops Cherry mise shims and vars for a PATH-only user mise installation', () => {
+    const result = mergePiToolSpawnEnv(
+      { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) },
+      { loginPath: undefined, rawShellEnv: { PATH: [USER_SHIMS, '/usr/bin'].join(path.delimiter) } }
+    )
+
+    expect(result.MISE_DATA_DIR).toBeUndefined()
+    expect(result.MISE_SHIMS_DIR).toBeUndefined()
+    expect(result.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.PATH?.split(path.delimiter)).not.toContain(CHERRY_SHIMS)
+    expect(result.PATH?.split(path.delimiter)).toContain('/pi/agent/bin')
+  })
+
+  it('prefers the live spawn env mise values over a stale connection snapshot', () => {
+    const result = mergePiToolSpawnEnv(
+      {
+        PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter),
+        MISE_DATA_DIR: '/live/mise'
+      },
+      { loginPath: undefined, rawShellEnv: { PATH: '/usr/bin', MISE_DATA_DIR: '/snapshot/mise' } }
+    )
+
+    expect(result.MISE_DATA_DIR).toBe('/live/mise')
+    expect(result.PATH?.split(path.delimiter)).not.toContain(CHERRY_SHIMS)
+  })
+
+  it('layers the login-shell PATH into bash tool spawns, mirroring the shell prefix', () => {
+    const result = mergePiToolSpawnEnv(
+      { PATH: '/pi/agent/bin' },
+      { loginPath: '/opt/homebrew/bin:/usr/bin', rawShellEnv: { PATH: '/usr/bin' } }
+    )
+
+    expect(result.PATH?.split(path.delimiter)).toContain('/opt/homebrew/bin')
+
+    const withoutLogin = mergePiToolSpawnEnv(
+      { PATH: '/pi/agent/bin' },
+      { loginPath: undefined, rawShellEnv: { PATH: '/usr/bin' } }
+    )
+    expect(withoutLogin.PATH?.split(path.delimiter)).not.toContain('/opt/homebrew/bin')
+  })
+
+  it('keeps Cherry’s MISE contract when the login PATH carries Cherry’s own shims dir', () => {
+    const result = mergePiToolSpawnEnv(
+      { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) },
+      {
+        loginPath: [CHERRY_SHIMS, '/cherry/bin', '/usr/bin'].join(':'),
+        rawShellEnv: { PATH: '/usr/bin' }
+      }
+    )
+
+    expect(result.MISE_DATA_DIR).toBe(CHERRY_MISE_DIR)
+    expect(result.PATH?.split(path.delimiter)).toContain(CHERRY_SHIMS)
+  })
+})
+
+describe('resolvePiLoginEnv', () => {
+  it('keeps Cherry shims out of the pi shell prefix when the user owns mise', () => {
+    const env = resolvePiLoginEnv({ PATH: [USER_SHIMS, '/usr/bin'].join(path.delimiter) })
+
+    expect(env.PATH?.split(path.delimiter)).toContain(USER_SHIMS)
+    expect(env.PATH?.split(path.delimiter)).not.toContain(CHERRY_SHIMS)
+    expect(env.PATH?.split(path.delimiter)).toContain('/cherry/bin')
+  })
+
+  it('layers the full Cherry contract when the user has no mise', () => {
+    const env = resolvePiLoginEnv({ PATH: '/usr/bin' })
+
+    expect(env.PATH?.split(path.delimiter)).toContain(CHERRY_SHIMS)
+    expect(env.MISE_DATA_DIR).toBe(CHERRY_MISE_DIR)
+  })
+})
+
+describe('mergeMiseEnvEntries', () => {
+  it('merges snapshot and live MISE vars with live values winning', () => {
+    expect(
+      mergeMiseEnvEntries({ MISE_DATA_DIR: '/snapshot', MISE_SHIMS_DIR: '/snapshot/shims' }, { MISE_DATA_DIR: '/live' })
+    ).toEqual({ MISE_DATA_DIR: '/live', MISE_SHIMS_DIR: '/snapshot/shims' })
+  })
+
+  it('collapses case-variant MISE keys into the live spelling on Windows', () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    try {
+      expect(mergeMiseEnvEntries({ MISE_DATA_DIR: '/snapshot' }, { mise_data_dir: '/live' })).toEqual({
+        mise_data_dir: '/live'
+      })
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+})
+
+// Guards the fixture assumption behind every Cherry-shims assertion above.
+describe('piShell test fixtures', () => {
+  it('points getBinaryShimsDir at the Cherry mise shims stub', () => {
+    expect(getBinaryShimsDir()).toBe(CHERRY_SHIMS)
   })
 })

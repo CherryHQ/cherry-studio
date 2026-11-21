@@ -103,7 +103,16 @@ vi.mock('./piMcpExtension', async (original) => ({
       })
   }
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: async () => ({}),
+  getRawShellEnv: async () => ({}),
+  getPathFromEnvironment: () => undefined,
+  getMiseEnvEntries: () => [],
+  hasUserMiseEnv: () => false,
+  resolveCherryPathTailDirs: () => [],
+  applyUserMiseContract: () => {},
+  withCherryShellEnv: (env: Record<string, string>) => ({ ...env })
+}))
 
 // Load the grammars before tests redirect application paths.
 beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))

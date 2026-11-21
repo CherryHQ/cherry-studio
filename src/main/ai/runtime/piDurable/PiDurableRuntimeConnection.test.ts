@@ -41,6 +41,7 @@ import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
@@ -130,10 +131,17 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: mocks.mcpServers
 }))
-vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
-  getPathFromEnvironment: () => undefined
-}))
+vi.mock('@main/utils/shellEnv', async (importOriginal) => {
+  // Spread the real module: piShell/mcpStdioLaunch (pulled in by the runtime
+  // connection) read pure helpers like hasUserMiseEnv and
+  // resolveCherryPathTailDirs, which a partial mock leaves undefined.
+  const actual = await importOriginal<typeof ShellEnvModule>()
+  return {
+    ...actual,
+    getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
+    getPathFromEnvironment: () => undefined
+  }
+})
 
 // Load the grammars before tests redirect application paths.
 beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))

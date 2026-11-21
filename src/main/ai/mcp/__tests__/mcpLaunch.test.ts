@@ -4,10 +4,13 @@ import type { LaunchResolutionCache } from '../mcpLaunch'
 
 const binaryMock = vi.hoisted(() => ({
   isBinaryExists: vi.fn<(name: string) => Promise<boolean>>(),
-  getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
+  isStandaloneBinaryExists: vi.fn<(name: string) => Promise<boolean>>(),
+  getBinaryPath: vi.fn<(name?: string) => Promise<string>>(),
+  getStandaloneBinaryPath: vi.fn<(name: string) => Promise<string>>()
 }))
 const commandMock = vi.hoisted(() => ({
-  findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
+  findExecutableInEnv:
+    vi.fn<(name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>>(),
   findCommandInShellEnv: vi.fn<(name: string, env: Record<string, string>) => Promise<string | null>>()
 }))
 
@@ -32,6 +35,16 @@ function deferred<T>() {
 }
 
 describe('resolveLaunchCommand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    binaryMock.isBinaryExists.mockResolvedValue(false)
+    binaryMock.isStandaloneBinaryExists.mockResolvedValue(false)
+    binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
+    binaryMock.getStandaloneBinaryPath.mockImplementation(async (name) => `/standalone/${name}`)
+    commandMock.findExecutableInEnv.mockResolvedValue(null)
+    commandMock.findCommandInShellEnv.mockResolvedValue(null)
+  })
+
   it('shares resolution by command and effective environment without sharing arguments or registries', async () => {
     commandMock.findExecutableInEnv.mockResolvedValue(null)
     binaryMock.isBinaryExists.mockResolvedValue(true)
@@ -45,13 +58,6 @@ describe('resolveLaunchCommand', () => {
     expect(commandMock.findExecutableInEnv).toHaveBeenCalledTimes(1)
     await resolveLaunchCommand({ ...options, loginShellEnv: { PATH: '/b' }, args: [] })
     expect(commandMock.findExecutableInEnv).toHaveBeenCalledTimes(2)
-  })
-  beforeEach(() => {
-    vi.clearAllMocks()
-    binaryMock.isBinaryExists.mockResolvedValue(false)
-    binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
-    commandMock.findExecutableInEnv.mockResolvedValue(null)
-    commandMock.findCommandInShellEnv.mockResolvedValue(null)
   })
 
   it.each([
@@ -260,6 +266,17 @@ describe('resolveLaunchCommand', () => {
     expect(binaryMock.isBinaryExists).not.toHaveBeenCalled()
   })
 
+  it('resolves package managers against the spawn env, not the cached shell env', async () => {
+    commandMock.findExecutableInEnv.mockResolvedValue('/usr/local/bin/npx')
+
+    await resolve('npx', ['-y', 'example-mcp'])
+
+    expect(commandMock.findExecutableInEnv).toHaveBeenCalledWith('npx', {
+      env: { PATH: '/usr/bin' },
+      signal: undefined
+    })
+  })
+
   it('falls back to bundled bun and rewrites the args for `bun x`', async () => {
     binaryMock.isBinaryExists.mockResolvedValue(true)
 
@@ -267,6 +284,22 @@ describe('resolveLaunchCommand', () => {
 
     expect(launch.command).toBe('/bundled/bun')
     expect(launch.args).toEqual(['x', '-y', 'example-mcp'])
+  })
+
+  it('uses standalone cherry.bin for bundled fallbacks when user mise owns the spawn env', async () => {
+    binaryMock.isStandaloneBinaryExists.mockResolvedValue(true)
+
+    const launch = await resolveLaunchCommand({
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      loginShellEnv: { PATH: '/usr/bin', MISE_DATA_DIR: '/home/user/.local/share/mise' },
+      logger,
+      useStandaloneBundledBinary: true
+    })
+
+    expect(launch.command).toBe('/standalone/bun')
+    expect(binaryMock.isBinaryExists).not.toHaveBeenCalled()
+    expect(binaryMock.getBinaryPath).not.toHaveBeenCalled()
   })
 
   it('prefixes `x -y` by position, including when the package itself is named x or -y', async () => {
