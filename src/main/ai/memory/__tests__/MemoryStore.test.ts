@@ -1118,6 +1118,22 @@ describe('limits, access, and recovery', () => {
     }
   )
 
+  it('can clear a large memory again after a complete undo', async () => {
+    const target = path.join(root, 'MEMORY.md')
+    const original = Buffer.alloc(9 * 1024 * 1024, 65)
+    await writeFile(target, original)
+    const clear = async () => store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const first = await clear()
+    const undo = await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(undo.error).toBeUndefined()
+    expect((await readFile(target)).equals(original)).toBe(true)
+    const second = await clear()
+    expect(second.error).toBeUndefined()
+    expect((await store.previewRecovery(caller))?.batchId).toBe(second.batchId)
+    expect(await memoryBackups.latestMemoryBackup(backups, first.batchId!)).toBeUndefined()
+    expect(await memoryBackups.latestMemoryBackup(backups, undo.batchId!)).toBeDefined()
+  })
+
   it('protects the latest recovery batch when a second large backup would exceed capacity', async () => {
     const original = Buffer.alloc(9 * 1024 * 1024, 65)
     await writeFile(path.join(root, 'MEMORY.md'), original)
