@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
 import { createAihubmix } from '@main/ai/provider/custom/aihubmix/aihubmixProvider'
 import { createNewApi } from '@main/ai/provider/custom/newapiProvider'
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
@@ -19,6 +20,7 @@ import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSea
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 
@@ -38,12 +40,14 @@ type TestScope = {
   endpointType?: EndpointType
   runtimeProviderId?: string
   model?: Model
+  provider?: Provider
 }
 
 async function getMiddleware(scope: TestScope = {}): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
     model: scope.model ?? { ...GEMINI_MODEL, id: 'custom::gpt-4o', apiModelId: 'gpt-4o', name: 'GPT-4o' },
+    provider: scope.provider ?? makeProvider({ id: 'openai' }),
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
@@ -1253,6 +1257,48 @@ describe('toolSchemaCompatibilityFeature', () => {
         required: ['query']
       })
     }
+  })
+
+  it('preserves OpenAI-compatible Gemini constraints and untyped-array tools on New API relays', async () => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'relay_tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', enum: [1, 2] },
+              flag: { const: true },
+              values: { type: 'array' }
+            },
+            propertyNames: { pattern: '^[a-z]+$' },
+            additionalProperties: false
+          }
+        }
+      ]
+    }
+    const result = await transform(params, {
+      runtimeProviderId: 'newapi',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      model: makeModel({ apiModelId: 'gemini-3.8-flash' }),
+      provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
+    })
+    expect(result.tools).toHaveLength(1)
+    const transformed = result.tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+    // Since #24664, propertyNames is stripped for recognizable Gemini identities on
+    // chat-completions relays; every other constraint passes through untouched.
+    expect(transformed.inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        count: { type: 'integer', enum: [1, 2] },
+        flag: { const: true },
+        values: { type: 'array' }
+      },
+      additionalProperties: false
+    })
   })
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {

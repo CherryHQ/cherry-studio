@@ -6,12 +6,14 @@
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveEffectiveEndpointType, type ResolveEndpointIntent } from '@shared/utils/endpointResolution'
 import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
-import { resolveGatewayRoute } from './gatewayRouting'
+
+export type { ResolveEndpointIntent }
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -37,34 +39,13 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
   return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
 }
 
-/**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
- * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
- *
- * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
- * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
- * `endpointTypes[0]` expresses. It wins only when the model declares that endpoint AND the provider
- * configures a base URL for it; otherwise the normal order applies and the caller sees the declined
- * preference in the returned `endpointType`. The base-URL condition is not redundant: `getBaseUrl`
- * cascades across `endpointConfigs`, so an unconfigured preference would resolve to another
- * endpoint's host instead of failing.
- */
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  intent: ResolveEndpointIntent = 'chat'
 ): ResolvedEndpoint {
-  const gatewayRoute = resolveGatewayRoute(provider, model)
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
-      ? preferredEndpointType
-      : undefined
-  const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+  const { endpointType, gatewayRoute } = resolveEffectiveEndpointType(provider, model, preferredEndpointType, intent)
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }

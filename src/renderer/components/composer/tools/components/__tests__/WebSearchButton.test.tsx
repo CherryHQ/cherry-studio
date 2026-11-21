@@ -357,6 +357,45 @@ describe('WebSearchButton', () => {
     )
   })
 
+  describe('DeepSeek native search follows the effective chat endpoint', () => {
+    const deepseekProvider = (defaultChatEndpoint: string) => ({
+      id: 'deepseek',
+      presetProviderId: 'deepseek',
+      defaultChatEndpoint,
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://api.deepseek.com' },
+        'openai-responses': { baseUrl: 'https://api.deepseek.com' }
+      },
+      serverTools: [{ id: 'web-search', modelScope: 'model-dependent', endpointTypes: ['openai-responses'] }]
+    })
+
+    beforeEach(() => {
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
+      mocks.model = {
+        ...mocks.model!,
+        id: 'deepseek::deepseek-v4-pro',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-v4-pro',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses', 'openai-chat-completions']
+      }
+    })
+
+    it('does not claim the built-in tool when the preset default routes through Chat Completions', () => {
+      mocks.provider = deepseekProvider('openai-chat-completions')
+      render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+      expect(screen.getByTestId('tooltip')).not.toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    })
+
+    it('claims the built-in tool when Responses is the effective chat endpoint', () => {
+      mocks.provider = deepseekProvider('openai-responses')
+      render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    })
+  })
+
   it('discloses the automatic ExaMCP fallback while the selected provider is ready', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
