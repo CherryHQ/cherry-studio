@@ -20,6 +20,7 @@ type RefTarget = Ref<unknown> | null | undefined
 
 // Match React event callback variance while retaining the callback's result.
 type SlotHandler<Result> = { invoke(...args: unknown[]): Result }['invoke']
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Event variance adds a callable view without parsing the other forwarded native and custom props.
 type SlotProps<Result> = AnyProps & {
   [Name in `on${Capitalize<string>}`]?: SlotHandler<Result>
 }

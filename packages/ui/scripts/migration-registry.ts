@@ -17,6 +17,7 @@ export interface MigrationRegistry {
   rules: MigrationRule[]
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- These are finite owner fields; their raw values stay unknown until the parser checks metadata, rule fields, strategy and uniqueness.
 function isRecord(value: unknown): value is { [Key in keyof MigrationRegistry | keyof MigrationRule]?: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
