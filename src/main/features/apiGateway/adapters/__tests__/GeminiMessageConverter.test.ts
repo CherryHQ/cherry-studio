@@ -1,3 +1,4 @@
+import { asSchema } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -317,7 +318,7 @@ describe('GeminiMessageConverter.toAiSdkTools', () => {
     expect(converter.toAiSdkTools(request({}))).toBeUndefined()
   })
 
-  it('builds a ToolSet from functionDeclarations (parametersJsonSchema)', () => {
+  it('builds a ToolSet from functionDeclarations (parametersJsonSchema)', async () => {
     const tools = converter.toAiSdkTools(
       request({
         tools: [
@@ -333,10 +334,16 @@ describe('GeminiMessageConverter.toAiSdkTools', () => {
         ]
       })
     )
-    expect(tools && Object.keys(tools)).toEqual(['get_weather'])
+    if (!tools) throw new Error('Expected the declared weather tool')
+    expect(Object.keys(tools)).toEqual(['get_weather'])
+    expect(await asSchema(tools.get_weather.inputSchema).jsonSchema).toEqual({
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city']
+    })
   })
 
-  it('normalizes Gemini `parameters` (UPPERCASE type) into a usable tool', () => {
+  it('normalizes Gemini `parameters` (UPPERCASE type) into a usable tool', async () => {
     const tools = converter.toAiSdkTools(
       request({
         tools: [
@@ -348,7 +355,38 @@ describe('GeminiMessageConverter.toAiSdkTools', () => {
         ]
       })
     )
-    expect(tools && Object.keys(tools)).toEqual(['lookup'])
+    if (!tools) throw new Error('Expected the declared lookup tool')
+    expect(Object.keys(tools)).toEqual(['lookup'])
+    expect(await asSchema(tools.lookup.inputSchema).jsonSchema).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } }
+    })
+  })
+
+  it('preserves reserved schema keys as own properties without mutating the source', async () => {
+    const parameters = JSON.parse(
+      '{"type":"OBJECT","__proto__":{"extension":true},"properties":{"__proto__":{"type":"STRING"},"nested":{"type":"OBJECT","properties":{"__proto__":{"type":"NUMBER"}}}},"required":["__proto__"]}'
+    )
+    const sourceSnapshot = JSON.stringify(parameters)
+    const tools = converter.toAiSdkTools(
+      request({ tools: [{ functionDeclarations: [{ name: 'lookup', parameters }] }] })
+    )
+    if (!tools) throw new Error('Expected the declared lookup tool')
+    const normalized = await asSchema(tools.lookup.inputSchema).jsonSchema
+
+    expect(normalized).toEqual({
+      type: 'object',
+      ['__proto__']: { extension: true },
+      properties: {
+        ['__proto__']: { type: 'string' },
+        nested: { type: 'object', properties: { ['__proto__']: { type: 'number' } } }
+      },
+      required: ['__proto__']
+    })
+    expect(Object.getOwnPropertyDescriptor(normalized, '__proto__')?.value).toEqual({ extension: true })
+    expect(Object.getPrototypeOf(normalized)).toBe(Object.prototype)
+    expect(JSON.stringify(parameters)).toBe(sourceSnapshot)
+    expect(Object.getPrototypeOf(parameters)).toBe(Object.prototype)
   })
 
   it('skips built-in tools that carry no functionDeclarations', () => {
