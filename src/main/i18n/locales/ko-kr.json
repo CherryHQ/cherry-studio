@@ -13,6 +13,7 @@
   "agent.session.workspace_status.missing": "워크스페이스 경로가 존재하지 않습니다: {{path}}",
   "agent.session.workspace_status.not_directory": "워크스페이스 경로가 디렉터리가 아닙니다: {{path}}",
   "agent.tools.to_markdown.unsupported_windows_arm64": "내장 문서 변환기에 Windows ARM64용 네이티브 빌드가 없어 이 플랫폼에서는 to_markdown을 지원하지 않습니다. 의존성을 다시 설치해도 이 제한은 해결되지 않습니다.",
+  "ai.image.error.no_images": "{{model}}에 대한 이미지 생성이 이미지를 반환하지 않았습니다. 제공업체가 요청을 필터링했을 수 있습니다. 다른 프롬프트를 시도하거나 다시 시도하세요.",
   "apiGateway.docs.description": "OpenAI, Anthropic 및 Gemini와 호환되는 Cherry Studio HTTP API와 Cherry 전용 엔드포인트(모델, 지식 베이스)",
   "apiGateway.docs.language_switcher_label": "문서 언어",
   "apiGateway.docs.operations.chat_completions": "채팅 완성을 생성합니다. 요청 및 응답 본문은 OpenAI Chat Completions 형식을 따릅니다. 점진적으로 출력하려면 `stream: true`를 설정하세요.",

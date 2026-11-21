@@ -13,6 +13,7 @@
   "agent.session.workspace_status.missing": "Ścieżka obszaru roboczego nie istnieje: {{path}}",
   "agent.session.workspace_status.not_directory": "Ścieżka obszaru roboczego nie jest katalogiem: {{path}}",
   "agent.tools.to_markdown.unsupported_windows_arm64": "Narzędzie to_markdown nie jest obsługiwane w systemie Windows ARM64, ponieważ dołączony konwerter dokumentów nie ma natywnej kompilacji dla tej platformy. Ponowna instalacja zależności nie usunie tego ograniczenia.",
+  "ai.image.error.no_images": "Generowanie obrazu nie zwróciło żadnych obrazów dla {{model}}. Dostawca mógł odfiltrować żądanie; spróbuj innego zapytania lub spróbuj ponownie.",
   "apiGateway.docs.description": "Zgodne z OpenAI, Anthropic i Gemini API HTTP dla Cherry Studio oraz punkty końcowe specyficzne dla Cherry (modele, bazy wiedzy)",
   "apiGateway.docs.language_switcher_label": "Język dokumentacji",
   "apiGateway.docs.operations.chat_completions": "Utwórz uzupełnienie czatu. Treści żądania i odpowiedzi są zgodne z formatem OpenAI Chat Completions; ustaw `stream: true` dla odpowiedzi strumieniowej.",
