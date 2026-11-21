@@ -262,9 +262,9 @@ type InfiniteQueryKeyGetter = (
   previousPageData: CursorPaginationResponse<unknown> | null
 ) => InfiniteQueryKey | null
 
-function createInfiniteQueryKeyGetter(
+function createInfiniteQueryKeyGetter<TQuery extends object>(
   resolvedPath: string,
-  query: object | undefined,
+  query: TQuery | undefined,
   limit: number,
   enabled = true
 ): InfiniteQueryKeyGetter {
@@ -746,6 +746,7 @@ export function useReadCache() {
   return useCallback(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
       query?: object,
       infinite?: { limit: number }
     ): TResponse | undefined => {
@@ -798,6 +799,7 @@ export function useWriteCache() {
     async <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
       value: TResponse,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
       query?: object
     ): Promise<void> => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0

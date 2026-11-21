@@ -68,10 +68,10 @@ export type ParamsForPath<Path extends string, Method extends string> =
  */
 export type QueryParamsForPath<Path extends string, Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
   SchemaKeyForPath<Path> extends keyof ApiSchemas
-    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { query?: infer Q } }
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { query?: infer Q extends object } }
       ? Q
-      : Record<string, any>
-    : Record<string, any>
+      : object
+    : object
 
 /**
  * Extract request body type for a given concrete path and HTTP method
