@@ -35,10 +35,10 @@ import type {
 } from '../types'
 
 export interface UtilityProcessLogger {
-  debug(message: string, fields?: Record<string, unknown>): void
-  info(message: string, fields?: Record<string, unknown>): void
-  warn(message: string, fields?: Record<string, unknown>): void
-  error(message: string, fields?: Record<string, unknown>): void
+  debug(message: string, fields?: LogFrame['fields']): void
+  info(message: string, fields?: LogFrame['fields']): void
+  warn(message: string, fields?: LogFrame['fields']): void
+  error(message: string, fields?: LogFrame['fields']): void
 }
 
 export interface UtilityProcessHandlerContext<
@@ -167,7 +167,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   }
 
   const createLogger = (requestId?: number): UtilityProcessLogger => {
-    const send = (level: LogLevel, message: string, fields?: Record<string, unknown>): void => {
+    const send = (level: LogLevel, message: string, fields?: LogFrame['fields']): void => {
       const base: Unstamped<LogFrame> = { kind: 'log', level, message }
       if (requestId !== undefined) base.requestId = requestId
       if (fields === undefined) {
