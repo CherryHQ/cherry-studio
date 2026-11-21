@@ -11,9 +11,10 @@ import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
+import { buildModelSnapshotFromRuntimeModel } from '@main/ai/messages/modelSnapshot'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
 import type { AiStreamRequest } from '../../types'
@@ -81,8 +82,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     }
     const models = resolveModels(resolveWith, defaultModelId)
     const model = models[0]
-    const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
-    const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const messageSnapshot = assistant
@@ -91,7 +90,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
           name: assistant.name,
           emoji: assistant.emoji,
           ...(assistant.avatarFileId ? { avatarFileId: assistant.avatarFileId } : {}),
-          model: modelSnap
+          model: buildModelSnapshotFromRuntimeModel(model)
         }
       : undefined
 
