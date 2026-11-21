@@ -118,5 +118,6 @@ Hydra before releasing the client. The listener must bind before the browser ope
 token storage; access and refresh tokens remain in the main process. Other
 windows may observe completion through `oauth.sign_in.attach`, which returns only
 the account id. Cancellation requires a request registered by the calling window.
-API-key retrieval has a 30-second timeout; failure retains the stored OAuth tokens
-and releases the login so the user can retry.
+API-key retrieval has a 30-second timeout. An empty key list completes sign-in and
+lets the user create a key before trying again. A retrieval error retains the stored
+OAuth tokens and releases the login so the user can retry.

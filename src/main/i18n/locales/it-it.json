@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Riduci",
   "backup.restore.failed": "Ripristino non riuscito",
   "backup.restore.retry": "Il backup non è stato ripristinato. I dati precedenti sono stati conservati. Riprova il ripristino.",
+  "chat.cherryai.sign_in_required": "Accedi a Cherry AI per usare questo modello",
   "chat.conversation.new": "Nuova chat",
   "command_approval.builtin-destructive-command": "Questo agente integrato non può eseguire operazioni distruttive. Per eliminazioni di file confermate, usare il cestino. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Impossibile caricare la politica dei comandi. Esecuzione bloccata.",

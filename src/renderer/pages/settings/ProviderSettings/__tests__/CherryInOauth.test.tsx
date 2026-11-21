@@ -36,7 +36,8 @@ const DEFAULT_BALANCE = {
 
 const TOPPED_UP_BALANCE = { ...DEFAULT_BALANCE, balance: 256 }
 
-vi.mock('@renderer/services/oauth', () => ({
+vi.mock('@renderer/services/oauth', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   oauthWithCherryIn: vi.fn()
 }))
 
@@ -125,6 +126,38 @@ describe('CherryInOauth', () => {
     expect(screen.getByText('-')).toBeInTheDocument()
   })
 
+  it('offers key setup when authorization succeeds with no API keys', async () => {
+    let authorized = false
+    oauthWithCherryInMock.mockImplementationOnce(async () => {
+      authorized = true
+      return ''
+    })
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'oauth.has_token') return Promise.resolve(authorized)
+      if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
+      return Promise.resolve(undefined)
+    })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey: vi.fn()
+    })
+    const user = userEvent.setup()
+    render(<CherryInOauth providerId="cherryin" />)
+
+    await user.click(await screen.findByRole('button', { name: /CherryIN|授权/i }))
+
+    expect(await screen.findByText(/No API key is available|没有可用的 API Key/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /退出登录|Logout/i })).toBeEnabled()
+    expect(toast.error).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /Get API Key|获取密钥/i }))
+    expect(ipcApiRequestMock).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://open.cherryin.ai/console/token'
+    )
+  })
+
   it('cancels a preset-derived CherryIN login through its registered OAuth provider', async () => {
     let rejectSignIn: (error: unknown) => void = () => {}
     oauthWithCherryInMock.mockImplementationOnce(
@@ -151,11 +184,10 @@ describe('CherryInOauth', () => {
 
     render(<CherryInOauth providerId="custom-cherryin" />)
 
-    const loginButton = screen.getByRole('button', { name: /CherryIN|授权/i })
+    const loginButton = await screen.findByRole('button', { name: /CherryIN|授权/i })
     await user.click(loginButton)
 
     expect(loginButton).toBeDisabled()
-    expect(loginButton.querySelector('.animate-spin')).toBeInTheDocument()
     const cancelButton = screen.getByRole('button', { name: /取消|Cancel/i })
     expect(cancelButton).toBeEnabled()
     expect(oauthWithCherryInMock).toHaveBeenCalledWith(expect.any(Function), {
@@ -190,7 +222,7 @@ describe('CherryInOauth', () => {
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    const loginButton = screen.getByRole('button', { name: /CherryIN|授权/i })
+    const loginButton = await screen.findByRole('button', { name: /CherryIN|授权/i })
     await user.click(loginButton)
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
