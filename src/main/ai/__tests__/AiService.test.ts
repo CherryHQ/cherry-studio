@@ -6,7 +6,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { generateText, modelMessageSchema, streamText } from 'ai'
+import { APICallError, generateText, modelMessageSchema, streamText } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -1926,6 +1926,48 @@ describe('AiService tool approval', () => {
       })
     )
   })
+
+  it.each(['embedding', 'rerank', 'image'] as const)(
+    'annotates %s failures after the SDK returns while preserving retries and cause identity',
+    async (modality) => {
+      const service = createService()
+      const provider = makeProvider({ id: 'test-provider' })
+      const model = makeModel({ id: 'test-provider::test-model', providerId: provider.id })
+      mockProviderGetByProviderId.mockReturnValue(provider)
+      mockModelGetByKey.mockReturnValue(model)
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: {
+          providerId: 'test-provider',
+          providerSettings: {},
+          modelId: 'test-model',
+          exactRequestUrl: 'https://gateway.example.com/literal/?api_key=private-token'
+        },
+        credentialReceipt: { attribution: 'unknown' },
+        provider,
+        model
+      })
+      const error = new APICallError({
+        message: 'rate limited',
+        url: 'https://adapter.example.com/v1/default',
+        requestBodyValues: {},
+        statusCode: 429,
+        isRetryable: true
+      })
+      if (modality === 'embedding') mockEmbedMany.mockRejectedValueOnce(error)
+      else if (modality === 'rerank') mockRerank.mockRejectedValueOnce(error)
+      else mockGenerateImage.mockRejectedValueOnce(error)
+      const promise =
+        modality === 'embedding'
+          ? service.embedMany({ uniqueModelId: 'test-provider::test-model', values: ['hello'] })
+          : modality === 'rerank'
+            ? service.rerank({ uniqueModelId: 'test-provider::test-model', query: 'hello', documents: ['hello'] })
+            : service.generateImage({ uniqueModelId: 'test-provider::test-model', prompt: 'a circle', paramValues: {} })
+      await expect(promise).rejects.toBe(error)
+      expect(error.url).toBe('https://gateway.example.com/literal/?api_key=%3Credacted%3E')
+      expect(error.statusCode).toBe(429)
+      expect(error.isRetryable).toBe(true)
+    }
+  )
 
   it('caps embedMany parallelism and derives maxRetries from the retry preference', async () => {
     const service = createService()

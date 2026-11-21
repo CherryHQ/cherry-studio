@@ -2,6 +2,8 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { redactUrlParams } from '@shared/utils/redaction'
 
+import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from './customFetch'
+
 /**
  * Exact request-path transport for endpoint configs that declare
  * `pathMode: 'complete'` (see `EndpointConfigSchema`). The AI SDK builds
@@ -14,13 +16,15 @@ import { redactUrlParams } from '@shared/utils/redaction'
  * Only the request URL is rewritten — auth, proxy handling, tracing and any
  * builder-installed body transforms still run in the wrapped fetch.
  *
- * On failure the error's `url` is set to the effective (pinned) path so
- * request diagnostics describe the route that was actually called rather than
- * the path the SDK tried to build; `redactUrlParams` strips sensitive query
- * values and downstream error context redacts credentials.
+ * Thrown transport errors receive a redacted URL here. SDK-created errors
+ * are corrected after adapter execution by exactPathDiagnostics middleware.
  */
 export function createExactPathFetch(exactUrl: string, baseFetch: FetchFunction): FetchFunction {
   return async (input, init) => {
+    const traceSlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+      HTTP_TRACE_FINAL_BODY_SLOT
+    ]
+    if (traceSlot) traceSlot.url = exactUrl
     try {
       if (input instanceof Request) {
         // new Request(url, request) inherits method/headers/body from the source.

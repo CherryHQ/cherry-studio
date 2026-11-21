@@ -147,7 +147,9 @@ why `providerToAiSdkConfig` returns a promise.
 
 Custom-provider creation stores the mode independently for each entered endpoint. Request configuration reloads and saves the text and image modes without replacing sibling configuration or adapter metadata. Both surfaces preview the selected mode; primary connection settings also support Anthropic's independent exact-path preview.
 
-The fetch wrapper annotates thrown transport failures with a redacted effective URL. SDK-generated HTTP or parsing errors created after fetch returns still need model-level diagnostic handling. This implementation is draft work under spec PR #23804, not full acceptance evidence. Local SDK-to-HTTP tests substitute Node fetch at the Electron boundary; packaged-app verification remains separate.
+The fetch wrapper annotates thrown transport failures with a redacted effective URL and supplies that route to the HTTP trace slot. `exactRequestUrl` also travels with the resolved config, outside adapter settings. Chat's `exact-path-diagnostics` feature installs model middleware that corrects SDK-created HTTP/parser errors, stream error chunks and rejected stream reads after adapter execution. Compression models use the same middleware. Direct image, embedding and rerank calls use the shared error boundary after SDK execution. Error identity, status and retry flags are preserved; frozen third-party error objects are left unchanged rather than replacing the failure.
+
+Local tests cover real OpenAI-compatible, Anthropic, Google and Open Responses HTTP-error round trips through production config, feature registration and SDK model execution, plus parsing errors, late stream errors, cancellation, service boundaries and credential redaction. These substitute Node fetch at the Electron boundary and do not establish packaged-app acceptance. The implementation remains draft under open spec PR #23804.
 
 ## Custom providers
 

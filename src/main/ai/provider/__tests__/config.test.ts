@@ -4,10 +4,12 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { generateText } from 'ai'
+import { APICallError, generateText, streamText } from 'ai'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createExecutor } from '@cherrystudio/ai-core'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import type * as CherryCloudProviderModule from '@main/ai/provider/cherryCloud'
@@ -30,13 +32,21 @@ import type { AuthConfig } from '@shared/data/types/provider'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { collectFromFeatures } from '../../runtime/aiSdk/params/collectFromFeatures'
+import { INTERNAL_FEATURES } from '../../runtime/aiSdk/params/features/internalFeatures'
+import type { AppProviderSettingsMap } from '../../types'
+import { chatErrorContext } from '../../utils/chatErrorContext'
 import { customFetch } from '../../utils/customFetch'
 import { splitParamValues } from '../../utils/imageOptions'
 import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
-import { resolveWireModelId } from '../endpoint'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
+import { OpenResponsesExtension } from '../extensions'
+import { resolveSdkConfig } from '../sdkConfig'
+
+if (!extensionRegistry.has(OpenResponsesExtension.config.name)) extensionRegistry.register(OpenResponsesExtension)
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -2552,6 +2562,79 @@ describe('complete path mode (endpoint config pathMode: complete, #18972)', () =
           model: 'fixture-model',
           messages: [{ role: 'user', content: 'hello' }]
         })
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
+
+  it.each([
+    ['generate', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['stream', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['generate', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['stream', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['generate', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['stream', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['generate', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses'],
+    ['stream', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses']
+  ] as const)(
+    'corrects SDK-created HTTP errors through resolved config and registered features (%s, %s)',
+    async (mode, endpointType, adapterFamily) => {
+      const paths: string[] = []
+      const server = createServer((request, response) => {
+        paths.push(request.url!)
+        request.resume()
+        response.writeHead(404, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'route unavailable', type: 'not_found' } }))
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-errors',
+          defaultChatEndpoint: endpointType,
+          endpointConfigs: {
+            [endpointType]: {
+              baseUrl: `${origin}/literal/?api_key=private-token&version=2`,
+              pathMode: 'complete',
+              adapterFamily
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: provider.id,
+          apiModelId: 'fixture-model',
+          endpointTypes: [endpointType]
+        })
+        const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+        const { sdkConfig } = await resolveSdkConfig(provider, model, resolvedEndpoint)
+        const plugins = collectFromFeatures(
+          { sdkConfig } as never,
+          INTERNAL_FEATURES.filter((feature) => feature.name === 'exact-path-diagnostics')
+        ).modelAdapters
+        const executor = await createExecutor<AppProviderSettingsMap>(
+          sdkConfig.providerId,
+          sdkConfig.providerSettings,
+          plugins
+        )
+        const resolvedModel = await executor.resolveLanguageModel(sdkConfig.modelId)
+        let error: unknown
+        if (mode === 'generate')
+          error = await generateText({ model: resolvedModel, prompt: 'hello', maxRetries: 0 }).catch(
+            (failure: unknown) => failure
+          )
+        else {
+          const result = streamText({ model: resolvedModel, prompt: 'hello', maxRetries: 0, onError: () => {} })
+          for await (const chunk of result.fullStream) if (chunk.type === 'error') error = chunk.error
+        }
+        expect(APICallError.isInstance(error)).toBe(true)
+        expect((error as APICallError).url).toBe(`${origin}/literal/?api_key=%3Credacted%3E&version=2`)
+        expect((error as APICallError).statusCode).toBe(404)
+        expect(paths).toEqual(['/literal/?api_key=private-token&version=2'])
+        expect(JSON.stringify(chatErrorContext(error))).not.toMatch(/private-token|chat\/completions|sk-test-key/)
       } finally {
         vi.mocked(net.fetch).mockReset()
         server.closeAllConnections()

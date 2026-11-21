@@ -7,6 +7,7 @@ import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
 import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
+import { createExactPathFetch } from '../../utils/exactPathFetch'
 import { createHttpTraceFetch } from '../httpTraceFetch'
 
 setFlagsFromString('--expose_gc')
@@ -41,6 +42,26 @@ function fakeTracer() {
 }
 
 describe('createHttpTraceFetch', () => {
+  it.each([false, true])(
+    'records the pinned route rather than the adapter URL, including transport failure (%s)',
+    async (fails) => {
+      const { tracer, attributes } = fakeTracer()
+      const error = new Error('network')
+      const fetch = createHttpTraceFetch(
+        createExactPathFetch('https://gateway.example.com/literal/?api_key=private-token', async () => {
+          if (fails) throw error
+          return new Response(null, { status: 204 })
+        }),
+        { tracer }
+      )
+      if (fails)
+        await expect(fetch('https://adapter.example.com/chat/completions', { method: 'POST' })).rejects.toBe(error)
+      else await fetch('https://adapter.example.com/chat/completions', { method: 'POST' })
+      expect(attributes['http.url']).toBe('https://gateway.example.com/literal/?api_key=%3Credacted%3E')
+      expect(JSON.stringify(attributes)).not.toMatch(/private-token|chat\/completions/)
+    }
+  )
+
   it('releases sent request bodies while diagnostic response streams remain open', async () => {
     const controllers: ReadableStreamDefaultController<Uint8Array>[] = []
     const responses: Response[] = []

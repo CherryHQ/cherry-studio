@@ -448,6 +448,7 @@ export async function resolveProviderAiSdkConfig(
   // Complete-path mode pins every SDK request to the declared URL, including
   // bare-origin paths and paths ending in a known endpoint suffix.
   if (exactRequestUrl) {
+    config.exactRequestUrl = exactRequestUrl
     config.providerSettings.fetch = createExactPathFetch(exactRequestUrl, config.providerSettings.fetch)
   }
 

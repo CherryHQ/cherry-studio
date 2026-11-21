@@ -95,6 +95,7 @@ in `src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts`:
 export const INTERNAL_FEATURES = [
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
+  exactPathDiagnosticsFeature,
   deepseekDsmlParserFeature,
   reasoningExtractionFeature,     // must run before simulateStreamingFeature
   simulateStreamingFeature,
@@ -111,6 +112,8 @@ export const INTERNAL_FEATURES = [
   steerYieldFeature
 ]
 ```
+
+`exactPathDiagnosticsFeature` activates only when resolved config carries a complete-mode `exactRequestUrl`. It corrects SDK-created errors after adapter execution, including late stream errors, without changing retry flags or converting protocols. The metadata stays outside provider settings; model resolution and fallback construction retain each model's own route.
 
 Callers can append per-request `extraFeatures`; those run after the
 internal set. (AiService's analytics is *not* one of these — it is injected

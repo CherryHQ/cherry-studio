@@ -157,6 +157,8 @@ dropping legitimate trace data. The accepted tradeoff is that capture is
 **local-only and developer-gated**; turning that into a redaction/threat-model
 guarantee is a deferred decision. Treat exported trace files as sensitive.
 
+Complete-path providers also fill the existing final-wire trace slot with their pinned request URL. The HTTP span replaces the adapter's constructed URL with this effective route on success and transport failure, using the same URL-parameter redaction. Model-level diagnostics cover SDK errors created after fetch returns; the trace slot is not an SDK error handler.
+
 ## Developer-mode gating
 
 Dev mode only. The span projection (`TraceStorageService`) is built and persisted
