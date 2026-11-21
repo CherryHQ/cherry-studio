@@ -70,6 +70,7 @@ describe('available generic anti-slop rules', () => {
     ['no-unknown-returns', 'export function read(): unknown { return "value" }'],
     ['no-unknown-parameters', 'export function read(value: unknown) { return value }'],
     ['no-chained-type-assertions', 'export const result = "value" as unknown as number'],
+    ['no-unsafe-dictionary-type', 'export type Metadata = Record<string, unknown>'],
     [
       'no-widen-then-assert',
       'const known = "value"; const broad: unknown = known; export const result = broad as string'
