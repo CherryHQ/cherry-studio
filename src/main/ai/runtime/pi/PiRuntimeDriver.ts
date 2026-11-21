@@ -68,6 +68,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       return await connection.start()
     } catch (error) {
       logAiFailure(logger, 'Pi startup failed', error, 'agent.pi.start', classifyPiFailure(error))
+      await connection.close()
       throw error
     }
   }

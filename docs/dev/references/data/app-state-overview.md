@@ -1,6 +1,7 @@
 ---
 description: app_state SQLite table for durable owner-private completion and reconciliation markers
 sources:
+  - src/main/ai/memory/memoryRuntimeState.ts
   - src/main/data/db/schemas/appState.ts
   - src/main/data/db/seeding/SeedRunner.ts
   - src/main/data/migration/migrationStatus.ts
@@ -81,6 +82,8 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `migrationStatus.ts` (read-only) | historical conversion status  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
+
+| `memory:runtime:<conversation-and-scope>` | `memoryRuntimeState` | `{ version, protection }` | Initial memory isolation boundary. Stores only a protection-state fingerprint. Requests cannot overwrite it to accept stale history; missing records with protected state require a fresh conversation. |
 
 ## Related Source Code
 

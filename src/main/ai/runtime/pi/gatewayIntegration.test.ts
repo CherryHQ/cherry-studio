@@ -30,6 +30,9 @@ import {
   type PiSessionOptions,
   type PiThreadHandle
 } from '@cherrystudio/agent-runtime-pi'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -164,6 +167,23 @@ describe('native Pi through the production gateway', () => {
     mocks.ai = new AiService()
     mocks.gatewayService = new ApiGatewayService()
     mocks.usageContexts.clear()
+    dbh.db.insert(agentTable).values({ id: 'agent', type: 'pi', name: 'Pi', instructions: '', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'work', name: 'Workspace', path: '/tmp', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values(
+        ['session', 'native-parent', 'parent', 'fork', 'third', 'root', 'child'].map((id) => ({
+          id,
+          name: id,
+          agentId: 'agent',
+          workspaceId: 'work',
+          orderKey: 'a0'
+        }))
+      )
+      .run()
     gateway = createServer(async (request, response) => {
       mocks.gatewayRequests += 1
       const abort = new AbortController()
@@ -1812,6 +1832,22 @@ describe('native Pi through the production gateway', () => {
     await expect(
       transports['openai-completions']({ model: 'missing', messages: [], stream: true }, {})
     ).rejects.toMatchObject({ status: 400, error: { error: { message: expect.any(String) } } })
+    expect(requests).toHaveLength(0)
+  })
+
+  it('blocks an unowned object request before provider I/O even without an active turn', async () => {
+    vi.spyOn(application.get('AgentSessionRuntimeService'), 'getActiveUsageContext').mockReturnValue(undefined)
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'deleted-session' })
+    await expect(
+      transports['openai-completions'](
+        {
+          model: 'port:wire-model',
+          messages: [{ role: 'user', content: 'Summarize the old transcript' }],
+          stream: true
+        },
+        {}
+      )
+    ).rejects.toThrow()
     expect(requests).toHaveLength(0)
   })
 

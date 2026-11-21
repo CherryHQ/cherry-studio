@@ -195,7 +195,8 @@ export class DurableBackend {
     const desktop = await prepareDurableDesktop(
       input,
       (event) => this.roots.get(context.id)?.sink?.event(event),
-      randomUUID()
+      randomUUID(),
+      (id) => this.roots.get(context.id)?.context.nativeThreadId === String(id)
     )
     try {
       const binding = await createPiGatewayModelBinding(

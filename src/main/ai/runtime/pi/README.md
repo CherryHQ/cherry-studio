@@ -156,3 +156,10 @@ with a native test provider substituted at the model-binding boundary.
 The integration uses the real `ApiGatewayService` object-call and capture methods. Native request
 timeouts and hook-failure cleanup are covered separately from upstream idle detection.
 Live-provider and Electron acceptance remain separate checks.
+
+Memory protection also runs at connection admission and the authenticated gateway's provider transport.
+A scope containing expired, forgotten or invalid entry metadata currently rejects continuation, including
+native summaries and replay; controlled invalidation retires the connection. This is a conservative
+refusal policy, not clean-context reconstruction. Fresh-session admission in a protected scope and
+persisted memory-exposure bindings remain unfinished. Prompt extension exceptions alone are not a
+security boundary because Pi's extension runner catches them.

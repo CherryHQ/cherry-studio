@@ -47,6 +47,7 @@ import {
   encodePinCursor
 } from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { copyTopicMemoryState } from './utils/topicMemoryState'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -354,7 +355,7 @@ export class TopicService {
         topicId: newTopicRow.id
       })
 
-      // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
+      copyTopicMemoryState(tx, sourceTopicId, newTopicRow.id)
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
 

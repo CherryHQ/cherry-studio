@@ -9,6 +9,8 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
+import { assistantMemoryReference } from '@main/ai/memory/memoryPrompt'
+import { guardMemoryTransport } from '@main/ai/memory/memoryRuntime'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
@@ -98,6 +100,8 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
+  /** Main-process gateway ownership; never a model or renderer argument. */
+  memoryAgentSessionId?: string
   traceContext?: AgentRuntimeTraceContext
   request: AiChatRequest & {
     system?: string
@@ -157,10 +161,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const hasFileAttachments = fileAttachments.length > 0
   // Resolved before tool selection (fs_read's applies gate) and the tool
   // context (fs_read's per-call cap follows the effective persist threshold).
+  const memoryOwner = input.memoryAgentSessionId
+    ? { agentSessionId: input.memoryAgentSessionId }
+    : (request.memoryContext ?? (request.memoryHistoryTopicId ? { topicId: request.memoryHistoryTopicId } : undefined))
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings
+    assistant?.settings.contextSettings,
+    memoryOwner
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
@@ -376,6 +384,48 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 
   const hookParts = [...contributions.hookParts]
+  const memoryContext = request.memoryContext
+  if (
+    memoryContext &&
+    assistant?.settings.enableSharedMemory === true &&
+    memoryContext.assistantId === assistant.id &&
+    memoryContext.topicId === request.conversation.topicId
+  ) {
+    let finished = false
+    const namespace = options.providerOptions?.[sdkConfig.providerOptionsKey]
+    const mirrorInstructions =
+      endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+      namespace?.instructions === system &&
+      namespace?.systemMessageMode === 'remove'
+    hookParts.push({
+      prepareStep: async () => {
+        const memory = await assistantMemoryReference(memoryContext, {
+          assertActive: () => {
+            signal?.throwIfAborted()
+            if (finished) throw new Error('Memory turn has ended')
+            return undefined
+          },
+          isHeadless: () => false
+        })
+        const currentSystem = [system, memory].filter(Boolean).join('\n\n')
+        return {
+          system: currentSystem,
+          ...(mirrorInstructions && {
+            providerOptions: {
+              ...options.providerOptions,
+              [sdkConfig.providerOptionsKey]: { ...namespace, instructions: currentSystem }
+            }
+          })
+        }
+      },
+      onFinish: async () => {
+        finished = true
+      },
+      onAbort: async () => {
+        finished = true
+      }
+    })
+  }
   if (getAutomationRun) {
     const finish = async () => {
       automationFinished = true
@@ -392,6 +442,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       }
     })
   }
+
+  guardMemoryTransport(sdkConfig.providerSettings, memoryOwner)
 
   return {
     sdkConfig,
