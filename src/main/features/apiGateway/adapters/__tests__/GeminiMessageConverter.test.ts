@@ -139,6 +139,65 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('inlines text inlineData message parts as text', () => {
+    const note = 'memo: 带中文的便签'
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: 'look' },
+              { inlineData: { mimeType: 'text/plain', data: Buffer.from(note, 'utf8').toString('base64') } }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: 'look' },
+      { type: 'text', text: note }
+    ])
+  })
+
+  it('inlines text functionResponse media as full, uncapped text parts', () => {
+    // 12,000 chars — beyond the chat router's 8,000-char page. The gateway
+    // caller owns its context window, so boundary inlining never truncates.
+    const article = 'article-body'.repeat(1000)
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          { role: 'model', parts: [{ functionCall: { id: 'c1', name: 'read_article', args: {} } }] },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'c1',
+                  name: 'read_article',
+                  response: { status: 'done' },
+                  parts: [{ inlineData: { mimeType: 'text/plain', data: Buffer.from(article).toString('base64') } }]
+                }
+              }
+            ]
+          }
+        ]
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output as string
+    expect(output).toContain('[tool-result attachment call_id="c1" media=1] (text/plain): inlined as text')
+    expect(output).not.toContain(article)
+    // No `file` part survives for a text media type: provider adapters reject
+    // text file parts they cannot natively consume.
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
+        { type: 'text', text: article }
+      ]
+    })
+  })
+
   it('pairs parallel same-name id-less calls 1:1 by document order (no cross-contamination)', () => {
     // Gemini 1.5/2.0/2.5 `generateContent` often omits ids; two `get_weather`
     // calls in one round must each keep their OWN response, not both read the last.
