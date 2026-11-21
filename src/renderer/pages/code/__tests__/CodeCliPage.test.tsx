@@ -6,13 +6,16 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliConfigFileDraft, CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
 import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
+import type { ConfigEditPanelProps } from '../components/configEditPanel/ConfigEditPanel'
+import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
+import type { VersionStatus } from '../types'
 
 type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
 
@@ -259,11 +262,11 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('../cliConfig/claudeModels', () => ({
-  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+  getClaudeContextModelId: (providerId: string, config: NonNullable<CliConfigWriteArgs['configBlob']>) => {
     const env = config.env as Record<string, string> | undefined
     return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
   },
-  hasClaudeDetailedModels: (config: Record<string, unknown>) => {
+  hasClaudeDetailedModels: (config: NonNullable<CliConfigWriteArgs['configBlob']>) => {
     const env = config.env as Record<string, string> | undefined
     return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
   }
@@ -295,7 +298,7 @@ vi.mock('../cliConfig/providerMatching', () => ({
 vi.mock('../cliConfig/adapters', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
   ...(await importOriginal<typeof import('../cliConfig/adapters')>()),
-  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {}
+  sanitizeCliConfigBlob: (_cliTool: string, config: CliConfigWriteArgs['configBlob']) => config ?? {}
 }))
 
 vi.mock('../components/ConfigList', () => ({
@@ -327,21 +330,7 @@ vi.mock('../components/ConfigList', () => ({
 }))
 
 vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
-  ConfigEditPanel: ({
-    provider,
-    providerConfig,
-    onSubmit
-  }: {
-    provider: Provider
-    providerConfig: CliProviderConfig | null
-    onSubmit: (values: {
-      modelId?: string
-      cliConfigModelId?: string
-      config?: Record<string, unknown>
-      cliConfigFiles?: CliConfigFileDraft[]
-      writePrimaryModel?: boolean
-    }) => Promise<void>
-  }) => (
+  ConfigEditPanel: ({ provider, providerConfig, onSubmit }: ConfigEditPanelProps) => (
     <div data-testid="config-panel" data-provider-id={provider.id} data-model-id={providerConfig?.modelId ?? ''}>
       <button
         type="button"
@@ -372,13 +361,7 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
 }))
 
 vi.mock('../components/configEditPanel/OwnLoginConfigPanel', () => ({
-  OwnLoginConfigPanel: ({
-    toolName,
-    onSubmit
-  }: {
-    toolName: string
-    onSubmit: (values: { config: Record<string, unknown> }) => Promise<void>
-  }) => (
+  OwnLoginConfigPanel: ({ toolName, onSubmit }: OwnLoginConfigPanelProps) => (
     <div data-testid="own-login-config-panel" data-tool-name={toolName}>
       <button type="button" onClick={() => void onSubmit({ config: { effortLevel: 'high' } })}>
         save own-login
@@ -531,7 +514,7 @@ function mockCodeCliState({
   })
 }
 
-function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, unknown>>> = {}) {
+function baseVersionStatuses(overrides: Partial<Record<CodeCli, Partial<VersionStatus>>> = {}) {
   const base = { installed: true, source: 'mise', applicationStatus: 'applied', canUpgrade: false }
   return {
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
