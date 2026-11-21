@@ -91,6 +91,18 @@ describe('agentSessionMessageHandlers', () => {
   })
 
   describe('/agent-sessions/:sessionId/messages/:messageId', () => {
+    it('includes renderer history actions in a projected message read', async () => {
+      const projected = { id: 'assistant-message', data: { parts: [] } }
+      getSessionMessageMock.mockReturnValueOnce(projected)
+
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].GET({
+          params: { sessionId: 'session-1', messageId: projected.id },
+          query: { deferToolOutputs: true }
+        })
+      ).resolves.toEqual({ ...projected, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } })
+    })
+
     it('reads and updates a message within its Agent session', async () => {
       const existing = { id: 'message-1', data: { parts: [] } }
       const data = { parts: [{ type: 'text' as const, text: 'updated' }] }

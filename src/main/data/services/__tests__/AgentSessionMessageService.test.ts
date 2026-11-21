@@ -1767,6 +1767,38 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
+  it('includes the direct user reply when settling a forkable assistant message changes its edit eligibility', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      parentId: ASSISTANT_MESSAGE_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: SESSION_ID,
+        runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' } },
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [ASSISTANT_MESSAGE_ID, USER_MESSAGE_ID]
+        }
+      ])
+    )
+  })
+
   it('reads and updates message data within the owning Agent session', async () => {
     const otherSessionId = 'session-other-update'
     await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
@@ -2126,6 +2158,30 @@ describe('AgentSessionMessageService', () => {
 
     expect(plan.some(({ detail }) => detail.includes('USING INDEX agent_session_message_created_at_id_idx'))).toBe(true)
     expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+  })
+
+  it('defers oversized tool output on a projected detail read and retains it on a default read', () => {
+    const output = 'x'.repeat(128 * 1024)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: {
+          parts: [
+            { type: 'dynamic-tool', toolName: 'read', toolCallId: 'call', state: 'output-available', input: {}, output }
+          ]
+        }
+      }
+    })
+
+    const projected = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, true)
+    expect(projected.data.parts?.[0]).toMatchObject({
+      output: { $deferredToolResult: { toolCallId: 'call' } }
+    })
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({ output })
   })
 
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {

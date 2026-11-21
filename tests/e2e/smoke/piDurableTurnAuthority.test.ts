@@ -4,6 +4,7 @@ import { once } from 'node:events'
 import { type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
 
 import { terminateExactProcess } from '../../../scripts/e2e/regression/process'
+import type {} from '../../../src/renderer/data/utils/dataApiDevtools'
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
 import { AgentSessionMessageEntitySchema } from '../../../src/shared/data/api/schemas/agentSessionMessages'
 import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/agentSessions'
@@ -224,6 +225,72 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 }
 
 test.describe('Pi Durable turn authority in Electron', () => {
+  test('settles a streamed reply without reloading older Agent history', async ({ mainWindow: page }) => {
+    test.setTimeout(180_000)
+    const server = await startMockChatServer()
+    const route = routeRequests(server)
+    try {
+      const session = await createSession(page, server)
+      const chat = await openSession(page, session)
+
+      // Twenty-six turns put the first reply beyond the 50-message first page.
+      for (let index = 0; index < 26; index++) {
+        const prompt = `HISTORY_PROMPT_${index}_END`
+        const answer = `HISTORY_REPLY_${index}_END`
+        await chat.send(prompt)
+        const request = await route.next(prompt)
+        request.complete(answer)
+        await expect(chat.message(answer)).toBeVisible()
+      }
+
+      const scroller = chat.view.locator('[data-message-virtual-list-scroller]:visible').first()
+      await scroller.hover()
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, -10_000)
+          return chat.message('HISTORY_REPLY_0_END').isVisible()
+        })
+        .toBe(true)
+      await page.mouse.wheel(0, 10_000)
+      await expect(chat.message('HISTORY_REPLY_25_END')).toBeVisible()
+
+      await chat.send('HANDOFF_REGRESSION_PROMPT')
+      const reply = await route.next('HANDOFF_REGRESSION_PROMPT')
+      reply.sendText('HANDOFF_PARTIAL ')
+      await expect(chat.message('HANDOFF_PARTIAL')).toBeVisible()
+      await page.evaluate(() => {
+        if (!window.__CHERRY_DATA_API_DEVTOOLS__) throw new Error('DataApi request recorder is unavailable')
+        window.__CHERRY_DATA_API_DEVTOOLS__.clear()
+      })
+
+      reply.complete('HANDOFF_FINAL')
+      await expect(chat.message('HANDOFF_FINAL')).toBeVisible()
+      await expect
+        .poll(async () => (await rows(page, session.sessionId)).at(-1))
+        .toMatchObject({
+          status: 'success',
+          text: has('HANDOFF_FINAL')
+        })
+
+      const listPath = `/agent-sessions/${session.sessionId}/messages`
+      const historyGets = () =>
+        page.evaluate(
+          (path) =>
+            window
+              .__CHERRY_DATA_API_DEVTOOLS__!.snapshotSummary()
+              .filter((event) => event.method === 'GET' && (event.path === path || event.path.startsWith(path + '/')))
+              .map((event) => event.path),
+          listPath
+        )
+      await expect.poll(async () => (await historyGets()).some((path) => path.startsWith(listPath + '/'))).toBe(true)
+      expect(await historyGets(), 'Settling a reply must not reload the loaded message pages').not.toContain(listPath)
+      expect(route.unclaimed()).toEqual([])
+    } finally {
+      route.close()
+      await server.close()
+    }
+  })
+
   test('queues a message sent during a turn in Durable and answers it in its own reply', async ({
     mainWindow: page
   }, testInfo) => {

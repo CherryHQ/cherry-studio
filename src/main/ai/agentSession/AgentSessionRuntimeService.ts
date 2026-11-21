@@ -3656,18 +3656,21 @@ export class AgentSessionRuntimeService extends BaseService {
   private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const background = turn.origin?.kind === 'background-work'
     if (background) entry.persistedMessageIds?.delete(turn.assistantMessageId)
-    agentSessionMessageService.saveMessage({
-      sessionId: entry.sessionId,
-      parentId: turn.parentId ? agentSessionMessageService.branchTip(entry.sessionId, turn.parentId) : undefined,
-      message: {
-        id: turn.assistantMessageId,
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: background ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
-        modelId: turn.modelId,
-        messageSnapshot: turn.messageSnapshot
-      }
-    })
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: entry.sessionId,
+        parentId: turn.parentId ? agentSessionMessageService.branchTip(entry.sessionId, turn.parentId) : undefined,
+        message: {
+          id: turn.assistantMessageId,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: background ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
+          modelId: turn.modelId,
+          messageSnapshot: turn.messageSnapshot
+        }
+      },
+      { publishDataChange: true }
+    )
     agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.assistantMessageId)
     if (!background) entry.branchHead = turn.assistantMessageId
     if (turn.origin)

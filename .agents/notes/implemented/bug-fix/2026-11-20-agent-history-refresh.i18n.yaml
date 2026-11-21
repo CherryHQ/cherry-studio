@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-20-agent-history-refresh.md
+2026-11-20-agent-history-refresh.md: 71628a60626e106e032b64cfd5ee0caa8dd56180
+2026-11-20-agent-history-refresh.zh.md: 5030b2a50c15a8955b636e6a71c491cd522d6361

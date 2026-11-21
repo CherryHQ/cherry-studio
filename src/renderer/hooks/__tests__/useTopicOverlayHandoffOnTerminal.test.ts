@@ -1,9 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { TopicStreamStatus } from '@shared/ai/transport'
+import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
-const mockEntry = vi.fn<() => { status: TopicStreamStatus | undefined } | undefined>()
+const mockEntry =
+  vi.fn<() => { status: TopicStreamStatus | undefined; activeExecutions?: ActiveExecution[] } | undefined>()
 
 // Mock at the cache layer (intra-module calls can't be intercepted at the hook).
 // The main-owned status entry is observed read-only via useSharedCacheValue.
@@ -37,6 +38,19 @@ describe('useTopicOverlayHandoffOnTerminal', () => {
       rerender()
     })
     expect(handoff).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes the live anchor to the terminal handoff after Main clears active executions', async () => {
+    const handoff = vi.fn(async () => {})
+    mockEntry.mockReturnValue({
+      status: 'streaming',
+      activeExecutions: [{ executionId: 'mock::model', attemptId: 1, anchorMessageId: 'reply' }]
+    })
+    const { rerender } = renderHook(() => useTopicOverlayHandoffOnTerminal('t', handoff))
+
+    setStatus('done')
+    await act(async () => rerender())
+    expect(handoff).toHaveBeenCalledExactlyOnceWith(['reply'])
   })
 
   it('does NOT fire on streaming → awaiting-approval (the MCP card must stay)', async () => {

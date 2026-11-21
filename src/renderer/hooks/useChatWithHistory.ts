@@ -6,7 +6,7 @@ import { useTopicDbRefreshOnAwaitingApproval, useTopicStreamStatus } from './use
 export function useChatWithHistory(
   topicId: string,
   initialMessages: CherryUIMessage[],
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: (messageIds: readonly string[]) => Promise<unknown>
 ) {
   const commands = useStreamCommands(topicId, initialMessages)
   const { activeExecutions } = useTopicStreamStatus(topicId)
