@@ -504,6 +504,11 @@ export interface DoctorBasics {
     readonly node?: string
     readonly chrome?: string
     readonly v8?: string
+    readonly agentPythonImage?: string
+    readonly managedPyodide?: string
+    readonly managedPython?: string
+    readonly managedOpenpyxl?: string
+    readonly managedEtXmlfile?: string
   }
   readonly isPackaged: boolean
   readonly isPortable: boolean

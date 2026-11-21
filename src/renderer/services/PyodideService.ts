@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils/uuid'
+import type { AgentPythonDiagnostics } from '@renderer/workers/managedPythonRuntime'
 import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('PyodideService')
@@ -32,6 +33,11 @@ export interface PyodideExecutionResult {
  */
 class PyodideService {
   private worker: Worker | null = null
+  private diagnostics: AgentPythonDiagnostics | null = null
+
+  public getDiagnostics(): AgentPythonDiagnostics | null {
+    return this.diagnostics ? { ...this.diagnostics } : null
+  }
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
@@ -70,6 +76,8 @@ class PyodideService {
           // 设置初始化处理器
           const initHandler = (event: MessageEvent) => {
             if (event.data?.type === 'initialized') {
+              this.diagnostics = event.data.diagnostics
+              logger.info('Managed Agent Python runtime ready', event.data.diagnostics)
               clearTimeout(timeout)
               this.worker?.removeEventListener('message', initHandler)
               this.initRetryCount = 0
@@ -247,6 +255,7 @@ class PyodideService {
    * 释放 Pyodide Worker 资源
    */
   public terminate(): void {
+    this.diagnostics = null
     if (this.worker) {
       this.worker.terminate()
       this.worker = null
