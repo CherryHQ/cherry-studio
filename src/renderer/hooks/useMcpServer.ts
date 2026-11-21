@@ -72,6 +72,18 @@ export const useScopedMcpServers = (
 }
 
 /**
+ * All active MCP servers, or `undefined` while the list loads, so callers predicting request-time
+ * MCP tool availability can stay conservative until it is known.
+ */
+export const useActiveMcpServers = (): McpServer[] | undefined => {
+  const { mcpServers, isLoading } = useMcpServers()
+  return useMemo(
+    () => (isLoading ? undefined : mcpServers.filter((server) => server.isActive)),
+    [isLoading, mcpServers]
+  )
+}
+
+/**
  * Single MCP server hook — read + update. Fetches via the list endpoint with
  * an id filter (separate SWR cache entry from the unfiltered list). Mutations
  * use refresh: ['/mcp-servers'] to auto-invalidate all /mcp-servers caches.

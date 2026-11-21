@@ -125,7 +125,8 @@ vi.mock('@renderer/utils/naming', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
     assistant: null,
-    setModel: vi.fn()
+    setModel: vi.fn(),
+    previewModelSwitch: vi.fn()
   })
 }))
 

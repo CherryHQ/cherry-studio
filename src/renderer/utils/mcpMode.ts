@@ -1,5 +1,7 @@
 import type { Assistant, McpMode } from '@renderer/types/assistant'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 /**
  * Get the effective MCP mode for an assistant with backward compatibility.
@@ -8,4 +10,23 @@ import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
  */
 export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
+}
+
+/**
+ * Whether the assistant can contribute MCP function tools to a request. Main resolves Manual mode with
+ * no linked servers to an empty set, so it is not a tool signal (same as disabled). Main also only
+ * serves active, non-browser servers, so pass `activeServers` (all active servers) once loaded to
+ * match it: Auto with none, or Manual with none of its links active, is no signal. Omit it while
+ * loading to stay conservative (assume tools).
+ */
+export function hasMcpToolSignals(
+  assistant: Pick<Assistant, 'settings' | 'mcpServerIds'>,
+  activeServers?: ReadonlyArray<Pick<McpServer, 'id' | 'type' | 'name'>>
+): boolean {
+  const mode = assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
+  if (mode === 'disabled') return false
+  const linked = mode === 'manual' ? new Set(assistant.mcpServerIds ?? []) : null
+  if (linked && linked.size === 0) return false
+  if (!activeServers) return true
+  return activeServers.some((server) => !isBrowserMcpServer(server) && (!linked || linked.has(server.id)))
 }

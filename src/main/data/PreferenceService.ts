@@ -11,8 +11,10 @@ import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
+import { ModelSettingsUpdateSchema } from '@shared/data/preference/modelSettings'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
+  ChatModelSetting,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   UnifiedPreferenceKeyType,
@@ -269,6 +271,14 @@ export class PreferenceService extends BaseService {
       }
     )
 
+    this.ipcHandle(
+      IpcChannel.Preference_UpdateModelSettings,
+      async (event, modelId: string, settings: ChatModelSetting) => {
+        this.assertTrustedSender(event, IpcChannel.Preference_UpdateModelSettings)
+        await this.updateModelSettings(modelId, settings)
+      }
+    )
+
     this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
@@ -352,6 +362,18 @@ export class PreferenceService extends BaseService {
     }
 
     return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
+  }
+
+  public async updateModelSettings(modelId: string, settings: ChatModelSetting): Promise<void> {
+    const parsed = ModelSettingsUpdateSchema.parse({ modelId, settings })
+    const patch = Object.fromEntries(Object.entries(parsed.settings).filter(([, value]) => value !== undefined))
+    if (Object.keys(patch).length === 0) return
+    const all = this.get('chat.model_settings')
+    // set() commits the DB and cache synchronously before awaiting notifications.
+    await this.set('chat.model_settings', {
+      ...all,
+      [parsed.modelId]: { ...all[parsed.modelId], ...patch }
+    })
   }
 
   /**

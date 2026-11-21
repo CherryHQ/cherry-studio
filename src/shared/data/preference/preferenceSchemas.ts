@@ -258,6 +258,8 @@ export interface PreferenceSchemas {
     'chat.message.thought.auto_collapse': boolean
     // target-key-definitions/complex/complex
     'chat.message.user_content.default_expanded': boolean
+    // target-key-definitions/complex/complex
+    'chat.model_settings': PreferenceTypes.ChatModelSettings
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
     // target-key-definitions/complex/complex
@@ -845,6 +847,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.style': 'bubble',
     'chat.message.thought.auto_collapse': true,
     'chat.message.user_content.default_expanded': false,
+    'chat.model_settings': {},
     'chat.narrow_mode': true,
     'chat.retry.backoff_enabled': true,
     'chat.retry.enabled': false,

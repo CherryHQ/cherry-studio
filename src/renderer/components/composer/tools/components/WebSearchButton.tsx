@@ -13,17 +13,21 @@ import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useActiveMcpServers } from '@renderer/hooks/useMcpServer'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledgeToolSignals'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { hasMcpToolSignals } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 interface Props {
   assistantId: string
+  /** Knowledge bases picked in the composer for this message, on top of the assistant's own. */
+  composerKnowledgeBaseIds?: readonly string[]
   launcher: ToolLauncherApi
 }
 
@@ -60,7 +64,7 @@ const WebSearchProviderIcon: FC<{ iconRef?: IconRef; providerName?: string }> = 
   )
 }
 
-const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
+const useWebSearchToolController = ({ assistantId, launcher, composerKnowledgeBaseIds }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
@@ -73,12 +77,18 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   } = useWebSearchProviders()
   const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
 
+  const scopedKnowledgeTools = useScopedKnowledgeToolSignals(
+    composerKnowledgeBaseIds?.length
+      ? [...(assistant?.knowledgeBaseIds ?? []), ...composerKnowledgeBaseIds]
+      : assistant?.knowledgeBaseIds
+  )
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
     providers,
     defaultSearchKeywordsProvider,
     'searchKeywords'
   )
+  const activeMcpServers = useActiveMcpServers()
   const effectiveFetchProvider = resolveReadyWebSearchProvider(providers, defaultFetchUrlsProvider, 'fetchUrls')
   const fallbackSearchProvider = defaultSearchKeywordsProvider
     ? providers.find(
@@ -88,8 +98,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     : undefined
   const clientSearchAvailable = Boolean(effectiveSearchProvider)
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
-  // Same resolver as the main process; MCP mode stands in for the request's
-  // eventual function tools, which only exist at build time.
+  // Predict the request's persistent MCP and scoped KB function tools.
   const { webSearch: webSearchRoute, reasons } =
     model && assistant
       ? resolveWebToolRoutes(model, modelProvider, {
@@ -98,7 +107,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientFetchAvailable,
           modelToolsPreferred,
           endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
-          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
+          hasFunctionToolSignals: hasMcpToolSignals(assistant, activeMcpServers) || scopedKnowledgeTools,
           reasoningEffort: assistant.settings.reasoning_effort
         })
       : { webSearch: 'none' as const, reasons: undefined }
