@@ -105,7 +105,7 @@ export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobSc
   for (const schedule of deletedSchedules) {
     const input = schedule.jobInputTemplate
     if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
-    const template = input as Record<string, unknown>
+    const template = input as { agentId?: unknown; prompt?: unknown; workspace?: unknown }
     if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') continue
     const reservedName =
       schedule.name === `heartbeat_${template.agentId}` || schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
@@ -261,6 +261,7 @@ export async function syncHeartbeatSchedule(
       if (!matchesHeartbeatIdentity(row, agentId)) continue
       const current = jobScheduleService.getByIdTx(tx, row.id)
       if (!current || !matchesHeartbeatIdentity(current, agentId)) continue
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical templates retain unrecognized fields when workspace is removed; only workspace is schema-validated here.
       const input = current.jobInputTemplate as Record<string, unknown>
       if (!Object.hasOwn(input, 'workspace')) continue
       const { workspace, ...template } = input

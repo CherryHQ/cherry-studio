@@ -1,8 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { CatchUpPolicy, Trigger } from '@shared/data/api/schemas/jobs'
-import type { JobError } from '@shared/data/api/schemas/jobs'
+import type { CatchUpPolicy, JobError, JobScheduleSnapshot, JobSnapshot, Trigger } from '@shared/data/api/schemas/jobs'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
@@ -33,7 +32,7 @@ export const jobScheduleTable = sqliteTable(
     nextRun: integer(),
     lastRun: integer(),
     catchUpPolicy: text({ mode: 'json' }).$type<CatchUpPolicy>().notNull(),
-    metadata: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+    metadata: text({ mode: 'json' }).$type<JobScheduleSnapshot['metadata']>().notNull().default({}),
     ...createUpdateTimestamps
   },
   (t) => [
@@ -82,7 +81,7 @@ export const jobTable = sqliteTable(
     // Set once at the first cancel request while the job is active, never moved.
     // Read models use it as the cancel time; finishedAt keeps transition time.
     cancelRequestedAt: integer(),
-    metadata: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+    metadata: text({ mode: 'json' }).$type<JobSnapshot['metadata']>().notNull().default({}),
     timeoutMs: integer(),
     // Per-job override of the handler's startup recovery; null follows the handler.
     recovery: text().$type<'abandon' | 'retry'>(),

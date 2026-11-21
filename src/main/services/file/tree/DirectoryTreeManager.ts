@@ -168,10 +168,10 @@ function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined)
  */
 function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string {
   if (!options) return '{}'
-  const keys = Object.keys(DirectoryTreeOptionsSchema.shape).sort()
-  const ordered: Record<string, unknown> = {}
+  const keys = DirectoryTreeOptionsSchema.keyof().options.sort()
+  const ordered: Partial<Record<keyof DirectoryTreeOptions, DirectoryTreeOptions[keyof DirectoryTreeOptions]>> = {}
   for (const k of keys) {
-    const v = (options as Record<string, unknown>)[k]
+    const v = options[k]
     if (v === undefined) continue
     // For array-valued options (`extensions`), normalize order too so
     // `['md', 'txt']` and `['txt', 'md']` dedupe.

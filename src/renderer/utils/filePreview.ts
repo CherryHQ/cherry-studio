@@ -1,3 +1,4 @@
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath, createFilePathHandle, parseWindowsPath } from '@shared/utils/file'
 
@@ -33,7 +34,7 @@ function normalizeUncFilePreviewPath(filePath: string): AbsoluteFilePath {
   return AbsoluteFilePathSchema.parse(`${parsed.root.replace(/\//g, '\\')}${suffix}`)
 }
 
-export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | undefined): number {
+export function getFilePreviewRefreshKey(metadata: Tab['metadata']): number {
   const value = metadata?.[FILE_PREVIEW_REFRESH_KEY]
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
@@ -67,6 +68,7 @@ export function createFilePreviewTabTarget(filePath: string): FilePreviewTabTarg
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Router search fields are unparsed; validate path before normalization and ignore unrelated fields.
 export function parseFilePreviewRouteSearch(search: Record<string, unknown>): FilePreviewRouteSearch {
   if (typeof search.path !== 'string') return { path: undefined }
 

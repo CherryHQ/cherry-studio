@@ -94,8 +94,8 @@ export const markdownResultStore = new MarkdownResultStore()
 function getMarkdownPersistenceLogContext(options: {
   jobId: string
   result: MarkdownPersistencePayload
-}): Record<string, unknown> {
-  const context: Record<string, unknown> = {
+}): Record<string, string> {
+  const context: Record<string, string> = {
     jobId: options.jobId,
     resultKind: options.result.kind
   }
