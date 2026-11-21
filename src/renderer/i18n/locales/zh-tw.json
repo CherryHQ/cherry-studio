@@ -3334,6 +3334,7 @@
   "paintings.moderation_options.low": "低",
   "paintings.negative_prompt": "反向提示詞",
   "paintings.negative_prompt_tip": "描述你不想在圖片中出現的內容",
+  "paintings.no_usable_image": "供應商未為模型「{{model}}」回傳可用圖像。此請求可能已被計費。此結果之後未再發送任何請求。",
   "paintings.number_images": "張數",
   "paintings.number_images_tip": "一次產生的圖片數量 ({{min}}-{{max}})",
   "paintings.operation_failed": "操作失敗，請稍後再試",

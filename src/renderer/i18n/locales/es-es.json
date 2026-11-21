@@ -3334,6 +3334,7 @@
   "paintings.moderation_options.low": "Bajo",
   "paintings.negative_prompt": "Prompt negativo",
   "paintings.negative_prompt_tip": "Describe lo que no quieres que aparezca en la imagen",
+  "paintings.no_usable_image": "El proveedor no devolvió ninguna imagen utilizable para el modelo \"{{model}}\". Es posible que ya haya cobrado esta solicitud. No se envió ninguna solicitud adicional después de este resultado.",
   "paintings.number_images": "Cantidad de imágenes generadas",
   "paintings.number_images_tip": "Número de imágenes que se generarán ({{min}}-{{max}})",
   "paintings.operation_failed": "Operación fallida, por favor inténtelo de nuevo más tarde",

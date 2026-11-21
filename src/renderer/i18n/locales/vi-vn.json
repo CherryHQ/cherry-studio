@@ -3334,6 +3334,7 @@
   "paintings.moderation_options.low": "Thấp",
   "paintings.negative_prompt": "Prompt tiêu cực",
   "paintings.negative_prompt_tip": "Mô tả những gì bạn không muốn có trong hình ảnh",
+  "paintings.no_usable_image": "Nhà cung cấp không trả về hình ảnh dùng được cho mô hình \"{{model}}\". Yêu cầu này có thể đã bị tính phí. Không có yêu cầu bổ sung nào được gửi sau kết quả này.",
   "paintings.number_images": "Số lượng hình ảnh",
   "paintings.number_images_tip": "Số lượng hình ảnh cần tạo ({{min}}-{{max}})",
   "paintings.operation_failed": "Thao tác thất bại, vui lòng thử lại sau",

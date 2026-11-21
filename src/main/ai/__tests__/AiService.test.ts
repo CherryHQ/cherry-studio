@@ -426,7 +426,7 @@ describe('AiService', () => {
       vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
       mockApplicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
-        if (name === 'FileManager') return {}
+        if (name === 'FileManager') return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) }
         throw new Error(`Unexpected service: ${name}`)
       })
       mockProviderGetByProviderId.mockReturnValue(makeProvider())
@@ -435,7 +435,11 @@ describe('AiService', () => {
       const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
         const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
         expect(response.status).toBe(204)
-        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+        return {
+          embeddings: [[1]],
+          ranking: [{ originalIndex: 0, score: 1 }],
+          images: [{ base64: 'abc123', mediaType: 'image/png' }]
+        }
       }
       mockEmbedMany.mockImplementation(sdkRequest)
       mockRerank.mockImplementation(sdkRequest)
@@ -865,9 +869,9 @@ describe('AiService', () => {
         modelId: 'test-model'
       }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
@@ -891,9 +895,9 @@ describe('AiService', () => {
       }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
@@ -921,9 +925,9 @@ describe('AiService', () => {
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
@@ -954,6 +958,81 @@ describe('AiService', () => {
     )
   })
 
+  it('fails loudly when the provider returns no usable images instead of an empty success', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [{ nonsense: true }] })
+    const createInternalEntry = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry } : undefined
+    )
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /completed upstream but returned no usable images.*may still have billed.*no further request was sent/
+      ),
+      i18nKey: 'image_no_usable_output',
+      detailI18nValues: { model: 'test-model' }
+    })
+    expect(createInternalEntry).not.toHaveBeenCalled()
+  })
+
+  it('rejects a whitespace-only base64 payload without writing any file', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: '   ', mediaType: 'image/png' }] })
+    const createInternalEntry = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry } : undefined
+    )
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toMatchObject({ i18nKey: 'image_no_usable_output' })
+    expect(createInternalEntry).not.toHaveBeenCalled()
+  })
+
+  it('throws AbortError instead of the billing error when an empty result follows an abort', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [{ nonsense: true }] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+    const controller = new AbortController()
+    controller.abort()
+
+    const error = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {},
+        requestOptions: { signal: controller.signal }
+      })
+      .catch((e) => e)
+    expect(error).toBeInstanceOf(DOMException)
+    expect(error.name).toBe('AbortError')
+  })
+
   describe('Seedream 5.5 request gate', () => {
     const target = 'doubao-seedream-5-5'
     const polluted = {
@@ -981,10 +1060,18 @@ describe('AiService', () => {
       mockApplicationGet.mockImplementation((name: string) => {
         if (name === 'JobManager') return { enqueueTx }
         if (name === 'DbService') return { withWriteTx: (fn: (tx: unknown) => unknown) => fn({}) }
+        if (name === 'FileManager')
+          return {
+            createInternalEntry: vi
+              .fn()
+              .mockResolvedValue({ id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 })
+          }
         return defaultServiceInstances[name as keyof typeof defaultServiceInstances]
       })
       mockGetImageGenerationSupport.mockReturnValue(undefined)
-      mockGenerateImage.mockResolvedValue({ images: [] })
+      // A usable image: the direct path now throws on an empty provider result
+      // (billing guard), and these tests gate the request, not output handling.
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
       const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected HTTP request'))
       return { service, uniqueModelId, resolve, enqueueTx, fetch }
     }

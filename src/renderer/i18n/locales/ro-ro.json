@@ -3335,6 +3335,7 @@
   "paintings.moderation_options.low": "Scăzut",
   "paintings.negative_prompt": "Prompt negativ",
   "paintings.negative_prompt_tip": "Descrie ce nu vrei să fie inclus în imagine",
+  "paintings.no_usable_image": "Furnizorul nu a returnat nicio imagine utilizabilă pentru modelul „{{model}}”. Este posibil ca această cerere să fi fost deja taxată. După acest rezultat nu a fost trimisă nicio altă cerere.",
   "paintings.number_images": "Număr imagini",
   "paintings.number_images_tip": "Numărul de imagini de generat ({{min}}-{{max}})",
   "paintings.operation_failed": "Operațiunea a eșuat. Încearcă din nou mai târziu.",

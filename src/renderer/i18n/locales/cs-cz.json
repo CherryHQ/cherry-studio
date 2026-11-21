@@ -3335,6 +3335,7 @@
   "paintings.moderation_options.low": "Nízké",
   "paintings.negative_prompt": "Negativní prompt",
   "paintings.negative_prompt_tip": "Popište, co nechcete mít na obrázku",
+  "paintings.no_usable_image": "Poskytovatel nevrátil pro model „{{model}}“ použitelný obrázek. Za tento požadavek už mohl být účtován poplatek. Po tomto výsledku nebyl odeslán žádný další požadavek.",
   "paintings.number_images": "Počet obrázků",
   "paintings.number_images_tip": "Počet obrázků k vygenerování ({{min}}-{{max}})",
   "paintings.operation_failed": "Operace se nezdařila, zkuste to prosím později",

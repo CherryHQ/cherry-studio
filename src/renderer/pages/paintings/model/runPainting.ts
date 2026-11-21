@@ -77,6 +77,12 @@ export async function runPainting(
       if (detail?.statusCode === 401 || detail?.providerErrorCategory === 'auth') {
         throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       }
+      if (detail?.i18nKey === 'image_no_usable_output') {
+        // App-owned billing warning: translate in the renderer instead of showing the English log text.
+        const values = detail.detailI18nValues as Record<string, unknown> | undefined
+        const model = typeof values?.model === 'string' ? values.model : ''
+        throw createPaintingGenerateError('NO_USABLE_IMAGE', { values: { model } })
+      }
       if (detail) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
       }

@@ -3334,6 +3334,7 @@
   "paintings.moderation_options.low": "低",
   "paintings.negative_prompt": "ネガティブプロンプト",
   "paintings.negative_prompt_tip": "画像に含めたくない内容を説明します",
+  "paintings.no_usable_image": "プロバイダーはモデル「{{model}}」の使用可能な画像を返しませんでした。このリクエストはすでに課金されている可能性があります。この結果の後、追加のリクエストは送信されていません。",
   "paintings.number_images": "生成数",
   "paintings.number_images_tip": "生成する画像の数（{{min}}～{{max}}）",
   "paintings.operation_failed": "操作に失敗しました。後でもう一度お試しください。",
