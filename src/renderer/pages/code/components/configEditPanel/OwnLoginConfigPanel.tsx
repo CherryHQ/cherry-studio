@@ -8,6 +8,7 @@ import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/componen
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
   type CliConfigFileDraft,
+  type CliConfigWriteArgs,
   readOwnLoginCliConfigDraft,
   sanitizeCliConfigBlob,
   validateCliConfigDraftForWrite
@@ -29,7 +30,10 @@ export interface OwnLoginConfigPanelProps {
   cliTool: CodeCli
   toolName: string
   providerConfig: CliProviderConfig | null
-  onSubmit: (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => Promise<void>
+  onSubmit: (values: {
+    config: NonNullable<CliConfigWriteArgs['configBlob']>
+    cliConfigFiles?: CliConfigFileDraft[]
+  }) => Promise<void>
 }
 
 /** Config panel for the virtual "own login" entry: tool params (permission mode
@@ -52,7 +56,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
     [cliTool, providerConfig]
   )
 
-  const [config, setConfig] = useState<Record<string, unknown>>(initialConfig)
+  const [config, setConfig] = useState<NonNullable<CliConfigWriteArgs['configBlob']>>(initialConfig)
   const [files, setFiles] = useState<CliConfigFileDraft[]>([])
   // 'managed': files are rebuilt from the tool params. 'raw': the user hand-edited settings.json.
   const [mode, setMode] = useState<'managed' | 'raw'>('managed')
@@ -75,7 +79,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 
   // Tool-param edit → rebuild the managed preview from the new config.
   const handleConfigChange = useCallback(
-    (next: Record<string, unknown>) => {
+    (next: NonNullable<CliConfigWriteArgs['configBlob']>) => {
       const sanitized = sanitizeCliConfigBlob(cliTool, next)
       setConfig(sanitized)
       setMode('managed')

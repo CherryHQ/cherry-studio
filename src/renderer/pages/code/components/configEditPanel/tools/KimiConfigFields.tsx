@@ -2,15 +2,15 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { KIMI_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
+import { type CliConfigWriteArgs, KIMI_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { getRecord, makeUpdateField, makeUpdateSectionField } from './configFieldUtils'
 
 export interface KimiConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 

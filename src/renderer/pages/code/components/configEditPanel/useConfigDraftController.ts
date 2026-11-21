@@ -53,7 +53,7 @@ interface ConfigDraftController {
   submitting: boolean
   canSave: boolean
   onModelSelect: (nextModelId: UniqueModelId | undefined) => void
-  onConfigChange: (nextConfig: Record<string, unknown>) => void
+  onConfigChange: (nextConfig: ConfigDraft['config']) => void
   onClaudeModelModeChange: (nextMode: ClaudeModelMode) => void
   onCliConfigFilesChange: (files: CliConfigFileDraft[]) => void
   onSubmit: () => void
@@ -141,7 +141,7 @@ export function useConfigDraftController({
   )
 
   const resolveManagedOptions = useCallback(
-    (modelMode: ClaudeModelMode, config: Record<string, unknown>, modelId: UniqueModelId | undefined) =>
+    (modelMode: ClaudeModelMode, config: ConfigDraft['config'], modelId: UniqueModelId | undefined) =>
       resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId, gateway ? models : undefined),
     [cliTool, gateway, models, provider.id]
   )
@@ -149,7 +149,7 @@ export function useConfigDraftController({
   const createManagedDraft = useCallback(
     async (
       nextModelId: UniqueModelId | undefined,
-      nextConfig: Record<string, unknown>,
+      nextConfig: ConfigDraft['config'],
       files?: CliConfigFileDraft[],
       options: { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean } = {}
     ): Promise<ConfigDraft> =>
@@ -167,7 +167,7 @@ export function useConfigDraftController({
   const loadManagedDraft = useCallback(
     (
       nextModelId: UniqueModelId | undefined,
-      nextConfig: Record<string, unknown>,
+      nextConfig: ConfigDraft['config'],
       files?: CliConfigFileDraft[],
       options?: { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean }
     ) => {
@@ -269,7 +269,7 @@ export function useConfigDraftController({
   )
 
   const handleConfigChange = useCallback(
-    (nextConfig: Record<string, unknown>) => {
+    (nextConfig: ConfigDraft['config']) => {
       const sanitizedConfig = sanitizeCliConfigBlob(cliTool, nextConfig)
       const current = draftRef.current
       if (current.mode === 'foreign') {

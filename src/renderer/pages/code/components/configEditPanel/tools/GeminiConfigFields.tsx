@@ -2,15 +2,15 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { GEMINI_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
+import { type CliConfigWriteArgs, GEMINI_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { getRecord, makeUpdateSectionField } from './configFieldUtils'
 
 export interface GeminiConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 
