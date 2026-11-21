@@ -62,8 +62,9 @@ packages require network access. For each request it:
 6. captures stdout, stderr, execution errors, and an optional Matplotlib PNG;
 7. destroys the per-request globals dictionary.
 
-The `context` field is part of the service message shape but is not currently
-injected into the Python globals.
+Before loading packages, the worker serializes `context` with `JSON.stringify`
+and decodes it through Python's `json.loads` into the fresh globals dictionary.
+Values follow JSON conversion, omission, and serialization failure behavior.
 
 ## Output and failure semantics
 
