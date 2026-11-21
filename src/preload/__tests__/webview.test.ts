@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotationHostCommand } from '@shared/types/webviewAnnotation'
-import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+import { WEBVIEW_COMPOSITION_CHANNEL, WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
 const sendToHost = vi.fn()
 const ipcListeners = new Map<string, (event: unknown, value: unknown) => void>()
@@ -48,7 +48,7 @@ describe('combined webview preload keyboard relay', () => {
     const keydownListeners: Array<(event: KeyboardEvent) => void> = []
     addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener) => {
       if (type === 'keydown') keydownListeners.push(listener as (event: KeyboardEvent) => void)
-      if (['click', 'pointerdown', 'pointermove', 'pointerup'].includes(type)) {
+      if (['click', 'pointerdown', 'pointermove', 'pointerup', 'compositionstart', 'compositionend'].includes(type)) {
         inputListeners.set(type, listener as (event: Event) => void)
       }
       if (type === 'unload') unload = listener as () => void
@@ -76,6 +76,18 @@ describe('combined webview preload keyboard relay', () => {
     sendCommand({ type: 'set_enabled', sessionId, enabled: true })
     sendToHost.mockClear()
   }
+
+  it('relays guest IME composition start/end so the host can avoid caret re-sync mid-composition', () => {
+    const compositionStart = inputListeners.get('compositionstart')
+    const compositionEnd = inputListeners.get('compositionend')
+    expect(compositionStart).toEqual(expect.any(Function))
+    expect(compositionEnd).toEqual(expect.any(Function))
+
+    compositionStart?.(new Event('compositionstart'))
+    expect(sendToHost).toHaveBeenCalledWith(WEBVIEW_COMPOSITION_CHANNEL, { composing: true })
+    compositionEnd?.(new Event('compositionend'))
+    expect(sendToHost).toHaveBeenCalledWith(WEBVIEW_COMPOSITION_CHANNEL, { composing: false })
+  })
 
   it('relays Escape while annotations are inactive', () => {
     const event = trustedKey('Escape')

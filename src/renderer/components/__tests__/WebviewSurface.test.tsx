@@ -50,6 +50,39 @@ describe('WebviewSurface', () => {
     expect(guest.isConnected).toBe(false)
     anchor.remove()
   })
+  it('does not restate identical geometry so cold-start layout thrash cannot dismiss IME', async () => {
+    // Bug this catches: rewriting the same left/top/width/height still moves the
+    // native guest view on macOS and makes the IME candidate window hide/show.
+    const anchor = document.createElement('div')
+    document.body.append(anchor)
+    const rect = new DOMRect(10, 20, 640, 480)
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(rect)
+    const view = render(<WebviewSurface anchor={anchor} guest={<webview data-testid="guest" />} />)
+    const plane = view.getByTestId('guest').parentElement!
+    const assign = vi.spyOn(Object, 'assign')
+    const leftBefore = plane.style.left
+
+    anchor.dispatchEvent(new Event('scroll', { bubbles: true }))
+    window.dispatchEvent(new Event('resize'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const geometryAssigns = assign.mock.calls.filter(
+      ([target, source]) =>
+        target === plane &&
+        source &&
+        typeof source === 'object' &&
+        'left' in source &&
+        (source as { left: string }).left === leftBefore
+    )
+    expect(geometryAssigns).toHaveLength(0)
+    expect(plane).toHaveStyle({ left: '10px', top: '20px', width: '640px', height: '480px' })
+    assign.mockRestore()
+    view.unmount()
+    anchor.remove()
+  })
+
   it('yields input during ancestor resize without hiding or remounting the guest', async () => {
     const pane = document.createElement('div')
     const anchor = document.createElement('div')
