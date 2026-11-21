@@ -331,6 +331,12 @@ it.each([false, true])(
     ).toBe(true)
     const finishWake = f.open(f.starts[0])
     await f.project('command-summary', 'Command finished')
+    expect(
+      messages
+        .getSessionMessage('root', f.replyB.id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    ).toEqual(['Command started', 'Command finished'])
     await f.emit({ type: 'response-start', responseId: 'command-summary-response' })
     f.record('command-summary-response')
     f.record('command-summary-response')
