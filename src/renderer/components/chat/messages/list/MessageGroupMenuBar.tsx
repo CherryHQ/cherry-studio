@@ -45,6 +45,7 @@ function selectRetryCandidates(
 }
 
 interface Props {
+  sticky?: boolean
   multiModelMessageStyle: MultiModelMessageStyle
   setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
   messages: MessageListItem[]
@@ -53,6 +54,7 @@ interface Props {
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
+  sticky = false,
   multiModelMessageStyle,
   setMultiModelMessageStyle,
   messages,
@@ -126,7 +128,9 @@ const MessageGroupMenuBar: FC<Props> = ({
   } as const
 
   return (
-    <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
+    <GroupMenuBar
+      $layout={multiModelMessageStyle}
+      className={sticky ? 'sticky bottom-2 z-10 bg-chat-message-well-solid' : undefined}>
       <RowFlex className="min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
