@@ -1,7 +1,7 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
-import { MockApplicationUtils } from '@test-mocks/main/application'
 
 const fetchRemoteTextMock = vi.fn()
 
@@ -119,5 +119,52 @@ describe('BlacklistSubscriptionService', () => {
     await service.remove(first.id)
 
     expect(preferences.read().map((subscription) => subscription.id)).toEqual([second.id])
+  })
+  it('does not resurrect a removed source or discard an add while refresh is in flight', async () => {
+    fetchRemoteTextMock.mockResolvedValue('*://*.a.example/*\n')
+    const first = await service.add('https://lists.example/a.txt')
+    let finishRefresh!: (body: string) => void
+    fetchRemoteTextMock.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finishRefresh = resolve
+        })
+    )
+    const refresh = service.refresh(first.id)
+    await vi.waitFor(() => expect(finishRefresh).toBeDefined())
+    const remove = service.remove(first.id)
+    const add = service.add('https://lists.example/b.txt')
+    finishRefresh('*://*.updated.example/*\n')
+    await Promise.all([refresh, remove, add])
+    expect(preferences.read().map((entry) => entry.url)).toEqual(['https://lists.example/b.txt'])
+    expect(preferences.read()[0].rules).toEqual(['*://*.a.example/*'])
+  })
+
+  it('rejects a concurrent duplicate instead of publishing two sources', async () => {
+    fetchRemoteTextMock.mockResolvedValue('*://*.a.example/*\n')
+    const results = await Promise.allSettled([
+      service.add('https://lists.example/a.txt'),
+      service.add('https://lists.example/a.txt')
+    ])
+    expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected'])
+    expect(preferences.read()).toHaveLength(1)
+  })
+  it('refreshes cached sources every 24 hours and stops refreshing after lifecycle stop', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchRemoteTextMock.mockResolvedValue('*://*.a.example/*\n')
+      await service.add('https://lists.example/a.txt')
+      await service._doInit()
+      fetchRemoteTextMock.mockResolvedValue('*://*.updated.example/*\n')
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+      expect(preferences.read()[0].rules).toEqual(['*://*.updated.example/*'])
+      await service._doStop()
+      fetchRemoteTextMock.mockResolvedValue('*://*.must-not-appear.example/*\n')
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+      expect(preferences.read()[0].rules).toEqual(['*://*.updated.example/*'])
+    } finally {
+      await service._doStop()
+      vi.useRealTimers()
+    }
   })
 })

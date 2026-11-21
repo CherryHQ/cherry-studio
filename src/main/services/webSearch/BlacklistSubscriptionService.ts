@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { PreferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -35,6 +37,7 @@ function errorMessage(error: unknown): string {
 @Injectable('BlacklistSubscriptionService')
 @ServicePhase(Phase.WhenReady)
 export class BlacklistSubscriptionService extends BaseService {
+  private readonly mutationLock = new Mutex()
   protected async onInit(): Promise<void> {
     this.registerInterval(() => {
       void this.refreshAll().catch((error) => {
@@ -61,6 +64,10 @@ export class BlacklistSubscriptionService extends BaseService {
    * rejected before anything is stored.
    */
   async add(url: string, name?: string): Promise<WebSearchBlacklistSubscription> {
+    return this.mutationLock.runExclusive(() => this.addLocked(url, name))
+  }
+
+  private async addLocked(url: string, name?: string): Promise<WebSearchBlacklistSubscription> {
     const trimmedUrl = url.trim()
     if (!isValidSubscriptionUrl(trimmedUrl)) {
       throw new Error(`Invalid subscription URL: only HTTP(S) URLs are supported`)
@@ -90,6 +97,10 @@ export class BlacklistSubscriptionService extends BaseService {
    * are replaced; on failure the previous rules stay and `lastError` is set.
    */
   async refresh(id: string): Promise<WebSearchBlacklistSubscription> {
+    return this.mutationLock.runExclusive(() => this.refreshLocked(id))
+  }
+
+  private async refreshLocked(id: string): Promise<WebSearchBlacklistSubscription> {
     const subscriptions = this.getSubscriptions()
     const index = subscriptions.findIndex((subscription) => subscription.id === id)
     if (index === -1) {
@@ -123,7 +134,9 @@ export class BlacklistSubscriptionService extends BaseService {
 
   /** Removes a subscription; its rules drop out of the effective blacklist. */
   async remove(id: string): Promise<void> {
-    await this.setSubscriptions(this.getSubscriptions().filter((subscription) => subscription.id !== id))
+    await this.mutationLock.runExclusive(() =>
+      this.setSubscriptions(this.getSubscriptions().filter((subscription) => subscription.id !== id))
+    )
   }
 
   private async fetchRules(url: string): Promise<{ rules: string[]; droppedCount: number }> {

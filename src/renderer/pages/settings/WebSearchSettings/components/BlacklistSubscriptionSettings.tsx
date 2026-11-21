@@ -1,11 +1,11 @@
 import { RefreshCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Input, Tooltip } from '@cherrystudio/ui'
-import { SettingGroup, SettingSubtitle } from '@renderer/components/SettingsPrimitives'
 import { usePreference } from '@data/hooks/usePreference'
+import { SettingGroup, SettingSubtitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -29,8 +29,11 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
   const [invalidUrl, setInvalidUrl] = useState(false)
   const [adding, setAdding] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const mutationPending = useRef(false)
+  const busy = adding || pendingId !== null
 
   async function addSubscription() {
+    if (mutationPending.current) return
     const url = urlInput.trim()
     if (!isValidSubscriptionUrl(url)) {
       setInvalidUrl(true)
@@ -38,6 +41,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
     }
 
     setInvalidUrl(false)
+    mutationPending.current = true
     setAdding(true)
     try {
       const added = await ipcApi.request('web_search.blacklist_subscriptions.add', { url })
@@ -52,11 +56,14 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
         description: error instanceof Error ? error.message : String(error)
       })
     } finally {
+      mutationPending.current = false
       setAdding(false)
     }
   }
 
   async function refreshSubscription(id: string) {
+    if (mutationPending.current) return
+    mutationPending.current = true
     setPendingId(id)
     try {
       await ipcApi.request('web_search.blacklist_subscriptions.refresh', { id })
@@ -66,11 +73,14 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
         description: error instanceof Error ? error.message : String(error)
       })
     } finally {
+      mutationPending.current = false
       setPendingId(null)
     }
   }
 
   async function removeSubscription(id: string) {
+    if (mutationPending.current) return
+    mutationPending.current = true
     setPendingId(id)
     try {
       await ipcApi.request('web_search.blacklist_subscriptions.remove', { id })
@@ -80,6 +90,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
         description: error instanceof Error ? error.message : String(error)
       })
     } finally {
+      mutationPending.current = false
       setPendingId(null)
     }
   }
@@ -92,6 +103,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
       <div className="mt-2.5 flex items-center gap-2">
         <Input
           aria-label={t('settings.tool.websearch.blacklist_subscriptions')}
+          aria-invalid={invalidUrl || undefined}
           value={urlInput}
           onChange={(e) => {
             setUrlInput(e.target.value)
@@ -103,7 +115,12 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
             if (e.key === 'Enter') void addSubscription()
           }}
         />
-        <Button type="button" size="sm" variant="outline" disabled={adding || !urlInput.trim()} onClick={() => void addSubscription()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy || !urlInput.trim()}
+          onClick={() => void addSubscription()}>
           {t('common.add')}
         </Button>
       </div>
@@ -120,7 +137,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
           className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5">
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm">{subscription.name || subscription.url}</div>
-            <div className="truncate text-muted-foreground text-xs">
+            <div className="truncate text-xs text-muted-foreground">
               {t('settings.tool.websearch.blacklist_subscription_rule_count', { count: subscription.rules.length })}
               {subscription.updatedAt
                 ? ` · ${t('settings.tool.websearch.blacklist_subscription_updated_at', {
@@ -129,7 +146,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
                 : ''}
             </div>
             {subscription.lastError && (
-              <div className="truncate text-destructive text-xs" title={subscription.lastError}>
+              <div className="truncate text-xs text-destructive" title={subscription.lastError}>
                 {t('settings.tool.websearch.blacklist_subscription_last_error', { error: subscription.lastError })}
               </div>
             )}
@@ -141,7 +158,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
                 size="icon"
                 variant="ghost"
                 aria-label={t('common.refresh')}
-                disabled={pendingId === subscription.id}
+                disabled={busy}
                 onClick={() => void refreshSubscription(subscription.id)}>
                 <RefreshCw className="size-4" />
               </Button>
@@ -152,7 +169,7 @@ const BlacklistSubscriptionSettings: FC<Props> = ({ variant = 'card' }) => {
                 size="icon"
                 variant="ghost"
                 aria-label={t('common.delete')}
-                disabled={pendingId === subscription.id}
+                disabled={busy}
                 onClick={() => void removeSubscription(subscription.id)}>
                 <Trash2 className="size-4" />
               </Button>
