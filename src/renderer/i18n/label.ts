@@ -82,6 +82,7 @@ const providerKeyMap = {
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
+  worldrouter: 'provider.worldrouter',
   xirang: 'provider.xirang',
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',

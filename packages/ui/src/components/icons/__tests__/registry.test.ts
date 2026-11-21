@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { resolveIconRef, resolveModelIconRef, resolveModelToProviderIconRef, resolveProviderIconRef } from '../registry'
 
 describe('resolveProviderIconRef', () => {
+  it('resolves the WorldRouter brand icon', () => {
+    expect(resolveProviderIconRef('worldrouter')).toEqual(expect.objectContaining({ kind: 'provider', key: 'worldrouter' }))
+  })
+
   it('resolves the Rapid-MLX provider icon', () => {
     expect(resolveProviderIconRef('rapid-mlx')).toEqual(expect.objectContaining({ kind: 'provider', key: 'rapid-mlx' }))
   })

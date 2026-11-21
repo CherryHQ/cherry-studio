@@ -174,6 +174,7 @@ import { meta as wenxinMeta } from './wenxin/meta'
 import { meta as workersAiMeta } from './workers-ai/meta'
 import { meta as xiaoyiMeta } from './xiaoyi/meta'
 import { meta as xinghuoMeta } from './xinghuo/meta'
+import { meta as worldrouterMeta } from './worldrouter/meta'
 import { meta as xirangMeta } from './xirang/meta'
 import { meta as youMeta } from './you/meta'
 import { meta as yuanbaoMeta } from './yuanbao/meta'
@@ -351,6 +352,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   'workers-ai': workersAiMeta,
   xiaoyi: xiaoyiMeta,
   xinghuo: xinghuoMeta,
+  worldrouter: worldrouterMeta,
   xirang: xirangMeta,
   you: youMeta,
   yuanbao: yuanbaoMeta,
