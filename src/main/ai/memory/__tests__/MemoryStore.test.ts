@@ -143,6 +143,27 @@ describe('structured memory disk protection', () => {
   }
   const encode = (value: MemoryEntry) => serializeMemoryEntries([value])
 
+  it('resumes a clear after a partial recovery kept the first file forgotten', async () => {
+    const first = 'MEMORY.md'
+    const second = '.memories/b.md'
+    const original = '\n\n' + encode({ ...entry, status: 'active', text: 'First fact' })
+    await writeFile(path.join(root, first), original)
+    await writeFile(path.join(root, second), 'Second fact')
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const cleared = await readFile(path.join(root, second), 'utf8')
+    await writeFile(path.join(root, second), 'Intervening edit')
+    const partial = await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(partial.files).toContainEqual(expect.objectContaining({ path: first, outcome: 'applied' }))
+    const actual = await readFile(path.join(root, first), 'utf8')
+    expect(actual).not.toBe(original)
+    expect(entriesIn(parseMemoryEntries(actual))[0].status).toBe('forgotten')
+    await writeFile(path.join(root, second), cleared)
+    await new MemoryStore(root, backups).initialize()
+    await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    expect(await readFile(path.join(root, second), 'utf8')).toBe('Second fact')
+    expect(await readFile(path.join(root, first), 'utf8')).toBe(actual)
+  })
+
   it('recognizes a recovered file with preserved forgotten metadata after a lost acknowledgement', async () => {
     const target = '.memories/protected.md'
     const before = Buffer.from('')
@@ -1029,6 +1050,48 @@ describe('limits, access, and recovery', () => {
     expect(preview?.files).toMatchObject([{ path: 'MEMORY.md', conflict: false }])
     await store.recover(caller, preview!.token, approve)
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it('keeps the last usable backup through repeated clear intent failures', async () => {
+    const saved = await save('MEMORY.md', 'Keep this undo')
+    store = new MemoryStore(root, backups, undefined, undefined, () => {
+      throw new Error('Database locked')
+    })
+    await store.initialize()
+    for (let i = 0; i < 7; i++) {
+      await expect(store.clear(caller, (await store.previewClear(caller)).token, approve)).rejects.toThrow(
+        'Database locked'
+      )
+    }
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    expect((await store.previewRecovery(caller))?.batchId).toBe(saved.batchId)
+  })
+
+  it('reclaims completed manifests of a superseded partial recovery after restart', async () => {
+    const rewrite = async (names: string[]) => {
+      const reads = await Promise.all(names.map((name) => store.read(caller, name)))
+      return store.commit(
+        caller,
+        reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Changed' })),
+        'controlled',
+        approve
+      )
+    }
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => '.memories/' + name + '.md')
+    for (const name of [a, b, c, d]) await writeFile(path.join(root, name), 'Original')
+    await rewrite([a, b])
+    await recover()
+    await writeFile(path.join(root, b), 'Independent edit')
+    await recover()
+    await rewrite([c, d])
+    await writeFile(path.join(root, d), 'Conflict')
+    await recover()
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    expect((await save('MEMORY.md', 'Still writable')).error).toBeUndefined()
+    expect((await store.clear(caller, (await store.previewClear(caller)).token, approve)).error).toBeUndefined()
   })
 
   it('protects the latest recovery batch when a second large backup would exceed capacity', async () => {
