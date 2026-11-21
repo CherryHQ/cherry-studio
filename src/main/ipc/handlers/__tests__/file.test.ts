@@ -10,6 +10,7 @@ import { getSentryLogContext } from '@shared/utils/sentry'
 
 const {
   appGetMock,
+  appGetPathMock,
   clipboardCopyMock,
   clipboardStatusMock,
   assertOutsideManagedStorageMutationMock,
@@ -17,12 +18,15 @@ const {
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
+  readDeviceNotesPathMock,
   safeOpenMock,
   showPathInFolderMock,
   validateNotesDirectoryMock,
+  writeDeviceNotesPathMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  appGetPathMock: vi.fn(),
   clipboardCopyMock: vi.fn(),
   clipboardStatusMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
@@ -30,12 +34,14 @@ const {
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
+  readDeviceNotesPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
   validateNotesDirectoryMock: vi.fn(),
+  writeDeviceNotesPathMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
 }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
 vi.mock('@main/services/notesDirectory', () => ({ validateNotesDirectory: validateNotesDirectoryMock }))
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtilsModule>()),
@@ -76,8 +82,10 @@ vi.mock('@main/services/file', async () => {
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
     readChunkByPath: readChunkByPathMock,
+    readDeviceNotesPath: readDeviceNotesPathMock,
     safeOpen: safeOpenMock,
     showInFolder: showPathInFolderMock,
+    writeDeviceNotesPath: writeDeviceNotesPathMock,
     writeIfUnchangedByPath: writeIfUnchangedByPathMock
   }
 })
@@ -134,6 +142,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  appGetPathMock.mockReturnValue('/sidecar/notes-device.json')
   fileManager.getPhysicalPath.mockReset()
   windowManager.getWindow.mockImplementation((id: string) =>
     id === 'win-1' ? { webContents: senderWebContents } : undefined
@@ -629,5 +638,22 @@ describe('fileHandlers', () => {
     expect(directoryTreeManager.activateTree).not.toHaveBeenCalled()
     expect(directoryTreeManager.rename).not.toHaveBeenCalled()
     expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
+  })
+
+  it('reads this PC’s Notes choice from the sidecar without FileManager', async () => {
+    readDeviceNotesPathMock.mockResolvedValueOnce('D:/Notes')
+
+    await expect(fileHandlers['file.notes.get_device_path'](undefined, ctx)).resolves.toBe('D:/Notes')
+
+    expect(appGetPathMock).toHaveBeenCalledWith('feature.notes.device_file')
+    expect(readDeviceNotesPathMock).toHaveBeenCalledWith('/sidecar/notes-device.json')
+  })
+
+  it('stamps this PC’s Notes choice to the sidecar without FileManager', async () => {
+    await expect(
+      fileHandlers['file.notes.set_device_path']({ path: 'D:/Notes' as AbsoluteFilePath }, ctx)
+    ).resolves.toBeUndefined()
+
+    expect(writeDeviceNotesPathMock).toHaveBeenCalledWith('/sidecar/notes-device.json', 'D:/Notes')
   })
 })

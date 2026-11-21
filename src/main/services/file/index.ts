@@ -83,6 +83,11 @@ export { assertOutsideManagedStorageMutation, isInsideManagedStorage } from './u
 export { getMetadataByPath } from './utils/metadata'
 export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 
+// Per-device Notes folder choice (sidecar under CHERRY_HOME, never synced).
+// Consumed by the File IpcApi notes handlers — a pure non-lifecycle module,
+// so no FileManager method or DI handle exists for it.
+export { readDeviceNotesPath, writeDeviceNotesPath } from './deviceNotesPath'
+
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'

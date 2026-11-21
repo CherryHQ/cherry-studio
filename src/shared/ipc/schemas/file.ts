@@ -118,6 +118,11 @@ export const createInternalEntryInputSchema = z.discriminatedUnion('source', [
 
 export type CreateInternalEntryInput = z.infer<typeof createInternalEntryInputSchema>
 
+// This PC's Notes folder choice (per-device sidecar — never synced). Served by
+// the `file.notes.*` routes below, whose handlers delegate straight to the
+// `deviceNotesPath` module instead of FileManager.
+const deviceNotesPathSchema = z.strictObject({ path: AbsoluteFilePathSchema })
+
 const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })
@@ -182,6 +187,12 @@ export const fileRequestSchemas = {
   'file.get_clipboard_status': defineRoute({ input: FileHandleSchema, output: clipboardCopyStatusSchema }),
   'file.copy_to_clipboard': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
+
+  // This PC's Notes folder choice. The sidecar lives under CHERRY_HOME (never
+  // backed up or synced), so a synced `feature.notes.path` pref from another
+  // machine can never redirect this PC's Notes tree.
+  'file.notes.get_device_path': defineRoute({ input: z.void(), output: z.string().nullable() }),
+  'file.notes.set_device_path': defineRoute({ input: deviceNotesPathSchema, output: z.void() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
