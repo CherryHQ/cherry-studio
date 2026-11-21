@@ -22,6 +22,7 @@ export class ModelSyncError extends Error {
   constructor(
     message: string,
     public readonly code: ModelSyncErrorCode,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Diagnostic metadata is caller-owned and carried unchanged with the error, without interpreting its fields.
     public readonly meta?: Record<string, unknown>
   ) {
     super(message)
@@ -148,7 +149,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
-        ;(merged as Record<string, unknown>)[field] = value
+        Object.assign(merged, { [field]: value })
       }
     }
 
