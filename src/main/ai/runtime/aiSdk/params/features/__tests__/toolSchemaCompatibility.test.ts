@@ -199,6 +199,23 @@ const CHAT_MAP_PARAMETERS = {
 }
 
 describe('toolSchemaCompatibilityFeature', () => {
+  it('preserves reserved property names and schema extensions when stripping strict keywords', async () => {
+    const property = { type: 'string' as const, minLength: 1, ['__proto__']: { retained: true } }
+    const schema: JSONSchema7 = { type: 'object', properties: { ['__proto__']: property } }
+
+    const result = await transform({
+      prompt: [],
+      tools: [{ type: 'function', name: 'reserved', inputSchema: schema, strict: true }]
+    })
+
+    const serializedTool = JSON.parse(JSON.stringify(result.tools?.[0]))
+    expect(serializedTool.inputSchema).toEqual({
+      type: 'object',
+      properties: { ['__proto__']: { type: 'string', ['__proto__']: { retained: true } } }
+    })
+    expect(property.minLength).toBe(1)
+  })
+
   describe.each(CHAT_PROVIDER_CASES)('Gemini chat completions via $provider', ({ provider, createModel }) => {
     it.each([
       { variant: 'plain', key: z.string(), expectedKey: { type: 'string' } },

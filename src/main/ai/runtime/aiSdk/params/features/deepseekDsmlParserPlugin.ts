@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { JSONObject, JSONValue, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -19,7 +19,7 @@ const PARAM_RE =
 
 interface ParsedDsmlCall {
   toolName: string
-  args: Record<string, unknown>
+  args: JSONObject
 }
 
 function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
@@ -29,7 +29,7 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
   while ((invokeMatch = INVOKE_RE.exec(dsmlContent)) !== null) {
     const toolName = invokeMatch[1]
     const inner = invokeMatch[2]
-    const args: Record<string, unknown> = {}
+    const argEntries: [string, JSONValue][] = []
 
     PARAM_RE.lastIndex = 0
     let paramMatch: RegExpExecArray | null
@@ -38,16 +38,16 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
       const isString = paramMatch[2] !== 'false'
       const rawValue = paramMatch[3]
       if (isString) {
-        args[paramName] = rawValue
+        argEntries.push([paramName, rawValue])
       } else {
         try {
-          args[paramName] = JSON.parse(rawValue)
+          argEntries.push([paramName, JSON.parse(rawValue)])
         } catch {
-          args[paramName] = rawValue
+          argEntries.push([paramName, rawValue])
         }
       }
     }
-    calls.push({ toolName, args })
+    calls.push({ toolName, args: Object.fromEntries(argEntries) })
   }
   return calls
 }

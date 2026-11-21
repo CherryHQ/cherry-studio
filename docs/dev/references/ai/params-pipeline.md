@@ -65,6 +65,10 @@ validator against the original schema, while caller-owned gateway tools remain t
 caller's responsibility. Responses, Ollama, Anthropic Messages and undefined
 endpoint scopes receive no new treatment from this pass.
 
+Schema reconstruction preserves literal property names such as `__proto__` and
+uninspected extension fields as own data properties. Removing a keyword must not
+drop a similarly named property or change the source schema's prototype.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

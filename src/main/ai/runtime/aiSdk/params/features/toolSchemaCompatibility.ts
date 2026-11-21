@@ -97,7 +97,7 @@ const SCHEMA_VALUES = new Set([
 function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) => JSONSchema7): JSONSchema7Definition {
   if (typeof schema !== 'object' || schema === null) return schema
 
-  const result: Record<string, unknown> = {}
+  const entries: [string, unknown][] = []
   let changed = false
   for (const [key, value] of Object.entries(schema)) {
     let next = value
@@ -109,10 +109,11 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
       next = Array.isArray(value) ? mapSchemaList(value, mapNode) : mapSchemas(value, mapNode)
     }
     if (next !== value) changed = true
-    result[key] = next
+    entries.push([key, next])
   }
+  const result: JSONSchema7 = Object.fromEntries(entries)
   const mapped = mapNode(result)
-  if (mapped !== (result as JSONSchema7)) changed = true
+  if (mapped !== result) changed = true
   return changed ? mapped : schema
 }
 
@@ -131,25 +132,26 @@ function mapSchemaMap(
   mapNode: (node: JSONSchema7) => JSONSchema7
 ): Record<string, JSONSchema7Definition> {
   let changed = false
-  const next: Record<string, JSONSchema7Definition> = {}
+  const entries: [string, JSONSchema7Definition][] = []
   for (const [key, value] of Object.entries(map)) {
-    next[key] = mapSchemas(value, mapNode)
-    if (next[key] !== value) changed = true
+    const next = mapSchemas(value, mapNode)
+    entries.push([key, next])
+    if (next !== value) changed = true
   }
-  return changed ? next : map
+  return changed ? Object.fromEntries(entries) : map
 }
 
 function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSchema7 {
   let changed = false
-  const kept: Record<string, unknown> = {}
+  const kept: [string, unknown][] = []
   for (const [key, value] of Object.entries(node)) {
     if (keywords.has(key) || (key === 'required' && value === null)) {
       changed = true
       continue
     }
-    kept[key] = value
+    kept.push([key, value])
   }
-  return changed ? kept : node
+  return changed ? Object.fromEntries(kept) : node
 }
 
 function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<string>): JSONSchema7Definition {
