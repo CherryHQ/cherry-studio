@@ -9,7 +9,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -110,6 +110,9 @@ beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode:
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {
+  // These multi-turn flows run several times slower on the Windows CI runner than the 1 s poll default allows.
+  beforeAll(() => vi.setConfig({ expect: { poll: { timeout: 10_000 } } }))
+  afterAll(() => vi.resetConfig())
   const dbh = setupTestDatabase()
   let directory: string
   let input: AgentRuntimeConnectInput

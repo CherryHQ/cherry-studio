@@ -11,7 +11,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -145,6 +145,9 @@ const APPROVAL_WAIT = { timeout: 10_000 } as const
 const CHILD_WAIT = { timeout: 10_000 } as const
 
 describe('desktop Pi Durable connection', () => {
+  // These multi-turn flows run several times slower on the Windows CI runner than the 1 s poll default allows.
+  beforeAll(() => vi.setConfig({ expect: { poll: { timeout: 10_000 } } }))
+  afterAll(() => vi.resetConfig())
   const dbh = setupTestDatabase()
   let directory: string
   let input: AgentRuntimeConnectInput
