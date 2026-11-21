@@ -72,7 +72,10 @@ const TIER = {
 } as const satisfies Record<MiniAppMethod, 'event' | 'count'>
 
 type Facet = Record<string, string | number | boolean>
-type Params = Record<string, unknown> | undefined
+// Refused calls are unvalidated; these are only the fields used for activity metadata.
+type Params =
+  | { url?: unknown; text?: unknown; messages?: unknown; model?: unknown; value?: unknown; data?: unknown }
+  | undefined
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refused bridge calls retain unvalidated parameter fields; log only string lengths/hosts and treat other values as absent.
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -196,7 +199,7 @@ export class MiniAppActivityLog {
     // Gated HERE as well as in `append`: the count tier returns before ever reaching it,
     // and a stale call would leave a counter for the next `flush` to write out.
     if (this.forgotten.has(appId)) return
-    const p = params && typeof params === 'object' ? (params as Record<string, unknown>) : undefined
+    const p = params && typeof params === 'object' ? (params as NonNullable<Params>) : undefined
     if (TIER[method] === 'count' && outcome === 'ok') {
       const perApp = this.counters.get(appId) ?? new Map<string, Counter>()
       const counter = perApp.get(method) ?? { calls: 0, bytes: 0 }

@@ -19,6 +19,7 @@
 
 import fs from 'node:fs'
 
+import type { JSONValue } from '@ai-sdk/provider'
 import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -697,11 +698,11 @@ export class CacheService extends BaseService {
     try {
       if (!fs.existsSync(this.persistFilePath)) return
 
-      const parsed = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
+      const parsed: JSONValue = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         // Adopt known schema keys only — unknown/stale keys are pruned so the
         // "fixed keys only" contract holds and renamed keys don't linger on disk.
-        const record = parsed as Record<string, unknown>
+        const record = parsed
         for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
           if (key in record) {
             this.persistCache.set(key, record[key])
@@ -734,6 +735,7 @@ export class CacheService extends BaseService {
   private savePersistSync(options: { throwOnError?: boolean } = {}): void {
     const tempPath = `${this.persistFilePath}.tmp`
     try {
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persist values include unvalidated disk entries; JSON.stringify owns their conversion, omission and backup failure behavior.
       const snapshot: Record<string, unknown> = {}
       for (const [key, value] of this.persistCache.entries()) {
         snapshot[key] = value

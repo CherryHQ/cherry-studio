@@ -15,9 +15,11 @@ import { normalizeSubscriptionUrl, skillInstallIdentity } from '@shared/utils/sk
 import { readGithubSkillCatalog, resolveGithubSkillSourceUrl } from './skillRemoteSource'
 
 const MAX_FEED_BYTES = 16 * 1024 * 1024
+// oxlint-disable anti-slop/no-unsafe-dictionary-type -- JSON/RSS container checks leave fields unvalidated; text and URL readers own their decoding.
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON Feed entries and parsed RSS nodes are untyped; accept only object records before reading optional feed fields.
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+// oxlint-enable anti-slop/no-unsafe-dictionary-type
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional feed fields may have arbitrary JSON/XML shapes; only actual strings may become labels, URLs or MIME values.
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- RSS uses singleton-or-array nodes while JSON Feed optional arrays remain unvalidated; normalize their containers before per-entry decoding.
