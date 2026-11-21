@@ -929,6 +929,21 @@ describe('Assistant preset preview dialog actions', () => {
 })
 
 describe('ResourceCardMenu group binding', () => {
+  it('shows missing prerequisites and opens settings for setup instead of starting installation', () => {
+    const skill = createSkillResource() as Extract<ResourceItem, { type: 'skill' }>
+    skill.raw.readiness = {
+      state: 'setup_required',
+      missing: ['binary pandoc'],
+      fingerprint: 'checked',
+      checkedAt: 'today'
+    }
+    const onEdit = vi.fn()
+    render(<ResourceCard resource={skill} variant="settings" {...getResourceCardProps({ onEdit })} />)
+    expect(screen.getByText(/binary pandoc/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.skills.readiness.setup' }))
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(skill)
+  })
+
   beforeEach(() => {
     updateAssistantMock.mockReset()
   })

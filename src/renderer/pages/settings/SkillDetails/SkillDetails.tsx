@@ -34,6 +34,7 @@ import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillRemoteUpdateCheck } from '@shared/types/skill'
 
 import { SkillFileBrowser, type SkillFileBrowserHandles } from './SkillFileBrowser'
+import { SkillReadinessControls } from './SkillReadinessControls'
 
 const logger = loggerService.withContext('SkillDetails')
 
@@ -209,8 +210,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="truncate font-semibold text-foreground text-lg">{skill.name}</h1>
-            {skill.version ? <span className="text-foreground-tertiary text-xs">{skill.version}</span> : null}
+            <h1 className="truncate text-lg font-semibold text-foreground">{skill.name}</h1>
+            {skill.version ? <span className="text-xs text-foreground-tertiary">{skill.version}</span> : null}
             <SkillSourceBadge source={skill.source} sourceUrl={skill.sourceUrl} />
             {folder.data?.access === 'read_only' ? (
               <Badge variant="secondary" className="border-0 bg-secondary text-muted-foreground">
@@ -289,6 +290,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           </DropdownMenu>
         </div>
       </div>
+
+      <SkillReadinessControls skillId={skill.id} readiness={skill.readiness} onChange={() => void refetch()} />
 
       <div className="flex min-h-0 flex-1">
         {folder.isLoading ? (

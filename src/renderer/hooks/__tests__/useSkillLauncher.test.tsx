@@ -92,7 +92,9 @@ describe('useSkillLauncher', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.enableSkill.mockImplementation(async () => createSkill(true))
-    mocks.ipcRequest.mockResolvedValue({ sessionId: 'session-1' })
+    mocks.ipcRequest.mockImplementation(async (route) =>
+      route === 'skill.preflight' ? { state: 'ready' } : { sessionId: 'session-1' }
+    )
   })
 
   it('creates one prepared Skill session and opens the Agent route for an enabled Skill', async () => {
@@ -102,7 +104,7 @@ describe('useSkillLauncher', () => {
     await user.click(screen.getByRole('button', { name: 'Launch' }))
 
     await waitFor(() =>
-      expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.skill_session.create', {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.skill_session.create', {
         skillId: 'skill-1'
       })
     )
@@ -111,6 +113,14 @@ describe('useSkillLauncher', () => {
       sessionId: 'session-1',
       skillId: 'skill-1'
     })
+  })
+
+  it('routes an unready Skill to its settings without starting an Agent session', async () => {
+    mocks.ipcRequest.mockResolvedValueOnce({ state: 'setup_required', missing: ['binary pandoc'] })
+    renderLauncher(createSkill(true))
+    await userEvent.click(screen.getByRole('button', { name: 'Launch' }))
+    await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith('/settings/skills/skill-1'))
+    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('skill.preflight', { skillId: 'skill-1' })
   })
 
   it('does not enable or create a session when the disabled-Skill confirmation is cancelled', async () => {
@@ -132,7 +142,7 @@ describe('useSkillLauncher', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'settings.skills.enableToTry.confirm' }))
 
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledOnce())
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
     expect(mocks.enableSkill).toHaveBeenCalledExactlyOnceWith({
       params: { skillId: 'skill-1' },
       body: { isGlobalEnabled: true }

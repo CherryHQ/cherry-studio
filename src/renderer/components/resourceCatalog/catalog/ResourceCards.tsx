@@ -93,10 +93,10 @@ export function ResourceCard({
       className={cn(
         'group relative cursor-pointer border bg-card transition-[border-color,box-shadow] hover:shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
         isSettings
-          ? 'hover:border-border-strong rounded-xl border-border'
+          ? 'rounded-xl border-border hover:border-border-strong'
           : 'rounded-lg border-border-subtle hover:border-border-subtle',
         isSkillSettings &&
-          'shadow-none transition-colors hover:bg-background-subtle hover:shadow-none focus-visible:bg-accent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_1px_var(--ring)]',
+          'shadow-none transition-colors hover:bg-background-subtle hover:shadow-none focus-visible:bg-accent focus-visible:shadow-[inset_0_0_0_1px_var(--ring)] focus-visible:ring-0',
         isSkillSettings && 'rounded-none border-0 bg-transparent'
       )}
       style={
@@ -138,7 +138,7 @@ export function ResourceCard({
                 <Badge
                   variant="secondary"
                   className={cn(
-                    'text-muted-foreground shrink-0 border-0 bg-secondary px-1.5 py-px text-xs font-normal',
+                    'shrink-0 border-0 bg-secondary px-1.5 py-px text-xs font-normal text-muted-foreground',
                     isSkillSettings && 'bg-transparent px-0'
                   )}>
                   {skillVersion}
@@ -155,18 +155,24 @@ export function ResourceCard({
             <Tooltip title={r.description} delay={1000} isDisabled={!isSkillSettings} asChild>
               <p
                 className={cn(
-                  'text-muted-foreground mt-0.5 text-xs leading-4',
+                  'mt-0.5 text-xs leading-4 text-muted-foreground',
                   isSkillSettings ? 'min-h-4 truncate' : isSettings ? 'line-clamp-2 min-h-8' : 'truncate'
                 )}
                 tabIndex={isSkillSettings ? 0 : undefined}>
                 {r.description}
               </p>
             </Tooltip>
+            {r.type === 'skill' && r.raw.readiness && (
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {t(`settings.skills.readiness.${r.raw.readiness.state}`)}
+                {r.raw.readiness.missing.length > 0 ? `: ${r.raw.readiness.missing.join(', ')}` : ''}
+              </p>
+            )}
             {visibleGroup && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">
                 <Badge
                   variant="secondary"
-                  className="text-muted-foreground max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-xs">
+                  className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-xs text-muted-foreground">
                   {visibleGroup}
                 </Badge>
               </div>
@@ -175,6 +181,15 @@ export function ResourceCard({
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
               <div className="flex items-center gap-3">
+                {r.raw.readiness && ['setup_required', 'failed'].includes(r.raw.readiness.state) ? (
+                  <Button variant="outline" size="sm" onClick={() => onEdit(r)}>
+                    {t(
+                      r.raw.readiness.state === 'failed'
+                        ? 'settings.skills.readiness.retry'
+                        : 'settings.skills.readiness.setup'
+                    )}
+                  </Button>
+                ) : null}
                 {onLaunchSkill ? (
                   <Button
                     variant="ghost"
@@ -210,7 +225,7 @@ export function ResourceCard({
                 size="icon-sm"
                 aria-label={t('common.delete')}
                 onClick={() => onDelete(r)}
-                className="text-muted-foreground hover:bg-error-subtle hover:text-error-subtle-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100">
+                className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100">
                 <Trash2 size={12} className="lucide-custom" />
               </Button>
             )}

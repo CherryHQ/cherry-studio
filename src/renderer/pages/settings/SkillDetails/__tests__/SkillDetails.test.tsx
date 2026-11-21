@@ -1,3 +1,4 @@
+vi.mock('../SkillReadinessControls', () => ({ SkillReadinessControls: () => null }))
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

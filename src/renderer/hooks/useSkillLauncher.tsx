@@ -26,6 +26,11 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
   const createSessionAndOpen = useCallback(async (skill: InstalledSkill) => {
     setIsLaunching(true)
     try {
+      const readiness = await ipcApi.request('skill.preflight', { skillId: skill.id })
+      if (readiness.state !== 'ready') {
+        openRoute(`/settings/skills/${encodeURIComponent(skill.id)}`)
+        return
+      }
       const { sessionId } = await ipcApi.request('ai.agent.skill_session.create', { skillId: skill.id })
       openRoute('/app/agents', { intent: 'skill', sessionId, skillId: skill.id })
     } finally {
