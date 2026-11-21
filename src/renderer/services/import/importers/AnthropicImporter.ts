@@ -39,7 +39,7 @@ interface AnthropicToolUseBlock {
   type: 'tool_use'
   id: string | null
   name: string
-  input: Record<string, unknown>
+  input: DynamicToolUIPart['input']
 }
 
 interface AnthropicToolResultBlock {
