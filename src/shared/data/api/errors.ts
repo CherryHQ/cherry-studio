@@ -318,7 +318,9 @@ export type ErrorDetailsMap = {
  */
 export type DetailsForCode<T extends ErrorCode> = T extends keyof ErrorDetailsMap
   ? ErrorDetailsMap[T]
-  : Record<string, unknown> | undefined
+  :
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unmapped error codes retain caller-owned extension details; only mapped codes define specific field types.
+      Record<string, unknown> | undefined
 
 // ============================================================================
 // Retryability Configuration
@@ -364,6 +366,7 @@ export interface SerializedDataApiError {
   /** HTTP status code */
   status: number
   /** Structured error details */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- IPC preserves extension details without validating their values; readers must check fields before use.
   details?: Record<string, unknown>
   /** Request context for debugging */
   requestContext?: RequestContext
@@ -457,7 +460,7 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       code: this.code,
       message: this.message,
       status: this.status,
-      details: this.details as Record<string, unknown> | undefined,
+      details: this.details as SerializedDataApiError['details'],
       requestContext: this.requestContext
     }
     if (this.reportingHandled) serialized.reportingHandled = true
