@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Ταξινόμηση κατά",
   "chat.mcp.warning.gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων",
   "chat.message.branches": "Εναλλαγή κλάδου",
+  "chat.message.copy_latex": "Αντιγραφή LaTeX",
   "chat.message.flow.branches": "κλαδιά",
   "chat.message.flow.copy_topic.created": "Αντιγράφηκε σε μια νέα συνομιλία",
   "chat.message.flow.copy_topic.label": "Αντιγραφή ως Νέα Συνομιλία",

@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Sắp xếp theo",
   "chat.mcp.warning.gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
   "chat.message.branches": "Chuyển nhánh",
+  "chat.message.copy_latex": "Sao chép LaTeX",
   "chat.message.flow.branches": "chi nhánh",
   "chat.message.flow.copy_topic.created": "Đã sao chép sang một cuộc trò chuyện mới",
   "chat.message.flow.copy_topic.label": "Sao chép thành Cuộc trò chuyện mới",

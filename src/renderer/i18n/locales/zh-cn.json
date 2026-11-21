@@ -951,6 +951,7 @@
   "chat.list.sort.title": "排序方式",
   "chat.mcp.warning.gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
   "chat.message.branches": "切换分支",
+  "chat.message.copy_latex": "复制 LaTeX",
   "chat.message.flow.branches": "分支",
   "chat.message.flow.copy_topic.created": "已复制为新对话",
   "chat.message.flow.copy_topic.label": "复制为新对话",

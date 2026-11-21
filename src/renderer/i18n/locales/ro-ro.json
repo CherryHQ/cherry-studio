@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Sortează după",
   "chat.mcp.warning.gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
   "chat.message.branches": "Comută ramura",
+  "chat.message.copy_latex": "Copiază LaTeX",
   "chat.message.flow.branches": "ramuri",
   "chat.message.flow.copy_topic.created": "Copiat într-o conversație nouă",
   "chat.message.flow.copy_topic.label": "Copiază ca o nouă conversație",
