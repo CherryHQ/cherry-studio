@@ -235,6 +235,34 @@ describe('ProviderCustomHeaderDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['json', 'list'])('preserves reserved header names and primitive coercion in %s mode', async (mode) => {
+    const user = userEvent.setup()
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.copilot.toggle_headers_editor_json' }))
+    const textarea = screen.getByLabelText('settings.provider.copilot.custom_headers')
+    await user.clear(textarea)
+    await user.click(textarea)
+    await user.paste('{"__proto__":"literal","X-Count":42,"X-Flag":true,"X-Empty":null}')
+    if (mode === 'list') {
+      await user.click(screen.getByRole('button', { name: 'settings.provider.copilot.toggle_headers_editor_list' }))
+    }
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: {
+          extraHeaders: JSON.parse('{"__proto__":"literal","X-Count":"42","X-Flag":"true","X-Empty":""}')
+        }
+      })
+    })
+    const headers = updateProviderMock.mock.calls.at(-1)?.[0]?.providerSettings.extraHeaders
+    expect(Object.getOwnPropertyDescriptor(headers, '__proto__')?.value).toBe('literal')
+    expect(Object.getPrototypeOf(headers)).toBe(Object.prototype)
+  })
+
   it('persists JSON-mode clearing of all headers as explicit null merge-patch keys', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

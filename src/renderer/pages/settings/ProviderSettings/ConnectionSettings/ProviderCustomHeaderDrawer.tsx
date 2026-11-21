@@ -96,15 +96,15 @@ function headersObjectToRows(obj: Record<string, string>): HeaderRow[] {
 }
 
 function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
-  const out: Record<string, string> = {}
+  const out = new Map<string, string>()
   for (const row of rows) {
     const k = row.key.trim()
     if (!k) {
       continue
     }
-    out[k] = row.value
+    out.set(k, row.value)
   }
-  return out
+  return Object.fromEntries(out)
 }
 
 /**
@@ -137,8 +137,9 @@ function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string,
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { ok: false }
   }
-  const out: Record<string, string> = {}
-  for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+  const entries: Array<[string, unknown]> = Object.entries(parsed)
+  const out = new Map<string, string>()
+  for (const [key, val] of entries) {
     const kk = trim(key)
     if (!kk) {
       continue
@@ -146,9 +147,9 @@ function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string,
     if (val !== null && typeof val === 'object') {
       return { ok: false }
     }
-    out[kk] = val === null || val === undefined ? '' : String(val)
+    out.set(kk, val === null || val === undefined ? '' : String(val))
   }
-  return { ok: true, headers: out }
+  return { ok: true, headers: Object.fromEntries(out) }
 }
 export function resolveEndpointTypes(
   provider: { endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> } | null | undefined,
