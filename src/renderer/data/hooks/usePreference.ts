@@ -262,11 +262,12 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the semantic identity of `keys`
     [keysDep]
   )
-  const keyEntries = useMemo(() => Object.entries(stableKeys), [stableKeys])
+  type PreferenceValue = UnifiedPreferenceType[UnifiedPreferenceKeyType]
+  const keyEntries = useMemo(() => Object.entries<UnifiedPreferenceKeyType>(stableKeys), [stableKeys])
   const keyList = useMemo(() => keyEntries.map(([, key]) => key), [keyEntries])
 
   // Cache the last snapshot to avoid infinite loops
-  const lastSnapshotRef = useRef<Record<string, any>>({})
+  const lastSnapshotRef = useRef<Record<string, PreferenceValue | undefined>>({})
 
   const rawValues = useSyncExternalStore(
     useCallback(
@@ -284,11 +285,16 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
     useCallback(() => {
       // Check if any values have actually changed
       let hasChanged = Object.keys(lastSnapshotRef.current).length !== keyEntries.length
-      const newSnapshot: Record<string, any> = {}
+      const newSnapshot: Record<string, PreferenceValue | undefined> = {}
 
       for (const [localKey, prefKey] of keyEntries) {
         const currentValue = preferenceService.getCachedValue(prefKey)
-        newSnapshot[localKey] = currentValue
+        Object.defineProperty(newSnapshot, localKey, {
+          value: currentValue,
+          enumerable: true,
+          writable: true,
+          configurable: true
+        })
 
         if (
           !hasChanged &&
@@ -324,10 +330,15 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
 
   // Convert raw values (including undefined) to exposed values (with defaults)
   const exposedValues = useMemo(() => {
-    const result: Record<string, any> = {}
+    const result: Record<string, PreferenceValue> = {}
     for (const [localKey, prefKey] of keyEntries) {
       const rawValue = rawValues[localKey]
-      result[localKey] = rawValue !== undefined ? rawValue : getDefaultValue(prefKey)
+      Object.defineProperty(result, localKey, {
+        value: rawValue !== undefined ? rawValue : getDefaultValue(prefKey),
+        enumerable: true,
+        writable: true,
+        configurable: true
+      })
     }
     return result
   }, [keyEntries, rawValues])
@@ -337,14 +348,15 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
     async (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => {
       try {
         // Convert local keys back to preference keys
-        const prefUpdates: Record<string, any> = {}
-        for (const [localKey, value] of Object.entries(updates)) {
+        const entries: [UnifiedPreferenceKeyType, PreferenceValue | undefined][] = []
+        for (const [localKey, value] of Object.entries<PreferenceValue | undefined>(updates)) {
           const prefKey = stableKeys[localKey as keyof T]
           if (prefKey) {
-            prefUpdates[prefKey] = value
+            entries.push([prefKey, value])
           }
         }
 
+        const prefUpdates: Parameters<typeof preferenceService.setMultiple>[0] = Object.fromEntries(entries)
         await preferenceService.setMultiple(prefUpdates, options)
       } catch (error) {
         logger.error('Failed to update preferences:', error as Error)
@@ -354,7 +366,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
     [stableKeys, options]
   )
 
-  // Type-cast the values to the expected shape
+  // SAFETY: Each alias is paired with T's preference key, and its cached/default value comes from that key's owner.
   const typedValues = exposedValues as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
   return [typedValues, updateValues]
