@@ -4,6 +4,8 @@ import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { mockMemoryMigrationService } from '@test-mocks/main/MemoryMigrationService'
+import { mockMemoryService } from '@test-mocks/main/MemoryService'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +29,7 @@ const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   bypassApproval: 'lift'
 }).map(toMcpRuntimeName)
 const DELEGATION_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'delegation' }).map(toMcpRuntimeName)
-const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   mountedServers: NON_HOST_MCP_SERVERS
 })
@@ -159,6 +161,8 @@ vi.mock('@application', async () => {
       get: (name: string) => {
         if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
         if (name === 'ClaudeCodeSessionStateService') return sessionStateService
+        if (name === 'MemoryService') return mockMemoryService
+        if (name === 'MemoryMigrationService') return mockMemoryMigrationService
         if (name === 'AgentSessionRuntimeService') {
           try {
             return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
@@ -1816,7 +1820,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
-    // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
+    expect(settings.allowedTools).toContain('mcp__cherry-tools__cron')
+    expect(settings.allowedTools).not.toContain('mcp__agent-memory__memory')
   })
 
   it('does not auto-approve disabled MCP tools', async () => {

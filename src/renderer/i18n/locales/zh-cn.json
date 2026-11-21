@@ -190,6 +190,7 @@
   "agent.memory.edit": "编辑",
   "agent.memory.editor_label": "编辑 {{name}}",
   "agent.memory.empty": "这个文件还没有内容。",
+  "agent.memory.fact_migrated": "FACT 已迁移到私有记忆。此处保留旧文件，仅供查看。",
   "agent.memory.file.fact": "长期知识",
   "agent.memory.file.journal": "事件日志",
   "agent.memory.file.soul": "人格",

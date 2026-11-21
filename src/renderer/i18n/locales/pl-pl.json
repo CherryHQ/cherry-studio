@@ -192,6 +192,7 @@
   "agent.memory.edit": "Edytuj",
   "agent.memory.editor_label": "Edytuj {{name}}",
   "agent.memory.empty": "Ten plik jest pusty.",
+  "agent.memory.fact_migrated": "Plik FACT przeniesiono do pamięci prywatnej. Ta kopia służy do wglądu.",
   "agent.memory.file.fact": "Trwała wiedza",
   "agent.memory.file.journal": "Dziennik zdarzeń",
   "agent.memory.file.soul": "Osobowość",

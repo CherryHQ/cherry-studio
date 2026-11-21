@@ -190,6 +190,7 @@
   "agent.memory.edit": "Edit",
   "agent.memory.editor_label": "Edit {{name}}",
   "agent.memory.empty": "This file is empty.",
+  "agent.memory.fact_migrated": "FACT was migrated to private memory. This copy is kept for reference.",
   "agent.memory.file.fact": "Durable knowledge",
   "agent.memory.file.journal": "Event log",
   "agent.memory.file.soul": "Persona",

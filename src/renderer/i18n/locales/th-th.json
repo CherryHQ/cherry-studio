@@ -190,6 +190,7 @@
   "agent.memory.edit": "แก้ไข",
   "agent.memory.editor_label": "แก้ไข {{name}}",
   "agent.memory.empty": "ไฟล์นี้ว่างเปล่า",
+  "agent.memory.fact_migrated": "ย้าย FACT ไปยังหน่วยความจำส่วนตัวแล้ว สำเนานี้เก็บไว้สำหรับอ้างอิง",
   "agent.memory.file.fact": "ความรู้ระยะยาว",
   "agent.memory.file.journal": "บันทึกเหตุการณ์",
   "agent.memory.file.soul": "บุคลิกภาพ",

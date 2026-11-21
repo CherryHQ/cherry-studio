@@ -190,6 +190,7 @@
   "agent.memory.edit": "편집",
   "agent.memory.editor_label": "{{name}} 편집",
   "agent.memory.empty": "이 파일은 비어 있습니다.",
+  "agent.memory.fact_migrated": "FACT가 비공개 메모리로 이전되었습니다. 이 사본은 참고용입니다.",
   "agent.memory.file.fact": "장기 지식",
   "agent.memory.file.journal": "이벤트 로그",
   "agent.memory.file.soul": "페르소나",

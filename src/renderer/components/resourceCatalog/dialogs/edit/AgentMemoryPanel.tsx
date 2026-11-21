@@ -102,9 +102,11 @@ export function AgentMemoryPanel({
     ? null
     : selected.key === 'journal'
       ? 'agent.memory.journal_readonly'
-      : selected.truncated
-        ? 'agent.memory.truncated_readonly'
-        : null
+      : selected.key === 'fact' && snapshot?.factMigrated
+        ? 'agent.memory.fact_migrated'
+        : selected.truncated
+          ? 'agent.memory.truncated_readonly'
+          : null
   const canEdit = !!selected && readOnlyReason === null
 
   useEffect(() => {
@@ -191,8 +193,9 @@ export function AgentMemoryPanel({
       } else if (message.includes('AGENT_MEMORY_TOO_LARGE')) {
         toast.error(t('agent.memory.truncated_readonly'))
       } else if (message.includes('AGENT_MEMORY_READ_ONLY')) {
-        toast.error(t('agent.memory.journal_readonly'))
+        toast.error(t(selected.key === 'fact' ? 'agent.memory.fact_migrated' : 'agent.memory.journal_readonly'))
         cancelEdit()
+        await reload()
       } else {
         toast.error(t('agent.memory.save_failed'))
       }
@@ -356,7 +359,7 @@ export function AgentMemoryPanel({
                       value={file.key}
                       disabled={saving}
                       className="px-0 text-xs transition-colors">
-                      {t(FILE_LABEL_KEYS[file.key])}
+                      {file.key === 'fact' && snapshot?.factMigrated ? file.name : t(FILE_LABEL_KEYS[file.key])}
                     </TabsTrigger>
                   ))}
             </TabsList>

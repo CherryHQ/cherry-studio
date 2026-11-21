@@ -234,13 +234,14 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
   'agent.memory.read': async ({ agentId }) => {
     const { root, directory } = await resolveAgentDirectory(agentId)
     const files = await Promise.all(MEMORY_FILES.map((file) => readMemoryFile(root, directory, file)))
-    return { directory, files }
+    return { directory, files, factMigrated: application.get('MemoryMigrationService').isMigrated(agentId) }
   },
   'agent.memory.write': async ({ agentId, key, content, expectedVersion }) => {
     const file = MEMORY_FILES.find((candidate) => candidate.key === key)
     if (!file) throw new Error(`Unknown agent memory file: ${key}`)
     const { root, directory } = await resolveAgentDirectory(agentId)
-    return writeMemoryFile(root, directory, file, content, expectedVersion)
+    const write = () => writeMemoryFile(root, directory, file, content, expectedVersion)
+    return key === 'fact' ? application.get('MemoryMigrationService').withLegacyFactWrite(agentId, write) : write()
   },
   'agent.memory.open_folder': async ({ agentId }) => {
     const { directory } = await resolveAgentDirectory(agentId)

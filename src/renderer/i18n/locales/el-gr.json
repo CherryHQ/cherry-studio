@@ -190,6 +190,7 @@
   "agent.memory.edit": "Επεξεργασία",
   "agent.memory.editor_label": "Επεξεργασία {{name}}",
   "agent.memory.empty": "Αυτό το αρχείο είναι κενό.",
+  "agent.memory.fact_migrated": "Το FACT μεταφέρθηκε στην ιδιωτική μνήμη. Αυτό το αντίγραφο διατηρείται για αναφορά.",
   "agent.memory.file.fact": "Μόνιμη γνώση",
   "agent.memory.file.journal": "Αρχείο συμβάντων",
   "agent.memory.file.soul": "Προσωπικότητα",

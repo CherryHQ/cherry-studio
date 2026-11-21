@@ -12,6 +12,7 @@ import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
 import { mockFileIntakeService } from './FileIntakeService'
 import { MockMainFileManagerExport } from './FileManager'
+import { mockMemoryMigrationService } from './MemoryMigrationService'
 import { mockMemoryService } from './MemoryService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
@@ -125,6 +126,7 @@ export const defaultServiceInstances = {
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
   MemoryService: mockMemoryService,
+  MemoryMigrationService: mockMemoryMigrationService,
   AgentImportService: {
     pause: vi.fn(() => ({ dispose: vi.fn() })),
     drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),

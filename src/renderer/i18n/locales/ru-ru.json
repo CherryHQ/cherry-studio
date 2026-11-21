@@ -190,6 +190,7 @@
   "agent.memory.edit": "Редактировать",
   "agent.memory.editor_label": "Редактировать {{name}}",
   "agent.memory.empty": "Этот файл пуст.",
+  "agent.memory.fact_migrated": "Данные FACT перенесены в приватную память. Эта копия сохранена для справки.",
   "agent.memory.file.fact": "Долговременные знания",
   "agent.memory.file.journal": "Журнал событий",
   "agent.memory.file.soul": "Личность",

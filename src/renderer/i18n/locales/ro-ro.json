@@ -190,6 +190,7 @@
   "agent.memory.edit": "Editează",
   "agent.memory.editor_label": "Editează {{name}}",
   "agent.memory.empty": "Acest fișier este gol.",
+  "agent.memory.fact_migrated": "FACT a fost migrat în memoria privată. Această copie este păstrată pentru consultare.",
   "agent.memory.file.fact": "Cunoștințe durabile",
   "agent.memory.file.journal": "Jurnal de evenimente",
   "agent.memory.file.soul": "Personalitate",

@@ -190,6 +190,7 @@
   "agent.memory.edit": "編輯",
   "agent.memory.editor_label": "編輯 {{name}}",
   "agent.memory.empty": "這個檔案還沒有內容。",
+  "agent.memory.fact_migrated": "FACT 已遷移到私有記憶。此處保留舊檔案，僅供檢視。",
   "agent.memory.file.fact": "長期知識",
   "agent.memory.file.journal": "事件日誌",
   "agent.memory.file.soul": "人格",

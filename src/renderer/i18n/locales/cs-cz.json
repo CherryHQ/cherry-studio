@@ -190,6 +190,7 @@
   "agent.memory.edit": "Upravit",
   "agent.memory.editor_label": "Upravit {{name}}",
   "agent.memory.empty": "Tento soubor je prázdný.",
+  "agent.memory.fact_migrated": "Soubor FACT byl převeden do soukromé paměti. Tato kopie slouží pouze k nahlédnutí.",
   "agent.memory.file.fact": "Trvalé znalosti",
   "agent.memory.file.journal": "Protokol událostí",
   "agent.memory.file.soul": "Persona",

@@ -190,6 +190,7 @@
   "agent.memory.edit": "Düzenle",
   "agent.memory.editor_label": "{{name}} dosyasını düzenle",
   "agent.memory.empty": "Bu dosya boş.",
+  "agent.memory.fact_migrated": "FACT özel belleğe taşındı. Bu kopya başvuru amacıyla saklanır.",
   "agent.memory.file.fact": "Kalıcı bilgi",
   "agent.memory.file.journal": "Olay günlüğü",
   "agent.memory.file.soul": "Kişilik",

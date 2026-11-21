@@ -190,6 +190,7 @@
   "agent.memory.edit": "Modifier",
   "agent.memory.editor_label": "Modifier {{name}}",
   "agent.memory.empty": "Ce fichier est vide.",
+  "agent.memory.fact_migrated": "FACT a été migré vers la mémoire privée. Cette copie est conservée pour consultation.",
   "agent.memory.file.fact": "Connaissances durables",
   "agent.memory.file.journal": "Journal d'événements",
   "agent.memory.file.soul": "Personnalité",

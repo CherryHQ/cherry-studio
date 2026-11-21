@@ -190,6 +190,7 @@
   "agent.memory.edit": "Bearbeiten",
   "agent.memory.editor_label": "{{name}} bearbeiten",
   "agent.memory.empty": "Diese Datei ist leer.",
+  "agent.memory.fact_migrated": "FACT wurde in den privaten Speicher migriert. Diese Kopie dient zum Nachschlagen.",
   "agent.memory.file.fact": "Dauerhaftes Wissen",
   "agent.memory.file.journal": "Ereignisprotokoll",
   "agent.memory.file.soul": "Persönlichkeit",
