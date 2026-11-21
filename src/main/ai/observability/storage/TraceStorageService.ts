@@ -9,7 +9,7 @@ import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Attributes, SpanEntity } from '@shared/data/types/trace'
+import type { SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -196,7 +196,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.applyTraceMeta(spanEntity)
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
-    spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
+    spanEntity.attributes = span.attributes ? { ...span.attributes } : {}
     this.setRetainedEvents(spanEntity, span.events)
     spanEntity.links = span.links
     spanEntity.isEnd = true
