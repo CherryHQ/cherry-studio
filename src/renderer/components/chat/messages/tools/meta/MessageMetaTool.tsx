@@ -302,6 +302,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
 
 // ── Shared render helpers ──────────────────────────────────────────
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native and extension arguments have no shared value schema; formatArgValue safely formats each raw entry for display.
 const ArgsBlock: FC<{ args?: Record<string, unknown> }> = ({ args }) => {
   const { t } = useTranslation()
   const entries = useMemo(() => (args ? Object.entries(args) : []), [args])
@@ -330,6 +331,7 @@ const ResponseBlock: FC<{ title: string; children: React.ReactNode }> = ({ title
   </ResponseSectionStyled>
 )
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Meta-tool envelopes and inner arguments retain native values; field readers check strings and argument tables use safeToString.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
