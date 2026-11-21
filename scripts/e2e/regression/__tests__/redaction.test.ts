@@ -26,6 +26,7 @@ describe('sensitive output redaction', () => {
       [
         'Authorization: Bearer dynamic-access-token',
         'callback cherrystudio://oauth/callback?code=dynamic-code&state=dynamic-state',
+        'CherryIN redirects: /oauth/login?login_challenge=dynamic-login /oauth/consent?consent_challenge=dynamic-consent',
         "body: { key: 'dynamic-provider-key-1234567890', label: 'OAuth' }",
         'input: { "access_token": "dynamic-json-token", "key": "Escape" }'
       ].join('\n')
@@ -34,6 +35,8 @@ describe('sensitive output redaction', () => {
     expect(output).not.toContain('dynamic-access-token')
     expect(output).not.toContain('dynamic-code')
     expect(output).not.toContain('dynamic-state')
+    expect(output).not.toContain('dynamic-login')
+    expect(output).not.toContain('dynamic-consent')
     expect(output).not.toContain('dynamic-provider-key-1234567890')
     expect(output).not.toContain('dynamic-json-token')
     expect(output).toContain('"key": "Escape"')

@@ -9,7 +9,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { dismissOnboarding, selectConversationListOption, selectSidebarApp } from '../helpers/navigation'
 import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -30,6 +30,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
   }
   const preferences = await page.evaluate(async () => ({
     mode: await window.api.preference.get('agent.session.display_mode'),
+    sort: await window.api.preference.get('agent.session.sort'),
     position: await window.api.preference.get('agent.session.position'),
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
@@ -177,6 +178,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
         await page.evaluate(async () => ({
           position: await window.api.preference.get('agent.session.position'),
           mode: await window.api.preference.get('agent.session.display_mode'),
+          sort: await window.api.preference.get('agent.session.sort'),
           panels: [...document.querySelectorAll('[data-testid="resource-list-session"]')].map((panel) => ({
             visible: panel.getClientRects().length > 0,
             width: panel.getBoundingClientRect().width,
@@ -195,6 +197,10 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
     await assertUnique()
+    await selectConversationListOption(list(), 'Sort by', 'Manually')
+    await expect
+      .poll(() => page.evaluate(() => window.api.preference.get('agent.session.sort')))
+      .toEqual({ by: 'orderKey' })
     const before = (await pins()).map((pin) => pin.entityId)
     const desired = [...before].reverse()
     const firstName = sessions.find((session) => session.id === before[0])!.name
@@ -255,6 +261,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
       async ({ preferences, ids }) => {
         await window.api.preference.setMultiple({
           'agent.session.display_mode': preferences.mode,
+          'agent.session.sort': preferences.sort,
           'agent.session.position': preferences.position,
           'menu.presentation_mode': preferences.menuMode
         })

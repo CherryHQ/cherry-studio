@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.8.0
+
+### Minor Changes
+
+- [#24429](https://github.com/CherryHQ/cherry-studio/pull/24429) [`f309588`](https://github.com/CherryHQ/cherry-studio/commit/f309588a91210158dc1ba0ab83b71b7675ccd71a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Seedream 5.5 image generation support.
+
 ## 0.7.1
 
 ### Patch Changes
