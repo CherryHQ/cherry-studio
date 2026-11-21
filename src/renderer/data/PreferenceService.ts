@@ -23,7 +23,7 @@ const logger = loggerService.withContext('PreferenceService')
  * - Integration with React's useSyncExternalStore
  */
 export class PreferenceService {
-  private cache: Record<string, any> = {}
+  private cache: Partial<UnifiedPreferenceType> = {}
 
   private allChangesListeners = new Set<() => void>()
   private keyChangeListeners = new Map<string, Set<() => void>>()
@@ -283,7 +283,7 @@ export class PreferenceService {
 
         // Update cache with new results
         for (const [key, value] of Object.entries(uncachedResults)) {
-          this.cache[key as UnifiedPreferenceKeyType] = value
+          Object.assign(this.cache, { [key]: value })
 
           this.notifyChangeListeners(key)
         }
@@ -349,7 +349,7 @@ export class PreferenceService {
    */
   private async setMultipleOptimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     const batchRequestId = this.generateRequestId()
-    const originalValues: Record<string, any> = {}
+    const originalValues: Partial<UnifiedPreferenceType> = {}
     const keysToUpdate = Object.keys(updates) as UnifiedPreferenceKeyType[]
 
     // For batch updates, we need to check for existing optimistic states
@@ -361,7 +361,7 @@ export class PreferenceService {
 
     // Update cache immediately and track original values
     for (const [key, value] of Object.entries(updates)) {
-      this.cache[key as UnifiedPreferenceKeyType] = value
+      Object.assign(this.cache, { [key]: value })
       this.notifyChangeListeners(key)
     }
 
@@ -410,7 +410,7 @@ export class PreferenceService {
 
       // Update local cache for all updated values after successful database update
       for (const [key, value] of Object.entries(updates)) {
-        this.cache[key as UnifiedPreferenceKeyType] = value
+        Object.assign(this.cache, { [key]: value })
         this.notifyChangeListeners(key)
       }
 
@@ -577,7 +577,7 @@ export class PreferenceService {
 
       // Update local cache with all preferences
       for (const [key, value] of Object.entries(allPreferences)) {
-        this.cache[key as UnifiedPreferenceKeyType] = value
+        Object.assign(this.cache, { [key]: value })
 
         // Notify change listeners for the loaded value
         this.notifyChangeListeners(key)
