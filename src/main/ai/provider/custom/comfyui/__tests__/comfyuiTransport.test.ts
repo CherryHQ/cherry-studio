@@ -1,9 +1,10 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { createComfyuiTransport, parseVersion } from '../comfyuiTransport'
-import type { ObjectInfo } from '../uiToApiPrompt'
+import type { ConversionResult, ObjectInfo } from '../uiToApiPrompt'
 import { respond, stallingResponse } from './comfyuiTransport.harness'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -128,13 +129,13 @@ describe('ComfyuiTransport', () => {
   })
 
   it('reports a rejected workflow without waiting for a remote cleanup that has nothing to clean', async () => {
-    const posts: { url: string; body: Record<string, any> }[] = []
+    const posts: { url: string; body: JSONObject }[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
       if (url.includes('/userdata/')) return respond(workflow)
       if (init?.method === 'POST') {
-        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, any> })
+        posts.push({ url, body: JSON.parse(String(init.body)) })
         if (url.includes('/prompt')) return new Response('workflow rejected', { status: 400 })
         // Every cleanup request stalls: the failure must not wait for them.
         return new Promise<Response>(() => {})
@@ -164,13 +165,13 @@ describe('ComfyuiTransport', () => {
   })
 
   it('names the prompt it submits and dequeues it when the answer never arrives', async () => {
-    const posts: { url: string; body: Record<string, any> }[] = []
+    const posts: { url: string; body: JSONObject }[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
       if (url.includes('/userdata/')) return respond(workflow)
       if (init?.method === 'POST') {
-        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, any> })
+        posts.push({ url, body: JSON.parse(String(init.body)) })
         if (url.includes('/prompt')) {
           // Accepted by the server, answer never arrives.
           return new Promise<Response>((_resolve, reject) => {
@@ -204,7 +205,7 @@ describe('ComfyuiTransport', () => {
     await vi.advanceTimersByTimeAsync(50)
 
     const promptPost = posts.find((post) => post.url.includes('/prompt'))
-    const requestedId = promptPost?.body.prompt_id as string
+    const requestedId = promptPost?.body.prompt_id
     // ComfyUI v0.37+ rejects a `prompt_id` that is not a canonical UUID.
     expect(requestedId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     const dequeued = posts.find((post) => post.url.includes('/queue') && Array.isArray(post.body.delete))
@@ -250,7 +251,7 @@ describe('ComfyuiTransport', () => {
   it('uploads attached files and assigns them to LoadImage nodes in workflow order', async () => {
     const uploads: FormData[] = []
     const filenames: string[] = []
-    let prompt: Record<string, any> | undefined
+    let prompt: ConversionResult['prompt'] | undefined
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
@@ -262,7 +263,7 @@ describe('ComfyuiTransport', () => {
           subfolder: uploads.length === 1 ? 'edits' : ''
         })
       }
-      prompt = JSON.parse(String(init?.body)).prompt as Record<string, any>
+      prompt = JSON.parse(String(init?.body)).prompt
       return respond({ prompt_id: 'pid-1' })
     })
     const files = [
@@ -294,7 +295,7 @@ describe('ComfyuiTransport', () => {
   })
 
   it('hands a Comfy API key to partner nodes in extra_data, and never as a header', async () => {
-    const bodies: Record<string, any>[] = []
+    const bodies: JSONObject[] = []
     const headers: unknown[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -319,12 +320,12 @@ describe('ComfyuiTransport', () => {
   })
 
   it('writes the prompt into the branch of an If/Else Switch that reaches the encoder', async () => {
-    const posts: Record<string, any>[] = []
+    const posts: JSONObject[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
       if (url.includes('/userdata/')) return respond(switchWorkflow)
-      posts.push(JSON.parse(String(init?.body)) as Record<string, any>)
+      posts.push(JSON.parse(String(init?.body)))
       return respond({ prompt_id: 'pid-1' })
     })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
@@ -333,9 +334,9 @@ describe('ComfyuiTransport', () => {
 
     // The switch is off, so the text it holds is what the encoder reads: the
     // run's prompt replaces that, not the branch the switch never evaluates.
-    expect(posts[0].prompt['1'].inputs.on_false).toBe('a cat')
-    expect(posts[0].prompt['1'].inputs.switch).toBe(false)
-    expect(posts[0].prompt['3'].inputs.text).toBe('the text a Generate Text node would make')
+    expect(posts[0]).toHaveProperty('prompt.1.inputs.on_false', 'a cat')
+    expect(posts[0]).toHaveProperty('prompt.1.inputs.switch', false)
+    expect(posts[0]).toHaveProperty('prompt.3.inputs.text', 'the text a Generate Text node would make')
   })
 
   it('redraws a seed the workflow set to randomize, unless the run names one', async () => {
@@ -487,12 +488,12 @@ describe('a submit is bounded by the request deadline', () => {
   }
 
   it('runs a workflow that holds no text as it was saved', async () => {
-    const posts: Record<string, any>[] = []
+    const posts: Array<Pick<ConversionResult, 'prompt'>> = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
       if (url.includes('/userdata/')) return respond(textFreeWorkflow)
-      posts.push(JSON.parse(String(init?.body)) as Record<string, any>)
+      posts.push(JSON.parse(String(init?.body)))
       return respond({ prompt_id: 'pid-1' })
     })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
@@ -502,7 +503,7 @@ describe('a submit is bounded by the request deadline', () => {
     // Nothing carries the prompt, and nothing carries the run's seed either:
     // with no prompt target there is no node the run owns, so the workflow goes
     // out exactly as it was saved.
-    const graph = posts[0].prompt as Record<string, { inputs: Record<string, unknown> }>
+    const graph = posts[0].prompt
     expect(Object.values(graph).some((node) => Object.values(node.inputs).includes('a cat'))).toBe(false)
     expect(graph['2'].inputs.seed).toBe(0)
   })
