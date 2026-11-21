@@ -1,5 +1,5 @@
 /**
- * Embedding inference entry (transformers.js / Qwen3-Embedding), one process per app.
+ * Embedding inference entry (transformers.js), one process per app.
  */
 
 import type { EmbeddingInferenceContract } from '@main/ai/localModel/runtime/inferenceProcess'

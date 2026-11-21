@@ -25,7 +25,7 @@ class LocalEmbeddingModel implements EmbeddingModelV3 {
   async doEmbed(
     options: Parameters<EmbeddingModelV3['doEmbed']>[0]
   ): Promise<Awaited<ReturnType<EmbeddingModelV3['doEmbed']>>> {
-    const embeddings = await embedTexts(options.values, options.abortSignal)
+    const embeddings = await embedTexts(this.modelId, options.values, options.abortSignal)
     return { embeddings, warnings: [] }
   }
 }

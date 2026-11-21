@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +9,17 @@ import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import type * as DataApiModule from '@renderer/data/hooks/useDataApi'
 import { useConversationTabTitleChangeSync, useTabsContext } from '@renderer/hooks/tab'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+
+let normalTabsValue: Tab[] = []
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCache: (key: string) => {
+    if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
+    if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]
+    return [[], vi.fn()]
+  },
+  usePersistCacheReader: () => () => []
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() },
@@ -101,10 +111,7 @@ function renderShell(extra: React.ReactNode) {
 }
 
 beforeEach(() => {
-  MockUseCacheUtils.resetMocks()
-  MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [])
-  MockUseCacheUtils.setPersistCacheValue('ui.tab.pinned_tabs', [])
-  MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'home')
+  normalTabsValue = []
   changeListeners.clear()
 })
 
@@ -116,11 +123,7 @@ describe('useConversationTabTitleChangeSync', () => {
   it('relabels a tab when another window renames its conversation', async () => {
     // A rename in another window only reaches this one as a DataApi change notification, which
     // carries no name — the label has to follow the row it points at.
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [
-      HOME_TAB,
-      chatTab('tab-a', 'Old A', 'topic-a'),
-      chatTab('tab-b', 'Other B', 'topic-b')
-    ])
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a'), chatTab('tab-b', 'Other B', 'topic-b')]
     const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Other-window A' })
     renderShell(<CrossWindowRenameSync />)
 
@@ -140,7 +143,7 @@ describe('useConversationTabTitleChangeSync', () => {
   it('drops a delayed cross-window rename after the tab navigated away', async () => {
     // The read-back resolves after the user navigated tab-a to another conversation;
     // the stale name must not overwrite the tab's current binding.
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')])
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')]
     let resolveGet: ((row: unknown) => void) | undefined
     const get = vi
       .spyOn(dataApiService, 'get')
@@ -173,7 +176,7 @@ describe('useConversationTabTitleChangeSync', () => {
   it('drops a pending rename whose writer unmounted before it landed', async () => {
     // History starts renaming A, then closes; the pending mutation lands after the writer's
     // snapshot stopped advancing, so its write would stamp A's name over a tab now showing B.
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')])
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a')]
     let resolveGet: ((row: unknown) => void) | undefined
     const get = vi
       .spyOn(dataApiService, 'get')
@@ -200,11 +203,7 @@ describe('useConversationTabTitleChangeSync', () => {
 
   it('ignores a non-Chat route that happens to carry the same query key', async () => {
     const stray: Tab = { ...chatTab('tab-x', 'Notes', 'topic-a'), url: '/app/notes?topicId=topic-a' }
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [
-      HOME_TAB,
-      chatTab('tab-a', 'Old A', 'topic-a'),
-      stray
-    ])
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Old A', 'topic-a'), stray]
     const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: 'Renamed A' })
     renderShell(<CrossWindowRenameSync />)
 
@@ -219,7 +218,7 @@ describe('useConversationTabTitleChangeSync', () => {
 
   it('leaves the label alone when the committed name is blank', async () => {
     // An untitled conversation falls back to its assistant name, owned by the page.
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [HOME_TAB, chatTab('tab-a', 'Original A', 'topic-a')])
+    normalTabsValue = [HOME_TAB, chatTab('tab-a', 'Original A', 'topic-a')]
     const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a', name: '' })
     renderShell(<CrossWindowRenameSync />)
 
@@ -238,7 +237,7 @@ describe('useConversationTabTitleChangeSync', () => {
   ])('keeps the newest name when overlapping $kind renames resolve out of order', async ({ endpoint, tab }) => {
     // Rename to X, then another window commits Y: the read-back for X lands last
     // and must not restore the older name over the newer one.
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [HOME_TAB, tab])
+    normalTabsValue = [HOME_TAB, tab]
     const resolvers: Array<(row: unknown) => void> = []
     const get = vi
       .spyOn(dataApiService, 'get')
