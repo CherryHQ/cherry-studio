@@ -3,8 +3,9 @@ import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } fro
 import kokoroRelease from './kokoro-v1.1.json'
 import mlxNodeRelease from './mlxNodeRelease.json'
 import qwen3AsrRelease from './qwen3AsrRelease.json'
+import sherpaAsrRelease from './sherpaAsrRelease.json'
 import sherpaRuntimeRelease from './sherpaRuntimeRelease.json'
-import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
+import type { BundleFile, ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
  * Single source of truth for everything installable locally: which bundles exist,
@@ -196,6 +197,70 @@ export const SHARED_ARTIFACTS = {
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
+/** Silero VAD shared by the sherpa-onnx ASR bundles; speech is decoded segment by segment. */
+const SILERO_VAD_FILE = {
+  key: 'voiceActivityDetector',
+  relPath: 'silero_vad.onnx',
+  sha256: 'a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28',
+  sizeBytes: 1_807_522,
+  minBytes: 1_000_000,
+  weight: 2,
+  sources: [
+    {
+      source: 'huggingface',
+      repo: 'csukuangfj/vad',
+      revision: 'fba88cd2e921609e7675c3aaf51e0b9b295da4bc',
+      remoteFile: 'silero_vad.onnx'
+    },
+    {
+      source: 'hf-mirror',
+      repo: 'csukuangfj/vad',
+      revision: 'fba88cd2e921609e7675c3aaf51e0b9b295da4bc',
+      remoteFile: 'silero_vad.onnx'
+    }
+  ]
+} as const
+
+/** A multilingual sherpa-onnx ASR export pinned to one Hugging Face revision, plus the shared VAD. */
+function sherpaAsrBundle(
+  id: LocalModelBundleId,
+  release: (typeof sherpaAsrRelease)[keyof typeof sherpaAsrRelease],
+  installDirKey: 'feature.asr.parakeet',
+  architecture: 'nemo-transducer',
+  license: { spdx: string; url: string }
+): ModelBundle {
+  return {
+    id,
+    capability: 'asr',
+    installDirKey,
+    requires: ['sherpa-onnx'],
+    runtime: { architecture },
+    provenance: {
+      license,
+      upstream: release.upstream,
+      conversion: {
+        url: `https://huggingface.co/${release.repo}`,
+        revision: release.revision,
+        license: { spdx: 'Apache-2.0', url: 'https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE' }
+      }
+    },
+    files: [
+      ...release.files.map(
+        (file): BundleFile => ({
+          ...file,
+          minBytes: file.sizeBytes,
+          weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+          sources: [
+            { source: 'huggingface', repo: release.repo, revision: release.revision, remoteFile: file.relPath },
+            { source: 'hf-mirror', repo: release.repo, revision: release.revision, remoteFile: file.relPath }
+          ]
+        })
+      ),
+      { ...SILERO_VAD_FILE, sources: [...SILERO_VAD_FILE.sources] }
+    ]
+  }
+}
+
 export const LOCAL_MODEL_BUNDLES = {
   'kokoro-multi-lang-v1.1': {
     id: 'kokoro-multi-lang-v1.1',
@@ -234,6 +299,13 @@ export const LOCAL_MODEL_BUNDLES = {
       ]
     }))
   },
+  'parakeet-tdt-0.6b-v3-int8': sherpaAsrBundle(
+    'parakeet-tdt-0.6b-v3-int8',
+    sherpaAsrRelease.parakeet,
+    'feature.asr.parakeet',
+    'nemo-transducer',
+    { spdx: 'CC-BY-4.0', url: 'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3' }
+  ),
   'qwen3-asr-1.7b-8bit': {
     id: 'qwen3-asr-1.7b-8bit',
     capability: 'asr',

@@ -84,6 +84,7 @@ const writeModelFiles = async (llmMetadata?: Buffer, encoderMetadata?: Buffer) =
   return {
     engine: 'sherpa' as const,
     modelPaths: {
+      kind: 'funasr-nano' as const,
       encoder,
       llm,
       embedding: path.join(modelsDir, 'embedding.onnx'),

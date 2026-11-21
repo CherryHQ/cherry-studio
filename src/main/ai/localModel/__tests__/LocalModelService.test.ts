@@ -86,7 +86,15 @@ describe('lifecycle', () => {
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
     expect(swept).toEqual(
-      [EMBEDDING, OCR, ASR, 'qwen3-asr-1.7b-8bit', 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort()
+      [
+        EMBEDDING,
+        OCR,
+        ASR,
+        'parakeet-tdt-0.6b-v3-int8',
+        'qwen3-asr-1.7b-8bit',
+        'qwen3-tts-0.6b-customvoice-8bit',
+        'kokoro-multi-lang-v1.1'
+      ].sort()
     )
   })
 
