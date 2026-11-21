@@ -14,8 +14,9 @@ export function getIconDisplayConfig(
   iconId: string | undefined
 ): IconDisplayConfig | undefined {
   if (!iconId) return undefined
+  const providerMetrics = getProviderIconAssetMetrics({ kind: 'provider', iconId })
+  if (context === 'provider-list' && providerMetrics.kind === 'full-canvas') return { scale: 1 }
   const isTile =
-    getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile' ||
-    getProviderIconAssetMetrics({ kind: 'model', iconId }).kind === 'tile'
+    providerMetrics.kind === 'tile' || getProviderIconAssetMetrics({ kind: 'model', iconId }).kind === 'tile'
   return isTile ? { scale: 1, borderRadius: context === 'mini-app' ? 10 : 5 } : defaultIcon
 }
