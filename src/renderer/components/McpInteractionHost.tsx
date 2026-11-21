@@ -58,6 +58,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
   const { t } = useTranslation()
   const params = (current.payload as { params?: ElicitationParams })?.params ?? {}
   const schema = params.requestedSchema
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Server defaults remain unvalidated until the requested form schema is checked on acceptance; preserve them for the controls and validator.
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     Object.fromEntries(
       Object.entries(schema?.properties ?? {})
@@ -90,11 +91,11 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
     if (requestId === current.requestId) active.current = false
   })
 
-  const setValue = (name: string, value: NonNullable<ElicitResult['content']>[string] | undefined) =>
+  const setValue = (name: string, value: NonNullable<ElicitResult['content']>[string] | unknown[] | undefined) =>
     setValues((previous) => {
+      if (value !== undefined) return { ...previous, [name]: value }
       const next = { ...previous }
-      if (value === undefined) delete next[name]
-      else next[name] = value
+      delete next[name]
       return next
     })
 
@@ -158,6 +159,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
               const options = choices(field)
               const multiOptions = field.items && choices(field.items)
               const required = schema?.required?.includes(name)
+              const value = Object.hasOwn(values, name) ? values[name] : undefined
               return (
                 <div key={name} className="space-y-2">
                   <Label htmlFor={id}>
@@ -168,16 +170,12 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                   {field.type === 'boolean' ? (
                     <Checkbox
                       id={id}
-                      checked={values[name] === undefined ? 'indeterminate' : values[name] === true}
+                      checked={value === undefined ? 'indeterminate' : value === true}
                       onCheckedChange={(value) => setValue(name, value === true)}
                     />
                   ) : options ? (
                     <Select
-                      value={
-                        values[name] === undefined
-                          ? ''
-                          : String(options.findIndex((option) => option.const === values[name]))
-                      }
+                      value={value === undefined ? '' : String(options.findIndex((option) => option.const === value))}
                       onValueChange={(value) => setValue(name, options[Number(value)]?.const)}>
                       <SelectTrigger id={id}>
                         <SelectValue />
@@ -193,7 +191,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                   ) : field.type === 'array' && multiOptions ? (
                     <div className="space-y-2">
                       {multiOptions.map((option) => {
-                        const selected = Array.isArray(values[name]) ? (values[name] as string[]) : []
+                        const selected: unknown[] = Array.isArray(value) ? value : []
                         return (
                           <Label key={option.const} className="flex items-center gap-2">
                             <Checkbox
@@ -216,7 +214,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                     <Input
                       id={id}
                       required={required}
-                      value={values[name] === undefined ? '' : String(values[name])}
+                      value={value === undefined ? '' : String(value)}
                       type={
                         field.type === 'number' || field.type === 'integer'
                           ? 'number'
@@ -241,7 +239,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                       }
                     />
                   )}
-                  {!required && values[name] !== undefined && (
+                  {!required && value !== undefined && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => setValue(name, undefined)}>
                       {t('common.clear')}
                     </Button>
