@@ -18,7 +18,13 @@ function parseResultUrl(url: string): { hostname: string; domain: string } {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  action?: unknown
+  type?: unknown
+  query?: unknown
+  url?: unknown
+  pattern?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
