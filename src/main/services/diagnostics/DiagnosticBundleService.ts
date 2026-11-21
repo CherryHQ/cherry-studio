@@ -39,8 +39,11 @@ import {
 import { cherryDiagnosticUploadClient } from './CherryDiagnosticUploadClient'
 import {
   buildScanReport,
+  collectCredentialLogRecords,
   collectErrorLogRecords,
   diagnose,
+  providerCredentialExposedRule,
+  SCAN_RULES,
   SCAN_REPORT_ARCHIVE_NAME,
   serializeScanReport
 } from './scan'
@@ -852,8 +855,7 @@ export class DiagnosticBundleService {
       }
     }
 
-    // Mechanical error scan over the raw error logs. Gated on includeLogs so the
-    // report cannot leak log contents the user opted out of; failure never blocks export.
+    // Scan error logs and credential-shaped values in staged regular logs. Failure never blocks export.
     let scanReportJson: string | undefined
     let scan:
       | { status: 'included'; findingCount: number; truncated: boolean; skippedFileCount: number }
@@ -862,14 +864,20 @@ export class DiagnosticBundleService {
     if (input.includeLogs) {
       try {
         const scanned = await collectErrorLogRecords(application.getPath('app.logs'), range)
-        const findings = diagnose(scanned.records)
+        const credentialScan = await collectCredentialLogRecords(staged)
+        const findings = [
+          ...diagnose(scanned.records, {
+            rules: SCAN_RULES.filter((rule) => rule.id !== providerCredentialExposedRule.id)
+          }),
+          ...diagnose([...scanned.records, ...credentialScan.records], { rules: [providerCredentialExposedRule] })
+        ].sort((a, b) => b.count - a.count || a.ruleId.localeCompare(b.ruleId))
         scanReportJson = serializeScanReport(
           buildScanReport(findings, {
             range,
-            scannedRecordCount: scanned.records.length,
+            scannedRecordCount: scanned.records.length + credentialScan.scannedRecordCount,
             unparsedLineCount: scanned.unparsedLineCount,
             skippedFileCount: scanned.skippedFileCount,
-            truncated: scanned.truncated
+            truncated: scanned.truncated || credentialScan.truncated
           })
         )
         // an incomplete scan must be visible in the manifest: triage should not have to open
@@ -877,7 +885,7 @@ export class DiagnosticBundleService {
         scan = {
           status: 'included',
           findingCount: findings.length,
-          truncated: scanned.truncated,
+          truncated: scanned.truncated || credentialScan.truncated,
           skippedFileCount: scanned.skippedFileCount
         }
       } catch (error) {

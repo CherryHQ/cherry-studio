@@ -1,3 +1,5 @@
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
+
 import type { DiagnosticTimeRange } from '../types'
 import { SCAN_RULES } from './rules/registry'
 import type { ErrorLogScan, Finding, FindingEvidence, LogRecord, ScanReport, ScanRule } from './types'
@@ -23,7 +25,7 @@ function moduleMatches(recordModule: string, allowed: readonly string[]): boolea
 }
 
 function matches(rule: ScanRule, record: LogRecord, text: string): boolean {
-  if (rule.levels && !rule.levels.includes(record.level)) return false
+  if (!(rule.levels ?? ['error', 'warn']).includes(record.level)) return false
   // records without module predate the logger fix — degrade to anchors instead of going blind
   if (rule.modules && record.module !== undefined && !moduleMatches(record.module, rule.modules)) return false
   if (!rule.anchors.every((anchor) => anchor.test(text))) return false
@@ -33,7 +35,12 @@ function matches(rule: ScanRule, record: LogRecord, text: string): boolean {
 
 function toEvidence(record: LogRecord): FindingEvidence {
   const stackFirstLine = record.stack?.split('\n', 1)[0]
-  const excerpt = [record.message.slice(0, EXCERPT_MESSAGE_CHARS), stackFirstLine?.slice(0, EXCERPT_STACK_CHARS)]
+  const safeExcerpt = (text: string, limit: number): string =>
+    redactSecretTokens(redactSecretText(text)).slice(0, limit)
+  const excerpt = [
+    safeExcerpt(record.message, EXCERPT_MESSAGE_CHARS),
+    stackFirstLine && safeExcerpt(stackFirstLine, EXCERPT_STACK_CHARS)
+  ]
     .filter(Boolean)
     .join(' | ')
   return {

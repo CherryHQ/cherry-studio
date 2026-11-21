@@ -8,6 +8,7 @@ import {
   redactLiteral,
   redactRecord,
   redactSecretText,
+  redactSecretTokens,
   redactServerKey,
   redactUrlParams,
   redactUrlToOrigin
@@ -319,6 +320,31 @@ describe('redactSecretText', () => {
     const message = realTomlParseErrorMessage(`api_key = "sk-ant-don't-SECRET"\nbroken=====`)
     expect(message).toContain('SECRET') // sanity: the real message does leak it pre-redaction
     expect(redactSecretText(message)).not.toContain('SECRET')
+  })
+})
+
+describe('redactSecretTokens', () => {
+  const keyBody = 'MC4CAQAwBQYDK2VwBCIEIIJ0r5k4mQvVZ8xH2kYk0mQvZ8xH2kYk0mQvZ8xH2kYk'
+
+  it('redacts a complete PEM private key', () => {
+    const text = `-----BEGIN RSA PRIVATE KEY-----\n${keyBody}\n-----END RSA PRIVATE KEY-----`
+    expect(redactSecretTokens(text)).not.toContain(keyBody)
+  })
+
+  it('redacts a footerless PEM private key instead of leaking the whole body', () => {
+    // Log lines truncate: a BEGIN header without its END footer still carries the key.
+    const text = `ERROR provider rejected key -----BEGIN PRIVATE KEY-----\n${keyBody}`
+    const redacted = redactSecretTokens(text)
+    expect(redacted).not.toContain(keyBody)
+    expect(redacted.startsWith('ERROR provider rejected key ')).toBe(true)
+  })
+
+  it('redacts each key when a complete block precedes a footerless one', () => {
+    const text = `first -----BEGIN PRIVATE KEY-----\n${keyBody}\n-----END PRIVATE KEY----- middle -----BEGIN PRIVATE KEY-----\n${keyBody}`
+    const redacted = redactSecretTokens(text)
+    expect(redacted).not.toContain(keyBody)
+    expect(redacted).toContain('first ')
+    expect(redacted).toContain(' middle ')
   })
 })
 

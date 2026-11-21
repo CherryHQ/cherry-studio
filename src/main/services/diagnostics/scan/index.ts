@@ -1,3 +1,5 @@
 export { buildScanReport, diagnose, SCAN_REPORT_ARCHIVE_NAME, serializeScanReport } from './engine'
-export { collectErrorLogRecords } from './logFileSource'
+export { collectCredentialLogRecords, collectErrorLogRecords } from './logFileSource'
+export { SCAN_RULES } from './rules/registry'
+export { providerCredentialExposedRule } from './rules/provider'
 export type { DiagnosticDomain } from './types'
