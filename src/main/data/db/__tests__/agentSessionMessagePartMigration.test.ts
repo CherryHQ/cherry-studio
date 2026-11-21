@@ -37,7 +37,7 @@ const SHIPPED_TRIGGERS = [
 ]
 
 describe('agent session message part migration (0042)', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0042_regular_riptide' })
+  const dbh = setupTestDatabase({ beforeMigration: '0043_agent_session_message_part' })
 
   const ftsIds = (term: string) =>
     (

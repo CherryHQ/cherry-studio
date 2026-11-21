@@ -1,6 +1,3 @@
-import { getToolName, isToolUIPart } from 'ai'
-import { v4 as uuidv4 } from 'uuid'
-
 /**
  * Multimodal image support for Markdown file exports.
  *
@@ -14,6 +11,9 @@ import { v4 as uuidv4 } from 'uuid'
  * Failure policy: a single image that fails to resolve or read is skipped and
  * counted — export never aborts because of one image.
  */
+import { getToolName, isToolUIPart } from 'ai'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { ExportableMessage } from '@renderer/types/messageExport'

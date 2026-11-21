@@ -54,6 +54,10 @@ export function bindNativeInput(sessionId: string, contextId: string, input: Inp
   if (!messageId) return undefined
   const binding = messages.inputBinding(sessionId, messageId)
   if (binding?.contextId !== contextId) return undefined
+  if (input.facts.includes('locally-handled'))
+    application
+      .get('DbService')
+      .withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, sessionId, messageId, contextId))
   if (input.nativeInput && binding.nativeInputId !== input.nativeInput.id) {
     const nativeInputId = input.nativeInput.id
     application
@@ -61,6 +65,35 @@ export function bindNativeInput(sessionId: string, contextId: string, input: Inp
       .withWriteTx((tx) => messages.bindNativeInputTx(tx, sessionId, messageId, contextId, nativeInputId))
   }
   return messageId
+}
+
+/**
+ * The product terminal for a Durable input outcome; the live turn and every host settle path share it.
+ * @returns `undefined` while the input has no outcome.
+ */
+export function nativeOutcomeTerminal(
+  input: Pick<InputState, 'outcome' | 'error'>
+): { status: 'success' | 'paused' } | { status: 'error'; error: Error } | undefined {
+  switch (input.outcome) {
+    case 'completed':
+      return { status: 'success' }
+    case 'aborted':
+      return { status: 'paused' }
+    case 'failed':
+    case 'unanswered':
+      return {
+        status: 'error',
+        error: Object.assign(new Error(input.error?.message ?? input.outcome), {
+          reason: input.error?.code,
+          ...(input.error?.code === 'output-truncated' && {
+            finishReason: 'length',
+            i18nKey: 'output_token_limit_reached'
+          })
+        })
+      }
+    default:
+      return undefined
+  }
 }
 
 export function applyNativeSubmissionResult(sessionId: string, contextId: string, result: SubmitResult): void {

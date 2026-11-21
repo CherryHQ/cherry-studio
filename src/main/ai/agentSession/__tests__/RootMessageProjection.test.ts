@@ -55,6 +55,26 @@ const text = (id: string, value: string): CherryUIMessage => ({
   parts: [{ type: 'text', text: value, state: 'done' }]
 })
 
+it('keeps identified data part IDs when their source reorders or replaces them', () => {
+  const f = fixture()
+  const replyId = f.reply()
+  const part = (id: string): CherryUIMessage['parts'][number] => ({
+    type: 'data-error',
+    id,
+    data: { name: 'Error', message: id, stack: null }
+  })
+  const project = (ids: string[]) =>
+    f.projection.accept(f.update([{ id: 'native', role: 'assistant', parts: ids.map(part) }]), replyId)
+  project(['first', 'second'])
+  const [first, second] = f.projection.partIds(replyId)!
+  project(['second', 'first'])
+  expect(f.projection.partIds(replyId)).toEqual([second, first])
+  project(['second', 'new'])
+  const [retained, replacement] = f.projection.partIds(replyId)!
+  expect(retained).toBe(second)
+  expect(replacement).not.toBe(first)
+})
+
 it.each(['connected', 'reconnected'])(
   'keeps a deleted reply out of %s projection replay and the next reply',
   (mode) => {
@@ -648,6 +668,36 @@ it('migrates saved block ownership without duplicating content or changing the p
   expect(Object.keys(restored.checkpoint().root.sources)).toEqual(['uuid'])
   expect(restored.checkpoint().root.version).toBe(2)
   expect(restored.accept(update).size).toBe(0)
+})
+
+// Child approvals have no native root part; their task attribution must survive projection.
+it('preserves the source metadata of an unprojected child approval', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('root-answer', 'Delegating work')]), id)
+  const metadata = {
+    cherry: {
+      transport: 'pi-agent',
+      parentToolCallId: 'spawn',
+      commandPolicy: { cwd: '/work', revision: '1', reason: 'Risky command', rules: [] }
+    }
+  }
+  f.projection.control(id, {
+    type: 'tool-input-available',
+    toolCallId: 'child-shell',
+    toolName: 'bash',
+    input: { command: 'pwd' },
+    providerExecuted: true,
+    providerMetadata: metadata
+  })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'child-shell', approvalId: 'approval-child' })
+  expect(f.projection.parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'child-shell', callProviderMetadata: metadata })
+  )
+  f.save(id)
+  expect(new RootMessageProjection(f.context.id).parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'child-shell', callProviderMetadata: metadata })
+  )
 })
 
 // The approval request can arrive before its tool source; keep enough input to render the card.

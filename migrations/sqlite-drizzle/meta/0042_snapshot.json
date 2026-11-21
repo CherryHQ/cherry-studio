@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "89a6459c-c71a-4485-b63e-fab2db4e90dc",
-  "prevId": "76fd64ea-a03b-443c-a3eb-bc3f483eb0e3",
+  "id": "fcb906a7-54ac-4430-b094-6c67b5d2fb3a",
+  "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1111,115 +1111,6 @@
         }
       }
     },
-    "agent_session_message_part": {
-      "name": "agent_session_message_part",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "message_id": {
-          "name": "message_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_session_message_part_message_seq_uniq": {
-          "name": "agent_session_message_part_message_seq_uniq",
-          "columns": [
-            "message_id",
-            "seq"
-          ],
-          "isUnique": true
-        },
-        "agent_session_message_part_session_idx": {
-          "name": "agent_session_message_part_session_idx",
-          "columns": [
-            "session_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_session_message_part_message_id_agent_session_message_id_fk": {
-          "name": "agent_session_message_part_message_id_agent_session_message_id_fk",
-          "tableFrom": "agent_session_message_part",
-          "tableTo": "agent_session_message",
-          "columnsFrom": [
-            "message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_session_message_part_session_id_agent_session_id_fk": {
-          "name": "agent_session_message_part_session_id_agent_session_id_fk",
-          "tableFrom": "agent_session_message_part",
-          "tableTo": "agent_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "agent_session_message": {
       "name": "agent_session_message",
       "columns": {
@@ -1310,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -140,6 +140,40 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
+/**
+ * Whether the strings and kept keys alone exceed `limit` characters; JSON spends at least one UTF-8 byte on each.
+ * Undefined when a cycle or `toJSON` leaves the answer to serialization.
+ */
+function textExceeds(value: unknown, limit: number): boolean | undefined {
+  let remaining = limit
+  const path = new Set<object>()
+  const visit = (node: unknown): boolean | undefined => {
+    if (typeof node === 'string') return (remaining -= node.length) < 0
+    if (node === null || typeof node !== 'object') return false
+    if (path.has(node) || typeof (node as { toJSON?: unknown }).toJSON === 'function') return undefined
+    path.add(node)
+    try {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const exceeds = visit(item)
+          if (exceeds !== false) return exceeds
+        }
+        return false
+      }
+      for (const [key, child] of Object.entries(node)) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol') continue
+        if ((remaining -= key.length) < 0) return true
+        const exceeds = visit(child)
+        if (exceeds !== false) return exceeds
+      }
+      return false
+    } finally {
+      path.delete(node)
+    }
+  }
+  return visit(value)
+}
+
 /** Serialize an oversized payload for reuse in transport checks and revision hashing. */
 function serializeOversizedToolOutput(output: unknown): string | undefined {
   if (output === undefined || output === null) return undefined
@@ -154,14 +188,21 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
   }
 }
 
-/** Whether a serialized payload exceeds the renderer transport budget. */
+/** Whether a payload exceeds the renderer transport budget. */
 function exceedsToolOutputTransportLimit(output: unknown): boolean {
+  try {
+    // Decides large payloads without serializing them; only small ones are measured exactly.
+    if (textExceeds(output, DEFER_TOOL_OUTPUT_BYTES)) return true
+  } catch {
+    // Nesting too deep to walk is too deep to serialize, so the output stays inline.
+    return false
+  }
   return serializeOversizedToolOutput(output) !== undefined
 }
 
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null || isDeferredToolOutput(output)) return false
-  return serializeOversizedToolOutput(output) !== undefined
+  return exceedsToolOutputTransportLimit(output)
 }
 
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
@@ -169,7 +210,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (skeleton === undefined) return deferred
 
   const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
-  if (serializeOversizedToolOutput(projected) === undefined) return projected
+  if (!exceedsToolOutputTransportLimit(projected)) return projected
 
   const entities = Array.isArray(skeleton)
     ? skeleton

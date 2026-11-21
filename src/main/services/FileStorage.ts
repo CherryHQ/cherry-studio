@@ -1,12 +1,3 @@
-import * as fs from 'fs'
-import { writeFileSync } from 'fs'
-import { readFile } from 'fs/promises'
-import * as path from 'path'
-
-import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { BrowserWindow, dialog, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
-
 /**
  * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
  * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
@@ -22,6 +13,15 @@ import { v4 as uuidv4 } from 'uuid'
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
  * already `@deprecated` and slated for deletion, changing v1 behavior instead of
  * migrating it. The casts only feed `getFileType` (extension reads). */
+import * as fs from 'fs'
+import { writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
+import * as path from 'path'
+
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'

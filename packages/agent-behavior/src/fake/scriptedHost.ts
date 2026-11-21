@@ -3,7 +3,6 @@ import type { ToolCallFact } from '../core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
-  ApprovalOutcome,
   CallRef,
   HostSettingsSnapshot,
   ModelFacts,
@@ -75,48 +74,22 @@ function createAnswers<T>() {
   }
 }
 
-const outcomeOf = (call: CallRef, answer: ApprovalAnswer): ApprovalOutcome => {
-  if (answer.kind === 'granted') return { call, state: 'granted' }
-  if (answer.kind === 'unavailable') return { call, state: 'unavailable' }
-  return answer.feedback === undefined
-    ? { call, state: 'denied' }
-    : { call, state: 'denied', feedback: answer.feedback }
-}
-
 export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
   let settings = options.settings
   const counts = { approvals: 0, questions: 0, verdicts: 0 }
   const approvalAnswers = createAnswers<ApprovalAnswer>()
   const questionAnswers = createAnswers<QuestionAnswer>()
   const verdicts = createAnswers<VerifierVerdict>()
-  const outcomes = new Map<string, ApprovalOutcome>()
   const emitted: BehaviorEvent[] = []
   const saved: OutputFile[] = []
-  const outcomeId = (call: CallRef) => `${call.thread}\u0000${call.key}`
 
   return {
     approvals: {
       facts: async (call, tool) => options.approvalFacts?.(call, tool) ?? DEFAULT_APPROVAL_FACTS,
-      ask: ({ call }, signal) => {
+      ask: (_request, signal) => {
         counts.approvals += 1
-        outcomes.set(outcomeId(call), { call, state: 'pending' })
-        return approvalAnswers.take(signal).then(
-          (answer) => {
-            outcomes.set(outcomeId(call), outcomeOf(call, answer))
-            return answer
-          },
-          (error: unknown) => {
-            outcomes.delete(outcomeId(call))
-            throw error
-          }
-        )
-      },
-      outcomes: async (thread, calls) =>
-        [...outcomes.values()].filter(
-          (outcome) =>
-            outcome.call.thread === thread &&
-            (calls.length === 0 || calls.some((call) => outcomeId(call) === outcomeId(outcome.call)))
-        )
+        return approvalAnswers.take(signal)
+      }
     },
     questions: {
       ask: (_request, signal) => {
