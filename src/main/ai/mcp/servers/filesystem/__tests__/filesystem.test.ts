@@ -80,13 +80,53 @@ describe('filesystem MCP preset root', () => {
 
     expect(toolText(result)).toContain('configured note')
   })
+
+  it('uses every configured root for filesystem tools', async () => {
+    const firstRoot = await createTempDir('filesystem-first-root-')
+    const secondRoot = await createTempDir('filesystem-second-root-')
+    await fs.writeFile(path.join(firstRoot, 'first.txt'), 'first match')
+    await fs.writeFile(path.join(secondRoot, 'second.txt'), 'second match')
+
+    expect(toolText(await lsTool({ path: secondRoot }, [firstRoot, secondRoot]))).toContain('second.txt')
+    expect(toolText(await lsTool({ path: firstRoot }, [secondRoot, firstRoot]))).toContain('first.txt')
+    expect(
+      toolText(await readTool({ file_path: path.join(secondRoot, 'second.txt') }, [firstRoot, secondRoot]))
+    ).toContain('second match')
+    await writeTool({ file_path: path.join(secondRoot, 'written.txt'), content: 'written' }, [firstRoot, secondRoot])
+    await expect(fs.readFile(path.join(secondRoot, 'written.txt'), 'utf-8')).resolves.toBe('written')
+    expect(toolText(await globTool({ pattern: '*.txt', path: secondRoot }, [firstRoot, secondRoot]))).toContain(
+      'second.txt'
+    )
+    expect(
+      toolText(await callFsTool('grep', { pattern: 'second match', path: secondRoot }, [firstRoot, secondRoot]))
+    ).toContain('second match')
+  })
 })
 
 describe('filesystem MCP security', () => {
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
-    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
-    expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
+    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toEqual(['C:/args-root'])
+    expect(resolveFilesystemBaseDir(['C:/args-root', '', 'D:/args-root'], {})).toEqual(['C:/args-root', 'D:/args-root'])
+    expect(resolveFilesystemBaseDir(['C:/args-root', 'D:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toEqual([
+      'C:/env-root'
+    ])
     expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
+  })
+
+  it('rejects traversal and symlink escapes from every configured root', async () => {
+    const firstRoot = await createTempDir('filesystem-first-security-root-')
+    const secondRoot = await createTempDir('filesystem-second-security-root-')
+    const outsideRoot = await createTempDir('filesystem-multi-outside-')
+    const outsideFile = path.join(outsideRoot, 'secret.txt')
+    await fs.writeFile(outsideFile, 'secret')
+    await fs.symlink(outsideFile, path.join(secondRoot, 'escape-link'))
+
+    await expect(validatePath(path.join(secondRoot, 'escape-link'), [firstRoot, secondRoot])).rejects.toThrow(
+      'outside the configured workspace root'
+    )
+    await expect(validatePath(path.join(outsideFile, '..', 'secret.txt'), [firstRoot, secondRoot])).rejects.toThrow(
+      'outside the configured workspace root'
+    )
   })
 
   it('allows paths inside the configured root and rejects paths outside it', async () => {

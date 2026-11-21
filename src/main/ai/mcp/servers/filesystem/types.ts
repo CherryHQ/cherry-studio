@@ -42,20 +42,35 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string | string[]): Promise<string> {
   const expandedPath = expandHome(requestedPath)
-  const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
-
-  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+  const roots = (Array.isArray(baseDir) ? baseDir : [baseDir ?? process.cwd()]).map(expandHome)
+  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(roots[0], expandedPath)
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
-  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
+  const insideRoot = resolvedPath
+    ? await Promise.all(
+        roots.map(async (root) => {
+          const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+          // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
+          return resolvedRoot && !isOutsidePath(path.relative(resolvedRoot, resolvedPath))
+        })
+      ).then((results) => results.some(Boolean))
+    : false
+  if (!insideRoot) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
   return resolvedPath
+}
+
+export function relativeToRoot(validPath: string, baseDir: string | string[]): string {
+  const roots = Array.isArray(baseDir) ? baseDir : [baseDir]
+  const root = roots.find((candidate) => {
+    const relative = path.relative(path.resolve(expandHome(candidate)), validPath)
+    return !isOutsidePath(relative)
+  })
+  return root ? path.relative(expandHome(root), validPath) : validPath
 }
 
 // ============================================================================
