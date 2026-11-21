@@ -78,6 +78,6 @@ export interface ContextMessage {
    * text placeholders instead of shipping binary payloads.
    */
   attachments?: Attachment[]
-  /** Allow provider-specific or adapter pass-through fields without loss */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Adapters may add fields outside the shared IR contract; retain them without claiming a common value schema.
   [key: string]: unknown
 }

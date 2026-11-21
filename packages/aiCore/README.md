@@ -231,6 +231,10 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 
 `transformParams` 必须返回完整参数，返回值会直接交给后续插件，不再与输入隐式合并。旧插件返回 `{ temperature: 0.5 }` 时，需要迁移为 `return { ...params, temperature: 0.5 }`；无需修改时可直接 `return params`。返回值省略的字段会被移除。此公开插件契约变更不兼容旧的局部补丁插件，需要升级所有自定义插件。
 
+`AiRequestContext` 未声明的扩展字段和 `providerToolPlugin` 按 Provider 动态分发的配置值使用 `unknown`；读取其内部字段前，需要由拥有该字段或配置的插件收窄类型。已声明的上下文字段保持原有类型。
+
+`TypedProviderOptions` 的自定义命名空间遵循 AI SDK 的共享 JSON 选项契约。`mergeProviderOptions` 递归合并对象，后传入的标量和数组覆盖先前值；保留 `__proto__` 等字面名称为普通对象的自有数据属性，不合并继承字段，也不修改输入。
+
 创建自定义插件非常简单：
 
 ```typescript

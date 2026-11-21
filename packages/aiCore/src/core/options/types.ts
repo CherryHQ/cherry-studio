@@ -1,13 +1,13 @@
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import { type GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import { type OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import { type SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import { type SharedV3ProviderOptions } from '@ai-sdk/provider'
 import { type XaiProviderOptions } from '@ai-sdk/xai'
 import { type OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 
 /**
  * Known provider options map for type-safe providerOptions construction.
- * Providers not listed here accept arbitrary Record<string, any>.
+ * Other providers use the SDK's shared JSON options contract.
  */
 type ProviderOptionsMap = {
   openai: OpenAIResponsesProviderOptions
@@ -19,10 +19,8 @@ type ProviderOptionsMap = {
 
 /**
  * Type-safe ProviderOptions.
- * Known providers use strict types; unknown providers allow Record<string, any>.
+ * Known providers use their SDK types; other namespaces use shared provider options.
  */
 export type TypedProviderOptions = {
   [K in keyof ProviderOptionsMap]?: ProviderOptionsMap[K]
-} & {
-  [K in string]?: Record<string, any>
-} & SharedV3ProviderMetadata
+} & SharedV3ProviderOptions

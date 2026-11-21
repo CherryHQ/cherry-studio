@@ -1,21 +1,21 @@
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
+
 import type { TypedProviderOptions } from './types'
 
-type PlainObject = Record<string, any>
-
-const isPlainObject = (value: unknown): value is PlainObject => {
+const isPlainObject = (value: JSONValue | undefined): value is JSONObject => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function deepMergeObjects<T extends PlainObject>(target: T, source: PlainObject): T {
-  const result: PlainObject = { ...target }
+function deepMergeObjects(target: JSONObject, source: JSONObject): JSONObject {
+  const result: JSONObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
-    if (isPlainObject(value) && isPlainObject(result[key])) {
-      result[key] = deepMergeObjects(result[key], value)
-    } else {
-      result[key] = value
-    }
+    const merged =
+      Object.hasOwn(result, key) && isPlainObject(value) && isPlainObject(result[key])
+        ? deepMergeObjects(result[key], value)
+        : value
+    Object.defineProperty(result, key, { value: merged, enumerable: true, configurable: true, writable: true })
   })
-  return result as T
+  return result
 }
 
 /**
@@ -51,12 +51,12 @@ export function mergeProviderOptions(...optionsMap: Partial<TypedProviderOptions
       if (!providerOptions) {
         return
       }
-      if (acc[providerId]) {
-        acc[providerId] = deepMergeObjects(acc[providerId] as PlainObject, providerOptions as PlainObject)
-      } else {
-        acc[providerId] = providerOptions as any
-      }
+      const merged =
+        Object.hasOwn(acc, providerId) && acc[providerId]
+          ? deepMergeObjects(acc[providerId], providerOptions)
+          : providerOptions
+      Object.defineProperty(acc, providerId, { value: merged, enumerable: true, configurable: true, writable: true })
     })
     return acc
-  }, {} as TypedProviderOptions)
+  }, {})
 }

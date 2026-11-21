@@ -8,6 +8,28 @@ const opts = (o: Record<string, Record<string, unknown>>): Partial<TypedProvider
   o as Partial<TypedProviderOptions>
 
 describe('mergeProviderOptions', () => {
+  it('preserves reserved namespaces and nested keys as own fields without mutating inputs', () => {
+    const firstText = '{"__proto__":{"nested":{"left":1}},"custom":{"__proto__":{"left":1},"constructor":{"left":1}}}'
+    const secondText =
+      '{"__proto__":{"nested":{"right":2}},"custom":{"__proto__":{"right":2},"constructor":{"right":2}}}'
+    const first = JSON.parse(firstText)
+    const second = JSON.parse(secondText)
+
+    const merged = mergeProviderOptions(first, second)
+
+    expect(merged).toEqual(
+      JSON.parse(
+        '{"__proto__":{"nested":{"left":1,"right":2}},"custom":{"__proto__":{"left":1,"right":2},"constructor":{"left":1,"right":2}}}'
+      )
+    )
+    expect(Object.hasOwn(merged, '__proto__')).toBe(true)
+    expect(Object.hasOwn(merged.custom, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(merged.custom)).toBe(Object.prototype)
+    expect(first).toEqual(JSON.parse(firstText))
+    expect(second).toEqual(JSON.parse(secondText))
+  })
+
   it('deep merges provider options for the same provider', () => {
     const reasoningOptions: Partial<TypedProviderOptions> = {
       openrouter: { reasoning: { enabled: true, effort: 'medium' } }
