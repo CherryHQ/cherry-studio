@@ -511,9 +511,8 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -542,9 +541,8 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -562,9 +560,8 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
