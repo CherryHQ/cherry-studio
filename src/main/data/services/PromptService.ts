@@ -172,9 +172,7 @@ export class PromptService {
       content: PromptContentSchema.parse(phrase.content),
       visibility: 'restricted' as const
     }))
-    const prompts = insertManyWithOrderKey(tx, promptTable, promptValues, { pkColumn: promptTable.id }) as Array<
-      typeof promptTable.$inferSelect
-    >
+    const prompts = insertManyWithOrderKey(tx, promptTable, promptValues, { pkColumn: promptTable.id })
     insertManyWithOrderKey(
       tx,
       promptBindingTable,
@@ -231,7 +229,7 @@ export class PromptService {
         this.assertBindingTargetExistsTx(tx, dto.bindingTarget)
       }
 
-      const inserted = insertWithOrderKey(
+      const row = insertWithOrderKey(
         tx,
         promptTable,
         {
@@ -241,7 +239,6 @@ export class PromptService {
         },
         { pkColumn: promptTable.id }
       )
-      const row = inserted as typeof promptTable.$inferSelect
 
       if (dto.bindingTarget) {
         insertWithOrderKey(

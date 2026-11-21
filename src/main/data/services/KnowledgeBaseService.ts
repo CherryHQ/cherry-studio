@@ -423,7 +423,7 @@ export class KnowledgeBaseService {
         pkColumn: knowledgeBaseTable.id,
         position: 'first',
         scope: dto.groupId ? eq(knowledgeBaseTable.groupId, dto.groupId) : isNull(knowledgeBaseTable.groupId)
-      }) as KnowledgeBaseRow
+      })
     })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })

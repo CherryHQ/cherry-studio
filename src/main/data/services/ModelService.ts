@@ -993,7 +993,7 @@ class ModelService {
             const inserted = insertManyWithOrderKey(tx, userModelTable, scopedValues, {
               pkColumn: userModelTable.id,
               scope: eq(userModelTable.providerId, providerId)
-            }) as UserModelRow[]
+            })
             results.push(...inserted)
           }
           return results

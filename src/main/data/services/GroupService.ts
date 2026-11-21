@@ -120,7 +120,7 @@ export class GroupService {
       }
     )
 
-    return rowToGroup(inserted as GroupRow)
+    return rowToGroup(inserted)
   }
 
   /**
@@ -144,7 +144,7 @@ export class GroupService {
       defaultHandlersFor('Group', dto.name)
     )
 
-    const mapped = rowToGroup(row as GroupRow)
+    const mapped = rowToGroup(row)
     logger.info('Created group', { id: mapped.id, entityType: mapped.entityType })
     return mapped
   }
