@@ -587,7 +587,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.visibility.global.label': 'Use globally',
           'settings.title': 'Settings'
         })[key] ??
-        (key.startsWith('agent.memory.')
+        (key.startsWith('agent.memory.') ||
+        key.startsWith('library.config.agent.field.env_vars.ignored_') ||
+        key === 'library.config.agent.field.env_vars.unsupported_runtime'
           ? memoryI18n.t(key, typeof fallbackOrOptions === 'object' ? fallbackOrOptions : {})
           : undefined) ??
         (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
@@ -2178,6 +2180,84 @@ describe('edit dialogs', () => {
         permission_mode: 'plan'
       })
     )
+  })
+
+  it.each([
+    { type: 'pi' as const, value: 'PI_MODEL=secret-value\nOK=kept', names: 'PI_MODEL', message: 'will not be applied' },
+    {
+      type: 'pi-durable' as const,
+      value: 'FIRST=secret-value\nSECOND=kept',
+      names: 'FIRST, SECOND',
+      message: 'does not apply'
+    }
+  ])('warns about ignored $type keys without losing saved entries', async ({ type, value, names, message }) => {
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, type }} onOpenChange={vi.fn()} />)
+    selectTab('Advanced')
+    fireEvent.change(screen.getByRole('textbox'), { target: { value } })
+    const warning = await screen.findByRole('status')
+    expect(warning).toHaveTextContent(names)
+    expect(warning).toHaveTextContent(message)
+    expect(warning).not.toHaveTextContent('secret-value')
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    expect(vi.mocked(updateAgentMock).mock.calls.at(-1)?.[0].body.configuration?.env_vars).toEqual(
+      type === 'pi' ? { PI_MODEL: 'secret-value', OK: 'kept' } : { FIRST: 'secret-value', SECOND: 'kept' }
+    )
+  })
+
+  it('warns about ignored PI keys when the default model is cleared without exposing values', async () => {
+    const originalQuery = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, ...args: unknown[]) =>
+      path === '/models/' || path === '/providers/:providerId'
+        ? { data: undefined, isLoading: false }
+        : originalQuery(path, ...args)
+    )
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, model: null }} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }))
+    await user.type(screen.getByRole('textbox'), 'PI_MODEL=secret-value')
+
+    const warning = await screen.findByRole('status')
+    expect(warning).toHaveTextContent('PI_MODEL')
+    expect(warning).not.toHaveTextContent('secret-value')
+  })
+
+  it('defers conditional Claude warnings when the default model is cleared', async () => {
+    const originalQuery = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, ...args: unknown[]) =>
+      path === '/models/' || path === '/providers/:providerId'
+        ? { data: undefined, isLoading: false }
+        : originalQuery(path, ...args)
+    )
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...AGENT, model: null }} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }))
+    await user.type(screen.getByRole('textbox'), 'ANTHROPIC_CUSTOM_HEADERS=secret')
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('updates conditional Claude warnings as provider resolution changes', async () => {
+    const originalQuery = useQueryMock.getMockImplementation()!
+    let authMethods: string[] | undefined = undefined
+    let pending = false
+    useQueryMock.mockImplementation((path: string, ...args: unknown[]) =>
+      path === '/providers/:providerId'
+        ? { data: pending ? undefined : { id: 'provider', authMethods }, isLoading: pending }
+        : originalQuery(path, ...args)
+    )
+    const dialog = <AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />
+    const { rerender } = render(dialog)
+    selectTab('Advanced')
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'ANTHROPIC_CUSTOM_HEADERS=secret' } })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    authMethods = ['external-cli']
+    rerender(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    expect(await screen.findByRole('status')).toHaveTextContent('ANTHROPIC_CUSTOM_HEADERS')
+    pending = true
+    rerender(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('projects pi capabilities without exposing Claude-only fields', async () => {
