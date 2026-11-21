@@ -39,6 +39,9 @@ src/main/services/file/
 │   ├── FileObservationService.ts
 │   └── WatchScope.ts
 ├── watcher.ts
+├── watcherProtocol.ts
+├── watcherWorker.ts
+├── nativeWatcher.ts
 ├── tree/
 │   ├── DirectoryTreeManager.ts
 │   └── builder.ts
@@ -79,7 +82,7 @@ src/renderer/components/chat/panes/
 |---|---|
 | Main `observation/FileObservationService.ts` | 生命周期服务，持有物理 scope、进程内租约、renderer 订阅、失效修订号与观察健康状态 |
 | Main `observation/WatchScope.ts` | 每个 scope 的私有实例，封装 `DirectoryWatcher`、就绪、引用计数与关闭；不是另一个服务／单例 |
-| Main `watcher.ts` | chokidar 适配器及现有 dangling 存在性联动；原生实例只由 WatchScope 持有 |
+| Main `watcher.ts`、`watcherProtocol.ts`、`watcherWorker.ts`、`nativeWatcher.ts` | Main 适配器及 dangling 存在性联动；服务持有一个共用 Worker 线程，在其中执行原生 scope 创建、过滤、回退及关闭 |
 | Main `tree/builder.ts` 与 `tree/DirectoryTreeManager.ts` | 获取观察租约，保留扫描／索引／投影和现有 renderer 交接协议，向上传递新鲜度丢失与基线重置 |
 | Main `ipc/handlers/fileObservation.ts` | 薄的所有者／句柄适配器，经现有文件边界解析 entry/path 请求，再委托观察服务 |
 | Shared `ipc/schemas/fileObservation.ts` | 拥有请求／事件 schema 及推导的传输类型，接入 `ipcSchemas.ts` 和 `src/main/ipc/handlers/ipcHandlers.ts`，不增加第二套 preload API |
@@ -91,6 +94,14 @@ src/renderer/components/chat/panes/
 | 文件面板树／面板和现有编辑消费者 | 消费上述能力；删除重复的懒加载列表缓存／握手，以及按文件大小失效预览的逻辑 |
 
 新增运行时代码全部放在现有进程分类下。Main 现有 file barrel 是公共边界，`observation/` 不建立嵌套 barrel。renderer 的 observation topic 只暴露一个显式重导出 barrel，并用规则封闭深导入。`DirectoryTreeSession.ts` 保持为扁平的多实例类。跨进程类型从 shared schema 推导，scope 账本留在 Main，renderer 的读取状态留在 renderer。
+
+### 原生监听器的执行位置
+
+chokidar 关闭时的同步部分必须离开 Main。一次 Electron trace 显示，终端清理期间关闭工作区树让 Main 阻塞了 2.77 秒；renderer 本身仍能执行，但无关输入和 IPC 被延迟。把 close 包在 Promise 或定时器里仍会在原位置执行阻塞调用。
+
+`FileObservationService` 持有一个按需创建的 `DirectoryWatcherHost` 及其 Node Worker。各 scope 共用线程，保留 chokidar 对重叠句柄的复用，同时保留各自的过滤、健康状态和关闭回执。结构化过滤传递已加载的 gitignore 快照，不执行序列化函数，也不扩大监听范围。最后一个租约释放时立即停止 Main 事件投递，再等待原生关闭，包括回退时退役的句柄。服务退出还会等待 Worker 退出。Worker 意外退出会让已有 scope 不可用；后续获取会启动替代线程。
+
+每个 scope 一个线程会增加隔离区数量，并失去 chokidar 在 scope 之间的句柄复用。独立 OS 进程会为只需要事件循环隔离的任务增加进程边界；终端的进程模型与这项决策独立。
 
 ### 为什么拆出观察服务
 
@@ -235,6 +246,9 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 
 ## 验证
 
+- Regression — `watcher.lifecycle.test.ts`：原生关闭阻塞时调用方仍能响应；scope 关闭等待回执；scope 共用一个线程；服务关闭等待 Worker 退出；意外退出先使覆盖失效，再启动替代线程。
+- Regression — `watcher.errors.test.ts` 和 `watcher.test.ts`：polling 回退保留事件投递，最终清理等待退役句柄，Worker 过滤保留与扫描相同的已加载 gitignore 快照、否定规则及强制 `.git` 排除。
+- Regression — macOS Electron 45.2.2 原生关闭重放与原生采样：大工作区的关闭在监听线程中执行，Main 仍持续响应 IPC；较小的 scope 完成了原生关闭及 Worker 退出。大 scope 随后确认关闭，全部 scope／待清理注册表归零；同一 Worker 随后成功观察并释放新的 scope。这验证了释放与复用，不能证明原生释放变快。
 - AC1 — `useArtifactFileTreeModel.observation.test.tsx` 与真实 Electron 重放：折叠超过空闲释放期后，外部删建文件，再展开直接采用替换快照，无需后续事件。
 - AC2 — `FileObservationService.test.ts`、`FilePreview.observation.test.tsx` 与真实 Electron：关闭树后的等长写入、原子替换、删除／重建、显式隐藏／工作区外路径，以及符号链接绑定变化。
 - AC3 — `FileEditSessionManager.test.ts`、切换消费者测试与真实 Electron：独立的干净／脏实例接纳磁盘变化，或保留自己的草稿并暴露冲突；写入失败、响应丢失和冲突会取消较新的待执行自动保存，同时保留草稿。
@@ -248,6 +262,7 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 
 ## 后果
 
+- 缓慢的原生关闭可能延迟观察线程上其他 scope 的处理。Main 保持响应；清理仍须等待原生确认，定时器不能证明资源已释放。
 - 拆开 scope 与投影生命周期后，可能遗留租约，或在其他消费者仍有需求时关闭 watcher。迁移现有原生资源所有权，保留显式租约释放，验证树／预览的释放顺序与窗口清理；不能继续保留 builder 原有的 watcher 路径。
 - 共享物理观察可能意外扩大递归范围或改变过滤。只共享兼容 scope，并在真实代码工作区测量原生句柄／扫描行为。
 - 首次读取／激活／恢复的竞争可能发布过期内容。保留现有交接协议，验证具体竞争路径，不依赖只统计回调次数的 mock。

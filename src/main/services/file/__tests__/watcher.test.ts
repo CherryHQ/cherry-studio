@@ -12,8 +12,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { createDirectoryWatcher } = await import('../watcher')
+const { createDirectoryWatcher, DirectoryWatcherHost } = await import('../watcher')
 const { danglingCache } = await import('../danglingCache')
+const { loadGitignorePredicate } = await import('../tree/gitignore')
 
 import type { CreateDirectoryWatcherOptions, DirectoryWatcher, WatcherEvent } from '../watcher'
 
@@ -59,16 +60,18 @@ const waitForEvent = (
   })
 
 describe('createDirectoryWatcher', () => {
+  let host: InstanceType<typeof DirectoryWatcherHost>
   let dir: string
   let watchers: DirectoryWatcher[]
 
   const watchDirectory = (options?: CreateDirectoryWatcherOptions): DirectoryWatcher => {
-    const watcher = createDirectoryWatcher(dir as AbsoluteFilePath, options)
+    const watcher = createDirectoryWatcher(dir as AbsoluteFilePath, options ?? {}, host)
     watchers.push(watcher)
     return watcher
   }
 
   beforeEach(async () => {
+    host = new DirectoryWatcherHost()
     watchers = []
     // Windows TEMP can use an 8.3 alias that libuv cannot match to long-path events.
     dir = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-fm-watcher-')))
@@ -77,6 +80,7 @@ describe('createDirectoryWatcher', () => {
 
   afterEach(async () => {
     await Promise.all(watchers.map((watcher) => watcher.close()))
+    await host.close()
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -229,6 +233,31 @@ describe('createDirectoryWatcher', () => {
     },
     35_000
   )
+
+  it('transfers the loaded gitignore rules while preserving explicit negation and the forced .git exclusion', async () => {
+    await writeFile(path.join(dir, '.gitignore'), 'blocked.txt\n!node_modules/\n!.git/\n')
+    await mkdir(path.join(dir, 'node_modules'))
+    await mkdir(path.join(dir, '.git'))
+    const predicate = await loadGitignorePredicate(dir)
+    expect(predicate).not.toBeNull()
+    const watcher = watchDirectory({
+      filter: { kind: 'tree', root: dir, includeHidden: true, missingRoot: false, gitignoreRules: predicate?.rules }
+    })
+    await waitForReady(watcher)
+    const events: WatcherEvent[] = []
+    watcher.onEvent((event) => events.push(event))
+    // Later disk changes must not replace the snapshot shared with the tree's scan.
+    await writeFile(path.join(dir, '.gitignore'), 'allowed.txt\n')
+    const allowed = path.join(dir, 'node_modules', 'allowed.txt')
+    const added = waitForEvent(watcher, (event) => event.kind === 'add' && event.path === allowed)
+    await writeFile(path.join(dir, 'blocked.txt'), 'ignored')
+    await writeFile(path.join(dir, '.git', 'internal.txt'), 'ignored')
+    await writeFile(allowed, 'visible')
+    await added
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(events.some((event) => 'path' in event && event.path.endsWith('/blocked.txt'))).toBe(false)
+    expect(events.some((event) => 'path' in event && event.path.includes('/.git/'))).toBe(false)
+  })
 
   it('close() is idempotent and stops further event delivery', async () => {
     const w = watchDirectory({ stabilityThresholdMs: 0 })
