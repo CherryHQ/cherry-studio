@@ -6168,6 +6168,7 @@
   "settings.tool.websearch.provider_description.searxng": "Bezplatný metavyhledávač, který lze provozovat na vlastním serveru a který shromažďuje výsledky z mnoha zdrojů.",
   "settings.tool.websearch.provider_description.serpkite": "Vyhledávací API SerpKite, které pro AI agenty vrací výsledky Google jako strukturovaný JSON.",
   "settings.tool.websearch.provider_description.serply": "Vyhledávací API Serply, které pro AI aplikace vrací výsledky Google jako strukturovaný JSON.",
+  "settings.tool.websearch.provider_description.sofya": "Webové vyhledávací API Sofya pro AI aplikace, které ke každému výsledku vrací text stránky.",
   "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.tavily": "Vyhledávač optimalizovaný pro LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "Vyhledávací API Tencent Yuanbao. Vyžaduje API klíč služby. Počet výsledků je horní limit, služba jich může vrátit méně.",
