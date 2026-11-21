@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-quick-assistant-windows-focus.md
+2026-11-04-quick-assistant-windows-focus.md: 8d6736d6140c533d93acb15cc1b74f47b4d84570
+2026-11-04-quick-assistant-windows-focus.zh.md: e6fe8f021d9e08d6c8e5b07fe19d950a172aec77
