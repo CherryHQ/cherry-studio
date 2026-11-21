@@ -26,7 +26,7 @@ const diagnosis: DiagnosisResult = {
   steps: [{ text: 'Open provider settings and check the key' }]
 }
 
-function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessagePart, { type: 'data-error' }> {
+function dataErrorPart(cherry?: unknown): Extract<CherryMessagePart, { type: 'data-error' }> {
   const part: Extract<CherryMessagePart, { type: 'data-error' }> = {
     type: 'data-error',
     data: { name: 'AuthError', message: 'Unauthorized' }
@@ -317,15 +317,24 @@ describe('withCherryMeta', () => {
     expect(next.providerMetadata?.cherry).toEqual({ references: [{ url: 'https://ex.com' }] })
   })
 
-  it('preserves existing cherry fields when merging', () => {
-    const part: TextUIPart = {
-      type: 'text',
-      text: '',
-      providerMetadata: { cherry: { references: [{ a: 1 }] } }
-    }
+  it('preserves opaque metadata and the source when patching known fields', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    const nativeValue = new Date('2026-01-01T00:00:00Z')
+    Object.assign(part, {
+      providerMetadata: {
+        vendor: { trace: nativeValue },
+        cherry: { references: [{ a: 1 }], extension: nativeValue }
+      }
+    })
+    const originalMetadata = part.providerMetadata
+
     const next = withCherryMeta(part, { references: [{ b: 2 }] })
-    // shallow merge: new patch overwrites the same key
-    expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }] })
+
+    expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }], extension: nativeValue })
+    expect(next.providerMetadata?.cherry?.extension).toBe(nativeValue)
+    expect(next.providerMetadata?.vendor).toBe(originalMetadata?.vendor)
+    expect(part.providerMetadata).toBe(originalMetadata)
+    expect(part.providerMetadata?.cherry?.references).toEqual([{ a: 1 }])
   })
 
   it('writes thinking metadata onto a ReasoningUIPart', () => {

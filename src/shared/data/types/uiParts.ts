@@ -465,7 +465,7 @@ export interface ComposerMessageSnapshot {
  * directly with their own logger.
  */
 export function readCherryMeta<P extends CherryMessagePart>(part: P): CherryMetaForPartType<P['type']> | undefined {
-  const raw = (part as { providerMetadata?: Record<string, unknown> }).providerMetadata?.cherry
+  const raw = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata?.cherry
   if (!raw || typeof raw !== 'object') return undefined
   const schema = schemaForPartType(part.type)
   if (!schema) return undefined
@@ -483,13 +483,14 @@ export function withCherryMeta<P extends CherryMessagePart>(
   part: P,
   patch: Partial<CherryMetaForPartType<P['type']>>
 ): P {
-  const existingMeta = (part as { providerMetadata?: Record<string, unknown> }).providerMetadata
+  const existingMeta = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored Cherry metadata is unvalidated; shallow patches must retain opaque extension values.
   const existingCherry = (existingMeta?.cherry ?? {}) as Record<string, unknown>
   return {
     ...part,
     providerMetadata: {
       ...existingMeta,
-      cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
+      cherry: { ...existingCherry, ...patch }
     }
   }
 }
