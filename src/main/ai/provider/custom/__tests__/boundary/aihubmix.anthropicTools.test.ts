@@ -1,5 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
@@ -20,7 +20,9 @@ import { captureWithFetch } from './captureRequest'
  * (`minItems`/`maxItems`/`minLength`/`maxLength`/...) and folds the dropped
  * constraints into the node `description`, keeping `type`/`items`/`required`.
  */
-function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOptions {
+function callOptionsWithToolSchema(
+  inputSchema: LanguageModelV3FunctionTool['inputSchema']
+): LanguageModelV3CallOptions {
   return {
     prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
     tools: [
@@ -31,12 +33,12 @@ function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOpt
         inputSchema
       }
     ]
-  } as unknown as LanguageModelV3CallOptions
+  }
 }
 
-function urlsSchemaFrom(body: unknown): Record<string, unknown> {
-  const tool = (body as { tools?: Array<{ input_schema?: { properties?: Record<string, unknown> } }> }).tools?.[0]
-  return (tool?.input_schema?.properties?.urls ?? {}) as Record<string, unknown>
+function urlsSchemaFrom(body: unknown) {
+  const tool = (body as { tools?: Array<{ input_schema?: { properties?: { urls?: unknown } } }> }).tools?.[0]
+  return tool?.input_schema?.properties?.urls ?? {}
 }
 
 describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic)', () => {
@@ -58,11 +60,13 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
 
     expect(req.url).toBe('https://aihubmix.com/v1/messages')
     const urls = urlsSchemaFrom(req.body)
-    expect(urls.maxItems).toBeUndefined() // unsupported keyword → stripped (the reported 400)
-    expect(urls.minItems).toBeUndefined() // folded into description, not sent as a keyword
-    expect(urls.type).toBe('array') // structure preserved
-    expect(urls.items).toEqual({ type: 'string' })
-    expect(String(urls.description)).toContain('max items: 20') // constraint preserved as advisory text
+    expect(urls).not.toHaveProperty('maxItems')
+    expect(urls).not.toHaveProperty('minItems')
+    expect(urls).toMatchObject({
+      type: 'array',
+      description: expect.stringContaining('max items: 20')
+    })
+    expect(urls).toHaveProperty('items', { type: 'string' })
   })
 
   it('strips string min/maxLength too', async () => {
@@ -82,8 +86,9 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
     )
 
     const urls = urlsSchemaFrom(req.body)
-    expect(urls.minLength).toBeUndefined()
-    expect(urls.maxLength).toBeUndefined()
+    expect(urls).toMatchObject({ type: 'string' })
+    expect(urls).not.toHaveProperty('minLength')
+    expect(urls).not.toHaveProperty('maxLength')
   })
 
   // `tool_invoke` needs additionalProperties:true on `params` to accept arbitrary sub-tool arguments.
@@ -105,10 +110,16 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
         )
     )
 
-    const inputSchema = (req.body as { tools: Array<{ input_schema: Record<string, unknown> }> }).tools[0].input_schema
-    const params = (inputSchema.properties as Record<string, { additionalProperties?: unknown }>).params
-    expect(params.additionalProperties).toBe(true) // arbitrary sub-tool arguments remain valid
-    expect(inputSchema.additionalProperties).toBe(false) // outer object still closed by default
+    expect(req.body).toMatchObject({
+      tools: [
+        {
+          input_schema: {
+            properties: { params: { additionalProperties: true } },
+            additionalProperties: false
+          }
+        }
+      ]
+    })
   })
 })
 

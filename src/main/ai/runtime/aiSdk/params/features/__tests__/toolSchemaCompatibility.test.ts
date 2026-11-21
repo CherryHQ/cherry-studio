@@ -3,7 +3,7 @@ import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { JSONSchema7, LanguageModelV3CallOptions, LanguageModelV3FunctionTool } from '@ai-sdk/provider'
+import type { JSONSchema7, JSONValue, LanguageModelV3CallOptions, LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { asSchema, generateText, jsonSchema, streamText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -74,7 +74,7 @@ function createMetaTools() {
 }
 
 function captureRequest() {
-  type WireSchema = { type: string; properties: Record<string, unknown> }
+  type WireSchema = { type: string; properties: Record<string, JSONValue> }
   type WireTool = {
     name: string
     description: string
@@ -911,7 +911,7 @@ describe('toolSchemaCompatibilityFeature', () => {
         tools: Array<{
           functionDeclarations: Array<{
             name: string
-            parameters: { properties: Record<string, unknown> }
+            parameters: { properties: Record<string, JSONValue> }
           }>
         }>
       }
@@ -1121,7 +1121,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     const declaration = (
       capturedBody as {
         tools: Array<{
-          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, JSONValue> } }>
         }>
       }
     ).tools[0].functionDeclarations[0]
@@ -1301,7 +1301,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     const declaration = (
       capturedBody as {
         tools: Array<{
-          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, JSONValue> } }>
         }>
       }
     ).tools[0].functionDeclarations[0]
@@ -1413,7 +1413,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     const declaration = (
       capturedBody as {
         tools: Array<{
-          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, JSONValue> } }>
         }>
       }
     ).tools[0].functionDeclarations[0]
