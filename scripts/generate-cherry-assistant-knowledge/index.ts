@@ -10,6 +10,8 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import type { JsonValue } from '@cherrystudio/agent-runtime'
+
 import { serializeProductManifest } from './generators/manifest'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..')
@@ -23,7 +25,8 @@ interface GeneratedOutput {
 
 function serializeAgentTemplate(agentDir: string): string {
   const templatePath = path.join(agentDir, 'agent-template.json')
-  const parsed = JSON.parse(fs.readFileSync(templatePath, 'utf-8')) as Record<string, unknown>
+  // SAFETY: Repository-owned templates have object roots; the native JSON parser supplies their JSON-only values.
+  const parsed = JSON.parse(fs.readFileSync(templatePath, 'utf-8')) as Record<string, JsonValue>
   const agent = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith('_')))
   return `${JSON.stringify(agent, null, 2)}\n`
 }
