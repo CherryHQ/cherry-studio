@@ -14,7 +14,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
-import type * as SessionHooks from '@renderer/hooks/agent/useSession'
 import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -910,7 +909,7 @@ function readSessionListItems() {
   return sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) }))
 }
 
-function setupSessions(overrides: Partial<ReturnType<typeof SessionHooks.useSessions>> = {}) {
+function setupSessions(overrides: Partial<ComponentProps<typeof Sessions>['agentSessionsSource']> = {}) {
   const source = {
     sessions: [
       createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
