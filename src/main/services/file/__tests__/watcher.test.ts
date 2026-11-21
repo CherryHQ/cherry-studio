@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -141,7 +141,7 @@ describe('createDirectoryWatcher', () => {
     ).toBe('missing')
   })
 
-  it('emits "change" when a watched file is modified in place', async () => {
+  it('emits "change" when a watched file is modified without changing its size', async () => {
     const target = path.join(dir, 'mut.txt') as AbsoluteFilePath
 
     // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
@@ -157,9 +157,40 @@ describe('createDirectoryWatcher', () => {
     // Brief settle so chokidar's awaitWriteFinish window closes on the add.
     await new Promise((r) => setTimeout(r, 250))
     const changed = waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
-    await writeFile(target, 'v2-content-larger')
+    await writeFile(target, 'v2')
     const ev = await changed
     expect(ev.kind).toBe('change')
+  })
+
+  it('discovers existing children when an external program moves a directory into the tree', async () => {
+    const source = path.join(dir, 'incoming')
+    const root = path.join(dir, 'workspace')
+    await mkdir(source)
+    await mkdir(root)
+    await writeFile(path.join(source, 'child.txt'), 'content')
+    const watcher = createDirectoryWatcher(root as AbsoluteFilePath, {}, host)
+    watchers.push(watcher)
+    await waitForReady(watcher)
+    const target = path.join(root, 'renamed', 'child.txt')
+    const added = waitForEvent(watcher, (event) => event.kind === 'add' && event.path === target)
+    await rename(source, path.join(root, 'renamed'))
+    expect(await added).toEqual({ kind: 'add', path: target })
+  })
+
+  it('observes changes through directory symlinks whose targets are outside the watched tree', async () => {
+    const root = path.join(dir, 'workspace')
+    const outside = path.join(dir, 'outside')
+    await mkdir(root)
+    await mkdir(outside)
+    await writeFile(path.join(outside, 'target.txt'), 'before')
+    await symlink(outside, path.join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    const watcher = createDirectoryWatcher(root as AbsoluteFilePath, {}, host)
+    watchers.push(watcher)
+    await waitForReady(watcher)
+    const target = path.join(root, 'linked', 'target.txt')
+    const changed = waitForEvent(watcher, (event) => event.kind === 'change' && event.path === target)
+    await writeFile(path.join(outside, 'target.txt'), 'after!')
+    expect(await changed).toEqual({ kind: 'change', path: target })
   })
 
   it('limits recursive watching to maxDepth when provided', async () => {
