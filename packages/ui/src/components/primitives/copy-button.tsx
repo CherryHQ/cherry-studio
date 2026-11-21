@@ -1,15 +1,13 @@
 // Original path: src/renderer/components/CopyButton.tsx
 import { Copy } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentProps, FC } from 'react'
 
 import { Tooltip } from './tooltip'
 
-interface CopyButtonProps {
+interface CopyButtonProps extends ComponentProps<'div'> {
   tooltip?: string
   label?: string
   size?: number
-  className?: string
-  [key: string]: any
 }
 
 const CopyButton: FC<CopyButtonProps> = ({ tooltip, label, size = 14, className = '', ...props }) => {

@@ -8,7 +8,7 @@ let cmThemesPromise: Promise<typeof CmThemes> | undefined
 
 // Loaded on demand so the full themes-all package (and the @codemirror/*
 // packages it drags in) stays out of every window's first-screen static graph.
-function loadCmThemes(): Promise<typeof CmThemes> {
+function loadCmThemes(): Promise<Partial<Record<string, (typeof CmThemes)[keyof typeof CmThemes]>>> {
   cmThemesPromise ??= import('@uiw/codemirror-themes-all')
   return cmThemesPromise
 }
@@ -63,7 +63,7 @@ export async function getCmThemeNames(): Promise<string[]> {
   const cmThemes = await loadCmThemes()
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
-    .filter((item) => typeof (cmThemes as any)[item] !== 'function')
+    .filter((item) => typeof cmThemes[item] !== 'function')
     .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
 }
 
@@ -81,7 +81,7 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
   const cmThemes = await loadCmThemes()
 
   // 2. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
-  const candidate = (cmThemes as Record<string, unknown>)[name]
+  const candidate = cmThemes[name]
   if (
     Object.prototype.hasOwnProperty.call(cmThemes, name) &&
     typeof candidate !== 'function' &&

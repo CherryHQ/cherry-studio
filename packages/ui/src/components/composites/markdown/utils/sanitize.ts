@@ -191,6 +191,7 @@ export interface MarkdownSanitizeSchema {
   protocols?: Record<string, string[] | null | undefined>
   strip?: string[]
   clobberPrefix?: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Streamdown erases sanitize options to Pluggable; preserve untouched upstream options while extending only the fields above.
   [key: string]: unknown
 }
 
