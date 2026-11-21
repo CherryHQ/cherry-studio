@@ -1313,6 +1313,63 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(JSON.stringify(declaration.parameters)).not.toMatch(/"(propertyNames|additionalProperties)"/)
   })
 
+  it('strips unsupported schema keywords from AiOnly Gemini MCP tool declarations', async () => {
+    let capturedBody: unknown
+    let capturedUrl = ''
+    const captureFetch: typeof globalThis.fetch = async (input, init) => {
+      capturedUrl = String(input)
+      capturedBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({ error: { message: 'captured' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+
+    const model = wrapLanguageModel({
+      model: createNewApi({
+        apiKey: 'test-key',
+        baseURL: 'https://api.aiionly.com/v1beta',
+        endpointType: 'gemini',
+        fetch: captureFetch
+      })('gemini-3.8-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'newapi',
+        runtimeProviderId: 'newapi',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          search: {
+            description: 'search',
+            inputSchema: createMcpInputSchema({
+              type: 'object',
+              properties: {
+                value: {
+                  type: 'object',
+                  propertyNames: { pattern: '^[a-z]+$' },
+                  additionalProperties: { type: 'string' }
+                }
+              }
+            })
+          }
+        }
+      })
+    ).rejects.toBeDefined()
+
+    expect(new URL(capturedUrl).pathname).toBe('/v1beta/models/gemini-3.8-flash:generateContent')
+    const parameters = (
+      capturedBody as {
+        tools: Array<{ functionDeclarations: Array<{ parameters: Record<string, unknown> }> }>
+      }
+    ).tools[0].functionDeclarations[0].parameters
+    expect(JSON.stringify(parameters)).not.toMatch(/"(propertyNames|additionalProperties)"/)
+  })
+
   // Gemini's Schema proto requires a concrete `type`: a draft-07 type array
   // (third-party MCP servers advertise nullable scalars as
   // `type: ["number", "null"]`) reaches convertJSONSchemaToOpenAPISchema, which
