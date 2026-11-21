@@ -338,7 +338,7 @@ vi.mock('@data/hooks/useCache', () => ({
       const resolved = typeof value === 'function' ? (value as (prev: unknown) => unknown)(current) : value
       if (key === 'ui.global_search.recent_items') {
         mocks.recentItems = resolved as typeof mocks.recentItems
-      }
+      } else mocks.persistCacheValues[key] = resolved
       mocks.cacheSet(key, resolved)
     }
   ]
@@ -520,6 +520,11 @@ vi.mock('react-i18next', () => ({
         {
           'globalSearch.placeholder': 'Search conversations, tasks, assistants, agents, and knowledge...',
           'globalSearch.clear': 'Clear search',
+          'globalSearch.history.title': 'Search history',
+          'globalSearch.history.clear': 'Clear search history',
+          'globalSearch.history.search': 'Search',
+          'globalSearch.history.showAll': 'Show all queries',
+          'globalSearch.history.remove': 'Remove {{query}} from search history',
           'globalSearch.filters.label': 'Search type',
           'globalSearch.filters.all': 'All',
           'globalSearch.filters.conversation': 'Conversation',
@@ -594,7 +599,10 @@ vi.mock('react-i18next', () => ({
           'common.unnamed': 'Unnamed'
         }[key] ?? key
 
-      return label.replace('{{name}}', options?.name ?? 'Agent').replace('{{count}}', options?.count ?? '0')
+      return label
+        .replace('{{name}}', options?.name ?? 'Agent')
+        .replace('{{count}}', options?.count ?? '0')
+        .replace('{{query}}', options?.query ?? '')
     },
     i18n: { language: 'en-US' }
   })
@@ -723,6 +731,93 @@ describe('GlobalSearchPanel', () => {
         }
       }
     )
+  })
+
+  // No history is created by typing or async responses; zero-result queries remain deliberately saveable.
+  it('records only explicit aligned Search and recalls after reopening without opening a result', async () => {
+    const user = userEvent.setup()
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await typeSearchQuery(user, 'missing query')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Search', exact: true })).toBeEnabled())
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toBeUndefined()
+    await user.click(screen.getByRole('button', { name: 'Search', exact: true }))
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toEqual([
+      { query: 'missing query', lastUsedAt: expect.any(Number) }
+    ])
+    view.unmount()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.click(screen.getByRole('button', { name: 'missing query', exact: true }))
+    expect(screen.getByRole('combobox')).toHaveValue('missing query')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+    expect(mocks.recentItems[0].title).toBe('Topic recent')
+  })
+
+  it('records a selected search result and full-message-search entry without recording filter changes', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'writer',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'writer',
+              title: 'Writer',
+              target: { assistantId: 'writer' },
+              updatedAt: new Date().toISOString()
+            }
+          ]
+        }
+      ]
+    }
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await typeSearchQuery(user, 'writer')
+    await user.click(screen.getByRole('button', { name: 'Search type: Assistant' }))
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toBeUndefined()
+    await user.click(screen.getByRole('option', { name: /Writer/ }))
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toEqual([
+      { query: 'writer', lastUsedAt: expect.any(Number) }
+    ])
+    mocks.persistCacheValues['ui.global_search.query_history'] = []
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toEqual([
+      { query: 'writer', lastUsedAt: expect.any(Number) }
+    ])
+  })
+
+  // Persisting stale/failed or IME intermediate input would reveal searches the user did not execute.
+  it('refuses history writes during composition, refresh and failed results', async () => {
+    const user = userEvent.setup()
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await typeSearchQuery(user, 'needle')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Search', exact: true })).toBeEnabled())
+    const input = screen.getByRole('combobox')
+    fireEvent.compositionStart(input)
+    expect(screen.getByRole('button', { name: 'Search', exact: true })).toBeDisabled()
+    fireEvent.compositionEnd(input)
+    mocks.entitiesSearchRefreshing = true
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Search', exact: true }))
+    mocks.entitiesSearchRefreshing = false
+    mocks.entitiesSearchError = new Error('offline')
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Search', exact: true }))
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toBeUndefined()
+  })
+
+  // Clearing is an explicit cache write, not tied to a request completion that could resurrect the value.
+  it('clears only query history and does not restore it on a late search response', async () => {
+    const user = userEvent.setup()
+    mocks.persistCacheValues['ui.global_search.query_history'] = [{ query: 'old query', lastUsedAt: 1 }]
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Clear search history' }))
+    mocks.queryResult = { query: 'old query', groups: [] }
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    expect(mocks.persistCacheValues['ui.global_search.query_history']).toEqual([])
+    expect(screen.queryByRole('button', { name: 'old query', exact: true })).not.toBeInTheDocument()
+    expect(mocks.recentItems[0].title).toBe('Topic recent')
   })
 
   it('autofocuses the search input when opened', async () => {

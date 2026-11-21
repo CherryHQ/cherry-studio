@@ -447,6 +447,7 @@ export type RendererPersistCacheSchema = {
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
   'ui.tab.normal_tabs': CacheValueTypes.Tab[]
   'ui.tab.active_tab_id': string
+  'ui.global_search.query_history': CacheValueTypes.GlobalSearchQueryEntry[]
   'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
@@ -529,6 +530,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
+  'ui.global_search.query_history': [],
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
