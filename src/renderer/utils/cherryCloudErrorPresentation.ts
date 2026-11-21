@@ -10,7 +10,7 @@ export function getCherryCloudErrorPresentation(
   error: SerializedError | undefined,
   providerId: string | undefined,
   category: ErrorCategory
-): { quota: boolean; text: string } {
+) {
   if (providerId !== CHERRY_CLOUD_PROVIDER_ID) return { quota: false, text: '' }
   const text = stripClaudeCodeRejectionPrefix(
     providerErrorText(error) ||

@@ -204,10 +204,7 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
  *
  * @throws Error if the value does not contain `${UNIQUE_MODEL_ID_SEPARATOR}`.
  */
-export function parseUniqueModelId(uniqueId: UniqueModelId): {
-  providerId: string
-  modelId: string
-} {
+export function parseUniqueModelId(uniqueId: UniqueModelId) {
   const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
   if (idx === -1) {
     throw new Error(`Invalid UniqueModelId format: ${uniqueId}`)
