@@ -69,7 +69,7 @@ export const AgentChannelConfigSchemasByType = {
   dingtalk: DingTalkAgentChannelConfigSchema,
   discord: DiscordAgentChannelConfigSchema,
   slack: SlackAgentChannelConfigSchema
-} as const satisfies Record<AgentChannelType, z.ZodType<Record<string, unknown>>>
+} as const satisfies Record<AgentChannelType, z.ZodType<AgentChannelConfig>>
 
 export const ActiveAgentChannelConfigSchemasByType = {
   telegram: TelegramAgentChannelConfigSchema.extend({ bot_token: z.string().min(1) }),
@@ -90,7 +90,7 @@ export const ActiveAgentChannelConfigSchemasByType = {
     bot_token: z.string().min(1),
     app_token: z.string().min(1)
   })
-} as const satisfies Record<AgentChannelType, z.ZodType<Record<string, unknown>>>
+} as const satisfies Record<AgentChannelType, z.ZodType<AgentChannelConfig>>
 
 export type TelegramAgentChannelConfig = z.infer<typeof TelegramAgentChannelConfigSchema>
 export type FeishuAgentChannelConfig = z.infer<typeof FeishuAgentChannelConfigSchema>
@@ -132,10 +132,10 @@ const MutableAgentChannelFields = {
   permissionMode: AgentPermissionModeSchema.nullable().optional()
 } as const
 
-function createAgentChannelEntitySchema<
-  TType extends AgentChannelType,
-  TConfig extends z.ZodType<Record<string, unknown>>
->(type: TType, configSchema: TConfig) {
+function createAgentChannelEntitySchema<TType extends AgentChannelType, TConfig extends z.ZodType<AgentChannelConfig>>(
+  type: TType,
+  configSchema: TConfig
+) {
   return z.strictObject({
     ...AgentChannelBaseFields,
     type: z.literal(type),
@@ -145,7 +145,7 @@ function createAgentChannelEntitySchema<
 
 function createAgentChannelMutationSchema<
   TType extends AgentChannelType,
-  TConfig extends z.ZodType<Record<string, unknown>>
+  TConfig extends z.ZodType<AgentChannelConfig>
 >(type: TType, configSchema: TConfig) {
   return z.strictObject({
     type: z.literal(type),
