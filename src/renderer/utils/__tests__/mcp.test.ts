@@ -42,6 +42,39 @@ describe('getMcpConfigSampleFromReadme', () => {
     expect(getMcpConfigSampleFromReadme(readme)).toEqual(first)
   })
 
+  it.each([
+    { command: 'npx', args: 42 },
+    { command: 'npx', env: { PORT: 3000 } },
+    { command: 'npx', env: { ['__proto__']: 3000 } }
+  ])('skips a sample with incompatible config fields and finds the next one: %j', (invalid) => {
+    const valid = { command: 'npx', args: ['-y', '@example/server'] }
+    const readme = JSON.stringify({ mcpServers: { invalid, valid } })
+
+    expect(getMcpConfigSampleFromReadme(readme)).toEqual(valid)
+  })
+
+  it('retains null arguments for the package-name fallback', () => {
+    const sample = { command: 'npx', args: null, env: { DEBUG: '1' } }
+
+    expect(getMcpConfigSampleFromReadme(JSON.stringify({ mcpServers: { example: sample } }))).toEqual(sample)
+  })
+
+  it('retains reserved and extension fields after validating the consumed config fields', () => {
+    const sample = {
+      command: 'npx',
+      args: ['server'],
+      env: { ['__proto__']: 'keep-env' },
+      ['__proto__']: { retained: true },
+      custom: 'keep'
+    }
+
+    const result = getMcpConfigSampleFromReadme(JSON.stringify({ mcpServers: { example: sample } }))
+
+    expect(result).toEqual(sample)
+    expect(Object.hasOwn(result ?? {}, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+  })
+
   it('gives up quickly on a block nested deeper than it can match', () => {
     const readme = `"mcpServers": {${'a'.repeat(28)}{{{}}}`
     const startedAt = performance.now()
