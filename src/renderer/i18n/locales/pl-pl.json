@@ -3555,6 +3555,7 @@
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
   "provider.rapid-mlx": "Rapid-MLX",
+  "provider.requesty": "Requesty",
   "provider.silicon": "SiliconFlow",
   "provider.sophnet": "SophNet",
   "provider.stepfun": "StepFun",

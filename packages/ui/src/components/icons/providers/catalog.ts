@@ -144,6 +144,7 @@ import { RadeonCloudIcon } from './radeon-cloud'
 import { RapidMlxIcon } from './rapid-mlx/rapid-mlx'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
+import { RequestyIcon } from './requesty/requesty'
 import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
@@ -321,6 +322,7 @@ export const PROVIDER_ICON_CATALOG = {
   'rapid-mlx': RapidMlxIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
+  requesty: RequestyIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
