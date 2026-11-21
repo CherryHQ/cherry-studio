@@ -7,6 +7,12 @@
  * matching models.
  */
 
+import type { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
+
+type RequestBodyTransform = NonNullable<
+  ConstructorParameters<typeof OpenAICompatibleChatLanguageModel>[1]['transformRequestBody']
+>
+
 /**
  * Detect OpenAI reasoning models that require `max_completion_tokens` instead of
  * `max_tokens`. Matches the pattern used internally by `@ai-sdk/openai`.
@@ -26,7 +32,9 @@ export function isOpenAIReasoningModelId(modelId: string): boolean {
  * `transformRequestBody` hook for `@ai-sdk/openai-compatible`: rewrites
  * `max_tokens` → `max_completion_tokens` for OpenAI reasoning models.
  */
-export function applyReasoningModelMaxTokensConversion(args: Record<string, any>): Record<string, any> {
+export function applyReasoningModelMaxTokensConversion(
+  args: Parameters<RequestBodyTransform>[0]
+): ReturnType<RequestBodyTransform> {
   if (typeof args.model !== 'string') return args
   if (!isOpenAIReasoningModelId(args.model)) return args
   if (args.max_tokens == null) return args
