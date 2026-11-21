@@ -58,7 +58,7 @@ import type {
   InProcessUsageContext
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import { buildCompactReplay, evictOldestReplayEntry, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -1515,6 +1515,11 @@ export class AiStreamManager extends BaseService {
     // deltas — a delta flood can no longer evict its own part's opening chunk
     // and leave the replay unparseable for `readUIMessageStream`. Oversized
     // incoming deltas split first; ingest and attach share `maxDeltaBytes`.
+    // Open tool inputs pin their `tool-input-start` against ring eviction until
+    // terminal output is buffered; `tool-input-available` alone must not release it.
+    if (chunk.type === 'tool-input-start') {
+      ;(exec.openToolInputIds ??= new Set()).add(chunk.toolCallId)
+    }
     const bufferLimit = Math.max(1, this.config.maxBufferChunks)
     for (const segment of splitDeltaPayload(payload, this.config.maxDeltaBytes)) {
       const tail = exec.buffer.at(-1)
@@ -1523,11 +1528,30 @@ export class AiStreamManager extends BaseService {
         exec.buffer[exec.buffer.length - 1] = merged
       } else {
         if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
-          exec.buffer.shift()
+          const evicted = evictOldestReplayEntry(exec.buffer, exec.openToolInputIds)
           exec.droppedChunks += 1
+          // Every entry is a still-open tool opener: evicting one would orphan
+          // later live deltas, so drop the incoming segment and keep the ring bounded.
+          if (!evicted) {
+            // A dropped opener must not stay pinned, or a later live delta
+            // reaches a reconnecting renderer without its `tool-input-start`.
+            if (segment.chunk.type === 'tool-input-start') {
+              exec.openToolInputIds?.delete(segment.chunk.toolCallId)
+            }
+            continue
+          }
         }
         exec.buffer.push(segment)
       }
+    }
+    // Released after buffering: evicting the opener to make room for its own
+    // terminal output would orphan that output in attach replay.
+    if (
+      chunk.type === 'tool-output-available' ||
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      exec.openToolInputIds?.delete(chunk.toolCallId)
     }
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.
@@ -1575,6 +1599,9 @@ export class AiStreamManager extends BaseService {
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
+    // DSML fragments can end with `tool-input-end` but no `tool-output-*`; no
+    // more chunks will arrive for this execution, so release any stale pins.
+    exec.openToolInputIds?.clear()
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
       exec.runtimeTiming.closeOpenSpans()
@@ -1656,6 +1683,7 @@ export class AiStreamManager extends BaseService {
     // `resolveTerminalStatus`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
+    exec.openToolInputIds?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
 
@@ -1707,6 +1735,7 @@ export class AiStreamManager extends BaseService {
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
+    exec.openToolInputIds?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
 
