@@ -9,6 +9,8 @@ import {
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
+  followupQueueRoles,
+  followupQueueSourceType,
   jobRoles,
   jobSourceType,
   miniAppFileRef,
@@ -25,6 +27,7 @@ import { agentTable } from './agent'
 import { agentSessionMessageTable } from './agentSessionMessage'
 import { assistantTable } from './assistant'
 import { fileEntryTable } from './file'
+import { followupQueueTable } from './followupQueue'
 import { jobTable } from './job'
 import { messageTable } from './message'
 import { miniAppTable } from './miniApp'
@@ -206,6 +209,33 @@ export const translateHistoryFileRefTable = sqliteTable(
  * (The user avatar deliberately has no slot table — it is persisted only in the
  * `app.user.avatar` preference.)
  */
+
+/** Ref rows owned by queued composer follow-up drafts. The data layer writes
+ * one row per blob-attachment file entry at enqueue. Dequeue retains a closed
+ * receipt and explicitly releases these refs in the same transaction. The FK
+ * cascade handles physical queue-row purges. Refs protect the bytes from the
+ * idle sweep only while the draft owns them. No unique (sourceId, role)
+ * index: one draft may attach several files. */
+export const followupQueueFileRefTable = sqliteTable(
+  'followup_queue_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => followupQueueTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof followupQueueRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('fqfr_entry_id_idx').on(t.fileEntryId),
+    index('fqfr_source_id_idx').on(t.sourceId),
+    check('fqfr_role_check', roleCheck(t.role, followupQueueRoles))
+  ]
+)
+
 export const providerLogoFileRefTable = sqliteTable(
   'provider_logo_file_ref',
   {
@@ -330,6 +360,7 @@ export const persistentFileRefTablesBySourceType = {
   [paintingSourceType]: paintingFileRefTable,
   [jobSourceType]: jobFileRefTable,
   [translateHistorySourceType]: translateHistoryFileRefTable,
+  [followupQueueSourceType]: followupQueueFileRefTable,
   ...singleFileRefTablesBySourceType,
   [miniAppFileRef.sourceType]: miniAppFileRefTable
 } as const satisfies Record<
@@ -341,6 +372,7 @@ export const persistentFileRefTablesBySourceType = {
   | typeof translateHistoryFileRefTable
   | typeof agentAvatarFileRefTable
   | typeof assistantAvatarFileRefTable
+  | typeof followupQueueFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
   | typeof miniAppFileRefTable
@@ -367,6 +399,9 @@ export type JobFileRefRow = typeof jobFileRefTable.$inferSelect
 export type InsertJobFileRefRow = typeof jobFileRefTable.$inferInsert
 export type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
 export type InsertTranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferInsert
+
+export type FollowupQueueFileRefRow = typeof followupQueueFileRefTable.$inferSelect
+export type InsertFollowupQueueFileRefRow = typeof followupQueueFileRefTable.$inferInsert
 export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
