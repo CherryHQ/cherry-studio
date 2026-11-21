@@ -55,9 +55,18 @@ export function TerminalPane({
               takeControlOnAttach={terminal.claimId === resource.id}
               onAttached={terminal.clearClaim}
               renderHeader={renderHeader}
+              onClose={() => void terminal.close(resource.id)}
+              closing={terminal.closingIds.includes(resource.id)}
             />
           ) : (
-            <TerminalOutput key={resource.id} resource={resource} active={active} onResource={terminal.update} />
+            <TerminalOutput
+              key={resource.id}
+              resource={resource}
+              active={active}
+              onResource={terminal.update}
+              onClose={() => void terminal.close(resource.id)}
+              closing={terminal.closingIds.includes(resource.id)}
+            />
           )}
         </>
       ) : (
@@ -116,11 +125,15 @@ function CleanupRecord({ record }: { record: WorkspaceUsageRecord }) {
 function TerminalOutput({
   resource,
   active,
-  onResource
+  onResource,
+  onClose,
+  closing
 }: {
   resource: TerminalResourceState
   active: boolean
   onResource: (state: TerminalResourceState) => void
+  onClose: () => void
+  closing: boolean
 }) {
   const { t } = useTranslation()
   const [output, setOutput] = useState('')
@@ -155,21 +168,14 @@ function TerminalOutput({
       if (timer) clearTimeout(timer)
     }
   }, [active, resource.id, conversationId, generation])
-  const action = async (promote: boolean) => {
+  const promote = async () => {
     try {
       const ref = { id: resource.id, host: resource.host }
-      const receipt = promote
-        ? await ipcApi.request('terminal.promote', {
-            ref,
-            operationId: crypto.randomUUID(),
-            cancelRevision: resource.cancelRevision
-          })
-        : await ipcApi.request('terminal.stop', {
-            ref,
-            operationId: crypto.randomUUID(),
-            controlRevision: resource.controlRevision,
-            cancelRevision: resource.cancelRevision
-          })
+      const receipt = await ipcApi.request('terminal.promote', {
+        ref,
+        operationId: crypto.randomUUID(),
+        cancelRevision: resource.cancelRevision
+      })
       if (receipt.kind !== 'resource')
         throw new Error(
           t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
@@ -203,12 +209,12 @@ function TerminalOutput({
           resource.shell === 'bash' &&
           resource.retention.kind === 'turn' &&
           resource.process.kind === 'running' && (
-            <Button size="sm" variant="outline" onClick={() => void action(true)}>
+            <Button size="sm" variant="outline" onClick={() => void promote()}>
               {t('terminal.run_background')}
             </Button>
           )}
         {resource.cleanup !== 'confirmed' && (
-          <Button size="sm" variant="ghost" onClick={() => void action(false)}>
+          <Button size="sm" variant="ghost" disabled={closing} onClick={onClose}>
             {t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.stop')}
           </Button>
         )}

@@ -50,6 +50,10 @@ let resources: TerminalResourceView[]
 let requests: string[]
 let recovered: boolean
 let rejectCreation: boolean
+let closeOutcome: 'confirmed' | 'unconfirmed' | 'rejected'
+let stopWait: Promise<void> | undefined
+let stopCalls: number
+let stopCompleted: boolean
 const record = {
   id: '33333333-3333-4333-8333-333333333333',
   sessionId: 'purged-conversation',
@@ -62,6 +66,10 @@ beforeEach(() => {
   requests = []
   recovered = false
   rejectCreation = false
+  closeOutcome = 'confirmed'
+  stopWait = undefined
+  stopCalls = 0
+  stopCompleted = false
   window.api.file.select = vi.fn().mockResolvedValue(null)
   window.api.ipcApi.request = vi.fn(async (route, payload) => {
     requests.push(route)
@@ -80,6 +88,32 @@ beforeEach(() => {
         operationId: expect.any(String)
       })
       return { ok: true, data: { kind: 'rejected', reason: 'capacity_exceeded' } }
+    }
+    if (route === 'terminal.stop') {
+      stopCalls++
+      expect(payload).toEqual({
+        ref: { id: original.id, host: original.host },
+        operationId: expect.any(String),
+        controlRevision: original.controlRevision,
+        cancelRevision: original.cancelRevision
+      })
+      const target = resources.find(
+        (item) => item.id === original.id && item.host.generation === original.host.generation
+      )
+      if (!target) throw new Error('Unknown terminal scope')
+      await stopWait
+      if (closeOutcome === 'rejected') return { ok: true, data: { kind: 'rejected', reason: 'stale_control' } }
+      const closed: TerminalResourceView = {
+        ...target,
+        process: { kind: 'exited', exitCode: 0, signal: null },
+        cleanup: closeOutcome,
+        revision: target.revision + 1
+      }
+      resources = resources.map((item) =>
+        item.id === target.id && item.host.generation === target.host.generation ? closed : item
+      )
+      stopCompleted = true
+      return { ok: true, data: { kind: 'resource', resource: closed } }
     }
     if (route === 'terminal.promote') {
       const input = payload as InputFor<'terminal.promote'>
@@ -137,17 +171,26 @@ function Content({ attachment = false, emptyFiles = false }: { attachment?: bool
         closeFile={(file) => setFiles((current) => current.filter((item) => item !== file))}
       />
       <ShellExecutionActions toolCallId="pending-bash" />
+      <output aria-label="Terminal error">{terminal.error}</output>
       <output aria-label="Selected terminal">{terminal.tabs.selectedTerminalId}</output>
       <output aria-label="Selected file mode">{selectedFile?.previewType ?? 'artifact'}</output>
       {terminal.selectedCleanupId && <TerminalPane sessionId="resource-tabs-test" active />}
     </>
   )
 }
-function mount({ attachment = false, emptyFiles = false }: { attachment?: boolean; emptyFiles?: boolean } = {}) {
-  return render(
+function App({
+  attachment = false,
+  emptyFiles = false,
+  sessionId = 'resource-tabs-test'
+}: {
+  attachment?: boolean
+  emptyFiles?: boolean
+  sessionId?: string
+}) {
+  return (
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, errorRetryCount: 0 }}>
       <RightPanelProvider capabilities={capabilities} scope={null} defaultPanelId="files" defaultOpen>
-        <TerminalResourcesProvider sessionId="resource-tabs-test" active>
+        <TerminalResourcesProvider sessionId={sessionId} active>
           <AgentResourceHeaderProvider>
             <Content attachment={attachment} emptyFiles={emptyFiles} />
           </AgentResourceHeaderProvider>
@@ -155,6 +198,10 @@ function mount({ attachment = false, emptyFiles = false }: { attachment?: boolea
       </RightPanelProvider>
     </SWRConfig>
   )
+}
+
+function mount(options: { attachment?: boolean; emptyFiles?: boolean } = {}) {
+  return render(<App {...options} />)
 }
 
 it('distinguishes a read-only attachment from an editable file at the same physical path', async () => {
@@ -223,20 +270,58 @@ it('returns to the selected file through the Files menu without opening another 
   expect(window.api.file.select).not.toHaveBeenCalled()
 })
 
-it('closes and reopens a terminal view without starting or stopping its process', async () => {
+it('stops the process before removing its tab and does not list terminal history in the plus menu', async () => {
   const user = userEvent.setup()
   mount()
   await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
-  expect(screen.getByLabelText('Selected terminal')).toHaveTextContent(original.id)
   await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
   await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(resources[0].cleanup).toBe('confirmed')
+  expect(resources[0].process.kind).toBe('exited')
   await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
-  await user.click(await screen.findByRole('menuitem', { name: /zsh 1/ }))
-  expect(await screen.findByRole('tab', { name: 'zsh 1' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Selected terminal')).toHaveTextContent(original.id)
-  expect(requests.filter((route) => ['terminal.create', 'terminal.stop', 'terminal.action'].includes(route))).toEqual(
-    []
-  )
+  expect(screen.queryByRole('menuitem', { name: /zsh 1/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: t('terminal.new_terminal') })).toBeEnabled()
+})
+
+it.each(['unconfirmed', 'rejected'] as const)('keeps failed %s closure visible and allows retry', async (outcome) => {
+  closeOutcome = outcome
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  await waitFor(() => expect(screen.getByLabelText('Terminal error')).not.toBeEmptyDOMElement())
+  expect(screen.getByRole('tab', { name: /^zsh 1/ })).toHaveAttribute('aria-selected', 'true')
+  closeOutcome = 'confirmed'
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(resources[0].cleanup).toBe('confirmed')
+})
+
+it('joins repeated close requests and preserves a file selected during cleanup', async () => {
+  const stop = Promise.withResolvers<void>()
+  stopWait = stop.promise
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  const close = screen.getByRole('button', { name: `${t('common.close')} zsh 1` })
+  await user.click(close)
+  await user.click(close)
+  expect(stopCalls).toBe(1)
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: 'README.md' }))
+  stop.resolve()
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
+})
+
+it('closes an already exited terminal without requesting another stop', async () => {
+  resources = [{ ...original, process: { kind: 'exited', exitCode: 0, signal: null }, cleanup: 'confirmed' }]
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  expect(stopCalls).toBe(0)
 })
 
 it('reports a rejected terminal creation while a file is selected', async () => {
@@ -289,4 +374,29 @@ it('keeps recovered cleanup discoverable after its conversation was purged and r
   expect(screen.getByText(t('terminal.cleanup.protected'))).toBeInTheDocument()
   expect(requests).toContain('terminal.cleanup.retry')
   expect(requests).not.toContain('terminal.stop')
+})
+
+it('does not apply an old close receipt to another conversation', async () => {
+  const stop = Promise.withResolvers<void>()
+  stopWait = stop.promise
+  const user = userEvent.setup()
+  const mounted = mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  resources = [
+    {
+      ...original,
+      host: {
+        ...original.host,
+        generation: '55555555-5555-4555-8555-555555555555' as TerminalResourceView['host']['generation']
+      }
+    }
+  ]
+  mounted.rerender(<App sessionId="another-conversation" />)
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  stop.resolve()
+  await waitFor(() => expect(stopCompleted).toBe(true))
+  expect(resources[0].process.kind).toBe('running')
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByLabelText('Terminal error')).toBeEmptyDOMElement()
 })

@@ -16,6 +16,8 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   const [tabs, setTabs] = useCache(`agent.resource_tabs.${sessionId || 'unbound'}`)
   const [claimId, setClaimId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [closingIds, setClosingIds] = useState<string[]>([])
+  const closes = useRef(new Map<string, Promise<boolean>>())
   const [error, setError] = useState<string | null>(null)
   const [cleanupTabs, setCleanupTabs] = useState<WorkspaceUsageRecord[]>([])
   const [selectedCleanupId, setSelectedCleanupId] = useState<string | null>(null)
@@ -36,6 +38,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     setPreviousSessionId(sessionId)
     setClaimId(null)
     setCreating(false)
+    setClosingIds([])
     setError(null)
     setCleanupTabs([])
     setSelectedCleanupId(null)
@@ -124,13 +127,54 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     },
     [setTabs, mutate, panel, t]
   )
-  const close = (id: string) => {
-    setTabs((current) => ({
-      ...current,
-      hiddenTerminalIds: [...new Set([...current.hiddenTerminalIds, id])],
-      selectedTerminalId: current.selectedTerminalId === id ? null : current.selectedTerminalId
-    }))
-    setClaimId((current) => (current === id ? null : current))
+  const close = (id: string): Promise<boolean> => {
+    const resource = observed.current.find((item) => item.id === id)
+    if (!resource) return Promise.resolve(false)
+    const key = JSON.stringify([sessionId, resource.host.generation, id])
+    const pending = closes.current.get(key)
+    if (pending) return pending
+    setClosingIds((current) => [...current, id])
+    const work = (async () => {
+      try {
+        if (resource.cleanup !== 'confirmed') {
+          const receipt = await ipcApi.request('terminal.stop', {
+            ref: { id: resource.id, host: resource.host },
+            operationId: crypto.randomUUID(),
+            controlRevision: resource.controlRevision,
+            cancelRevision: resource.cancelRevision
+          })
+          if (receipt.kind !== 'resource')
+            throw new Error(
+              t('terminal.error.rejected', { reason: receipt.kind === 'rejected' ? receipt.reason : 'unknown' })
+            )
+          if (currentSession.current !== sessionId) return false
+          const current = observed.current.find((item) => item.id === id)
+          if (current?.host.generation !== resource.host.generation) return false
+          update(receipt.resource)
+          if (receipt.resource.cleanup !== 'confirmed') throw new Error(t('terminal.cleanup.protected'))
+        }
+        if (currentSession.current !== sessionId) return false
+        setTabs((current) => ({
+          ...current,
+          hiddenTerminalIds: [...new Set([...current.hiddenTerminalIds, id])],
+          selectedTerminalId: current.selectedTerminalId === id ? null : current.selectedTerminalId
+        }))
+        setClaimId((current) => (current === id ? null : current))
+        setError(null)
+        return true
+      } catch (cause) {
+        if (currentSession.current === sessionId) {
+          setError(String(cause))
+          toast.error(String(cause))
+        }
+        return false
+      }
+    })().finally(() => {
+      closes.current.delete(key)
+      if (currentSession.current === sessionId) setClosingIds((current) => current.filter((item) => item !== id))
+    })
+    closes.current.set(key, work)
+    return work
   }
   const create = async () => {
     if (creating) return
@@ -194,6 +238,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     close,
     create,
     creating,
+    closingIds,
     promote,
     update,
     claimId,

@@ -93,7 +93,12 @@ export function AgentResourceTabs({
   const slot = use(HeaderSlotContext)
   const prefix = useId()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [pendingClose, setPendingClose] = useState<{ key: string; next: string | null; keyboard: boolean } | null>(null)
+  const [pendingClose, setPendingClose] = useState<{
+    key: string
+    kind: ResourceTab['kind']
+    next: string | null
+    keyboard: boolean
+  } | null>(null)
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
   const pages = useSyncExternalStore(browser.subscribe, () => browser.getPages(terminal.sessionId))
   const page = useSyncExternalStore(browser.subscribe, () => browser.get(terminal.sessionId))
@@ -228,6 +233,10 @@ export function AgentResourceTabs({
     [tabs, activateFile, actions, terminal]
   )
   useEffect(() => {
+    if (pendingClose?.kind === 'terminal' && activeKey && activeKey !== pendingClose.key) {
+      setPendingClose(null)
+      return
+    }
     if (!pendingClose || tabs.some((tab) => tab.key === pendingClose.key)) return
     const next =
       pendingClose.next && tabs.some((tab) => tab.key === pendingClose.next) ? pendingClose.next : tabs[0]?.key
@@ -236,19 +245,22 @@ export function AgentResourceTabs({
       if (pendingClose.keyboard) requestAnimationFrame(() => document.getElementById(`${prefix}-${next}`)?.focus())
     }
     setPendingClose(null)
-  }, [pendingClose, tabs, activate, prefix])
+  }, [pendingClose, tabs, activate, prefix, activeKey])
   const close = (key: string, keyboard: boolean) => {
     const index = tabs.findIndex((item) => item.key === key)
     const tab = tabs[index]
     if (!tab) return
     if (key === activeKey)
-      setPendingClose({ key, next: tabs[index + 1]?.key ?? tabs[index - 1]?.key ?? null, keyboard })
+      setPendingClose({ key, kind: tab.kind, next: tabs[index + 1]?.key ?? tabs[index - 1]?.key ?? null, keyboard })
     if (tab.kind === 'file-browser') {
       setTabs((current) => ({ ...current, fileBrowserOpen: false }))
       if (key === activeKey && tabs.length === 1) actions.close()
     } else if (tab.kind === 'file') closeFile(tab.file)
     else if (tab.kind === 'browser') browser.closePages(terminal.sessionId, [tab.id])
-    else if (tab.kind === 'terminal') terminal.close(tab.id)
+    else if (tab.kind === 'terminal')
+      void terminal.close(tab.id).then((closed) => {
+        if (!closed) setPendingClose((current) => (current?.key === key ? null : current))
+      })
     else terminal.closeCleanup(tab.record.id)
   }
   return (
@@ -310,35 +322,6 @@ export function AgentResourceTabs({
             <FolderOpen className="size-4" />
             {t('agent.right_pane.tabs.files')}
           </DropdownMenuItem>
-          {!!terminal.resources.length && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t('terminal.resources')}</DropdownMenuLabel>
-              {terminal.resources.map((resource, index) => (
-                <DropdownMenuItem key={resource.id} onSelect={() => terminal.show(resource.id, resource.shell)}>
-                  <TerminalSquare className="size-4 shrink-0" />
-                  <span className="truncate">
-                    {terminal.tabs.terminals.find((tab) => tab.id === resource.id)?.title ??
-                      `${resource.shell} ${index + 1}`}
-                  </span>
-                  <span className="ms-auto text-xs text-muted-foreground">
-                    {t(
-                      (
-                        {
-                          running: 'terminal.process.running',
-                          not_started: 'terminal.process.not_started',
-                          starting: 'terminal.process.starting',
-                          closing: 'terminal.process.closing',
-                          exited: 'terminal.process.exited',
-                          lost: 'terminal.process.lost'
-                        } as const
-                      )[resource.process.kind]
-                    )}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
           {warning && (
             <>
               <DropdownMenuSeparator />

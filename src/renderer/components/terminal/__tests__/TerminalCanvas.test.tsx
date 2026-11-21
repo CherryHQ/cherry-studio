@@ -168,7 +168,7 @@ it('fits an observing canvas inside fractional viewport bounds without creating 
       strokeRect() {}
     } as unknown as CanvasRenderingContext2D
   })
-  const { container } = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const { container } = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   await screen.findByRole('log')
   // Canvas layers have no accessible role; their CSS bounds must fit the actual content box.
   const surfaces = Array.from(container.querySelectorAll('canvas'))
@@ -184,7 +184,7 @@ it('keeps keyboard focus after clicking the terminal surface', async () => {
   const user = userEvent.setup()
   HTMLElement.prototype.setPointerCapture = () => {}
   HTMLElement.prototype.hasPointerCapture = () => false
-  const { container } = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const { container } = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   // The painted click target is hidden from assistive technology; the textarea is the accessible input.
   const surface = container.querySelector('canvas')
@@ -220,7 +220,7 @@ it('keeps takeover input read-only until the viewport is measured and resize com
     }
     return originalRequest(route, payload)
   })
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = screen.getByRole('textbox')
   await userEvent.pointer({ target: area, keys: '[MouseRight]' })
   await userEvent.click(screen.getByRole('menuitem', { name: /接管|Take control/ }))
@@ -238,7 +238,7 @@ it('keeps takeover input read-only until the viewport is measured and resize com
 })
 
 it('commits IME once and preserves later intentional identical text and characters', async () => {
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   act(() => {
     fireEvent.compositionStart(area)
@@ -289,7 +289,7 @@ it('accepts input after viewport changes queued behind an unfinished resize', as
     }
     return originalRequest(route, payload)
   })
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   await waitFor(() => expect(started).toBe(true))
   act(() => {
     measure(620)
@@ -302,19 +302,19 @@ it('accepts input after viewport changes queued behind an unfinished resize', as
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 it('refuses a composition commit after control transfers', async () => {
-  const rendered = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const rendered = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   fireEvent.compositionStart(area)
   current = { ...current, control: { kind: 'unassigned' }, controlRevision: 1, revision: 2 }
-  rendered.rerender(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  rendered.rerender(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   fireEvent.compositionEnd(area, { data: 'stale' })
   expect(await screen.findByRole('alert')).toHaveTextContent(/\S/)
   expect(stdin).toBe('')
 })
 it('detaches a hidden view without stopping its persistent process', async () => {
-  const rendered = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const rendered = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   await input()
-  rendered.rerender(<TerminalCanvas resource={current} active={false} onResource={() => {}} />)
+  rendered.rerender(<TerminalCanvas onClose={() => {}} resource={current} active={false} onResource={() => {}} />)
   await act(async () => {})
   expect(alive).toBe(true)
   expect(stdin).toBe('')
@@ -322,17 +322,17 @@ it('detaches a hidden view without stopping its persistent process', async () =>
 
 it('honors explicit creation control when the list mounted the view before the create receipt', async () => {
   controlling = false
-  const { rerender } = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  const { rerender } = render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = screen.getByRole('textbox')
   await waitFor(() => expect(area).toHaveAttribute('readonly'))
-  rerender(<TerminalCanvas resource={current} active onResource={() => {}} takeControlOnAttach />)
+  rerender(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} takeControlOnAttach />)
   await waitFor(() => expect(area).not.toHaveAttribute('readonly'))
   fireEvent.input(area, { target: { value: 'created' } })
   await waitFor(() => expect(stdin).toBe('created'))
 })
 
 it('keeps rejected input visible after a healthy screen refresh without resubmitting it', async () => {
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   rejectInput = true
   fireEvent.input(area, { target: { value: 'stale' } })
@@ -343,7 +343,7 @@ it('keeps rejected input visible after a healthy screen refresh without resubmit
 })
 
 it('moves to older history when the user wheels upward', async () => {
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('LIVE_OUTPUT'))
   fireEvent.wheel(area.parentElement!, { deltaY: -100, shiftKey: true })
@@ -368,7 +368,7 @@ it('keeps committed takeover when an earlier observation arrives afterward', asy
     }
     return result
   })
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   await waitFor(() => expect(captured).toBe(true))
   const area = screen.getByRole('textbox')
   await userEvent.pointer({ target: area, keys: '[MouseRight]' })
@@ -385,7 +385,7 @@ it('keeps committed takeover when an earlier observation arrives afterward', asy
 })
 
 it('opens terminal operations without sending the menu gesture to the running program', async () => {
-  render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
   const area = await input()
   await userEvent.pointer({ target: area, keys: '[MouseRight]' })
   expect(screen.getByRole('menuitem', { name: /交还 Agent|Return to Agent/ })).toBeVisible()
@@ -411,16 +411,21 @@ it('opens terminal operations without sending the menu gesture to the running pr
   ).toEqual([])
 })
 
-it('keeps menu dismissal focused on terminal input and stops from the header menu', async () => {
+it('keeps menu dismissal focused on terminal input', async () => {
   const user = userEvent.setup()
-  render(<TerminalCanvas resource={current} active onResource={() => {}} renderHeader={(controls) => controls} />)
+  render(
+    <TerminalCanvas
+      onClose={() => {}}
+      resource={current}
+      active
+      onResource={() => {}}
+      renderHeader={(controls) => controls}
+    />
+  )
   const area = await input()
   await user.click(screen.getByRole('button', { name: /更多|More/ }))
   await user.keyboard('{Escape}')
   expect(area).toHaveFocus()
   await user.keyboard('echo ready')
   await waitFor(() => expect(stdin).toBe('echo ready'))
-  await user.click(screen.getByRole('button', { name: /更多|More/ }))
-  await user.click(screen.getByRole('menuitem', { name: /关闭终端|Close terminal/ }))
-  await waitFor(() => expect(alive).toBe(false))
 })

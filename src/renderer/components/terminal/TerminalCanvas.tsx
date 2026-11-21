@@ -48,7 +48,9 @@ export function TerminalCanvas({
   onResource,
   takeControlOnAttach = false,
   onAttached,
-  renderHeader
+  renderHeader,
+  onClose,
+  closing = false
 }: {
   resource: TerminalResourceState
   active: boolean
@@ -56,6 +58,8 @@ export function TerminalCanvas({
   takeControlOnAttach?: boolean
   onAttached?: () => void
   renderHeader?: (controls: ReactNode) => ReactNode
+  onClose: () => void
+  closing?: boolean
 }) {
   const { t } = useTranslation()
   const [settings] = useTerminalSettings()
@@ -592,8 +596,8 @@ export function TerminalCanvas({
     },
     {
       label: t(resource.cleanup === 'unconfirmed' ? 'terminal.retry_close' : 'terminal.close'),
-      disabled: resource.cleanup === 'confirmed',
-      onSelect: () => void send({ kind: 'stop' })
+      disabled: closing,
+      onSelect: onClose
     }
   ]
   const restoreInputFocus = (event: Event) => {
@@ -606,7 +610,7 @@ export function TerminalCanvas({
       {(resource.cleanup === 'unconfirmed' || resource.process.kind === 'lost') && (
         <div role="alert" className="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-warning">
           <span className="flex-1">{t('terminal.cleanup.protected')}</span>
-          <Button size="sm" variant="outline" onClick={() => void send({ kind: 'stop' })}>
+          <Button size="sm" variant="outline" disabled={closing} onClick={onClose}>
             {t('terminal.retry_close')}
           </Button>
         </div>
