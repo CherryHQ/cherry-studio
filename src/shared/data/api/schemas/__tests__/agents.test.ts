@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentConfigurationSchema, AgentEntitySchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import {
+  AgentConfigurationSchema,
+  AgentEntitySchema,
+  ListAgentsQuerySchema,
+  TaskGuardSchema,
+  UpdateAgentSchema
+} from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -93,5 +99,12 @@ describe('AgentEntitySchema', () => {
       { skillId: 'skill-a', isEnabled: false },
       { skillId: 'skill-b', isEnabled: true }
     ])
+  })
+})
+
+describe('TaskGuardSchema command', () => {
+  it('rejects an embedded NUL, which would make the launch throw synchronously', () => {
+    expect(TaskGuardSchema.safeParse({ type: 'command', command: 'echo a\0b' }).success).toBe(false)
+    expect(TaskGuardSchema.safeParse({ type: 'command', command: 'echo ab' }).success).toBe(true)
   })
 })

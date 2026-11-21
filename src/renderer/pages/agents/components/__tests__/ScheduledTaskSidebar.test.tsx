@@ -35,6 +35,8 @@ const task = {
   agentId: 'agent',
   name: 'Daily report',
   status: 'active',
+  guard: { type: 'always' },
+  guardApproval: null,
   trigger: { kind: 'interval', ms: 60000 }
 } as ScheduledTaskListItem
 
@@ -215,4 +217,26 @@ it('allows missed execution and editing without a misleading resume action', asy
   expect(screen.queryByRole('menuitem', { name: 'Pause' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('menuitem', { name: 'Run now' }))
   await waitFor(() => expect(request.mock.calls.map(([name]) => name)).toEqual(['ai.agent.task.run']))
+})
+
+it('requires exact command confirmation before approving a pending guard', async () => {
+  const guarded = { ...task, guard: { type: 'command' as const, command: 'test -f /tmp/ready' }, guardApproval: null }
+  request.mockResolvedValue(guarded)
+  render(
+    <ScheduledTaskGroup status="active" source={source({ tasks: [guarded] })} agents={new Map()} onSelect={vi.fn()} />
+  )
+  expect(screen.getByText(en['agent.tasks.guard.pendingApproval'])).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'More Daily report' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: en['agent.tasks.guard.approve'] }))
+  expect(request).not.toHaveBeenCalled()
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('test -f /tmp/ready')).toBeVisible()
+  await userEvent.click(within(dialog).getByRole('button', { name: en['agent.tasks.guard.approve'] }))
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith('ai.agent.task.approve_guard', {
+      agentId: 'agent',
+      taskId: 'task',
+      expectedCommand: 'test -f /tmp/ready'
+    })
+  )
 })

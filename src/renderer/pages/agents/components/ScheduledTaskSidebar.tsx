@@ -18,6 +18,7 @@ import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleFo
 import {
   type useAllTasks,
   useDeleteTask,
+  useApproveTaskGuard,
   useRunTask,
   useSetTaskEnabled,
   useUpdateTask
@@ -56,10 +57,16 @@ function TaskRow({
   const { runTask } = useRunTask()
   const { updateTask } = useUpdateTask()
   const { deleteTask } = useDeleteTask()
+  const { approveTaskGuard } = useApproveTaskGuard()
+  const guardCommand = task.guard.type === 'command' ? task.guard.command : null
   const [busy, setBusy] = useState(false)
   // Keep dialogs mounted after first use so they can finish their exit animations.
   const [editOpen, setEditOpen] = useState<boolean>()
   const [deleteOpen, setDeleteOpen] = useState<boolean>()
+  // Snapshot the command when the dialog opens: the task prop refreshes live,
+  // and approving whatever happens to be rendered at click time could approve a
+  // command the user never read.
+  const [guardApproveCommand, setGuardApproveCommand] = useState<string | null>(null)
   const paused = task.status === 'paused'
   const perform = async (command: () => Promise<unknown>) => {
     if (busy) return
@@ -101,6 +108,9 @@ function TaskRow({
               {getTriggerSummary(task.trigger, t)}
             </span>
           </span>
+          {guardCommand !== null && task.guardApproval === null && (
+            <span className="truncate text-xs text-muted-foreground">{t('agent.tasks.guard.pendingApproval')}</span>
+          )}
           {task.status === 'missed' && (
             <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
               {t('scheduledTasks.missedTime')}
@@ -120,6 +130,11 @@ function TaskRow({
           </DropdownMenuTrigger>
         </Tooltip>
         <DropdownMenuContent align="end">
+          {guardCommand !== null && task.guardApproval === null && (
+            <DropdownMenuItem disabled={busy} onSelect={() => setGuardApproveCommand(guardCommand)}>
+              {t('agent.tasks.guard.approve')}
+            </DropdownMenuItem>
+          )}
           {task.status !== 'completed' && (
             <>
               <DropdownMenuGroup>
@@ -161,6 +176,26 @@ function TaskRow({
             onUpdate={async (patch) => !!(await updateTask(task.agentId, task.id, patch))}
           />
         </Suspense>
+      )}
+      {guardApproveCommand !== null && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setGuardApproveCommand(null)
+          }}
+          title={t('agent.tasks.guard.approveConfirmTitle')}
+          description={t('agent.tasks.guard.approveConfirmBody')}
+          content={
+            <code className="block max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">
+              {guardApproveCommand}
+            </code>
+          }
+          confirmText={t('agent.tasks.guard.approve')}
+          cancelText={t('agent.tasks.cancel')}
+          confirmLoading={busy}
+          cancelDisabled={busy}
+          onConfirm={() => perform(() => approveTaskGuard(task.agentId, task.id, guardApproveCommand))}
+        />
       )}
       {deleteOpen !== undefined && (
         <ConfirmDialog
