@@ -83,10 +83,7 @@ function getToolNameFromPart(part: AskUserQuestionApprovalPart): string {
   return ''
 }
 
-function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): input is MessageToolApprovalInput & {
-  approved: true
-  updatedInput: Record<string, unknown>
-} {
+function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): boolean {
   return (
     input.approved === true &&
     !!input.updatedInput &&

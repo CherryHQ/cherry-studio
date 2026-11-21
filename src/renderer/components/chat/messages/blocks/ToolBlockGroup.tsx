@@ -303,7 +303,7 @@ function getMcpToolGroupActivity(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming tool arguments may omit or mistype intent; require a nonblank string before displaying the model-provided explanation.
 function getToolIntent(args: unknown): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
-  const intent = (args as Record<string, unknown>).intent
+  const intent = 'intent' in args ? args.intent : undefined
   return typeof intent === 'string' && intent.trim() ? intent.trim() : undefined
 }
 

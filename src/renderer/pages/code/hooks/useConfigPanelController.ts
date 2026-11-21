@@ -12,7 +12,6 @@ import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 import {
   clearCliConfig,
   type CliConfigConnection,
-  type CliConfigFileDraft,
   type CliConfigGatewayContext,
   extractConnectionFromCliConfigDraft,
   isOwnLoginConfigurable,
@@ -363,8 +362,8 @@ export function useConfigPanelController({
     ]
   )
 
-  const handleOwnLoginSubmit = useCallback(
-    async (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => {
+  const handleOwnLoginSubmit = useCallback<OwnLoginConfigPanelProps['onSubmit']>(
+    async (values) => {
       const sanitizedConfig = sanitizeCliConfigBlob(selectedCliTool, values.config)
 
       // Write the CLI file BEFORE persisting the preference when own login is active: if the disk

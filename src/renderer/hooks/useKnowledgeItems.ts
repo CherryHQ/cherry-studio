@@ -45,7 +45,7 @@ const refreshKnowledgeItemsCaches = async (
   baseId: string,
   logger: KnowledgeItemsLogger,
   message: string,
-  context: Record<string, unknown>
+  context: { baseId: string; itemIds?: string[] }
 ) => {
   try {
     await invalidateCache([`/knowledge-bases/${baseId}/items`, '/knowledge-bases'])
