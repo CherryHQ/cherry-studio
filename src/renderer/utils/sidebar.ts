@@ -190,6 +190,7 @@ const LEGACY_PROVIDER_BY_TYPE = {
   assistant: SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
 } as const
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored sidebar items may belong to future versions; validate known fields and preserve uninterpreted fields on forward-compatible items.
 type SidebarCandidate = Record<string, unknown>
 
 function isRecord(value: unknown): value is SidebarCandidate {

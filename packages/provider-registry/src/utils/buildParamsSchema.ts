@@ -48,6 +48,7 @@ function applyConstraints(base: z.ZodTypeAny, spec: SupportSpec): z.ZodTypeAny {
 export function buildParamsSchema(
   support: ImageGenerationSupport | undefined,
   mode: ImageGenerationMode = 'generate'
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The loose schema validates catalog fields but deliberately retains unvalidated extension values for the submit boundary.
 ): z.ZodType<Record<string, unknown>> {
   // Base: EVERY catalog key coerced with `.catch(undefined)`. A canonical value left
   // over from a previously-selected model — INCLUDING one this model doesn't declare

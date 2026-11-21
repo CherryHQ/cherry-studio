@@ -37,6 +37,7 @@ interface AssistantExportPhrase {
   order: number
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Import records have no trusted field types yet; string readers and the phrase schema validate values before constructing assistant DTOs.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
