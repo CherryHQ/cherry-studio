@@ -1085,6 +1085,7 @@
   "chat.topics.copy.md": "Kopiuj jako Markdown",
   "chat.topics.copy.plain_text": "Kopiuj jako zwykły tekst (usuń Markdown)",
   "chat.topics.copy.title": "Kopiuj",
+  "chat.topics.copy.web_sources": "Kopiuj źródła internetowe",
   "chat.topics.delete.shortcut": "Przytrzymaj {{key}}, aby usunąć bezpośrednio",
   "chat.topics.display.assistant": "Asystent",
   "chat.topics.display.time": "Czas",

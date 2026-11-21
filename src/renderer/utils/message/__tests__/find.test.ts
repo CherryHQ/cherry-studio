@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
 
-import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
+import {
+  getCitedWebSources,
+  getMainTextContent,
+  getNamingTextContent,
+  getToolCitationExport,
+  getWebSourcesMarkdown
+} from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -168,7 +174,109 @@ describe('getToolCitationExport', () => {
   })
 })
 
-describe('getToolCitationExport across turns', () => {
+describe('getWebSourcesMarkdown', () => {
+  function legacyMessage(text: string, source?: string): MessageExportView {
+    return createExportView([
+      {
+        type: 'text',
+        text,
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  source,
+                  results: [
+                    { url: 'https://first.com', title: 'First' },
+                    { url: 'https://second.com', title: 'Second' },
+                    { url: 'https://third.com', title: 'Third' }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+  }
+
+  it('copies only cited migrated sources without closing gaps in their display numbers', () => {
+    const message = legacyMessage('Legacy answer [3] and [1], then [3] again.')
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)\n\n[3] [Third](https://third.com)')
+  })
+
+  it.each(['No citations here.', 'Code only: `[1]`\n```text\n[2]\n```'])(
+    'hides the legacy source action when prose cites nothing: %s',
+    (text) => {
+      const message = legacyMessage(text)
+
+      expect(getCitedWebSources(message)).toEqual([])
+      expect(getWebSourcesMarkdown(message)).toBe('')
+    }
+  )
+
+  it.each([
+    ['openai', 'Answer [<sup>3</sup>](https://third.com)'],
+    ['grok', 'Answer [[3]](https://third.com)'],
+    [undefined, 'Answer [cite:3]']
+  ])('resolves migrated %s provider markers using their stored display numbers', (source, text) => {
+    expect(getWebSourcesMarkdown(legacyMessage(text, source))).toBe('[3] [Third](https://third.com)')
+  })
+
+  it('keeps each migrated text part bound to its own references and deduplicates repeated citations', () => {
+    const first = legacyMessage('First [3]')
+    const second = legacyMessage('Second [1]')
+    const message = createExportView([...first.parts, ...second.parts, ...first.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[3] [Third](https://third.com)\n\n[1] [First](https://first.com)')
+  })
+
+  it('lists only webpages the answer cites, once each, in citation order', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [
+          { id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' },
+          { id: 'web-b', title: 'Beta', url: 'https://b.example', content: 'b' },
+          { id: 'web-unused', title: 'Unused', url: 'https://unused.example', content: 'u' }
+        ]
+      },
+      { type: 'text', text: 'First [cite:web-b] then [cite:web-a] and again [cite:web-b].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Beta](https://b.example)\n\n[2] [Alpha](https://a.example)')
+    expect(getCitedWebSources(message).map((citation) => citation.url)).toEqual([
+      'https://b.example',
+      'https://a.example'
+    ])
+  })
+
+  it('escapes Markdown in titles, encodes unsafe URL characters, and retains the normalized host for untitled sources', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [
+          { id: 'web-a', title: 'Read [this]  \\ now', url: 'https://x.example/a b(c)', content: 'a' },
+          { id: 'web-b', title: '', url: 'https://plain.example', content: 'b' }
+        ]
+      },
+      { type: 'text', text: 'Cited [cite:web-a] and [cite:web-b].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe(
+      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b%28c%29)\n\n[2] [plain.example](https://plain.example)'
+    )
+  })
+
   it('resolves a marker against priorCitationParts and lists that source', () => {
     const message: MessageExportView = {
       ...createExportView([{ type: 'text', text: 'Prices rose. [cite:3f2a1b9c-2]' }] as MessageExportView['parts']),

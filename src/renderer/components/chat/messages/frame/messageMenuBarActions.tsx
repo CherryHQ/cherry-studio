@@ -36,6 +36,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
+import { getCitedWebSources, getWebSourcesMarkdown } from '@renderer/utils/message/find'
 import { getTranslationFromParts, hasTextParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -281,6 +282,12 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
   await actions.copyText?.(await messageToPlainText(messageForExport), {
+    successMessage: t('message.copy.success')
+  })
+})
+
+registerCommand('message.copyWebSources', async ({ actions, messageForExport, t }) => {
+  await actions.copyText?.(getWebSourcesMarkdown(messageForExport), {
     successMessage: t('message.copy.success')
   })
 })
@@ -619,6 +626,17 @@ registerAction({
       availability: ({ actions, menuConfig }: MessageMenuBarActionContext) =>
         menuConfig.exportMenuOptions[option] && !!actions[action]
     })),
+    {
+      id: 'export.copy-web-sources',
+      commandId: 'message.copyWebSources',
+      label: ({ t }) => t('chat.topics.copy.web_sources'),
+      group: 'copy',
+      order: 105,
+      availability: ({ actions, isAssistantMessage, isProcessing, messageForExport }) => {
+        const visible = isAssistantMessage && !!actions.copyText && getCitedWebSources(messageForExport).length > 0
+        return { visible, enabled: visible && !isProcessing }
+      }
+    },
     {
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',

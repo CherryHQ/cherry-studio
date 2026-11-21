@@ -1071,6 +1071,7 @@
   "chat.topics.copy.md": "Kopírovat jako Markdown",
   "chat.topics.copy.plain_text": "Kopírovat jako prostý text (bez Markdownu)",
   "chat.topics.copy.title": "Kopírovat",
+  "chat.topics.copy.web_sources": "Kopírovat webové zdroje",
   "chat.topics.delete.shortcut": "Podržením {{key}} smažete přímo",
   "chat.topics.display.assistant": "Asistent",
   "chat.topics.display.time": "Čas",

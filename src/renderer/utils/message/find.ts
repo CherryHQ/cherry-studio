@@ -7,7 +7,13 @@
  */
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import {
+  CITATION_MARKER_PATTERN,
+  determineCitationSource,
+  mapMarkdownOutsideCode,
+  normalizeCitationMarks
+} from '@renderer/utils/citation'
+import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -161,3 +167,60 @@ export const getToolCitationExport = (
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }
 }
+
+const WEB_SOURCE_URL = /^https?:\/\//i
+
+/**
+ * Webpage citations the answer's own text cites, in display order with their display numbers.
+ * Reasoning and tool output never contribute; knowledge and memory sources are excluded.
+ */
+export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
+  const parts = getParts(message)
+  let hasLegacyCitations = false
+  const legacyCitations: Citation[] = []
+  const seen = new Set<string>()
+  for (const part of parts) {
+    if (part.type !== 'text') continue
+    const references = (readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []
+    const citations = convertReferencesToCitations(references)
+    if (citations.length === 0) continue
+    hasLegacyCitations = true
+    const source = determineCitationSource(convertReferencesToCitationReferences(references, ''))
+    const normalized = normalizeCitationMarks(part.text ?? '', new Map(citations.map((c) => [c.number, c])), source)
+    const numbers = new Set<number>()
+    mapMarkdownOutsideCode(normalized, (text) => {
+      for (const match of text.matchAll(CITATION_MARKER_PATTERN)) numbers.add(Number(match[2]))
+      return text
+    })
+    for (const citation of citations) {
+      const key = `${citation.type}:${citation.number}:${citation.url}`
+      if (!numbers.has(citation.number) || seen.has(key)) continue
+      seen.add(key)
+      legacyCitations.push(citation)
+    }
+  }
+  const cited = hasLegacyCitations
+    ? legacyCitations
+    : toExportableCitations(
+        parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text ?? '')
+          .join('\n\n'),
+        parts,
+        'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+      ).cited
+  return cited.filter((citation) => citation.type === 'websearch' && WEB_SOURCE_URL.test(citation.url))
+}
+
+const escapeLinkText = (text: string): string => text.replace(/[\\[\]]/g, '\\$&')
+const escapeLinkDestination = (url: string): string =>
+  url.replace(/[ ()<>]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
+
+/** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
+export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
+  getCitedWebSources(message)
+    .map((citation) => {
+      const title = (citation.title || citation.url).replace(/\s+/g, ' ').trim()
+      return `[${citation.number}] [${escapeLinkText(title)}](${escapeLinkDestination(citation.url)})`
+    })
+    .join('\n\n')
