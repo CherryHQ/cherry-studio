@@ -10,9 +10,10 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
+import { useCliVersionStatuses } from '../hooks/useCliVersionStatuses'
 
 type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
 
@@ -41,6 +42,7 @@ const {
   ipcEventHandlers,
   versionStatusesMock,
   versionStatusesResolvedState,
+  useActualAvailabilitySurfaces,
   mockProviders,
   mockProviderConfigs,
   providersLoadingState,
@@ -71,6 +73,7 @@ const {
   ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
   versionStatusesResolvedState: { value: true },
+  useActualAvailabilitySurfaces: { value: false },
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
@@ -396,53 +399,60 @@ vi.mock('../components/LaunchDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: ({
-    canLaunch,
-    onRemove,
-    onLaunch,
-    onUpgrade,
-    upgradeDisabled,
-    installError,
-    onShowError,
-    launchDisabledHint
-  }: {
-    canLaunch?: boolean
-    onRemove?: () => void
-    onLaunch?: () => void
-    onUpgrade?: () => void
-    upgradeDisabled?: boolean
-    installError?: string
-    onShowError?: () => void
-    launchDisabledHint?: string
-  }) => (
-    <div
-      data-can-launch={String(canLaunch)}
-      data-launch-disabled-hint={launchDisabledHint}
-      data-testid="version-status-card">
-      {onRemove && (
-        <button type="button" onClick={onRemove}>
-          remove tool
-        </button>
-      )}
-      {onLaunch && (
-        <button type="button" disabled={!canLaunch} onClick={onLaunch}>
-          start tool
-        </button>
-      )}
-      {onUpgrade && (
-        <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
-          upgrade tool
-        </button>
-      )}
-      {installError && (
-        <button type="button" onClick={onShowError}>
-          show error
-        </button>
-      )}
-    </div>
-  )
-}))
+vi.mock('../components/VersionStatusCard', async (importOriginal) => {
+  // oxlint-disable-next-line consistent-type-imports
+  const { VersionStatusCard: ActualCard } = await importOriginal<typeof import('../components/VersionStatusCard')>()
+  return {
+    VersionStatusCard: (props: React.ComponentProps<typeof ActualCard>) =>
+      useActualAvailabilitySurfaces.value ? <ActualCard {...props} /> : <VersionStatusCardStub {...props} />
+  }
+})
+
+const VersionStatusCardStub = ({
+  canLaunch,
+  onRemove,
+  onLaunch,
+  onUpgrade,
+  upgradeDisabled,
+  installError,
+  onShowError,
+  launchDisabledHint
+}: {
+  canLaunch?: boolean
+  onRemove?: () => void
+  onLaunch?: () => void
+  onUpgrade?: () => void
+  upgradeDisabled?: boolean
+  installError?: string
+  onShowError?: () => void
+  launchDisabledHint?: string
+}) => (
+  <div
+    data-can-launch={String(canLaunch)}
+    data-launch-disabled-hint={launchDisabledHint}
+    data-testid="version-status-card">
+    {onRemove && (
+      <button type="button" onClick={onRemove}>
+        remove tool
+      </button>
+    )}
+    {onLaunch && (
+      <button type="button" disabled={!canLaunch} onClick={onLaunch}>
+        start tool
+      </button>
+    )}
+    {onUpgrade && (
+      <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
+        upgrade tool
+      </button>
+    )}
+    {installError && (
+      <button type="button" onClick={onShowError}>
+        show error
+      </button>
+    )}
+  </div>
+)
 
 vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
@@ -473,7 +483,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
+  useCliVersionStatuses: vi.fn()
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -541,6 +551,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
       ...base,
       installed: false,
       source: 'none',
+      applicationStatus: 'absent',
       ...overrides[CodeCli.GEMINI_CLI]
     },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
@@ -565,6 +576,12 @@ describe('CodeCliPage', () => {
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
     versionStatusesResolvedState.value = true
+    vi.mocked(useCliVersionStatuses).mockImplementation(() => ({
+      statuses: versionStatusesMock(),
+      resolved: versionStatusesResolvedState.value,
+      retry: vi.fn()
+    }))
+    useActualAvailabilitySurfaces.value = false
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -635,15 +652,13 @@ describe('CodeCliPage', () => {
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 
-  // The redirect used to bail whenever the status was absent, so a permanently failed read left
-  // a selected Gemini hidden AND unredirected — an empty pane with no way out.
-  it('falls back off a selected Gemini when the status read never produces one', async () => {
+  it.each(['loading', 'error'] as const)('keeps selected Gemini reachable when detection is %s', (detectionStatus) => {
     mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
-    versionStatusesMock.mockReturnValue({})
-
+    versionStatusesMock.mockReturnValue(baseVersionStatuses({ [CodeCli.GEMINI_CLI]: { detectionStatus } }))
     render(<CodeCliPage />)
-
-    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
   })
 
   it('keeps a selected Gemini selected while its status is still unresolved', () => {
@@ -653,7 +668,42 @@ describe('CodeCliPage', () => {
 
     render(<CodeCliPage />)
 
-    // Redirecting on an in-flight read would move an installed-Gemini user off it on every start.
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps Gemini retryable after a missing snapshot and recovers to the runnable CLI without installing', async () => {
+    useActualAvailabilitySurfaces.value = true
+    const { useCliVersionStatuses: actualHook } = await vi.importActual<{
+      useCliVersionStatuses: typeof useCliVersionStatuses
+    }>('../hooks/useCliVersionStatuses')
+    vi.mocked(useCliVersionStatuses).mockImplementation(actualHook)
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID })
+    let available = false
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'binary.get_tool_snapshots')
+        return available
+          ? {
+              gemini: {
+                name: 'gemini',
+                availability: { source: 'system', path: '/usr/local/bin/gemini' },
+                application: { status: 'unknown', reason: 'query_failed' }
+              }
+            }
+          : {}
+      return { success: true }
+    })
+    const user = userEvent.setup()
+    render(<CodeCliPage />)
+    const retryButton = await screen.findByRole('button', { name: 'common.retry' })
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+    available = true
+    await user.click(retryButton)
+    expect(await screen.findByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(installMock).not.toHaveBeenCalled()
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 

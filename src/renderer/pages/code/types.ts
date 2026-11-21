@@ -11,6 +11,8 @@ export interface CodeToolMeta {
 /** Install/upgrade status for a single CLI tool binary. */
 export interface VersionStatus {
   installed: boolean
+  /** Snapshot read state, independent of the backend application fact. */
+  detectionStatus?: 'loading' | 'error'
   source: 'mise' | 'bundled' | 'system' | 'none'
   /** Exact-backend-application status; drives update/uninstall/repair authority. */
   applicationStatus?: BinaryApplication['status']

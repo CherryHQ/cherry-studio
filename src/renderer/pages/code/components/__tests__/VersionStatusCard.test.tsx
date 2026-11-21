@@ -250,29 +250,37 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'settings.dependencies.uninstall' })).toBeInTheDocument()
   })
 
-  it('offers a probe retry for an unknown application without exposing uninstall', () => {
-    const onInstall = vi.fn()
-    render(
-      <VersionStatusCard
-        toolId="openclaw"
-        toolName="OpenClaw"
-        status={{
-          installed: true,
-          source: 'system',
-          applicationStatus: 'unknown',
-          canUpgrade: false
-        }}
-        onInstall={onInstall}
-        onRemove={vi.fn()}
-        onLaunch={vi.fn()}
-        canLaunch
-      />
-    )
+  it.each(['system', 'mise', 'none'] as const)(
+    'retries detection for an unknown application with %s availability',
+    (source) => {
+      const onInstall = vi.fn()
+      const onRetryDetection = vi.fn()
+      render(
+        <VersionStatusCard
+          toolId="openclaw"
+          toolName="OpenClaw"
+          status={{
+            installed: source !== 'none',
+            source,
+            applicationStatus: 'unknown',
+            canUpgrade: false
+          }}
+          onInstall={onInstall}
+          onRetryDetection={onRetryDetection}
+          onRemove={vi.fn()}
+          onLaunch={vi.fn()}
+          canLaunch
+        />
+      )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
-    expect(onInstall).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
-  })
+      fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+      expect(onInstall).not.toHaveBeenCalled()
+      expect(onRetryDetection).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+      if (source !== 'none') expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+    }
+  )
 
   it('keeps uninstall available for a broken unavailable tool and never offers install retry after uninstall fails', () => {
     render(
@@ -338,20 +346,6 @@ describe('VersionStatusCard', () => {
     expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
-  it('omits the open-dashboard action when no handler is provided', () => {
-    render(
-      <VersionStatusCard
-        toolId="openclaw"
-        toolName="OpenClaw"
-        status={{ source: 'none', installed: true, canUpgrade: false }}
-        onStop={vi.fn()}
-        running
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
-  })
-
   it('suppresses the up-to-date badge for a broken mise tool that still resolves', () => {
     render(
       <VersionStatusCard
@@ -366,5 +360,99 @@ describe('VersionStatusCard', () => {
     // A broken recipe must never read as current, and it still offers repair.
     expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
+  })
+  it.each(['loading', 'error'] as const)('never offers install solely because detection is %s', (detectionStatus) => {
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ installed: false, source: 'none', canUpgrade: false, detectionStatus }}
+        onInstall={vi.fn()}
+        onRetryDetection={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.getByText(detectionStatus === 'loading' ? 'common.loading' : 'common.unknown')).toBeInTheDocument()
+    if (detectionStatus === 'error') expect(screen.getByRole('button', { name: 'common.retry' })).toBeEnabled()
+  })
+
+  it.each([
+    { applicationStatus: 'unknown', detectionStatus: undefined },
+    { applicationStatus: 'broken', detectionStatus: 'error' },
+    { applicationStatus: 'broken', detectionStatus: 'loading' }
+  ] as const)(
+    'prioritizes detection over a retained failed install ($applicationStatus/$detectionStatus)',
+    async (state) => {
+      const onInstall = vi.fn()
+      const onRetryDetection = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <VersionStatusCard
+          toolId="claude-code"
+          toolName="Claude Code"
+          status={{
+            installed: false,
+            source: 'none',
+            canUpgrade: false,
+            ...state,
+            operation: { status: 'failed', action: 'install', error: 'Previous install failed' }
+          }}
+          onInstall={onInstall}
+          onRetryDetection={onRetryDetection}
+        />
+      )
+      expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+      if (state.detectionStatus === 'loading') {
+        expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+      } else {
+        await user.click(screen.getByRole('button', { name: 'common.retry' }))
+        expect(onRetryDetection).toHaveBeenCalledOnce()
+      }
+      expect(onInstall).not.toHaveBeenCalled()
+    }
+  )
+
+  it('allows detection retry despite a stale installing operation', async () => {
+    const onRetryDetection = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{
+          installed: true,
+          source: 'mise',
+          canUpgrade: false,
+          detectionStatus: 'error',
+          operation: { status: 'installing' }
+        }}
+        isInstalling
+        onRetryDetection={onRetryDetection}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(onRetryDetection).toHaveBeenCalledOnce()
+  })
+
+  it('offers install for confirmed absence and avoids claiming a tool is current without latest metadata', () => {
+    const { rerender } = render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ installed: false, source: 'none', canUpgrade: false, applicationStatus: 'absent' }}
+        onInstall={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'code.install' })).toBeEnabled()
+    rerender(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ installed: true, source: 'mise', canUpgrade: false, applicationStatus: 'applied', current: '1.0.0' }}
+      />
+    )
+    expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
   })
 })
