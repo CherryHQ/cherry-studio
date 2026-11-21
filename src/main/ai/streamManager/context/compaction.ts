@@ -13,7 +13,8 @@ import { imageTokensFor, mediaTokensFor } from '../../tokens/profiles'
 export interface CompactionRow {
   id: string
   role: string
-  parts: Array<{ type: string; text?: string; [k: string]: unknown }>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical and provider-defined parts are token-estimated whole when no text/media estimate applies; their extension values remain unparsed here.
+  parts: Array<{ type: string; text?: string; mediaType?: unknown; [k: string]: unknown }>
   /** Durable summary covering the conversation up to AND INCLUDING this row. */
   compactionSummary?: string
   /** Real end-of-turn context size persisted on this row (last-step totalTokens), if any. */
@@ -89,7 +90,7 @@ export function estimateRowTokens(row: CompactionRow, dialect: TokenDialect): nu
 }
 
 /** Media cost by declared type, or `undefined` when the part carries no media. */
-function mediaPartTokens(part: { type: string; [k: string]: unknown }, dialect: TokenDialect): number | undefined {
+function mediaPartTokens(part: { mediaType?: unknown }, dialect: TokenDialect): number | undefined {
   const mediaType = typeof part.mediaType === 'string' ? part.mediaType : undefined
   if (!mediaType) return undefined
   if (mediaType.startsWith('image/')) return imageTokensFor(dialect)
