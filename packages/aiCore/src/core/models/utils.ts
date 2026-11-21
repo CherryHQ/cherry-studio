@@ -22,6 +22,5 @@ export const hasModelId = (model: unknown): model is { modelId: string } => {
     return false
   }
 
-  const obj = model as Record<string, unknown>
-  return typeof obj.modelId === 'string'
+  return typeof model.modelId === 'string'
 }

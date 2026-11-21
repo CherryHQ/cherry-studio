@@ -1216,7 +1216,12 @@ export class WindowManager extends BaseService {
    * plus any caller-supplied extras. Caller responsibility: invoke after the
    * mutation lands, so the snapshot reflects post-state.
    */
-  private logWarmupEvent(op: WarmupOp, type: WindowType, state: WarmupState, extra?: Record<string, unknown>): void {
+  private logWarmupEvent(
+    op: WarmupOp,
+    type: WindowType,
+    state: WarmupState,
+    extra?: Record<string, string | number>
+  ): void {
     logger.debug(`warmup[${type}] ${op}`, {
       op,
       type,
