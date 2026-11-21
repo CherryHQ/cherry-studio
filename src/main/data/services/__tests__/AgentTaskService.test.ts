@@ -506,13 +506,13 @@ describe('AgentTaskService (read side)', () => {
   })
 
   describe('session reuse metadata', () => {
-    it.each([
+    it.each<[string, JobScheduleSnapshot['metadata']]>([
       ['absent', {}],
       ['null', { reuse: null }],
       ['a primitive', { reuse: 'yes' }],
       ['an array', { reuse: ['enabled'] }]
     ])('reads %s reuse metadata as disabled and unbound', (_label, metadata) => {
-      expect(readTaskSessionReuse(metadata as Record<string, unknown>)).toEqual({
+      expect(readTaskSessionReuse(metadata)).toEqual({
         enabled: false,
         revision: 0
       })
@@ -537,7 +537,7 @@ describe('AgentTaskService (read side)', () => {
 
     // A JSON column can legally hold an array; spreading it would produce numeric keys.
     it('does not spread a non-record metadata column', () => {
-      const merged = writeTaskSessionReuse(['junk'] as unknown as Record<string, unknown>, {
+      const merged = writeTaskSessionReuse(['junk'] as unknown as JobScheduleSnapshot['metadata'], {
         enabled: true,
         revision: 0
       })

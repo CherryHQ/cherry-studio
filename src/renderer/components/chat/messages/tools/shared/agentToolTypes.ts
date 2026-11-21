@@ -118,6 +118,7 @@ export type TaskOutputToolInput = {
   block: boolean
   timeout: number
 }
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical TaskOutput payloads lack a current SDK schema; truncateOutput checks text blocks and serializes other opaque results.
 export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
 export type TaskStopToolInput = TaskStopInput
@@ -283,10 +284,13 @@ export type WorkflowToolInput = WorkflowInput
 export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Experimental agent-team wire fields are not owned by the installed SDK; structured display checks consumed strings and retains foreign arguments.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
 export type SendMessageToolOutput = string
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The installed SDK provides no TeamCreate input contract; structured display reads checked strings from the raw runtime arguments.
 export type TeamCreateToolInput = Record<string, unknown>
 export type TeamCreateToolOutput = string
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The installed SDK provides no TeamDelete input contract; retain raw runtime arguments for historical structured display.
 export type TeamDeleteToolInput = Record<string, unknown>
 export type TeamDeleteToolOutput = string
 
@@ -318,7 +322,9 @@ export type ToolInput =
   | TaskUpdateToolInput
   | TaskListToolInput
   | SendMessageToolInput
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This union intentionally includes the opaque experimental TeamCreate wire contract documented at its declaration.
   | TeamCreateToolInput
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This union intentionally includes the opaque experimental TeamDelete wire contract documented at its declaration.
   | TeamDeleteToolInput
   | EnterWorktreeToolInput
   | ExitWorktreeToolInput

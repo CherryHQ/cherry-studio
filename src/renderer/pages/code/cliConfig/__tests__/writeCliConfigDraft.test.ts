@@ -32,7 +32,6 @@ vi.mock('@renderer/ipc', () => ({
 /** Per-path DataApi.get mock returning provider / api-keys / model payloads.
  * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
  * shadowed by the `/providers/:id` entry. */
-// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This generic bound retains heterogeneous per-route fixture results; the mapped factories preserve each response type.
 function mockGet<TResponses extends Record<string, unknown>>(handlers: {
   [Path in keyof TResponses]: () => TResponses[Path]
 }) {
