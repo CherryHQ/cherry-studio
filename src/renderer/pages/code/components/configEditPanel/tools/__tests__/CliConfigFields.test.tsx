@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
+import type * as ReactRuntime from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CodexConfigFields } from '../CodexConfigFields'
@@ -13,15 +13,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const React = await vi.importActual<typeof import('react')>('react')
+  const React = await vi.importActual<typeof ReactRuntime>('react')
   return {
     Button: ({
       children,
       size,
       variant,
       ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      children?: ReactNode
+    }: ReactRuntime.ButtonHTMLAttributes<HTMLButtonElement> & {
+      children?: ReactRuntime.ReactNode
       size?: string
       variant?: string
     }) => {
@@ -38,22 +38,32 @@ vi.mock('@cherrystudio/ui', async () => {
       value,
       onValueChange
     }: {
-      children: ReactNode
+      children: ReactRuntime.ReactNode
       value?: string
       onValueChange: (value: string) => void
     }) => {
       return (
         <div data-testid="select" data-value={value}>
           {React.Children.map(children, (child) =>
-            React.isValidElement(child) ? React.cloneElement(child as ReactElement<any>, { onValueChange }) : child
+            React.isValidElement(child)
+              ? React.cloneElement(child as ReactRuntime.ReactElement<any>, { onValueChange })
+              : child
           )}
         </div>
       )
     },
-    SelectContent: ({ children, onValueChange }: { children: ReactNode; onValueChange?: (value: string) => void }) => (
+    SelectContent: ({
+      children,
+      onValueChange
+    }: {
+      children: ReactRuntime.ReactNode
+      onValueChange?: (value: string) => void
+    }) => (
       <div>
         {React.Children.map(children, (child) =>
-          React.isValidElement(child) ? React.cloneElement(child as ReactElement<any>, { onValueChange }) : child
+          React.isValidElement(child)
+            ? React.cloneElement(child as ReactRuntime.ReactElement<any>, { onValueChange })
+            : child
         )}
       </div>
     ),
@@ -62,7 +72,7 @@ vi.mock('@cherrystudio/ui', async () => {
       value,
       onValueChange
     }: {
-      children: ReactNode
+      children: ReactRuntime.ReactNode
       value: string
       onValueChange?: (value: string) => void
     }) => (
@@ -70,7 +80,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
-    SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+    SelectTrigger: ({ children }: { children: ReactRuntime.ReactNode }) => <button type="button">{children}</button>,
     SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
   }
 })

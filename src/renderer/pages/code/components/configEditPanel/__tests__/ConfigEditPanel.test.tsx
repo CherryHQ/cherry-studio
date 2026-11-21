@@ -6,7 +6,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
 })
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
@@ -16,6 +16,8 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { ConfigEditPanel } from '../ConfigEditPanel'
+import type { ClaudeConfigFieldsProps } from '../tools/ClaudeConfigFields'
+import type { OpenCodeConfigFieldsProps } from '../tools/OpenCodeConfigFields'
 
 const {
   extractConfigFromCliConfigDraftMock,
@@ -212,12 +214,7 @@ vi.mock('../CliConfigEditor', () => ({
 }))
 
 vi.mock('../tools/ClaudeConfigFields', () => ({
-  ClaudeConfigFields: ({
-    config,
-    onChange,
-    onSettingsNavigate,
-    section = 'all'
-  }: ComponentProps<typeof import('../tools/ClaudeConfigFields').ClaudeConfigFields>) => {
+  ClaudeConfigFields: ({ config, onChange, onSettingsNavigate, section = 'all' }: ClaudeConfigFieldsProps) => {
     const env = config.env as Record<string, string> | undefined
     return (
       <div data-testid={`claude-config-fields-${section}`}>
@@ -249,11 +246,7 @@ vi.mock('../tools/CodexConfigFields', () => ({
 }))
 
 vi.mock('../tools/OpenCodeConfigFields', () => ({
-  OpenCodeConfigFields: ({
-    config,
-    onChange,
-    section = 'all'
-  }: ComponentProps<typeof import('../tools/OpenCodeConfigFields').OpenCodeConfigFields>) =>
+  OpenCodeConfigFields: ({ config, onChange, section = 'all' }: OpenCodeConfigFieldsProps) =>
     section === 'advanced' ? null : (
       <button type="button" onClick={() => onChange({ ...config, autoCompact: true })}>
         toggle opencode auto compact
