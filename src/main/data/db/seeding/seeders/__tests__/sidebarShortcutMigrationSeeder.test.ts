@@ -118,6 +118,20 @@ describe('SidebarShortcutMigrationSeeder', () => {
     ])
   })
 
+  it('preserves future item types that match prototype property names', () => {
+    const future = [
+      { type: '__proto__', id: 'future-1', metadata: { retained: true } },
+      { type: 'constructor', id: 'future-2' },
+      { type: 'toString', id: 'future-3' }
+    ]
+    dbh.db.insert(preferenceTable).values({ key: 'ui.sidebar.favorites', value: future }).run()
+
+    new SidebarShortcutMigrationSeeder().run(dbh.db)
+
+    expect(readPreference()).toEqual(future)
+    expect(readPreference('ui.sidebar.favorites')).toEqual(future)
+  })
+
   it('preserves an intentionally empty legacy sidebar instead of seeding shortcut defaults', () => {
     dbh.db.insert(preferenceTable).values({ key: 'ui.sidebar.favorites', value: [] }).run()
 

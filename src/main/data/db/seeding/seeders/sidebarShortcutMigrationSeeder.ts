@@ -21,7 +21,17 @@ const LEGACY_PROVIDER_BY_TYPE = {
   assistant: 'core.assistant'
 } as const
 
-type StoredSidebarItem = Record<string, unknown>
+type StoredSidebarItem = {
+  type?: unknown
+  id?: unknown
+  target?: unknown
+  fallbackLabel?: unknown
+  kind?: unknown
+  locator?: unknown
+  providerId?: unknown
+  resourceId?: unknown
+  activationId?: unknown
+}
 
 function isRecord(value: unknown): value is StoredSidebarItem {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -70,7 +80,9 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
 
     const legacyTypes = new Set(
       row.value.flatMap((value) =>
-        isRecord(value) && typeof value.type === 'string' && value.type in LEGACY_PROVIDER_BY_TYPE ? [value.type] : []
+        isRecord(value) && typeof value.type === 'string' && Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type)
+          ? [value.type]
+          : []
       )
     )
 
@@ -110,7 +122,7 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
         next = shortcut
       } else if (
         typeof value.type === 'string' &&
-        value.type in LEGACY_PROVIDER_BY_TYPE &&
+        Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type) &&
         typeof value.id === 'string' &&
         value.id.length > 0
       ) {
