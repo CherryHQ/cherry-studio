@@ -13,6 +13,10 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
+import {
+  awaitEndpointConfigWrites,
+  withEndpointConfigWriteLock
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpointActions'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import {
@@ -79,7 +83,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
 
 export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: ProviderApiOptionsDrawerProps) {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, mutate } = useProvider(providerId)
 
   const endpointType = provider?.defaultChatEndpoint ?? undefined
   const dialect = provider
@@ -160,18 +164,30 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       if (!provider || !endpointType) {
         return
       }
-      const endpointConfig = provider.endpointConfigs?.[endpointType] ?? {}
-      updateProvider({
-        endpointConfigs: {
-          ...provider.endpointConfigs,
-          [endpointType]: {
-            ...endpointConfig,
-            dialect: { ...endpointConfig.dialect, [key]: checked }
-          }
+
+      void (async () => {
+        try {
+          await awaitEndpointConfigWrites(provider.id)
+          await withEndpointConfigWriteLock(provider.id, async () => {
+            const freshProvider = (await mutate?.()) ?? provider
+            const current = freshProvider ?? provider
+            const endpointConfig = current.endpointConfigs?.[endpointType] ?? {}
+            await updateProvider({
+              endpointConfigs: {
+                ...current.endpointConfigs,
+                [endpointType]: {
+                  ...endpointConfig,
+                  dialect: { ...endpointConfig.dialect, [key]: checked }
+                }
+              }
+            })
+          })
+        } catch {
+          handleSaveError()
         }
-      }).catch(handleSaveError)
+      })()
     },
-    [endpointType, handleSaveError, provider, updateProvider]
+    [endpointType, handleSaveError, mutate, provider, updateProvider]
   )
 
   const updateCacheSettings = useCallback(
