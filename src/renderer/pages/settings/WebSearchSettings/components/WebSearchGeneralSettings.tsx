@@ -7,6 +7,7 @@ import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
+import BlacklistSubscriptionSettings from './BlacklistSubscriptionSettings'
 
 interface Props {
   variant?: 'card' | 'plain'
@@ -30,6 +31,7 @@ export const WebSearchGeneralSettings: FC<Props> = ({ variant = 'card' }) => {
           <AccordionContent forceMount hidden={!advancedSettingsOpen} className="pt-2 pb-0">
             <BasicSettings variant="plain" />
             <BlacklistSettings variant="plain" />
+            <BlacklistSubscriptionSettings variant="plain" />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
