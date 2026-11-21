@@ -14,7 +14,12 @@ import {
 
 import { createToolIntent, offersToolIntent, TOOL_INTENT_GUIDE } from '@cherrystudio/agent-behavior'
 
-import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
+import {
+  type AgentRuntimeCompaction,
+  type CompactionSummarizer,
+  type CompactionSummaryEventRequest,
+  compactionSummaryExtension
+} from './compaction'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
 
 export type AgentRuntimeModel = Model<Api>
@@ -96,11 +101,29 @@ export async function createAgentRuntimeSession(
 
   const { compaction } = options
   const summarize = compaction?.summarize
+  // meterRequests (behavior/harness.ts) wraps session.agent.streamFunction in place after session
+  // creation, so the summary stream reads it lazily at summarize time: admission, the run's request
+  // cap and summary-usage accounting then cover every host summary attempt.
+  // eslint-disable-next-line prefer-const -- assigned after creation; the closure above reads it lazily
+  let meteredSession: AgentSession | undefined
+  const meteredSummarize: ((request: CompactionSummaryEventRequest) => ReturnType<CompactionSummarizer>) | undefined =
+    summarize
+      ? (request) =>
+          summarize({
+            ...request,
+            stream: (model, context, streamOptions) => {
+              if (!meteredSession) throw new Error('Pi session is unavailable for metered summary streaming')
+              return meteredSession.agent.streamFunction(model, context, streamOptions)
+            }
+          })
+      : undefined
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
     ...(options.extensionFactories ?? []),
-    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : [])
+    ...(meteredSummarize
+      ? [compactionSummaryExtension(meteredSummarize, (message) => (events.summaryFailure = message))]
+      : [])
   ]
   const settingsManager = SettingsManager.inMemory(
     {
@@ -152,6 +175,7 @@ export async function createAgentRuntimeSession(
     customTools: options.tools ?? [],
     excludeTools: options.excludeTools
   })
+  meteredSession = session
   session.subscribe((event) => {
     events.handle(event)
     if (event.type !== 'agent_settled') return

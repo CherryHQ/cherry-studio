@@ -8,6 +8,7 @@ import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
+  AgentRuntimeCompaction,
   AgentRuntimeEvent as PiEvent,
   PiObservation,
   PiRuntime,
@@ -75,6 +76,8 @@ import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
 import { PiChildTasks } from './PiChildTasks'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
+import { createPiCompactionSummarizer } from './piCompactionSummarizer'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -350,6 +353,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settings: {
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
+      },
+      // A binding-supplied compaction config wins: tests and specialized hosts drive the native
+      // path directly, while production bindings get the derived budgets and host summarizer.
+      compaction: (binding as { compaction?: AgentRuntimeCompaction }).compaction ?? {
+        ...resolvePiCompactionSettings(binding.model.contextWindow, binding.model.maxTokens),
+        summarize: createPiCompactionSummarizer({
+          binding,
+          usage: () => application.get('ApiGatewayService').captureAgentSessionUsage(this.input.sessionId)
+        })
       },
       extensionFactories: [
         createPiIdentityExtension(agentDataPath),

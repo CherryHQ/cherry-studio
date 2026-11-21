@@ -204,9 +204,10 @@ for host persistence; billing retains its native response identity independently
 
 ## Compaction and shared tools
 
-`compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. Pi generates the
-summary itself; each native model request is metered and its reported usage is attributed to the captured goal
-and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
+`compaction: { reserveTokens, keepRecentTokens, enabled?, summarize? }` controls native thresholds. Without `summarize`, Pi
+generates the summary itself; each native model request is metered and its reported usage is attributed to the captured goal
+and child run. With `summarize`, the host generates the summary and is responsible for bounding and metering its request.
+Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
 is disabled.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,

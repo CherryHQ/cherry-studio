@@ -28,6 +28,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { resolveSessionCompaction } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -39,8 +40,8 @@ export interface PiRuntimeBehavior {
     readonly thread: Thread
     readonly modelKey: string
   }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>
+    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>>
 }
 
 interface PiRuntimeErrorContext {
@@ -58,7 +59,7 @@ export interface PiRuntimeOptions {
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
   compactionPercent?: number
-  compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
+  compaction?: NonNullable<AgentRuntimeSessionOptions['compaction']>
 }
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
@@ -200,9 +201,12 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: {
-              ...settings,
-              ...config.compaction,
+            // A child binding may carry its own compaction: its summarizer's model is registered
+            // in this session's runtime, while the inherited (root) summarizer's may not be.
+            compaction: resolveSessionCompaction({
+              inherited: (child ? configured?.compaction : undefined) ?? config.compaction,
+              nativeBudgets: settings,
+              model,
               ...(!child &&
                 config.compactionPercent !== undefined && {
                   reserveTokens: Math.max(
@@ -210,7 +214,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                     Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
                   )
                 })
-            },
+            }),
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
