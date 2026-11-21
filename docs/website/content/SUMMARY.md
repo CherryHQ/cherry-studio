@@ -185,8 +185,11 @@
   * [移动版概览](mobile/README.md)
   * [下载与安装](mobile/installation.md)
   * [快速开始](mobile/quick-start.md)
+  * [账号与组织空间](mobile/accounts-and-organizations.md)
 * **日常使用**
   * [对话与文件](mobile/chat-and-files.md)
+  * [多模型回复与对话分支](mobile/conversation-branches.md)
+  * [语音与音频转写](mobile/voice.md)
   * [回复与技能文档翻译](mobile/translation.md)
   * [文件库与共享工作区](mobile/file-library.md)
   * [生成与修改文件](mobile/file-generation.md)
@@ -197,7 +200,9 @@
 * **智能体与自动化**
   * [智能体与工具](mobile/agents-and-tools.md)
   * [技能：安装与复用任务流程](mobile/skills.md)
-  * [在手机使用电脑智能体](mobile/remote-chat.md)
+  * [电脑智能体与定时任务结果](mobile/remote-chat.md)
+  * [UU 远程桌面](mobile/remote-desktop.md)
+  * [SSH 远程服务器](mobile/ssh.md)
   * [让 AI 使用工具](mobile/using-tools.md)
   * [日历与提醒事项](mobile/calendar-and-reminders.md)
   * [位置与健康记录](mobile/location-and-health.md)
@@ -207,10 +212,12 @@
   * [添加、编辑与管理模型](mobile/model-management.md)
   * [模型信息与列表更新](mobile/model-updates.md)
   * [从电脑导入配置](mobile/desktop-sync.md)
+  * [导入 DeepSeek 对话](mobile/deepseek-import.md)
   * [备份与恢复](mobile/backup-and-restore.md)
   * [数据、隐私与权限](mobile/data-privacy.md)
   * [设置、用量与后台回复](mobile/settings-and-usage.md)
 * **故障排查**
+  * [错误检查与 AI 诊断](mobile/diagnostics.md)
   * [常见问题](mobile/troubleshooting.md)
 * **开发者与贡献**
   * [参与移动版文档](mobile/development.md)

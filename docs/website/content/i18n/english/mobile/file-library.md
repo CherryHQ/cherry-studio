@@ -4,7 +4,7 @@ icon: folder-open
 
 # File library and shared workspaces
 
-Open **Files** in the sidebar to manage imported attachments, generated files, and exported work. Mobile **0.3.0** supports folders, conversation workspaces, and a 30-day trash.
+Open **Files** in the sidebar to manage imported attachments, generated files, and exported work. The library supports folders, conversation workspaces, and a 30-day trash.
 
 ## Organize material in folders
 
@@ -12,6 +12,8 @@ Open **Files** in the sidebar to manage imported attachments, generated files, a
 2. Open a folder to create subfolders inside it.
 3. Use a file or folder's actions to rename or move it. Choose and confirm the destination when moving.
 4. Find material through file-type filters and Recents; ask the agent when you need to search by name.
+
+Multi-select files for batch moves and check the destination. Library batch sharing uses originals; open file preview before converting HTML. See [sharing](sharing-and-export.md).
 
 A rename cannot conflict with another item in the same folder. Imports, moves, and restores may add a numbered suffix to resolve a collision; check the resulting name.
 
@@ -24,7 +26,7 @@ A rename cannot conflict with another item in the same folder. Imports, moves, a
 
 A workspace is **the folder associated with this conversation**. Agents can read and save work using relative paths, and several conversations can work with the same material.
 
-1. Open a local conversation and tap the folder action in its header.
+1. Open **＋ → Folders** in a local conversation. History without an available agent/composer may retain a header entry.
 2. Select a folder in the tree. Arrows expand subfolders; file rows open previews.
 3. Return to chat and specify the material and output, for example:
 
@@ -36,26 +38,21 @@ A workspace is **the folder associated with this conversation**. Agents can read
 * Changing the workspace does not move earlier files or change other conversations. A running task uses the workspace captured when it started; a switch affects later tasks.
 * Renaming or moving the folder preserves the association. Deleting a conversation does not delete its folder or files.
 
-Sharing a workspace means sharing a folder within this device, not cloud synchronization. For computer workspaces, see [Use desktop agents from your phone](remote-chat.md).
-
-<div data-mobile-gallery="pair">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/workspace-link.webp"><img src="../../../assets/mobile/en/workspace-link.webp" alt="Link a chat to a folder and let AI save the itinerary there"></a><figcaption><p><strong>iPhone walkthrough</strong> · Link a chat to a folder and let AI save the itinerary there</p></figcaption></figure>
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/workspace-shared.webp"><img src="../../../assets/mobile/en/workspace-shared.webp" alt="A second chat uses the same folder, reads the file, and adds a new one"></a><figcaption><p><strong>iPhone walkthrough</strong> · A second chat uses the same folder, reads the file, and adds a new one</p></figcaption></figure>
-</div>
+A shared workspace is a folder in the current local data space, not cloud synchronization or automatic sharing across personal/organization spaces. For computer workspaces, see [Use desktop agents from your phone](remote-chat.md).
 
 ## Ask AI to organize files
 
-In Standard mode, ask the agent to find folders, move or rename items, send them to trash, or find and restore recently deleted items. For example:
+In Standard mode, ask the agent to create a folder at the library root or inside an existing folder without first selecting a workspace. It can also find, move, rename, trash, and restore items. Creation/management follows each tool's rules and approval mode. For example:
 
 > Find folders with “Trip” in their names. List them first without moving anything.
 
 > Move the checklist.md we just identified into “Trip plan/Before departure.” Tell me its saved name and location.
 
-Moving, renaming, trashing, and restoring follow the agent's approval mode: **Ask when needed** asks for confirmation; **Automatically approve** can execute directly. Permanent deletion and emptying trash remain actions you perform in the interface. See [Let AI use tools](using-tools.md).
+Moving, renaming, trashing, and restoring follow the agent's approval mode: **Ask when needed** asks for confirmation; **Approve automatically** can execute directly. Permanent deletion and emptying trash remain actions you perform in the interface. See [Let AI use tools](using-tools.md).
 
 ## Preview files and edited results
 
-Supported images, text, Markdown, HTML, PDF, DOCX, XLSX, and PPTX can open in the app. Use the menu to open oversized or unsupported files in another app.
+Supported images, text, Markdown, HTML, RTF, PDF, DOCX, XLSX, and PPTX can open in the app. Word fits the screen and zooms to 200%; supported Office selections can return to chat. Audio offers [local transcription](voice.md) from its item menu. Use the menu to open oversized or unsupported files in another app.
 
 Image previews offer cropping, rotation, mirroring, straightening, and perspective adjustment. Saving an image edit creates a new file and retains the original. Text-edit version rules are explained in [Create and edit files](file-generation.md): the library shows the current version, while earlier messages retain the content they referenced.
 

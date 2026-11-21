@@ -4,89 +4,82 @@ icon: bot
 
 # Agents and tools
 
-An agent saves a name, avatar, instructions, model, and tool-approval preference. Create separate agents for writing, learning, or work, then start independent conversations for individual topics.
+An agent saves a name, avatar, instructions, default model, and approval preference. Keep recurring requirements in the agent and open separate conversations for different topics. Attach the current files and task to the message.
+
+In Standard mode, available built-in tools depend on the model, device, system permissions, and configured services. Skills and custom MCP connections have separate agent bindings.
 
 ## Create a reusable agent
 
-1. Open the agent list and tap add, or create one from the conversation header's agent picker.
-2. Enter a name, choose an avatar, and describe how it should work.
-3. Select a mode and model. App tools, plugins, and calendar actions need Standard mode and a tool-capable text model.
-4. In Standard mode, choose approval and System capabilities and configure existing custom tools. Tool extensions can be selected during creation; bind skills after saving and reopening the editor.
-5. Tap **Save**. Creating from the chat picker opens a new conversation; creating from the management list returns there.
+1. Open **Agents** in the sidebar and add one, or create one from the chat header's agent picker.
+2. Enter a name and avatar. Choose **Edit** in the instructions section, write the requirements, then return to the form.
+3. Select a mode and model. Files, skills, plugins, and device tools require **Standard** mode and a tool-capable text model.
+4. Choose an approval preference and optionally **Add MCP**. After creation, use the editor to **Add Skill**.
+5. Tap **Save**. Creating from the chat picker opens a draft; creating from the management list returns to the list.
 
-Example instructions:
+For example:
 
 > Help organize my work materials. Start with a three-sentence summary, then list action items. Mark missing owners and deadlines as “To confirm” instead of inventing them. Answer in English.
 
-Save recurring rules in instructions; attach the current task and documents in chat. Do not store keys or passwords in agent instructions.
-
-<div data-mobile-gallery="single">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/agent-edit.webp"><img src="../../../assets/mobile/en/agent-edit.webp" alt="Agent editor: name, instructions, mode, model, approvals, and capabilities"></a><figcaption><p><strong>iPhone</strong> · Agent editor: name, instructions, mode, model, approvals, and capabilities</p></figcaption></figure>
-</div>
+Keep API keys and account passwords out of instructions.
 
 ## Do edits need saving?
 
-**Creating an agent requires Save. Editing an existing agent saves automatically.**
+Tap the **current agent's name** in the chat header to open its editor without leaving the conversation. The management list opens the same form.
 
-Name and instructions save after a short typing pause; avatar, model, and approval changes save immediately. A failed save retains the draft on the open editor and offers Retry. Resolve the error before leaving.
+**Creation requires Save; existing agents save automatically.** Names and instructions save after a typing pause. Avatar, model, approval, and binding changes save through their respective actions. Done in the instruction editor returns to the form; a new agent still needs the final Save. Retain the draft and retry if saving fails.
 
-An agent can be saved without a model, but cannot start a conversation until you choose an available model.
+You can save an agent without a model, but must choose an available model before chatting. The instructions section shows a summary; choose **Edit** for the complete text.
 
 ## Standard and Minimal modes
 
-| Mode | Best for | Capabilities |
+| Mode | Best for | Scope |
 | --- | --- | --- |
-| Standard | Files, skills, plugins, and device tasks | Configured app tools and model web access |
+| Standard | Files, skills, plugins, and device tasks | Available app tools and model web capabilities |
 | Minimal | Text chat and image understanding | No app tools, skills, or plugins; supported native model web access remains available |
 
-Choose the mode in the agent editor. Switching retains capability and approval preferences for returning to Standard. Missing file tools, skills, or plugins in Minimal mode reflect its scope; reconnecting an account does not enable them.
+Switching modes retains Skill, MCP, and approval settings for returning to Standard. Reauthorizing an account does not extend Minimal mode's scope.
 
 ## Approval modes
 
 | Mode | Behavior |
 | --- | --- |
-| Confirm when needed | Asks only when a tool's rules require it; some reads can proceed directly |
-| Automatic approval | Approves eligible operations, while preserving system permissions, disabled-tool restrictions, and accessible-data limits |
+| Confirm when needed | Follows each tool's rules; some reads and file creation/editing proceed directly |
+| Automatic approval | Approves eligible operations while retaining system permissions, configuration, and resource limits |
 
-New agents, including the initial Cherry agent, currently default to **Automatic approval**. Existing agents keep their setting. Choose Confirm when needed if you want confirmation for calendar changes, reminder deletion, or external tool actions that require approval.
+New agents default to **Approve automatically**; existing agents keep their preference. Choose **Ask when needed** if eligible calendar writes or external changes should ask first.
 
-Approval cannot make an unavailable tool usable. The **image-generation tool called by a text model still requires confirmation each time**, because it consumes provider credits. **iOS health queries also require confirmation every time**, identifying the data recipient. Automatic approval does not skip these confirmations. Direct image-model generation is a separate submission workflow.
+The **image-generation tool** and **health-record reads** retain separate confirmation even with automatic approval. SSH has its own approvals and limited diagnostic grants; see [SSH](ssh.md).
 
-When an approval appears, inspect the action and allow or deny it. Denied tools do not execute; the agent may answer from existing information. An operating-system permission prompt can still follow app approval.
+Inspect the target, operation, and data recipient before allowing or denying. An OS permission prompt may follow app approval. Stopping a reply, deleting history, or changing mode does not undo completed external actions.
 
 ## System tools on your device
 
-Use the agent editor’s **System** section to choose its capabilities: web search, image generation, calendar, reminders, health, and location. Only capabilities supported by the platform and device appear.
-
-* Agents created through the editor start with calendar, reminders, health, and location disabled. Enable them as needed; existing agents retain their settings.
-* These switches affect the current agent. Disabling Web search removes built-in search and page-reading tools; disabling Image generation removes the built-in drawing tool used by text conversations. Manage plugins and custom MCP tools separately in their own settings.
-* Enabling a switch does not grant system permission. Approve access when requested, use **Manage system permissions**, or open **Settings → System permissions**.
-* Existing-agent changes save automatically and apply to subsequent requests. They do not undo an operation already in progress.
+You no longer enable built-in capabilities separately for each agent. At the start of a new request, the app considers model support, platform, grantable or existing system permissions, and configured drawing/web services. Unavailable tools may not be offered to the model.
 
 | Capability | Example | Availability |
 | --- | --- | --- |
-| Calendar | “List tomorrow's events”; “Create a 30-minute meeting tomorrow at 3 pm” | iOS and Android, subject to read/write access and system support |
-| Reminders | “Remind me tomorrow at 9 am to mail the parcel” | iOS reminder permissions; not currently offered on Android |
-| Health records | “Summarize recorded steps and workouts this week” | iOS, for individually authorized data types; not currently offered on Android |
-| Current location | “Get my current location, then help plan a route” | iOS and Android, with location permission |
-| App files | “Save that summary as a file” | Attachments and generated files accessible to the conversation |
+| Calendar | “List tomorrow's events” | iOS and Android, subject to read/write access and system support |
+| Reminders | “Remind me tomorrow at 9 am to mail the parcel” | iOS; not currently offered on Android |
+| Health records | “Summarize recorded steps and workouts this week” | iOS, for supported and authorized data types |
+| Current location | “Get my location, then find nearby stations” | iOS and Android, with location permission |
+| App files | “Save the summary as a file” | Accessible attachments, generated files, and workspace material |
 
-Some Android calendar writes open a system form that you must finish. Opening it does not mean an event was saved. Empty health results can mean no records or missing permission for that data type.
+Use **Settings → System permissions** to manage access. Revoke permissions through the appropriate system settings; the retired agent switches can no longer disable a device capability. Some Android calendar actions need completion in a system form; opening it is not proof of saving.
 
-Local tools cannot freely inspect every phone file or take over other apps. Desktop agents use a separate [remote connection](remote-chat.md), with desktop support and authorization.
+Local tools cannot freely inspect every phone file or take over other apps. [Desktop agents](remote-chat.md), [remote desktop](remote-desktop.md), and [SSH](ssh.md) are separate connection workflows.
 
 ## Where do I configure other tools?
 
-* **Web search:** configure search, URL fetch, and source preference under built-in tools on the Plugins page. See [web search](web-search.md).
-* **Plugins:** connect accounts such as Feishu or Notion in the sidebar. Connected plugins are available in conversations; **＋ → Plugins** can explicitly name one. See [plugins](plugins.md).
-* **Custom MCP:** add a server from Plugins and enable it in the agent tool section. Existing servers can also be selected when creating an agent. See [custom tools](plugins.md).
-* **Skills:** install from the skill library, enable in an existing agent, and reference from the composer. See [Skills](skills.md).
-* **Drawing:** choose a drawing model in **Settings → Default model** and enable **Image generation** for the agent to supply its drawing tool. You can also select an image model directly.
+* **Web:** configure source preference and services in **Plugins → Built-in tools → Web search / URL fetch**. See [web search](web-search.md).
+* **Plugins:** connect Feishu, Notion, or other accounts on Plugins; **＋ → Plugins** can name one for a message. See [plugins](plugins.md).
+* **MCP:** configure and enable a remote server on Plugins, then **Add MCP** in the agent editor. Removing a binding does not delete the server.
+* **Skills:** install first, then **Add Skill** in the editor. Removing the binding does not uninstall it. See [Skills](skills.md).
+* **Drawing:** choose a drawing model in **Settings → Default model**. A tool-capable Standard text model can call it when needed, or you can select an image model directly. See [image generation](image-generation.md).
+
+Organization-managed agents may have locked or hidden fields, a model pool, and fixed Skill/MCP bindings. Change organization-owned configuration at its source; local editable fields follow the screen's policy. See [accounts and organization spaces](accounts-and-organizations.md).
 
 ## Why does a tool remain unavailable after authorization?
 
-Check model tool-calling support, the agent’s capability switches, the connection, server/tool enablement, and system permissions. Plugin accounts can also be limited by organization policy or resource access.
+Check Standard mode, model tool support, service connections, global MCP enablement and agent bindings, system permissions, and organization policy. Signing in does not grant access to every document or operation.
 
-Give a clear target: a document link, date range, or calendar name. Start by asking the agent to read and list the relevant items, then request changes once the target is clear.
-
-For practical steps and example requests, see [Let AI Use Tools](using-tools.md), [Calendar and Reminders](calendar-and-reminders.md), [Location and Health Records](location-and-health.md), and [Create and Edit Files](file-generation.md).
+Give a precise target such as a document link, date range, or filename. Ask it to read and list the target before requesting changes. See [Let AI Use Tools](using-tools.md) for execution, approval, and failure handling.

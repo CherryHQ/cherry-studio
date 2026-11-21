@@ -172,8 +172,11 @@
   * [Mobile Overview](mobile/README.md)
   * [Download and Installation](mobile/installation.md)
   * [Quick Start](mobile/quick-start.md)
+  * [Accounts and Organization Spaces](mobile/accounts-and-organizations.md)
 * **Everyday Tasks**
   * [Chat and Files](mobile/chat-and-files.md)
+  * [Multiple Models and Conversation Branches](mobile/conversation-branches.md)
+  * [Voice and Audio Transcription](mobile/voice.md)
   * [Reply and Skill-Document Translation](mobile/translation.md)
   * [File Library and Shared Workspaces](mobile/file-library.md)
   * [Create and Edit Files](mobile/file-generation.md)
@@ -184,7 +187,9 @@
 * **Agents & Automation**
   * [Agents and Tools](mobile/agents-and-tools.md)
   * [Skills: Install and Reuse Workflows](mobile/skills.md)
-  * [Use Desktop Agents from Your Phone](mobile/remote-chat.md)
+  * [Desktop Agents and Scheduled-Task Results](mobile/remote-chat.md)
+  * [UU Remote Desktop](mobile/remote-desktop.md)
+  * [SSH Remote Servers](mobile/ssh.md)
   * [Let AI Use Tools](mobile/using-tools.md)
   * [Calendar and Reminders](mobile/calendar-and-reminders.md)
   * [Location and Health Records](mobile/location-and-health.md)
@@ -194,10 +199,12 @@
   * [Add, Edit, and Manage Models](mobile/model-management.md)
   * [Model Information and List Updates](mobile/model-updates.md)
   * [Import Configuration from Desktop](mobile/desktop-sync.md)
+  * [Import DeepSeek Conversations](mobile/deepseek-import.md)
   * [Backup and Restore](mobile/backup-and-restore.md)
   * [Data, Privacy, and Permissions](mobile/data-privacy.md)
   * [Settings, Usage, and Background Replies](mobile/settings-and-usage.md)
 * **Troubleshooting**
+  * [Error Checks and AI Diagnosis](mobile/diagnostics.md)
   * [Troubleshooting](mobile/troubleshooting.md)
 * **Developers & Contribution**
   * [Contribute to Mobile Documentation](mobile/development.md)

@@ -4,7 +4,7 @@ icon: sparkles
 
 # Skills: install and reuse workflows
 
-Skills package instructions, steps, and reference material for tasks you repeat, such as research reports, meeting notes, or writing workflows. This guide describes Mobile **0.3.0**.
+Skills package instructions, steps, and reference material for tasks you repeat, such as research reports, meeting notes, or writing workflows.
 
 A skill supplies a method. Models, connected tools, and permissions determine what can actually run. Installing a skill does not connect accounts, grant access, or make desktop commands executable on your phone.
 
@@ -15,11 +15,7 @@ A skill supplies a method. Models, connected tools, and permissions determine wh
 3. Tap **Install**. If a source contains several skills, select the entries you need.
 4. Return to the installed list and open the skill to read its full document.
 
-Discovery initially shows skills marked as supporting mobile by CherryIN. You can also choose another available source. A mobile-support label does not mean your model, accounts, and permissions are already configured.
-
-<div data-mobile-gallery="single">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/skills-install.webp"><img src="../../../assets/mobile/en/skills-install.webp" alt="Skills → Discover → open details → Install"></a><figcaption><p><strong>iPhone walkthrough</strong> · Skills → Discover → open details → Install</p></figcaption></figure>
-</div>
+Switch between sources such as CherryIN and skills.sh. Discovery no longer filters by the old mobile-support label, so more entries can appear. Installation does not establish that every step works on a phone; check model, tool, and permission requirements.
 
 ## Install from a link or ask AI to find a skill
 
@@ -34,15 +30,10 @@ Follow the candidate results to select and install. Sources must be publicly acc
 ## Enable a skill for an agent
 
 1. Open the target agent's editor and use **Standard** mode.
-2. Enable the installed skill in its skills section.
+2. Choose **Add Skill** and select an installed, available entry. Remove it with the row's removal action instead of looking for the old switches.
 3. Describe your task in chat, or explicitly reference the skill from the composer's skill picker.
 
-**Enabling** makes the skill available for the agent to choose when relevant. **Referencing it in a message** explicitly requests its method for that task. Installation is shared across the app; each agent's bindings are separate. Minimal mode does not use skills; see [Agents and tools](agents-and-tools.md).
-
-<div data-mobile-gallery="pair">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/skill-enable.webp"><img src="../../../assets/mobile/en/skill-enable.webp" alt="Enable an installed skill in the agent editor"></a><figcaption><p><strong>iPhone walkthrough</strong> · Enable an installed skill in the agent editor</p></figcaption></figure>
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/skill-use.webp"><img src="../../../assets/mobile/en/skill-use.webp" alt="Pick a skill from + → Skills to require it for this message"></a><figcaption><p><strong>iPhone walkthrough</strong> · Pick a skill from + → Skills to require it for this message</p></figcaption></figure>
-</div>
+**Enabling** makes the skill available for the agent to choose when relevant. **Referencing it in a message** explicitly requests its method for that task. Installation is shared across the app; each agent's bindings are separate. Selecting a skill in the composer does not create an agent binding; change long-term bindings in the editor. Minimal mode does not use skills; see [Agents and tools](agents-and-tools.md).
 
 ## Save your own method as a skill
 
@@ -64,9 +55,11 @@ Review the proposed name, description, and full steps. Confirm saving and whethe
 | Situation | What to do |
 | --- | --- |
 | It needs Feishu or another account | Connect the [relevant plugin](plugins.md) and ensure the account can access the target material |
-| It needs search, a calendar, or image generation | Enable the agent capability and configure its model, service, and system permissions |
+| It needs search, a calendar, or image generation | Use Standard mode and configure the model, service, and OS permissions; built-in capability switches are gone |
 | It contains scripts or needs missing tools | Mobile does not run scripts bundled with skills; check which steps the app can perform |
 | It is installed but absent from the composer | Check the agent binding, Standard mode, and whether the skill allows explicit invocation |
-| Its instructions need adapting for mobile | Ask the agent for specific changes and review them before confirming a local update |
+| Its instructions need adapting for mobile | Review the complete change summary, then choose to save the adaptation or keep the original |
+
+Agents can now list/count installed skills, including unbound or globally disabled entries. Listing does not grant current-agent use; installation, global enablement, and bindings remain separate. Organization-delivered skills may follow organization policy.
 
 Skills cannot expand permissions or change [tool approval rules](using-tools.md). The calculation tool runs restricted code written for the current task; it is not a runner for arbitrary programs bundled with a skill.

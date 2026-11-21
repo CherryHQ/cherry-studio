@@ -25,6 +25,8 @@ Subagents use their root conversation's current permission mode. Background task
 
 Auto approval reduces interruptions; it is not operating-system isolation or proof of safety. Unmatched programs, scripts, aliases, Git hooks and ambient configuration can still delete data or perform other actions. Shell access is not contained within the working directory.
 
+Detected system or global package installs require approval and a live responder outside **Full Access**; **Plan Only** still blocks installation. **Full Access** permits unattended installs, but direct `mise` mutations remain blocked in every mode.
+
 The available modes depend on the runtime mode: Pi does not provide **Plan Only**, and new Pi Agents default to **Approve for Me**; **Claude Agent** provides all five modes.
 
 Configuration path: Left navigation **Work** → Agent menu → **Edit** → **Basic** → **Permission mode**.
