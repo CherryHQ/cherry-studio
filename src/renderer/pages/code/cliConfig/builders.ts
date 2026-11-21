@@ -1,3 +1,7 @@
+import type { TomlTable } from 'smol-toml'
+
+import type { Serializable } from '@shared/types/serializable'
+
 import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
@@ -30,12 +34,35 @@ import {
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
+/** Values from the editable options blob are checked by the Codex builder before use. */
+export interface CodexConfigOptions {
+  contextWindow?: unknown
+  disableResponseStorage?: unknown
+  goalMode?: unknown
+  permissionMode?: unknown
+  reasoningEffort?: unknown
+  remoteCompaction?: unknown
+}
+
+/** The rebuild path reads these values from user-edited JSON as well as model metadata. */
+interface OpenCodeConfigOptions {
+  autoCompact?: unknown
+  contextWindow?: unknown
+  maxOutputTokens?: unknown
+  permissionMode?: unknown
+  providerHeaders?: unknown
+  reasoning?: unknown
+  supportsReasoningEffort?: unknown
+}
+
 interface OpenCodeProviderIdentity {
   id: string
   name: string
 }
 
-function openCodeProviderRequestOptions(options: Record<string, any>): Record<string, any> {
+function openCodeProviderRequestOptions(options: Pick<OpenCodeConfigOptions, 'providerHeaders'>): {
+  headers?: Record<string, string>
+} {
   const headers = Object.fromEntries(
     Object.entries(asRecord(options.providerHeaders)).filter(([, value]) => typeof value === 'string')
   )
@@ -91,17 +118,17 @@ function resolveCodexProviderDisplayName(providerName: string, remoteCompaction:
 }
 
 export function buildCodexConfig(
-  existingToml: Record<string, any>,
+  existingToml: TomlTable,
   resolved: { baseUrl: string; providerName: string; model: string },
-  options: Record<string, any>
-): Record<string, any> {
+  options: CodexConfigOptions
+): TomlTable {
   const isValidTokenCount = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0
   const existingWindow = existingToml.model_context_window
   const existingCompaction = existingToml.model_auto_compact_token_limit
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
   const preservedProviders = omitKeysByPrefix(asRecord(existingToml.model_providers), CHERRY_PROVIDER_PREFIX)
-  const cleaned: Record<string, any> = {}
+  const cleaned: TomlTable = {}
   for (const [key, value] of Object.entries(existingToml)) {
     if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
       cleaned[key] = value
@@ -109,7 +136,7 @@ export function buildCodexConfig(
   }
   dropFeatureGoalsIfEmpty(cleaned)
 
-  const merged: Record<string, any> = {
+  const merged: TomlTable = {
     ...cleaned,
     model: resolved.model,
     model_provider: providerKey,
@@ -139,11 +166,14 @@ export function buildCodexConfig(
   return merged
 }
 
-export function buildCodexAuthConfig(existingAuth: Record<string, any>, apiKey: string): Record<string, any> {
+export function buildCodexAuthConfig(
+  existingAuth: Record<string, Serializable>,
+  apiKey: string
+): Record<string, Serializable> {
   return { ...existingAuth, auth_mode: 'apikey', OPENAI_API_KEY: apiKey }
 }
 
-function hasRestorableCodexChatgptAuth(auth: Record<string, any>): boolean {
+function hasRestorableCodexChatgptAuth(auth: Record<string, Serializable>): boolean {
   const tokens = asRecord(auth.tokens)
   const hasCompleteTokens = ['id_token', 'access_token', 'refresh_token'].every(
     (key) => typeof tokens[key] === 'string' && tokens[key].trim().length > 0
@@ -156,7 +186,7 @@ function hasRestorableCodexChatgptAuth(auth: Record<string, any>): boolean {
   return hasCompleteTokens && hasValidLastRefresh
 }
 
-export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<string, any> | null {
+export function clearCodexApiKeyAuth(existingAuth: Record<string, Serializable>): Record<string, Serializable> | null {
   const nextAuth = { ...existingAuth }
   delete nextAuth.OPENAI_API_KEY
 
@@ -169,9 +199,9 @@ export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<
 }
 
 function buildOpenCodeModelOptions(
-  modelConfig: Record<string, any>,
+  modelConfig: Record<string, Serializable>,
   npmInfo: OpenCodeNpmInfo,
-  options: Record<string, any>
+  options: { reasoning: boolean; supportsReasoningEffort: boolean }
 ): void {
   if (npmInfo.providerType === 'anthropic') {
     if (options.reasoning === true) {
@@ -197,25 +227,37 @@ function buildOpenCodeModelOptions(
   }
 }
 
-function openCodeModelLimit(options: Record<string, any>): Record<string, number> | undefined {
-  const limit: Record<string, number> = {}
-  if (Number.isInteger(options.contextWindow) && options.contextWindow > 0) limit.context = options.contextWindow
-  if (Number.isInteger(options.maxOutputTokens) && options.maxOutputTokens > 0) limit.output = options.maxOutputTokens
+function openCodeModelLimit(options: OpenCodeConfigOptions): Partial<Record<'context' | 'output', number>> | undefined {
+  const limit: Partial<Record<'context' | 'output', number>> = {}
+  if (
+    typeof options.contextWindow === 'number' &&
+    Number.isInteger(options.contextWindow) &&
+    options.contextWindow > 0
+  ) {
+    limit.context = options.contextWindow
+  }
+  if (
+    typeof options.maxOutputTokens === 'number' &&
+    Number.isInteger(options.maxOutputTokens) &&
+    options.maxOutputTokens > 0
+  ) {
+    limit.output = options.maxOutputTokens
+  }
   return Object.keys(limit).length > 0 ? limit : undefined
 }
 
 export function buildOpenCodeConfig(
-  existing: Record<string, any>,
+  existing: Record<string, Serializable>,
   provider: OpenCodeProviderIdentity,
   npmInfo: OpenCodeNpmInfo,
   resolved: { apiKey: string; baseUrl: string; model: string; modelLabel?: string },
-  options: Record<string, any>
-): Record<string, any> {
+  options: OpenCodeConfigOptions
+): Record<string, Serializable> {
   const providerName = cliProviderKeyName(provider)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   // The models map key is the addressing id sent to the API; `name` is only what
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
-  const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
+  const modelConfig: Record<string, Serializable> = { name: resolved.modelLabel ?? resolved.model }
   const limit = openCodeModelLimit(options)
   if (limit) modelConfig.limit = limit
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
@@ -223,13 +265,13 @@ export function buildOpenCodeConfig(
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
   const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
-  const cleaned: Record<string, any> = { ...existing }
+  const cleaned: Record<string, Serializable> = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   const compaction = { ...asRecord(existing.compaction) }
   delete cleaned.compaction
   delete compaction.auto
   if (options.autoCompact === true) compaction.auto = true
-  const merged: Record<string, any> = {
+  const merged: Record<string, Serializable> = {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
     // OpenCode's default-model selector. It splits at the FIRST "/", so the model id may
@@ -342,7 +384,7 @@ export function buildHermesEnvConfig(envMap: Map<string, string>, apiKey: string
 }
 
 export function buildPiModelsConfig(
-  existing: Record<string, any>,
+  existing: Record<string, Serializable>,
   resolved: {
     api: PiApi
     apiKey: string
@@ -356,8 +398,8 @@ export function buildPiModelsConfig(
     providerKey: string
     reasoning: boolean
   }
-): Record<string, any> {
-  const model: Record<string, any> = {
+): Record<string, Serializable> {
+  const model: Record<string, Serializable> = {
     id: resolved.model,
     name: resolved.modelLabel,
     reasoning: resolved.reasoning,
@@ -366,7 +408,7 @@ export function buildPiModelsConfig(
   if (resolved.contextWindow !== undefined) model.contextWindow = resolved.contextWindow
   if (resolved.maxTokens !== undefined) model.maxTokens = resolved.maxTokens
 
-  const provider: Record<string, any> = {
+  const provider: Record<string, Serializable> = {
     baseUrl: resolved.baseUrl,
     api: resolved.api,
     apiKey: resolved.apiKey,
@@ -384,8 +426,8 @@ export function buildPiModelsConfig(
 }
 
 export function buildPiSettingsConfig(
-  existing: Record<string, any>,
+  existing: Record<string, Serializable>,
   resolved: { model: string; providerKey: string }
-): Record<string, any> {
+): Record<string, Serializable> {
   return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
 }

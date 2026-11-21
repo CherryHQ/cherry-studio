@@ -1,3 +1,6 @@
+import type { TomlTable } from 'smol-toml'
+
+import type { CodexConfigOptions } from './builders'
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 import {
   applyManagedJsonSettings,
@@ -27,18 +30,16 @@ import {
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
-export function buildCodexOwnLoginConfig(
-  existingToml: Record<string, any>,
-  blob: Record<string, any>
-): Record<string, any> {
-  const next: Record<string, any> = {}
+export function buildCodexOwnLoginConfig(existingToml: TomlTable, blob: CodexConfigOptions): TomlTable {
+  const next: TomlTable = {}
   for (const [key, value] of Object.entries(existingToml)) {
     if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
       next[key] = value
     }
   }
   if (next.model_providers && typeof next.model_providers === 'object') {
-    next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+    // SAFETY: Only enumerable fields from the parsed TOML container are copied; no provider schema is assumed.
+    next.model_providers = omitKeysByPrefix(next.model_providers as TomlTable, CHERRY_PROVIDER_PREFIX)
   }
   if (blob.disableResponseStorage === true) next.disable_response_storage = true
   if (isCodexPermissionMode(blob.permissionMode)) {
