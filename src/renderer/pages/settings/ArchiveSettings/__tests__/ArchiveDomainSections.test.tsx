@@ -986,6 +986,52 @@ describe('Archive domain batch adapters', () => {
 const { default: AllArchiveSection } = await import('../AllArchiveSection')
 
 describe('All archive actions', () => {
+  it.each([false, true])('detaches referenced files through the real All section (batch=%s)', async (isBatchMode) => {
+    mocks.pagesByPath.set('/archives', [
+      {
+        items: [
+          { id: 'files:referenced', entityId: 'referenced', domain: 'files', name: 'Referenced file', deletedAt: 100 }
+        ]
+      }
+    ])
+    mocks.ipcRequest.mockImplementation(async (route, payload) => {
+      if (route === 'file.batch_permanent_delete_from_trash' && payload.detachReferences) {
+        return { succeeded: ['referenced'], failed: [] }
+      }
+      return { succeeded: [], failed: [{ id: 'referenced', error: 'File is still referenced' }] }
+    })
+    const user = userEvent.setup()
+    let pending: PendingPermanentDelete | undefined
+    render(
+      <AllArchiveSection
+        retentionDays={30}
+        isBatchMode={isBatchMode}
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    if (isBatchMode) {
+      await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+      await user.click(screen.getByRole('button', { name: 'Delete Permanently 1' }))
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    }
+    expect(pending?.fileEntryIds).toEqual(['referenced'])
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    if (!pending) throw new Error('expected deletion confirmation')
+    let outcome
+    await act(async () => {
+      outcome = await pending!.run(pending!.items, { detachReferences: true })
+    })
+    expect(outcome).toEqual({ succeeded: ['files:referenced'], failed: [] })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_permanent_delete_from_trash', {
+      ids: ['referenced'],
+      detachReferences: true
+    })
+  })
+
   function seedMixedArchive() {
     mocks.pagesByPath.set('/archives', [
       {

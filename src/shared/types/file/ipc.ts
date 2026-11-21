@@ -478,8 +478,11 @@ export interface FileIpcApi {
    * @phase 2 — wired for Files page as IpcApi route `file.batch_restore`.
    */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
-  /** Permanently delete unreferenced internal entries that are currently in Trash. */
-  batchPermanentDeleteFromTrash(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
+  /** Permanently delete internal entries in Trash; detach refs only after explicit user confirmation. */
+  batchPermanentDeleteFromTrash(params: {
+    ids: FileEntryId[]
+    detachReferences?: boolean
+  }): Promise<BatchMutationResult>
   /** Remove unreferenced external entries from the library without modifying user files. */
   batchRemoveFromLibrary(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 

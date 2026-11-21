@@ -13,7 +13,7 @@
  * - For external origin, the user's file is **never** modified.
  *
  * Renderer-backed delete actions use narrower contracts:
- * - `permanentDeleteFromTrash` accepts only unreferenced trashed internal rows.
+ * - `permanentDeleteFromTrash` protects referenced rows unless detachment is explicitly requested.
  * - `removeExternalFromLibrary` accepts only unreferenced external rows and
  *   never removes their user-owned paths.
  */
@@ -135,7 +135,16 @@ function assertUnreferenced(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId, 
   }
 }
 
-function permanentDeleteFromTrashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
+export interface PermanentDeleteFromTrashOptions {
+  detachReferences?: boolean
+}
+
+function permanentDeleteFromTrashTx(
+  deps: FileManagerDeps,
+  tx: DbOrTx,
+  id: FileEntryId,
+  options?: PermanentDeleteFromTrashOptions
+): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
   if (entry.origin !== 'internal' || entry.deletedAt == null) {
     throw DataApiErrorFactory.invalidOperation(
@@ -143,19 +152,27 @@ function permanentDeleteFromTrashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileE
       `File entry ${id} must be an internal file in the Recycle Bin`
     )
   }
-  assertUnreferenced(deps, tx, id, 'permanently delete file from Trash')
+  if (!options?.detachReferences) assertUnreferenced(deps, tx, id, 'permanently delete file from Trash')
   deps.fileEntryService.deleteTx(tx, id)
   return entry
 }
 
-export async function permanentDeleteFromTrash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+export async function permanentDeleteFromTrash(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  options?: PermanentDeleteFromTrashOptions
+): Promise<void> {
   return deps.contentWriteLock.runExclusive(id, () =>
-    runPathMutationExclusive(() => permanentDeleteFromTrashLocked(deps, id))
+    runPathMutationExclusive(() => permanentDeleteFromTrashLocked(deps, id, options))
   )
 }
 
-async function permanentDeleteFromTrashLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  const entry = deps.fileEntryService.withWriteTx((tx) => permanentDeleteFromTrashTx(deps, tx, id))
+async function permanentDeleteFromTrashLocked(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  options?: PermanentDeleteFromTrashOptions
+): Promise<void> {
+  const entry = deps.fileEntryService.withWriteTx((tx) => permanentDeleteFromTrashTx(deps, tx, id, options))
   await cleanupDeletedEntry(deps, entry)
 }
 
@@ -232,9 +249,10 @@ async function aggregatePerEntry(
 
 export function batchPermanentDeleteFromTrash(
   deps: FileManagerDeps,
-  ids: readonly FileEntryId[]
+  ids: readonly FileEntryId[],
+  options?: PermanentDeleteFromTrashOptions
 ): Promise<BatchMutationResult> {
-  return aggregatePerEntry(ids, (id) => permanentDeleteFromTrash(deps, id))
+  return aggregatePerEntry(ids, (id) => permanentDeleteFromTrash(deps, id, options))
 }
 
 export function batchRemoveFromLibrary(

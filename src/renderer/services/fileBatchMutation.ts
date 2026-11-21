@@ -17,7 +17,8 @@ const FILE_MUTATION_BATCH_SIZE = 500
 
 export async function requestBatchedFileMutation(
   route: FileBatchMutationRoute,
-  ids: readonly FileEntryId[]
+  ids: readonly FileEntryId[],
+  options?: { detachReferences?: boolean }
 ): Promise<FileBatchMutationOutcome> {
   if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false }
 
@@ -36,7 +37,7 @@ export async function requestBatchedFileMutation(
         case 'file.batch_restore':
           return ipcApi.request('file.batch_restore', { ids: chunk })
         case 'file.batch_permanent_delete_from_trash':
-          return ipcApi.request('file.batch_permanent_delete_from_trash', { ids: chunk })
+          return ipcApi.request('file.batch_permanent_delete_from_trash', { ids: chunk, ...options })
       }
     })
   )

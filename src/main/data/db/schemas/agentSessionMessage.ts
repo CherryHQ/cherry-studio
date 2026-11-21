@@ -26,6 +26,7 @@ export const agentSessionMessageTable = sqliteTable(
           runtimeAnchor?: unknown
           nativeSessionId?: string
           deliveryReplyAnchor?: string
+          detachedFileEntryIds?: string[]
           locallyHandled?: boolean
         }
       >()
