@@ -198,6 +198,7 @@ export interface GhosttyKeyInput {
 
 export interface TerminalViewFrame {
   controlling: boolean
+  agentConnected: boolean
   scrollOffset: number
   viewId: string
   resource: TerminalResourceState

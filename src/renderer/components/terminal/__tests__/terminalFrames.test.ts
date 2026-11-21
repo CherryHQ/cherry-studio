@@ -12,6 +12,7 @@ function frame(text: string, rowIndex = 0): TerminalViewFrame {
   const encoded = encodeTerminalRows([row])
   return {
     controlling: false,
+    agentConnected: false,
     scrollOffset: 0,
     viewId: 'view',
     resource,

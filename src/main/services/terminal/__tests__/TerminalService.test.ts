@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -56,6 +57,8 @@ beforeEach(async () => {
   storageRoot = await mkdtemp(path.join(tmpdir(), 'terminal-workspace-usage-'))
   storage = new AgentWorkspaceStorageService()
   MockApplicationUtils.setService('AgentWorkspaceStorageService', storage)
+  const window = Object.assign(new EventEmitter(), { isDestroyed: () => false })
+  MockApplicationUtils.setService('WindowManager', { getWindow: () => window })
   created = []
   starting = undefined
   stopping = undefined
@@ -322,6 +325,92 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
     } finally {
       environment.mockRestore()
     }
+  })
+
+  it('reconnects user input without handing an ordinary terminal to a nonexistent Agent or stealing another view', async () => {
+    const receipt = await service.createUserTerminal('user-view', root, 'bash', 'user-view', 0, async () => {})
+    if (receipt.kind !== 'resource') throw new Error('No user terminal')
+    const ref = { host: receipt.resource.host, id: receipt.resource.id }
+    const first = service.openView(ref, 'window')
+    expect(await service.viewFrame(first, 'window', 0, 0, null)).toMatchObject({
+      controlling: true,
+      agentConnected: false
+    })
+    expect(
+      await service.userAction(first, 'window', 'invalid-return', receipt.resource.controlRevision, {
+        kind: 'return-control'
+      })
+    ).toEqual({ kind: 'rejected', reason: 'stale_context' })
+    const observer = service.openView(ref, 'window')
+    expect((await service.viewFrame(observer, 'window', 0, 0, null)).controlling).toBe(false)
+    await service.closeView(first, 'window')
+    expect((await service.viewFrame(observer, 'window', 0, 0, null)).controlling).toBe(true)
+    await service.closeView(observer, 'window')
+    const reopened = service.openView(ref, 'window')
+    const frame = await service.viewFrame(reopened, 'window', 0, 0, null)
+    expect(frame).toMatchObject({ controlling: true, agentConnected: false })
+    expect(frame.resource.controlRevision).toBe(receipt.resource.controlRevision)
+    const sent = await service.userAction(reopened, 'window', 'reopened-input', frame.resource.controlRevision, {
+      kind: 'key',
+      geometryEpoch: frame.geometryEpoch,
+      event: {
+        key: 0,
+        mods: 0,
+        consumedMods: 0,
+        composing: false,
+        unshiftedCodepoint: 0,
+        text: "printf 'RECONNECTED_INPUT\\n'\r",
+        repeat: false
+      }
+    })
+    expect(sent.kind).toBe('resource')
+    await expect.poll(() => service.readText(ref).output).toMatch(/\r\nRECONNECTED_INPUT\r\n/)
+    await service.closeView(reopened, 'window')
+  })
+
+  it.each([false, true])('restores user input after Agent release (previous takeover: %s)', async (takeover) => {
+    const lease = await service.attachRuntime({ conversationId: 'agent-view', contextId: 'native', bindingId: 'one' })
+    const receipt = await service.start({
+      lease,
+      replayKey: 'agent-shell',
+      turnId: 'turn',
+      launch: {
+        kind: 'pty',
+        shell: 'bash',
+        file: '/bin/bash',
+        args: ['--noprofile', '--norc'],
+        cwd: root,
+        env: { PATH: '/usr/bin:/bin' },
+        cols: 80,
+        rows: 24
+      }
+    })
+    if (receipt.kind !== 'resource') throw new Error('No Agent terminal')
+    const ref = { host: receipt.resource.host, id: receipt.resource.id }
+    const view = service.openView(ref, 'window')
+    expect(await service.viewFrame(view, 'window', 0, 0, null)).toMatchObject({
+      controlling: false,
+      agentConnected: true
+    })
+    if (takeover) {
+      const taken = await service.userAction(view, 'window', 'take', receipt.resource.controlRevision, {
+        kind: 'take-control'
+      })
+      if (taken.kind !== 'resource') throw new Error('Takeover failed')
+    }
+    await service.releaseRuntime(lease)
+    const frame = await service.viewFrame(view, 'window', 0, 0, null)
+    expect(frame).toMatchObject({
+      controlling: true,
+      agentConnected: false,
+      resource: { control: { kind: 'user' }, process: { kind: 'running' } }
+    })
+    expect(
+      await service.userAction(view, 'window', 'late-return', frame.resource.controlRevision, {
+        kind: 'return-control'
+      })
+    ).toEqual({ kind: 'rejected', reason: 'stale_context' })
+    await service.closeView(view, 'window')
   })
 
   it('coalesces concurrent first launches and retains replay receipts after Host retirement', async () => {

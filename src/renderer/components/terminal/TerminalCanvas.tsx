@@ -106,6 +106,7 @@ export function TerminalCanvas({
   const [inputValue, setInputValue] = useState('')
   const [focused, setFocused] = useState(false)
   const [controlling, setControlling] = useState(false)
+  const [agentConnected, setAgentConnected] = useState(false)
   const [controlPending, setControlPending] = useState(false)
   const [viewReady, setViewReady] = useState(false)
   const focus = useRef(false)
@@ -359,6 +360,7 @@ export function TerminalCanvas({
                 frame.snapshot.dirtyRows.forEach((row) => dirty.current.add(row))
                 if (frame.resource.revision >= current.current.revision) current.current = frame.resource
                 callback.current(frame.resource)
+                setAgentConnected(frame.agentConnected)
                 revision = frame.revision
                 setAccessible(
                   next.rowData
@@ -580,11 +582,15 @@ export function TerminalCanvas({
   const controlled = acceptsActions() && controlling && resource.control.kind === 'user'
   const canInput = controlled && geometryReady
   const menuActions: TerminalMenuAction[] = [
-    {
-      label: t(controlled ? 'terminal.return_control' : 'terminal.take_control'),
-      disabled: !acceptsActions() || controlPending || takeControlOnAttach,
-      onSelect: () => void send({ kind: controlled ? 'return-control' : 'take-control' })
-    },
+    ...(acceptsActions() && (!controlled || agentConnected)
+      ? [
+          {
+            label: t(controlled ? 'terminal.return_control' : 'terminal.take_control'),
+            disabled: !acceptsActions() || controlPending || takeControlOnAttach,
+            onSelect: () => void send({ kind: controlled ? 'return-control' : 'take-control' })
+          }
+        ]
+      : []),
     { label: t('terminal.copy'), onSelect: copy },
     {
       label: t('terminal.interrupt'),

@@ -31,12 +31,14 @@ const viewId = '33333333-3333-4333-8333-333333333333'
 let stdin: string
 let alive: boolean
 let controlling: boolean
+let agentConnected: boolean
 let rejectInput: boolean
 let current: TerminalResourceState
 const fonts = Object.getOwnPropertyDescriptor(document, 'fonts')
 const resizeObserver = globalThis.ResizeObserver
 beforeEach(() => {
   controlling = true
+  agentConnected = true
   rejectInput = false
   stdin = ''
   alive = true
@@ -83,6 +85,7 @@ beforeEach(() => {
     if (route === 'terminal.frame') {
       const frame: TerminalViewFrame = {
         controlling,
+        agentConnected,
         scrollOffset: (payload as InputFor<'terminal.frame'>).offset,
         viewId,
         resource: current,
@@ -193,6 +196,29 @@ it('keeps keyboard focus after clicking the terminal surface', async () => {
   expect(area).toHaveFocus()
   await user.keyboard('pwd')
   await waitFor(() => expect(stdin).toBe('pwd'))
+})
+
+it('keeps a user terminal writable without a return action when no Agent is connected', async () => {
+  agentConnected = false
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+  const area = await input()
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  expect(screen.queryByRole('menuitem', { name: /交还 Agent|Return to Agent|接管|Take control/ })).toBeNull()
+  await userEvent.keyboard('{Escape}')
+  await userEvent.keyboard('pwd')
+  await waitFor(() => expect(stdin).toBe('pwd'))
+})
+
+it('removes the return action after the Agent disconnects without disabling user input', async () => {
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+  const area = await input()
+  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
+  await screen.findByRole('menuitem', { name: /交还 Agent|Return to Agent/ })
+  agentConnected = false
+  await waitFor(() => expect(screen.queryByRole('menuitem', { name: /交还 Agent|Return to Agent/ })).toBeNull())
+  await userEvent.keyboard('{Escape}')
+  await userEvent.keyboard('after disconnect')
+  await waitFor(() => expect(stdin).toBe('after disconnect'))
 })
 
 it('keeps takeover input read-only until the viewport is measured and resize completes', async () => {
@@ -462,13 +488,10 @@ it('keeps committed takeover when an earlier observation arrives afterward', asy
   const area = screen.getByRole('textbox')
   await userEvent.pointer({ target: area, keys: '[MouseRight]' })
   await userEvent.click(screen.getByRole('menuitem', { name: /接管|Take control/ }))
-  await userEvent.pointer({ target: area, keys: '[MouseRight]' })
-  await screen.findByRole('menuitem', { name: /交还 Agent|Return to Agent/ })
-  await userEvent.keyboard('{Escape}')
   await act(async () => {
     delayed.resolve()
   })
-  expect(area).not.toHaveAttribute('readonly')
+  await input()
   fireEvent.input(area, { target: { value: 'after takeover' } })
   await waitFor(() => expect(stdin).toBe('after takeover'))
 })

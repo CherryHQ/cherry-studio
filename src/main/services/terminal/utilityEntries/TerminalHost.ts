@@ -653,6 +653,7 @@ export class TerminalHost {
     const encoded = encodeTerminalRows(rows)
     return {
       controlling: false,
+      agentConnected: false,
       scrollOffset: view.offset,
       viewId: input.viewId,
       resource: structuredClone(resource.state),

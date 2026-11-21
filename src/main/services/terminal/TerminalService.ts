@@ -42,6 +42,7 @@ const definition = defineUtilityProcess<TerminalHostContract, TerminalHostInit>(
   cancellation: 'cooperative'
 })
 const limits = { maxFrameBytes: 64 * 1024, maxBufferedBytes: 256 * 1024, maxBufferedFrames: 8, maxPendingWrites: 2 }
+const userTerminalContextId = 'user-terminal'
 export interface TerminalLease {
   conversationId: TerminalConversationId
   context: TerminalContext
@@ -143,7 +144,11 @@ export class TerminalService extends BaseService {
       await prepare()
       if (!this.accepting || conversation.sealed) return { kind: 'rejected', reason: 'closing' }
       if (workspaceRevision !== conversation.workspaceRevision) return { kind: 'rejected', reason: 'stale_context' }
-      const lease = await this.attachRuntime({ conversationId, contextId: 'user-terminal', bindingId: 'user-terminal' })
+      const lease = await this.attachRuntime({
+        conversationId,
+        contextId: userTerminalContextId,
+        bindingId: userTerminalContextId
+      })
       lease.workspaceRevision = workspaceRevision
       const env = await getShellEnv()
       const requested =
@@ -691,6 +696,15 @@ export class TerminalService extends BaseService {
     return id
   }
 
+  private agentConnected(resource: TerminalResourceState): boolean {
+    const context = this.conversations.get(resource.host.conversationId)?.contexts.get(resource.context.contextId)
+    return (
+      resource.context.contextId !== userTerminalContextId &&
+      context?.bindingId === resource.context.bindingId &&
+      context.revision === resource.context.revision
+    )
+  }
+
   private ownedView(viewId: string, owner: WindowId) {
     const view = this.views.get(viewId)
     if (!view || view.owner !== owner) throw new Error('Stale terminal view')
@@ -718,6 +732,7 @@ export class TerminalService extends BaseService {
           ...frame,
           viewId,
           controlling: false,
+          agentConnected: false,
           resource: structuredClone(execution.state!),
           snapshot: { ...frame.snapshot, cursorVisible: false }
         }
@@ -727,7 +742,31 @@ export class TerminalService extends BaseService {
         throw new Error('Terminal Host is unavailable')
       const frame = await host.instance.request('view', { ...view.ref, viewId, rowStart, offset, revision, theme })
       view.offset = frame.scrollOffset
-      return { ...frame, controlling: this.controllingViews.get(view.ref.id) === viewId }
+      const latest = execution?.state
+      if (latest && latest.revision > frame.resource.revision) frame.resource = structuredClone(latest)
+      if (
+        this.views.get(viewId) === view &&
+        frame.resource.process.kind === 'running' &&
+        frame.resource.cleanup === 'none' &&
+        !this.controllingViews.has(view.ref.id)
+      ) {
+        if (frame.resource.control.kind === 'user') this.controllingViews.set(view.ref.id, viewId)
+        else if (frame.resource.control.kind === 'unassigned' && !this.agentConnected(frame.resource)) {
+          const receipt = await this.viewCommand(viewId, owner, randomUUID(), {
+            kind: 'control',
+            id: view.ref.id,
+            actor: { kind: 'user' },
+            controlRevision: frame.resource.controlRevision,
+            target: { kind: 'user' }
+          })
+          if (receipt.kind === 'resource') frame.resource = receipt.resource
+        }
+      }
+      return {
+        ...frame,
+        controlling: this.controllingViews.get(view.ref.id) === viewId,
+        agentConnected: this.agentConnected(frame.resource)
+      }
     } finally {
       view.pending = false
     }
@@ -750,7 +789,7 @@ export class TerminalService extends BaseService {
     if ((command.kind === 'mouse' || command.kind === 'wheel') && view.offset !== 0)
       return { kind: 'rejected' as const, reason: 'stale_control' as const }
     const result = await this.mutate(view.ref, command, `${viewId}:${operationId}`)
-    if (result.kind === 'resource' && command.kind === 'control') {
+    if (result.kind === 'resource' && command.kind === 'control' && this.views.get(viewId) === view) {
       if (result.resource.control.kind === 'user') this.controllingViews.set(command.id, viewId)
       else this.controllingViews.delete(command.id)
     }
@@ -768,6 +807,8 @@ export class TerminalService extends BaseService {
     const state = this.list(view.ref.host.conversationId).find((item) => item.id === view.ref.id)
     if (!state) throw new Error('Unknown terminal resource')
     const common = { id: state.id, actor: { kind: 'user' as const }, controlRevision }
+    if (action.kind === 'return-control' && !this.agentConnected(state))
+      return { kind: 'rejected', reason: 'stale_context' }
     if (action.kind === 'take-control' || action.kind === 'return-control')
       return this.viewCommand(viewId, owner, operationId, {
         ...common,
