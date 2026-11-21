@@ -2,6 +2,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { JSONObject } from '@ai-sdk/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { openReadableFileSnapshot } from '@main/utils/file'
@@ -11,7 +12,7 @@ import { readRawLines } from '../../sourceCollector'
 import type { DiagnosticTimeRange } from '../../types'
 import { collectErrorLogRecords, MAX_SCAN_RECORDS } from '../logFileSource'
 
-function logLine(fields: Record<string, unknown>): string {
+function logLine(fields: JSONObject): string {
   return `${JSON.stringify(fields)}\n`
 }
 
@@ -147,6 +148,25 @@ describe('collectErrorLogRecords', () => {
     // conversation text and rate-limit headers used to reach the anchors through these two keys
     expect(record.detail).not.toContain('400 token budget')
     expect(record.detail).not.toContain('x-ratelimit')
+  })
+
+  it('preserves diagnostic markers inside a reserved extra field', async () => {
+    await writeFile(
+      path.join(logsDir, logFileName(now)),
+      logLine({
+        timestamp: localTimestamp(now),
+        level: 'error',
+        message: 'provider request failed',
+        ['__proto__']: { code: 'EPROTO_DETAIL', statusCode: 401 }
+      })
+    )
+
+    const scan = await collectErrorLogRecords(logsDir, range)
+
+    expect(scan.records).toHaveLength(1)
+    expect(scan.records[0].detail).toContain('"__proto__"')
+    expect(scan.records[0].detail).toContain('EPROTO_DETAIL')
+    expect(scan.records[0].detail).toContain('401')
   })
 
   it('reads rotated .N shards but ignores app.*.log files', async () => {
