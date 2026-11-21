@@ -13,18 +13,18 @@ import { createFileSystemServer } from '../server'
 import * as types from '../types'
 import { validatePath } from '../types'
 
-async function callFsTool(name: string, args: Record<string, unknown>, root: string) {
+async function callFsTool(name: string, args: Parameters<typeof callBuiltinTool>[2], root: string) {
   const result = await callBuiltinTool(() => createFileSystemServer(root), name, args)
   if (result.isError) throw new Error(toolText(result))
   return result
 }
 
-const globTool = (args: Record<string, unknown>, root: string) => callFsTool('glob', args, root)
-const lsTool = (args: Record<string, unknown>, root: string) => callFsTool('ls', args, root)
-const readTool = (args: Record<string, unknown>, root: string) => callFsTool('read', args, root)
-const editTool = (args: Record<string, unknown>, root: string) => callFsTool('edit', args, root)
-const writeTool = (args: Record<string, unknown>, root: string) => callFsTool('write', args, root)
-const deleteTool = (args: Record<string, unknown>, root: string) => callFsTool('delete', args, root)
+const globTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('glob', args, root)
+const lsTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('ls', args, root)
+const readTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('read', args, root)
+const editTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('edit', args, root)
+const writeTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('write', args, root)
+const deleteTool = (args: Parameters<typeof callFsTool>[1], root: string) => callFsTool('delete', args, root)
 
 const tempDirs: string[] = []
 

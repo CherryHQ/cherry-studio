@@ -2,9 +2,10 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type ReactType from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
@@ -21,30 +22,30 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext<PopoverContextValue>({ open: false })
 
   return {
-    Avatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    Avatar: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.Avatar>) => (
       <div data-testid="avatar" {...props}>
         {children}
       </div>
     ),
-    AvatarImage: ({ src, ...props }: { src?: string; [key: string]: unknown }) => (
+    AvatarImage: ({ src, ...props }: ComponentPropsWithoutRef<typeof UI.AvatarImage>) => (
       <img data-testid="avatar-image" src={src} alt="" {...props} />
     ),
-    Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean; [key: string]: unknown }) => (
+    Button: ({ children, loading, ...props }: ComponentPropsWithoutRef<typeof UI.Button>) => (
       <button type="button" aria-busy={loading || undefined} disabled={loading || undefined} {...props}>
         {children}
       </button>
     ),
-    ColFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    ColFlex: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.ColFlex>) => (
       <div data-testid="col-flex" {...props}>
         {children}
       </div>
     ),
-    EmojiAvatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    EmojiAvatar: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.EmojiAvatar>) => (
       <div data-testid="emoji-avatar" {...props}>
         {children}
       </div>
     ),
-    Input: (props: { [key: string]: unknown }) => <input {...props} />,
+    Input: (props: ComponentPropsWithoutRef<typeof UI.Input>) => <input {...props} />,
     Popover: ({
       children,
       onOpenChange,
@@ -66,7 +67,7 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       )
     },
-    RowFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    RowFlex: ({ children, ...props }: ComponentPropsWithoutRef<typeof UI.RowFlex>) => (
       <div data-testid="row-flex" {...props}>
         {children}
       </div>
