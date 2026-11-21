@@ -16,7 +16,7 @@ export function editInputImageLimit(support: ImageGenerationSupport | null | und
   return support?.modes.edit?.maxInputImages
 }
 
-const GENERATE_IMAGE_PROMPT_FIELD = z
+export const generateImagePromptSchema = z
   .string()
   .trim()
   .min(1)
@@ -133,7 +133,7 @@ export function buildGenerateImageToolSchema(
     }
   }
 
-  const inputShape: Record<string, z.ZodType> = { prompt: GENERATE_IMAGE_PROMPT_FIELD }
+  const inputShape: Record<string, z.ZodType> = { prompt: generateImagePromptSchema }
 
   for (const [key, entries] of params) {
     const variants = entries.map(({ spec }) => constrainedParamSchema(key, spec))

@@ -10,6 +10,7 @@
  * and the renderer's tool metadata, which still coexist until those call sites are ported.
  */
 
+import { AGENT_AVATAR_TOOL_DESCRIPTION, AGENT_AVATAR_TOOL_NAME } from '../agentAvatarTool'
 import type { ClaudeToolDescriptor } from './toolRules'
 
 export type ClaudeToolCategory = 'shell' | 'file' | 'search' | 'orchestration' | 'media' | 'context'
@@ -367,6 +368,13 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Generates an image from a text prompt using your configured painting model',
     mcpServer: 'cherry-tools'
   },
+  CherryAgentAvatar: {
+    name: `mcp__cherry-tools__${AGENT_AVATAR_TOOL_NAME}`,
+    category: 'media',
+    exposure: 'user',
+    description: AGENT_AVATAR_TOOL_DESCRIPTION,
+    mcpServer: 'cherry-tools'
+  },
   // agent-memory (cross-session memory)
   AgentMemory: {
     name: 'mcp__agent-memory__memory',
@@ -459,7 +467,8 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',
   'mcp__cherry-tools__config': 'Configuration',
-  'mcp__cherry-tools__generate_image': 'Generate Image'
+  'mcp__cherry-tools__generate_image': 'Generate Image',
+  [CLAUDE_TOOL_REGISTRY.CherryAgentAvatar.name]: 'Change Agent Avatar'
 }
 
 /**

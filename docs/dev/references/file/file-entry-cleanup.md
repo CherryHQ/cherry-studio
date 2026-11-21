@@ -123,8 +123,8 @@ LIMIT 100;
 ```
 
 The current registry includes chat messages, agent-session messages, paintings, jobs, translation
-history, provider logos, mini-app logos, assistant avatars, and agent avatars. Do not copy that list into query code; extend
-`persistentFileRefTablesBySourceType` and its exhaustive consumers instead.
+history, provider logos, mini-app logos, assistant avatars, Agent avatars, and Agent avatar backups.
+Query code uses `persistentFileRefTablesBySourceType` and its exhaustive consumers as the source of truth.
 
 ### 5.2 Grace Window
 
@@ -228,8 +228,10 @@ after promotion commits. Failed promotion keeps the runtime retention for retry.
 Agent images use a roleless `agent_avatar_file_ref` owner slot. Agent-session message
 snapshots store `avatarFileId`, and an `author_avatar` ref in
 `agent_session_message_file_ref` preserves the historical image after the agent avatar
-is replaced or reset. Owner deletion releases the slot without removing files still
-referenced by messages.
+is replaced or reset. Replacing the avatar through the Agent tool also retains its
+previous image in `agent_avatar_backup` until it is restored, superseded, or explicitly
+edited. Permanent Agent deletion releases both slots. Files with message references
+remain available.
 
 ### 7.2 Migration Classification
 

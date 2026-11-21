@@ -56,6 +56,7 @@ import {
   webSearchInputSchema
 } from '@shared/ai/builtinTools'
 
+import { registerAgentAvatarTool } from './cherryAgentAvatarTool'
 import { type AutonomyToolsContext, registerAutonomyTools } from './cherryAutonomyTools'
 import { registerCliTools } from './cherryCliTools'
 import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnowledgeTools'
@@ -129,6 +130,7 @@ export function createCherryToolsServer(options: CherryToolsOptions): McpServer 
   registerBuiltinTools(server, options)
   registerKnowledgeTools(server, options)
   registerAutonomyTools(server, options)
+  registerAgentAvatarTool(server, options.agentId)
   registerCliTools(server)
   registerDocumentTools(server, options)
   return server

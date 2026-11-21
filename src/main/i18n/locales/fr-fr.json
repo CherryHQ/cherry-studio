@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "Un nouvel avatar a été appliqué à {{name}} ({{id}}). L’ancien avatar peut être restauré.",
+  "agent.avatar_tool.no_backup": "Cet agent n’a aucun avatar précédent enregistré.",
+  "agent.avatar_tool.prompt_required": "Une description est requise pour générer un avatar.",
+  "agent.avatar_tool.restored": "L’avatar précédent de {{name}} ({{id}}) a été restauré.",
+  "agent.avatar_tool.unreadable_backup": "Impossible de lire l’avatar précédent.",
   "agent.builtin.cherry_assistant.description": "Conseiller intégré de Cherry Studio. Il diagnostique les problèmes, vous guide dans les opérations, recueille les FAQ, soumet les bugs et demandes de fonctionnalités, et recherche ou crée des Skills.",
   "agent.builtin.cherry_doctor.description": "Analyste intégré du diagnostic système. Lit le rapport de diagnostic et l'état d'exécution, explique la cause racine et propose des corrections limitées",
   "agent.builtin.cherry_support.description": "Agent d'assistance officiel de Cherry Studio pour la configuration, le diagnostic, les FAQ et les commentaires",

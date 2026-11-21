@@ -119,7 +119,7 @@ function agentSubPages(resource: AgentDetail): Set<EditSubPage> {
 function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
   const form = buildInitialAgentFormState(resource)
   return {
-    avatar: form.avatar || '🤖',
+    avatar: form.avatar,
     name: form.name,
     description: form.description,
     modelId: form.model || null,
@@ -346,12 +346,15 @@ function AgentEditDialogContent({
     setConfirmDiscard(false)
     setPromptSection(null)
     setMemoryFile(null)
-    setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource, subPages])
+
+  useEffect(() => {
+    if (open) setAvatarSrc(resource.avatarSrc)
+  }, [open, resource.avatarSrc, resource.id])
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff

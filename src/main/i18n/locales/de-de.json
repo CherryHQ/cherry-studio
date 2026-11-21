@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "Neuer Avatar für {{name}} ({{id}}) übernommen. Der vorherige Avatar kann wiederhergestellt werden.",
+  "agent.avatar_tool.no_backup": "Für diesen Agenten ist kein vorheriger Avatar gespeichert.",
+  "agent.avatar_tool.prompt_required": "Zum Erstellen eines Avatars ist eine Beschreibung erforderlich.",
+  "agent.avatar_tool.restored": "Der vorherige Avatar für {{name}} ({{id}}) wurde wiederhergestellt.",
+  "agent.avatar_tool.unreadable_backup": "Der vorherige Avatar kann nicht gelesen werden.",
   "agent.builtin.cherry_assistant.description": "Integrierter Cherry-Studio-Berater. Diagnostiziert Probleme, gibt Bedienungshinweise, sammelt häufige Fragen, übermittelt Fehler und Funktionswünsche und sucht oder erstellt Fähigkeiten",
   "agent.builtin.cherry_doctor.description": "Integrierter Analyst der Systemdiagnose. Liest den Diagnosebericht und den Laufzeitzustand, erklärt die Ursache und schlägt begrenzte Korrekturen vor",
   "agent.builtin.cherry_support.description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback",

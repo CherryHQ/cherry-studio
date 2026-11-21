@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "{{name}}({{id}})에 새 아바타를 적용했습니다. 이전 아바타를 복원할 수 있습니다.",
+  "agent.avatar_tool.no_backup": "이 에이전트에 저장된 이전 아바타가 없습니다.",
+  "agent.avatar_tool.prompt_required": "아바타를 생성하려면 설명이 필요합니다.",
+  "agent.avatar_tool.restored": "{{name}}({{id}})의 이전 아바타를 복원했습니다.",
+  "agent.avatar_tool.unreadable_backup": "이전 아바타를 읽을 수 없습니다.",
   "agent.builtin.cherry_assistant.description": "Cherry Studio 내장 사용 안내 도우미입니다. 문제 진단, 사용 안내, FAQ 수집, 버그 및 기능 요청 제출, 스킬 검색과 생성을 지원합니다",
   "agent.builtin.cherry_doctor.description": "내장 시스템 진단 분석가입니다. 진단 보고서와 런타임 상태를 읽고 근본 원인을 설명하며 범위를 한정한 해결책을 제안합니다",
   "agent.builtin.cherry_support.description": "설정 안내, 문제 해결, FAQ 및 피드백을 지원하는 Cherry Studio 공식 지원 에이전트",

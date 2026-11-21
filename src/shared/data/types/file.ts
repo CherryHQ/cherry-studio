@@ -617,6 +617,7 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
 }
 
 export const agentAvatarRef = defineSingleFileRef('agent_avatar')
+export const agentAvatarBackupRef = defineSingleFileRef('agent_avatar_backup')
 export const assistantAvatarRef = defineSingleFileRef('assistant_avatar')
 export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
@@ -667,6 +668,7 @@ export const allSourceTypes = [
   jobSourceType,
   translateHistorySourceType,
   agentAvatarRef.sourceType,
+  agentAvatarBackupRef.sourceType,
   assistantAvatarRef.sourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType,
@@ -697,6 +699,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   jobFileRefSchema,
   translateHistoryFileRefSchema,
   agentAvatarRef.schema,
+  agentAvatarBackupRef.schema,
   assistantAvatarRef.schema,
   providerLogoRef.schema,
   miniAppLogoRef.schema,

@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "I s-a aplicat un avatar nou agentului {{name}} ({{id}}). Avatarul anterior poate fi restaurat.",
+  "agent.avatar_tool.no_backup": "Acest agent nu are niciun avatar anterior salvat.",
+  "agent.avatar_tool.prompt_required": "Pentru a genera un avatar, este necesară o descriere.",
+  "agent.avatar_tool.restored": "Avatarul anterior al agentului {{name}} ({{id}}) a fost restaurat.",
+  "agent.avatar_tool.unreadable_backup": "Avatarul anterior nu poate fi citit.",
   "agent.builtin.cherry_assistant.description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități",
   "agent.builtin.cherry_doctor.description": "Analist integrat al diagnosticului de sistem. Citește raportul de diagnostic și starea de execuție, explică cauza principală și propune remedieri limitate",
   "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",

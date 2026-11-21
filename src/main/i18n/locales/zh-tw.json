@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "已為 {{name}}（{{id}}）更換頭像，可以還原上一個頭像。",
+  "agent.avatar_tool.no_backup": "這個智慧體沒有可還原的舊頭像。",
+  "agent.avatar_tool.prompt_required": "產生頭像需要提供圖片描述。",
+  "agent.avatar_tool.restored": "已還原 {{name}}（{{id}}）的上一個頭像。",
+  "agent.avatar_tool.unreadable_backup": "無法讀取上一個頭像。",
   "agent.builtin.cherry_assistant.description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。",
   "agent.builtin.cherry_doctor.description": "內建系統診斷分析員。讀取診斷報告和執行階段狀態，解釋根因並提出有限範圍的修復",
   "agent.builtin.cherry_support.description": "Cherry Studio 官方支援智能體，提供設定引導、問題診斷、FAQ 與意見回饋",

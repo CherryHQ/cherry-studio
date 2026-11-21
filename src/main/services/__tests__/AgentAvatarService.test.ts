@@ -13,13 +13,23 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
+import { t } from '@main/i18n'
 
-const { createInternalEntry } = vi.hoisted(() => ({ createInternalEntry: vi.fn() }))
+const { createInternalEntry, permanentDelete, readImage, transcode } = vi.hoisted(() => ({
+  createInternalEntry: vi.fn(),
+  permanentDelete: vi.fn(),
+  readImage: vi.fn(),
+  transcode: vi.fn()
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ FileManager: { ...defaultServiceInstances.FileManager, createInternalEntry } })
+  return mockApplicationFactory({
+    FileManager: { ...defaultServiceInstances.FileManager, createInternalEntry, permanentDelete, read: readImage }
+  })
 })
-vi.mock('@main/utils/image', () => ({ transcodeToEntityWebp: async (bytes: Uint8Array) => bytes }))
+vi.mock('@main/utils/image', () => ({ transcodeToEntityWebp: transcode }))
 
 const { agentAvatarService } = await import('../AgentAvatarService')
 
@@ -29,6 +39,11 @@ describe('agent avatar', () => {
   const image = { kind: 'image' as const, data: new Uint8Array([1, 2, 3]) }
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    transcode.mockReset().mockImplementation(async (bytes: Uint8Array) => bytes)
+    readImage.mockReset().mockResolvedValue({ content: image.data, mime: 'image/webp' })
+    permanentDelete.mockImplementation(async (id: string) => {
+      dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+    })
     dbh.db
       .insert(agentTable)
       .values({
@@ -92,6 +107,77 @@ describe('agent avatar', () => {
       expect.objectContaining({ id: agentId })
     )
   })
+
+  it('holds the previous image for cleanup and restores it once', async () => {
+    await agentAvatarService.apply({ agentId, avatar: image })
+    const previousId = agentService.getAgent(agentId)!.avatarFileId!
+    const signal = new AbortController().signal
+
+    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    expect(agentService.getAgent(agentId)?.avatarFileId).not.toBe(previousId)
+    expect(fileRefService.countByEntryIds([previousId]).get(previousId)).toBe(1)
+    const source = { sourceType: 'agent_avatar_backup', sourceId: agentId } as const
+    const backupRef = expect.objectContaining({ ...source, fileEntryId: previousId })
+    expect(fileRefService.findByEntryId(previousId)).toEqual([backupRef])
+    expect(fileRefService.findBySource(source)).toEqual([backupRef])
+    expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 10 })).toEqual([])
+
+    await expect(agentAvatarService.restoreBackup(agentId, signal)).resolves.toBe('Avatar')
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
+    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(t('agent.avatar_tool.no_backup'))
+  })
+
+  it('preserves the current avatar and backup when the previous image can no longer be decoded', async () => {
+    const signal = new AbortController().signal
+    await agentAvatarService.apply({ agentId, avatar: image })
+    const previousId = agentService.getAgent(agentId)?.avatarFileId
+    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    const currentId = agentService.getAgent(agentId)?.avatarFileId
+    transcode.mockRejectedValueOnce(new Error('Invalid WebP data'))
+
+    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(
+      t('agent.avatar_tool.unreadable_backup')
+    )
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBe(currentId)
+    await agentAvatarService.restoreBackup(agentId, signal)
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
+  })
+
+  it('restores the emoji fallback and lets a manual avatar edit supersede a later backup', async () => {
+    const signal = new AbortController().signal
+    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.restoreBackup(agentId, signal)
+    expect(agentService.getAgent(agentId)).toMatchObject({ configuration: { avatar: '🌟' } })
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBeUndefined()
+
+    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.apply({ agentId, avatar: { kind: 'emoji', emoji: '🐈' } })
+    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(t('agent.avatar_tool.no_backup'))
+    expect(agentService.getAgent(agentId)).toMatchObject({ configuration: { avatar: '🐈' } })
+  })
+
+  it('preserves the current and previous avatars when a replacement cannot be bound', async () => {
+    const signal = new AbortController().signal
+    await agentAvatarService.apply({ agentId, avatar: image })
+    const previousId = agentService.getAgent(agentId)?.avatarFileId
+    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    const currentId = agentService.getAgent(agentId)?.avatarFileId
+
+    const bindAvatar = agentService.setAvatarSlotTx.bind(agentService)
+    const binding = vi.spyOn(agentService, 'setAvatarSlotTx').mockImplementationOnce((...args) => {
+      bindAvatar(...args)
+      throw new Error('Avatar binding failed')
+    })
+    await expect(agentAvatarService.replaceWithBackup(agentId, image.data, signal)).rejects.toThrow(
+      'Avatar binding failed'
+    )
+    binding.mockRestore()
+    expect(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).toHaveLength(2)
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBe(currentId)
+    await agentAvatarService.restoreBackup(agentId, signal)
+    expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
+  })
+
   it('keeps a historical avatar reference after replacement and reset', async () => {
     await agentAvatarService.apply({ agentId, avatar: image })
     const first = agentService.getAgent(agentId)!.avatarFileId!
