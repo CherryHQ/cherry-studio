@@ -92,7 +92,7 @@ class DiscordStreamingController {
   constructor(
     private readonly discordChannelId: string,
     private readonly apiRequest: DiscordAdapter['apiRequest'],
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
+    private readonly log: ChannelAdapter['log']
   ) {
     this.flush = new FlushController(() => this.performFlush())
   }
@@ -770,7 +770,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   private async apiRequest(
     url: string,
-    options?: { method?: string; body?: Record<string, unknown> | readonly Record<string, unknown>[] }
+    options?: { method?: string; body?: { content: string } | typeof SLASH_COMMANDS }
   ): Promise<Response> {
     const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
       method: options?.method ?? 'GET',
