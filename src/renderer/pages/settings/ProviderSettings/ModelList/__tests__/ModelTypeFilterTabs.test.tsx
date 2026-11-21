@@ -81,7 +81,7 @@ describe('ModelTypeFilterTabs', () => {
     )
 
     const tabList = screen.getByRole('tablist')
-    const scrollElement = tabList.closest('[data-horizontal-scroll-viewport]') as HTMLElement | null
+    const scrollElement = tabList.closest<HTMLElement>('[data-horizontal-scroll-viewport]')
     expect(scrollElement).not.toBeNull()
     setElementSize(scrollElement as HTMLElement, { clientWidth: 320, scrollWidth: 760 })
 

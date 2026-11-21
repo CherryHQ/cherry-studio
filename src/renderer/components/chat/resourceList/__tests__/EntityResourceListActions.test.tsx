@@ -14,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -556,6 +557,8 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
+    preferenceMocks.values.set('chat.topics.sort', getDefaultValue('chat.topics.sort'))
+    preferenceMocks.values.set('agent.session.sort', getDefaultValue('agent.session.sort'))
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.assistants = [

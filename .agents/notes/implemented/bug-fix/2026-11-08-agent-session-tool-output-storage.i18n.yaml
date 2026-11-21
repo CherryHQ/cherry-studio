@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-08-agent-session-tool-output-storage.md
-2026-11-08-agent-session-tool-output-storage.md: ea0b622395c12e558cda904dbe208ed4ad98a5c9
-2026-11-08-agent-session-tool-output-storage.zh.md: 638f69467372c12f33d9d4507780a435215fe1b2
+2026-11-08-agent-session-tool-output-storage.md: c0cfa6dd29f47f1deb57ecfb11de8b9ebe498b56
+2026-11-08-agent-session-tool-output-storage.zh.md: 8be67553360ef64c6838a1077d19f000822a0ab3
