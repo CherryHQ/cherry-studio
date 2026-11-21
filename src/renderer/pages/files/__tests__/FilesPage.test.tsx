@@ -15,6 +15,14 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import { FileEntrySchema, type FileEntry } from '@shared/data/types/file'
+import type { OutputFor } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+type FileMetadataById = OutputFor<'file.batch_get_metadata'>
+type HydrationResponse =
+  | FileMetadataById
+  | OutputFor<'file.batch_get_physical_paths'>
+  | OutputFor<'file.batch_get_dangling_states'>
 
 const platformState = vi.hoisted(() => ({
   isMac: true
@@ -648,7 +656,7 @@ describe('FilesPage incremental hydration', () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()
     const requests: Array<{
-      deferred: ReturnType<typeof deferred<Record<string, unknown>>>
+      deferred: ReturnType<typeof deferred<HydrationResponse>>
       ids: string[]
       route: string
     }> = []
@@ -669,7 +677,7 @@ describe('FilesPage incremental hydration', () => {
         route === 'file.batch_get_metadata'
           ? (input as { items: Array<{ key: string }> }).items.map(({ key }) => key)
           : (input as { ids: string[] }).ids
-      const request = { deferred: deferred<Record<string, unknown>>(), ids, route }
+      const request = { deferred: deferred<HydrationResponse>(), ids, route }
       requests.push(request)
       return request.deferred.promise
     })
@@ -685,16 +693,16 @@ describe('FilesPage incremental hydration', () => {
 
     const resolveRequestsFor = async (id: string) => {
       for (const request of requests.filter(({ ids }) => ids.includes(id))) {
-        const value = Object.fromEntries(
-          request.ids.map((requestId) => [
-            requestId,
-            request.route === 'file.batch_get_metadata'
-              ? null
-              : request.route === 'file.batch_get_physical_paths'
-                ? `/tmp/${requestId}.png`
-                : 'present'
-          ])
-        )
+        const value =
+          request.route === 'file.batch_get_metadata'
+            ? Object.fromEntries(request.ids.map((requestId) => [requestId, null] as const))
+            : request.route === 'file.batch_get_physical_paths'
+              ? Object.fromEntries(
+                  request.ids.map(
+                    (requestId) => [requestId, AbsoluteFilePathSchema.parse(`/tmp/${requestId}.png`)] as const
+                  )
+                )
+              : Object.fromEntries(request.ids.map((requestId) => [requestId, 'present'] as const))
         request.deferred.resolve(value)
       }
       await act(async () => {
@@ -721,7 +729,7 @@ describe('FilesPage incremental hydration', () => {
   })
 
   it('refreshes metadata after rename without letting the previous response overwrite it', async () => {
-    const staleMetadata = deferred<Record<string, unknown>>()
+    const staleMetadata = deferred<FileMetadataById>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
     const loadNext = vi.fn()
@@ -790,7 +798,7 @@ describe('FilesPage incremental hydration', () => {
   })
 
   it('invalidates hydration when the list filter changes and ignores the previous response', async () => {
-    const staleMetadata = deferred<Record<string, unknown>>()
+    const staleMetadata = deferred<FileMetadataById>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
     mockFiles([externalEntry])
@@ -881,7 +889,7 @@ describe('FilesPage incremental hydration', () => {
   })
 
   it('reuses pending hydration after leaving and re-entering a filter', async () => {
-    const firstActiveMetadata = deferred<Record<string, unknown>>()
+    const firstActiveMetadata = deferred<FileMetadataById>()
     let activeMetadataRequestCount = 0
     mockFileStats(statsForEntries([externalEntry, imageEntry]))
     mockUseInfiniteQuery.mockImplementation((_path, options) => ({
@@ -917,14 +925,21 @@ describe('FilesPage incremental hydration', () => {
     fireEvent.click(screen.getByText('files.all'))
 
     firstActiveMetadata.resolve({
-      [externalEntry.id]: { size: 2048, createdAt: externalEntry.createdAt, modifiedAt: externalEntry.updatedAt }
+      [externalEntry.id]: {
+        kind: 'file',
+        type: 'text',
+        mime: 'text/plain',
+        size: 2048,
+        createdAt: externalEntry.createdAt,
+        modifiedAt: externalEntry.updatedAt
+      }
     })
     expect(await screen.findByText('2.0 KB')).toBeInTheDocument()
     expect(activeMetadataRequestCount).toBe(1)
   })
 
   it('applies a pending hydration response after StrictMode replays effects', async () => {
-    const metadata = deferred<Record<string, unknown>>()
+    const metadata = deferred<FileMetadataById>()
     const activePages = [{ items: [externalEntry] }]
     const loadNext = vi.fn()
     const mutate = vi.fn().mockResolvedValue(undefined)
