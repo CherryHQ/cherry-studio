@@ -128,21 +128,23 @@ export function killProcessTree(child: ChildProcess): void {
  * Unlike `killProcessTree` (fire-and-forget SIGTERM), this awaits `taskkill` so a
  * caller can pair it with `waitForProcessExit` for graceful-then-forced escalation.
  * `force=false` sends SIGTERM / `taskkill /T`; `force=true` sends SIGKILL /
- * `taskkill /T /F`. Best-effort: a graceful failure against a still-live tree is
- * logged (`label` names the owner in the warning) and a forced failure rethrows;
+ * `taskkill /T /F`. The boolean result reports whether the termination command
+ * succeeded, so callers can escalate even if the wrapper exits before its tree.
  * POSIX signals the negative PID (the detached child's process group) and swallows
  * ESRCH (the group is already gone).
  */
-export async function terminateProcessTree(child: ChildProcess, force: boolean, label: string): Promise<void> {
-  if (!child.pid) return
+export async function terminateProcessTree(child: ChildProcess, force: boolean, label: string): Promise<boolean> {
+  if (!child.pid) return true
   if (isWin) {
     const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
-    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
-      if (child.exitCode !== null || child.signalCode !== null) return
+    try {
+      await execFileAsync('taskkill', args, { windowsHide: true })
+      return true
+    } catch (error) {
       if (force) throw error
       logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error as Error)
-    })
-    return
+      return false
+    }
   }
 
   try {
@@ -150,6 +152,7 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
   }
+  return true
 }
 
 /** Resolve true once the child exits within `timeoutMs` (or has already exited); false on timeout. */
