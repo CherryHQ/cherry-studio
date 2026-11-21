@@ -223,7 +223,13 @@ function serializeError(error: unknown): DataApiDevtoolsEvent['error'] {
   }
 
   if (error && typeof error === 'object') {
-    const record = error as { [K in keyof NonNullable<DataApiDevtoolsEvent['error']>]?: unknown }
+    const record = error as {
+      name?: unknown
+      code?: unknown
+      message?: unknown
+      status?: unknown
+      isRetryable?: unknown
+    }
     return {
       name: typeof record.name === 'string' ? record.name : undefined,
       code: typeof record.code === 'string' ? record.code : undefined,
