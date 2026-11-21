@@ -10,6 +10,8 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
 import { resolveFilesystemBaseDir } from '../config'
 import { createFileSystemServer } from '../server'
+import { handleEditTool } from '../tools/edit'
+import { handleWriteTool } from '../tools/write'
 import * as types from '../types'
 import { validatePath } from '../types'
 
@@ -422,6 +424,138 @@ describe('filesystem MCP security', () => {
 
     it('still replaces a whitespace old_string that literally appears', async () => {
       await expect(editInWorkspace('a\n   \nb\n', '   ', true)).resolves.toBe('a\nX\nb\n')
+    })
+  })
+
+  describe('same-file mutation serialization', () => {
+    // Regression for #20695: two `edit` calls for the same file issued in one
+    // parallel block must both land. The critical section covers the whole
+    // read-modify-write cycle; serializing only the write (or verifying with
+    // a post-write read) cannot stop a stale overwrite.
+    it('applies both parallel edits to the same file, preserving the exact final content', async () => {
+      const workspaceRoot = await createTempDir('edit-serialization-root-')
+      const filePath = path.join(workspaceRoot, 'recipe.py')
+      await fs.writeFile(filePath, 'value = 1\ncount = 3\n', 'utf-8')
+
+      // Delay the first edit's write: without serialization the second edit
+      // reads the pre-edit content and overwrites the first edit's change.
+      const originalWriteFile = fs.writeFile.bind(fs)
+      let delayedFirstWrite = false
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (!delayedFirstWrite && typeof targetPath === 'string' && targetPath === filePath) {
+          delayedFirstWrite = true
+          await new Promise((resolve) => setTimeout(resolve, 30))
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      await Promise.all([
+        handleEditTool({ file_path: 'recipe.py', old_string: 'value = 1', new_string: 'value = 2' }, workspaceRoot),
+        handleEditTool({ file_path: 'recipe.py', old_string: 'count = 3', new_string: 'count = 4' }, workspaceRoot)
+      ])
+
+      // Full-content comparison: `toContain` checks would still pass if both
+      // values landed but the tail gained a duplicated or garbled fragment.
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('value = 2\ncount = 4\n')
+    })
+
+    it('serializes a write against an in-flight edit on the same path', async () => {
+      const workspaceRoot = await createTempDir('write-edit-serialization-root-')
+      const filePath = path.join(workspaceRoot, 'target.txt')
+      await fs.writeFile(filePath, 'original', 'utf-8')
+
+      // Hold the edit's write open; the queued write must wait for it.
+      let releaseEditWrite!: () => void
+      const editWriteGate = new Promise<void>((resolve) => {
+        releaseEditWrite = resolve
+      })
+      let editWriteStarted!: () => void
+      const editWriteStartedGate = new Promise<void>((resolve) => {
+        editWriteStarted = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === filePath) {
+          editWriteStarted()
+          await editWriteGate
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      const editPromise = handleEditTool(
+        { file_path: 'target.txt', old_string: 'original', new_string: 'edited' },
+        workspaceRoot
+      )
+      await editWriteStartedGate
+
+      let writeSettled = false
+      const writePromise = handleWriteTool({ file_path: 'target.txt', content: 'replaced' }, workspaceRoot).then(
+        (result) => {
+          writeSettled = true
+          return result
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(writeSettled).toBe(false)
+
+      releaseEditWrite()
+      await Promise.all([editPromise, writePromise])
+      // The write was called second, so its content is the complete final file.
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('replaced')
+    })
+
+    it('lets edits to different files run concurrently', async () => {
+      const workspaceRoot = await createTempDir('edit-concurrency-root-')
+      const fileA = path.join(workspaceRoot, 'a.txt')
+      const fileB = path.join(workspaceRoot, 'b.txt')
+      await fs.writeFile(fileA, 'a0', 'utf-8')
+      await fs.writeFile(fileB, 'b0', 'utf-8')
+
+      let releaseWriteA!: () => void
+      const writeAGate = new Promise<void>((resolve) => {
+        releaseWriteA = resolve
+      })
+      let writeAStarted!: () => void
+      const writeAStartedGate = new Promise<void>((resolve) => {
+        writeAStarted = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === fileA) {
+          writeAStarted()
+          await writeAGate
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      const editA = handleEditTool({ file_path: 'a.txt', old_string: 'a0', new_string: 'a1' }, workspaceRoot)
+      await writeAStartedGate
+
+      let editBSettled = false
+      const editB = handleEditTool({ file_path: 'b.txt', old_string: 'b0', new_string: 'b1' }, workspaceRoot).then(
+        (result) => {
+          editBSettled = true
+          return result
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(editBSettled).toBe(true)
+
+      releaseWriteA()
+      await Promise.all([editA, editB])
+      await expect(fs.readFile(fileA, 'utf-8')).resolves.toBe('a1')
+      await expect(fs.readFile(fileB, 'utf-8')).resolves.toBe('b1')
     })
   })
 })
