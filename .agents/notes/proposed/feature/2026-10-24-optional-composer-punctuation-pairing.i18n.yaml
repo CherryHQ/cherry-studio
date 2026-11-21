@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-24-optional-composer-punctuation-pairing.md
+2026-10-24-optional-composer-punctuation-pairing.md: f096807742613a98174a6e084fa29d9abdd0c92c
+2026-10-24-optional-composer-punctuation-pairing.zh.md: 54c3e64c5051a7d0f27e06084769e67f309bcb15
