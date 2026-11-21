@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "Dateien",
   "knowledge.data_source.filters.note": "Notizen",
   "knowledge.data_source.filters.url": "URLs",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Keine weiteren Artikel",
   "knowledge.data_source.list.loading_more": "Weitere laden…",
   "knowledge.data_source.preview.failed": "Fehler beim Vorschauen der Quelle",

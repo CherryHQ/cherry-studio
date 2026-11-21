@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "Αρχεία",
   "knowledge.data_source.filters.note": "Σημειώσεις",
   "knowledge.data_source.filters.url": "Διευθύνσεις URL",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Δεν υπάρχουν άλλα στοιχεία",
   "knowledge.data_source.list.loading_more": "Φόρτωση περισσότερων…",
   "knowledge.data_source.preview.failed": "Αποτυχία προεπισκόπησης πηγής",

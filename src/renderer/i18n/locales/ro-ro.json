@@ -1973,6 +1973,7 @@
   "knowledge.data_source.filters.file": "Fișiere",
   "knowledge.data_source.filters.note": "Note",
   "knowledge.data_source.filters.url": "URL-uri",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Nu mai sunt elemente",
   "knowledge.data_source.list.loading_more": "Se încarcă mai multe…",
   "knowledge.data_source.preview.failed": "Nu s-a reușit previzualizarea sursei",

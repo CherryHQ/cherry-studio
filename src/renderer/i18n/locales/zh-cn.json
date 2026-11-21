@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "文件",
   "knowledge.data_source.filters.note": "笔记",
   "knowledge.data_source.filters.url": "链接",
+  "knowledge.data_source.image_ocr_hint": "支持图片：{{formats}}。图片通过 OCR 识别后建立索引。",
   "knowledge.data_source.list.end_reached": "没有更多了",
   "knowledge.data_source.list.loading_more": "加载更多…",
   "knowledge.data_source.preview.failed": "预览原文失败",
