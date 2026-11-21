@@ -1,5 +1,19 @@
 # @cherrystudio/provider-registry
 
+## 0.8.0
+
+### Minor Changes
+
+- [#24429](https://github.com/CherryHQ/cherry-studio/pull/24429) [`f309588`](https://github.com/CherryHQ/cherry-studio/commit/f309588a91210158dc1ba0ab83b71b7675ccd71a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Seedream 5.5 image generation support.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#24874](https://github.com/CherryHQ/cherry-studio/pull/24874) [`9c6a014`](https://github.com/CherryHQ/cherry-studio/commit/9c6a0146a6bf30a68719b74af0667e852f875403) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini 4 Neon model metadata, four reasoning levels, and native search and URL context eligibility for Gemini and Vertex AI.
+
+- [#24849](https://github.com/CherryHQ/cherry-studio/pull/24849) [`84a8fc6`](https://github.com/CherryHQ/cherry-studio/commit/84a8fc615806b4271d27e6ecef338e70ae62b914) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Enable Vertex native web search and URL context for Gemini 4 Hydrogen and Carbon models.
+
 ## 0.7.0
 
 ### Minor Changes

@@ -1028,8 +1028,8 @@ export class AiStreamManager extends BaseService {
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
     source?: SourceSnapshot | null
-    /** `0` disables same-model retry AND cross-model fallback. */
-    maxRetries?: 0
+    /** Per-request retry limit; `0` also disables model fallback. */
+    maxRetries?: number
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -2284,34 +2284,9 @@ export class AiStreamManager extends BaseService {
         }
       )
     } else {
-      const capacityListeners = [...(this.activeStreams.get(topicId)?.listeners.values() ?? [])].filter(
-        (listener) => listener.ready
-      )
       const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
-      const inputStream =
-        capacityListeners.length === 0
-          ? idleStream
-          : idleStream.pipeThrough(
-              new TransformStream<UIMessageChunk, UIMessageChunk>({
-                async transform(chunk, controller) {
-                  for (const listener of capacityListeners) {
-                    const ready = listener.ready?.()
-                    if (ready) {
-                      idle.pause()
-                      try {
-                        await ready
-                      } finally {
-                        idle.resume()
-                      }
-                    }
-                    signal.throwIfAborted()
-                  }
-                  controller.enqueue(chunk)
-                }
-              })
-            )
       const lastIncoming = request.messages?.at(-1)
-      result = await pipeStreamLoop(withReasoningTimingMetadata(inputStream), signal, {
+      result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
         onChunk: (chunk) => {
           this.onChunk(topicId, modelId, chunk, exec)
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
