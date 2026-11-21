@@ -2089,6 +2089,7 @@
   "library.config.agent.field.description.hint": "Pomáhá rychle poznat, k čemu tento agent slouží",
   "library.config.agent.field.description.label": "Popis",
   "library.config.agent.field.description.placeholder": "K čemu tento agent slouží…",
+  "library.config.agent.field.custom_cli.toggle_label": "Use a custom executable",
   "library.config.agent.field.custom_cli.args_help": "One argument per line, passed to the process exactly as written.",
   "library.config.agent.field.custom_cli.args_label": "Arguments",
   "library.config.agent.field.custom_cli.args_placeholder": "--profile my setup",

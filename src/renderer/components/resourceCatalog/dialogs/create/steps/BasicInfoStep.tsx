@@ -10,10 +10,12 @@ import {
   FormMessage,
   InputGroup,
   InputGroupAddon,
-  InputGroupInput
+  InputGroupInput,
+  Switch
 } from '@cherrystudio/ui'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
+import { AgentCustomCliSection } from '@renderer/components/resourceCatalog/dialogs/components/AgentCustomCliSection'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
@@ -184,15 +186,18 @@ export function BasicInfoStep({
       />
 
       {showAgentFields ? (
-        <AgentRuntimeModelFields
-          form={form}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          modelFilter={modelFilter}
-          isModelDisabled={isModelDisabled}
-          onSettingsNavigate={onSettingsNavigate}
-        />
+        <>
+          <AgentRuntimeModelFields
+            form={form}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
+            onSettingsNavigate={onSettingsNavigate}
+          />
+          <CustomCliCreateFields form={form} />
+        </>
       ) : (
         <CompactModelField
           form={form}
@@ -216,6 +221,37 @@ export function BasicInfoStep({
         labelClassName="font-medium"
         placeholder={t('library.config.dialogs.create.description_placeholder')}
       />
+    </div>
+  )
+}
+
+/** Custom Code CLI executable registration (issue #19966): opt-in toggle, then
+ *  the shared path/args/validation fields. A non-empty executable switches the
+ *  created Agent to the claude-code runtime at submit time. */
+function CustomCliCreateFields({ form }: { form: UseFormReturn<ResourceCreateWizardFormValues> }) {
+  const { t } = useTranslation()
+  const enabled = useWatch({ control: form.control, name: 'customCliEnabled' })
+  const executable = useWatch({ control: form.control, name: 'customCliExecutable' })
+  const argsText = useWatch({ control: form.control, name: 'customCliArgsText' })
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <FormLabel className="font-medium">{t('library.config.agent.field.custom_cli.toggle_label')}</FormLabel>
+        <Switch
+          checked={enabled ?? false}
+          onCheckedChange={(checked) => form.setValue('customCliEnabled', checked, { shouldDirty: true })}
+          aria-label={t('library.config.agent.field.custom_cli.toggle_label')}
+        />
+      </div>
+      {enabled ? (
+        <AgentCustomCliSection
+          executable={executable ?? ''}
+          argsText={argsText ?? ''}
+          onExecutableChange={(value) => form.setValue('customCliExecutable', value, { shouldDirty: true })}
+          onArgsTextChange={(value) => form.setValue('customCliArgsText', value, { shouldDirty: true })}
+        />
+      ) : null}
     </div>
   )
 }

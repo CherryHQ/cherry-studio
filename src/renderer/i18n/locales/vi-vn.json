@@ -2089,6 +2089,7 @@
   "library.config.agent.field.description.hint": "Giúp xác định mục đích của Agent này",
   "library.config.agent.field.description.label": "Mô tả",
   "library.config.agent.field.description.placeholder": "Agent này dùng để làm gì…",
+  "library.config.agent.field.custom_cli.toggle_label": "Use a custom executable",
   "library.config.agent.field.custom_cli.args_help": "One argument per line, passed to the process exactly as written.",
   "library.config.agent.field.custom_cli.args_label": "Arguments",
   "library.config.agent.field.custom_cli.args_placeholder": "--profile my setup",

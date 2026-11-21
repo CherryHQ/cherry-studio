@@ -28,6 +28,10 @@ export type ResourceCreateWizardFormValues = {
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]
+  /** Agent-only: register a user-defined executable as the Code CLI runtime (issue #19966). */
+  customCliEnabled: boolean
+  customCliExecutable: string
+  customCliArgsText: string
 }
 
 /**
