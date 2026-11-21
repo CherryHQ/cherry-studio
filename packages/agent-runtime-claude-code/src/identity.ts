@@ -4,7 +4,8 @@ import type { ClaudeCommandLifecycle } from './types'
 
 export function isCommandLifecycle(value: unknown): value is ClaudeCommandLifecycle {
   if (!value || typeof value !== 'object') return false
-  const event = value as Record<string, unknown>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native lifecycle field names come from their owner; values remain unvalidated until the checks below.
+  const event: { [K in keyof ClaudeCommandLifecycle]?: unknown } = value
   return (
     event.type === 'command_lifecycle' &&
     typeof event.command_uuid === 'string' &&
