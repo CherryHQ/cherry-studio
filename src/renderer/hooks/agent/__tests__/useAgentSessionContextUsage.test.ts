@@ -23,6 +23,7 @@ beforeEach(() => {
   cacheService.deleteShared(KEY)
   cacheService.setShared(KEY, {
     modelId: 'openai::small-model',
+    sessionId: SESSION_ID,
     result: {
       status: 'confirmed',
       value: {
@@ -41,6 +42,28 @@ afterEach(() => {
 })
 
 describe('useAgentSessionContextUsage', () => {
+  it('does not display a reading stamped for another session', () => {
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      sessionId: 'another-session',
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'small-model',
+          revision: 'r1',
+          contextWindow: 250_000,
+          used: { tokens: 200_000, precision: 'reported' },
+          basis: 'current-context'
+        }
+      }
+    })
+
+    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 500_000)))
+
+    expect(result.current.usage).toBeNull()
+    expect(result.current.percentage).toBeNull()
+  })
+
   it('drops a reading published by a different model', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::big-model', 1_000_000)))
 
@@ -60,6 +83,7 @@ describe('useAgentSessionContextUsage', () => {
   it('preserves unknown occupancy instead of showing zero', () => {
     cacheService.setShared(KEY, {
       modelId: 'openai::small-model',
+      sessionId: SESSION_ID,
       result: {
         status: 'confirmed',
         value: { model: 'small-model', revision: 'after-compact', contextWindow: 250_000, basis: 'current-context' }
@@ -73,6 +97,7 @@ describe('useAgentSessionContextUsage', () => {
   it('hides an unavailable native reading', () => {
     cacheService.setShared(KEY, {
       modelId: 'openai::small-model',
+      sessionId: SESSION_ID,
       result: {
         status: 'unsupported',
         error: { operation: 'contextUsage', code: 'child', message: 'Unsupported child access' }
