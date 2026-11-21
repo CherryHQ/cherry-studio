@@ -56,7 +56,7 @@ export class LoggerService {
   // Source derived from the window's <meta name="logger-window-source"> at construction.
   private derivedWindow: string = ''
   private module: string = ''
-  private context: Record<string, any> = {}
+  private context: NonNullable<LogSourceWithContext['context']> = {}
   private errorReporter?: (observation: ErrorObservation) => void
 
   constructor() {
@@ -119,7 +119,7 @@ export class LoggerService {
    * @param context - Additional context data
    * @returns A new logger instance with the specified context
    */
-  public withContext(module: string, context?: Record<string, any>): LoggerService {
+  public withContext(module: string, context?: LogSourceWithContext['context']): LoggerService {
     const newLogger = Object.create(this)
 
     // Copy all properties from the base logger

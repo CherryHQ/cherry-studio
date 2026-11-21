@@ -2,7 +2,8 @@ export type LogSourceWithContext = {
   process: 'main' | 'renderer'
   window?: string // only for renderer process
   module?: string
-  context?: Record<string, any>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Caller metadata may contain native values; the main logger sanitizes each value before file output.
+  context?: Record<string, unknown>
 }
 
 type NullableObject = object | undefined | null
