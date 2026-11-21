@@ -16,6 +16,7 @@ const textareaVariants = cva(
     'rounded-md',
     'border-input text-foreground placeholder:text-muted-foreground',
     'focus-visible:border-primary',
+    'focus-visible:inset-shadow-[0_0_0_2px_var(--ring)]',
     'disabled:cursor-not-allowed disabled:opacity-50',
     'md:text-sm'
   ),

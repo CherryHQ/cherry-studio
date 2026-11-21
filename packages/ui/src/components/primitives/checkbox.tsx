@@ -17,6 +17,7 @@ const checkboxVariants = cva(
     'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
     'focus-visible:border-primary',
+    'focus-visible:inset-shadow-[0_0_0_2px_var(--ring)]',
     'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
     'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
     // A fixed tick must read as fixed: same glyph in the DISABLED role (DESIGN.md's
