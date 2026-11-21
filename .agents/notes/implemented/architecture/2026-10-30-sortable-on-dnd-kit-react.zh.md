@@ -39,7 +39,7 @@ PR #23117 暴露了这个代价。移除 `@hello-pangea/dnd` 后，内置的交�
 - 第一次触摸移动和放下时，都在激活元素上派发一个合成的 `pointermove`。`<body>` 上的指针捕获让行看不到手势，Radix `ContextMenu` 的长按计时器因此不会被清除，会在手指移动或抬起后打开模态菜单，并让 `<body>` 停留在 `pointer-events: none`。手指按住不动超过 700 ms 时长按菜单仍可打开。
 - 窗口失焦时通过拖拽管理器停止操作，再对每个 sensor 调用 `destroy()`。外部停止后 sensor 仍保持附着，而且只有 sensor 知道尚未激活的按压。
 
-`BlurCancelPointerSensor` 继续导出，供 `@dnd-kit/core` 使用方使用。`GroupedSortableVirtualList`、知识库导航、共享的 `arrayMove` 调用方和 `useDndState` 继续使用 `@dnd-kit/core`。
+sensor、窗口失焦取消和长按释放现在位于 `DragDropRoot`，由 `Sortable` 和分组拖拽列表共用；[把分组拖拽列表迁到 @dnd-kit/react](../../proposed/architecture/2026-11-19-grouped-drag-lists-on-dnd-kit-react.md) 迁走了剩余的 `@dnd-kit/core` 调用方，并移除了 `BlurCancelPointerSensor` 和 `useDndState`。
 
 ## 考虑过的替代方案
 
@@ -55,7 +55,7 @@ PR #23117 暴露了这个代价。移除 `@hello-pangea/dnd` 后，内置的交�
 
 ## 后果
 
-所有 `Sortable` 列表现在都支持手指按住拖动。在后续 Spec 移除旧版本之前，`Sortable` 会同时带上两代 dnd-kit。替换 `@hello-pangea/dnd` 净增约 10 KB gzip：新增约 40 KB，减少约 29 KB，这是用独立的 esbuild 产物和发布的 UMD 文件测得的，不是应用构建的数字。`@dnd-kit/react` 尚未到 1.0，升级时要重跑这些探针；`sensor.destroy()` 依赖 0.5.1 中 sensor 可复用的行为，由单元测试守护。
+所有 `Sortable` 列表现在都支持手指按住拖动。替换 `@hello-pangea/dnd` 净增约 10 KB gzip：新增约 40 KB，减少约 29 KB，这是用独立的 esbuild 产物和发布的 UMD 文件测得的，不是应用构建的数字。`@dnd-kit/react` 尚未到 1.0，升级时要重跑这些探针；`sensor.destroy()` 依赖 0.5.1 中 sensor 可复用的行为，由单元测试守护。
 
 指针离开所有行后放下，现在会提交最后显示的位置；`@dnd-kit/core` 则会弹回。行属性（`role`、`tabindex`、`aria-*`）现在在调度器 tick 上写到行的外层元素，所以测试要用 `findByRole`。在带上下文菜单的行上触摸按住超过 700 ms 时，菜单会在拖动进行中打开；抬手后拖动结束且不移动。在 popover 中，键盘拖动时按 Escape 也会关闭 popover，因为 Radix 先处理了它；不会提交排序。
 

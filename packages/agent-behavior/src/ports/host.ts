@@ -5,7 +5,6 @@ import type { CallKey, ToolCallFact } from '../core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
-  ApprovalOutcome,
   Attendance,
   Autonomy,
   CallRef,
@@ -26,24 +25,24 @@ export type ApprovalRequest = {
   readonly details?: JsonValue
 }
 /**
- * P1. Ask a person whether a call may run; tell the rules how people answered before.
+ * P1. Ask a person whether a call may run.
+ *
+ * Decisions never read answers back from the host: a denied or unanswerable call reaches them only as its blocked
+ * result in the thread's own history, and a parent never reads its children's calls.
  *
  * @harness coding-agent Cherry's tool approval registry and approval card, asked from the `tool_call` event; `Memory`
  * is H6's in-session store, since a restart drops the pending call.
  * @harness durable `beforeTool` waits before the intent and reruns after a crash; `Memory` is `api.memo`, and the host
  * deduplicates a repeated ask by `CallRef`.
- * @harness fake Scripted answers; an ask with none queued stays pending and shows as 'pending' in `outcomes`; `Memory`
- * is the fake's persistent memo table.
- * @keys `CallRef` (thread and call key) identifies a call to the host, which persists outcomes. The gate always records
- * each answer through `Memory.remember` under `cherry.approval:<callKey>`.
+ * @harness fake Scripted answers; an ask with none queued stays pending; `Memory` is the fake's persistent memo table.
+ * @keys `CallRef` (thread and call key) identifies a call to the host. The gate always records each answer through
+ * `Memory.remember` under `cherry.approval:<callKey>`.
  * @waits `ask` waits for a person until answered or `signal` aborts.
  */
 export interface Approvals {
   /** A child's call comes with the child's thread; answer it by the agent tool policy of its root conversation. */
   facts(call: CallRef, tool: ToolCallFact): Promise<ApprovalHostFacts>
   ask(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalAnswer>
-  /** [plan choice] Persisted outcomes of `calls` on `thread`; an empty list asks for every call the host knows there. */
-  outcomes(thread: ThreadId, calls: readonly CallRef[]): Promise<readonly ApprovalOutcome[]>
 }
 
 export type QuestionRequest = { readonly call: CallRef; readonly questions: readonly QuestionItem[] }
