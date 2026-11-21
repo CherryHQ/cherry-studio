@@ -54,7 +54,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
       }
     })
   const first = renderHook(useQueue)
-  act(() => first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
+  act(() => void first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () =>
     cacheService.setShared('topic.stream.statuses.topic', {
       status: 'done',
@@ -85,7 +85,7 @@ it('sends a queued follow-up when completion has already been marked read', asyn
     const stream = useTopicStreamStatus('topic')
     return useFollowupQueue({ scopeKey: 'topic', ...stream, onDrain })
   })
-  act(() => result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
+  act(() => void result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () => {
     cacheService.setShared('topic.stream.statuses.topic', {
       status: 'done',
@@ -188,7 +188,7 @@ it('preserves a failed draft and lets resume retry without another model complet
       }
     })
   )
-  act(() => result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
+  act(() => void result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () =>
     cacheService.setShared('topic.stream.statuses.topic', {
       status: 'done',
@@ -263,7 +263,7 @@ it('settles a pending send in its original queue after switching conversations',
       }),
     { initialProps: { scopeKey: 'one' } }
   )
-  act(() => result.current.enqueue({ text: 'first', tokens: [] }, { text: 'first', userMessageParts: [] }))
+  act(() => void result.current.enqueue({ text: 'first', tokens: [] }, { text: 'first', userMessageParts: [] }))
   await act(async () =>
     cacheService.setShared('topic.stream.statuses.one', {
       status: 'done',
@@ -273,7 +273,7 @@ it('settles a pending send in its original queue after switching conversations',
     })
   )
   rerender({ scopeKey: 'two' })
-  act(() => result.current.enqueue({ text: 'second', tokens: [] }, { text: 'second', userMessageParts: [] }))
+  act(() => void result.current.enqueue({ text: 'second', tokens: [] }, { text: 'second', userMessageParts: [] }))
   await act(async () => finish(true))
   expect(result.current.items.map(({ payload }) => payload.text)).toEqual(['second'])
   rerender({ scopeKey: 'one' })
@@ -298,7 +298,7 @@ it.each(['automatic', 'manual'] as const)(
         }
       })
     const first = renderHook(useQueue)
-    act(() => first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
+    act(() => void first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
     const id = first.result.current.items[0].id
     if (firstSender === 'manual') {
       act(() => {

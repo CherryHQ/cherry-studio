@@ -1,4 +1,6 @@
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { Blob as NodeBlob } from 'node:buffer'
+
+import { createMockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -746,6 +748,11 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.set).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.subscribe).mockImplementation(queueCache.subscribe)
+
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -1464,6 +1471,105 @@ describe('ChatComposer', () => {
     expect(mocks.files?.[0].blob).toBeInstanceOf(Blob)
   })
 
+  it('queues and sends a generated-image reference added while Chat streams without losing its bytes', async () => {
+    const originalBlob = globalThis.Blob
+    vi.stubGlobal('Blob', NodeBlob)
+    try {
+      mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+      mocks.topicPending = true
+      const onSend = vi.fn().mockResolvedValue(undefined)
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+      await waitFor(() => expect(mocks.eventListeners.has('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')).toBe(true))
+      await act(async () => {
+        await (mocks.eventListeners.get('ADD_CHAT_COMPOSER_IMAGE_REFERENCE') as (payload: unknown) => Promise<void>)({
+          topicId: topic.id,
+          url: 'data:image/png;base64,iVBORw==',
+          name: 'generated.png'
+        })
+      })
+      view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+      const blob = mocks.files?.[0].blob
+      expect(blob).toBeInstanceOf(NodeBlob)
+      act(() => mocks.surfaceProps?.onTextChange('describe this generated image'))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({
+          text: 'describe this generated image',
+          tokens: [
+            {
+              id: 'file:' + mocks.files?.[0].fileTokenSourceId,
+              kind: 'file',
+              label: 'generated.png',
+              payload: mocks.files?.[0],
+              index: 0,
+              textOffset: 0
+            }
+          ]
+        })
+      })
+      expect(onSend).not.toHaveBeenCalled()
+      const dock = mocks.surfaceProps?.queueContent as ReactElement<{
+        items: Array<{ payload: { attachments: Array<{ blob?: Blob }> } }>
+      }>
+      expect(dock?.props.items).toHaveLength(1)
+      expect(dock.props.items[0].payload.attachments[0].blob).toBe(blob)
+      expect(mocks.surfaceProps?.text).toBe('')
+      mocks.topicPending = false
+      mocks.topicFulfilled = true
+      await act(async () => {
+        view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+      })
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+      expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+        source: 'bytes',
+        data: new Uint8Array([137, 80, 78, 71]),
+        name: 'generated.png',
+        ext: 'png',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(onSend.mock.calls[0][0]).toBe('describe this generated image')
+      expect(onSend.mock.calls[0][1].userMessageParts).toContainEqual(
+        expect.objectContaining({ type: 'file', filename: 'generated.png', url: 'file:///p/fe-1.pdf' })
+      )
+      expect(mocks.surfaceProps?.queueContent).toBeUndefined()
+    } finally {
+      vi.stubGlobal('Blob', originalBlob)
+    }
+  })
+
+  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
+    expect(screen.getByText(/Model A/)).not.toHaveClass('sr-only')
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    await waitFor(() => {
+      expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
+      expect(screen.getByText(/Model A/)).toHaveClass('sr-only')
+    })
+  })
+
+  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await notifyComposerBottomToolbarWidth(420, 420)
+
+    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
+    expect(screen.getByText(/Model A/)).not.toHaveClass('sr-only')
+  })
+
+  it('passes attachment capabilities through the provider without effect mirroring', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Chat allows images on any model (native on a vision model, OCR text otherwise),
+    // so the capability is true even though the mocked model is non-vision.
+    expect(mocks.derivedToolState).toEqual({
+      couldAddImageFile: true,
+      extensions: mocks.surfaceProps?.supportedExts
+    })
+  })
+
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.get).mockReturnValue({
       text: 'Existing draft',
@@ -2178,6 +2284,7 @@ describe('ChatComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
 
     mocks.topicPending = false
+    mocks.topicFulfilled = false
     view.rerender(
       <ChatComposer
         topic={topic}
@@ -5420,6 +5527,7 @@ describe('ChatComposer', () => {
           dock().onEdit(a.id)
         })
         mocks.topicPending = false
+        mocks.topicFulfilled = false
         view.rerender(
           <ChatComposer
             topic={topic}
@@ -5443,6 +5551,70 @@ describe('ChatComposer', () => {
         ])
       }
     )
+  })
+  it('queues a follow-up instead of sending directly while a queue drain is still in flight after remount', async () => {
+    // The auto-drain send never settles, so the queue keeps a send in flight while idle.
+    const onSend = vi.fn().mockImplementationOnce(() => new Promise(() => undefined))
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'first', tokens: [] })
+    })
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+
+    // Remount: hook state (drainingId, isSending) resets, but the durable claim
+    // survives — the next send must queue behind the pending drain instead of
+    // running a second send concurrently.
+    view.unmount()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'second', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect((mocks.surfaceProps?.queueContent as any)?.props.items).toHaveLength(2)
+  })
+
+  it('keeps Skip/Retry disabled after remounting mid-retry (failure drain still live)', async () => {
+    // First send fails → banner; the retry stays pending across the remount.
+    const onSend = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('send failed'))
+      .mockImplementationOnce(() => new Promise(() => undefined))
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'first', tokens: [] })
+    })
+
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    // Drain fails → the failure banner owns the queue.
+    await waitFor(() => expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull())
+
+    await act(async () => {
+      await (mocks.surfaceProps?.queueContent as any)?.props.onRetryFailed()
+    })
+    expect(onSend).toHaveBeenCalledTimes(2)
+
+    // Remount: drainingId state resets, but the durable claim survives, so the
+    // banner must stay locked instead of enabling Skip/Retry that silently no-op.
+    view.unmount()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull()
+    expect((mocks.surfaceProps?.queueContent as any)?.props.isFailureDraining).toBe(true)
   })
   it.each([false, true])(
     'submits captured targets without deciding quota in the queue (captured exhausted=%s)',
@@ -5534,4 +5706,40 @@ function getCapturedQueueDock(): ReactElement<CapturedQueueDockProps> | undefine
     (node): node is ReactElement<CapturedQueueDockProps> =>
       isValidElement<CapturedQueueDockProps>(node) && Array.isArray(node.props.items)
   )
+}
+
+async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
+  await waitFor(() => {
+    expect(
+      resizeObserverMockInstances.some((instance) =>
+        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
+      )
+    ).toBe(true)
+  })
+
+  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
+    const target = Array.from(instance.targets).find((target) =>
+      String(target.getAttribute('class') ?? '').includes('max-w-full')
+    )
+    return target ? [{ instance, target }] : []
+  })
+  if (toolbarObservers.length === 0) {
+    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
+  }
+
+  act(() => {
+    for (const { instance, target } of toolbarObservers) {
+      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
+      instance.callback(
+        [
+          {
+            target,
+            contentRect: { width }
+          } as ResizeObserverEntry
+        ],
+        {} as ResizeObserver
+      )
+    }
+  })
 }
