@@ -68,12 +68,13 @@ export interface SessionSendResult {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This guard checks only the object container; each receipt reader validates the fields it consumes.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool responses arrive as direct objects, JSON strings or MCP text-content envelopes; decode text and require an object before receipt validation.
-function parseJsonResult(value: unknown): Record<string, unknown> | undefined {
+function parseJsonResult(value: unknown) {
   const text =
     isRecord(value) && Array.isArray(value.content)
       ? value.content

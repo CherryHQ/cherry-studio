@@ -74,9 +74,9 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
 
   // Normalize input/output for table display
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unknown tools have no shared input/output schema; retain objects and wrap primitive payloads for the generic argument table.
-  const normalizeArgs = (value: unknown): Record<string, unknown> | unknown[] | null => {
+  const normalizeArgs = (value: unknown): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> => {
     if (value === undefined || value === null) return null
-    if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
+    if (typeof value === 'object') return value as NonNullable<Parameters<typeof ToolArgsTable>[0]['args']>
     // Wrap primitive values
     return { value }
   }

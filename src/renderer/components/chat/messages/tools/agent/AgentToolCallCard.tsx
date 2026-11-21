@@ -26,7 +26,7 @@ function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: T
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
 }
 
-function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | Record<string, unknown> | undefined) {
+function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | undefined) {
   if (typeof input === 'string') return input.trim() || toolName
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
@@ -62,7 +62,7 @@ export function AgentToolCallCard({
 }: {
   toolCallId?: string
   toolName?: string
-  input?: ToolInput | Record<string, unknown>
+  input?: ToolInput
   output?: ToolOutput
   isStreaming?: boolean
   status?: ToolStatus

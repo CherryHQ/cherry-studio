@@ -23,6 +23,7 @@ export function ToolArgsTable({
   title,
   isStreaming = false
 }: {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Tool extensions own these values; formatArgValue safely converts each value before table display.
   args: Record<string, unknown> | unknown[] | null | undefined
   title?: string
   isStreaming?: boolean

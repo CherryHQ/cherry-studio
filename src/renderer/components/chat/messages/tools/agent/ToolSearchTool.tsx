@@ -26,9 +26,8 @@ export function ToolSearchTool({
   const { t } = useTranslation()
   const { matches, message } = parseOutput(output)
 
-  const normalizedInput: Record<string, unknown> | null = input ? { ...input } : null
-  const normalizedOutput: Record<string, unknown> | null =
-    matches.length > 0 ? { matches: matches.join(', ') } : message ? { value: message } : null
+  const normalizedInput = input ? { ...input } : null
+  const normalizedOutput = matches.length > 0 ? { matches: matches.join(', ') } : message ? { value: message } : null
 
   return {
     key: AgentToolsType.ToolSearch,
