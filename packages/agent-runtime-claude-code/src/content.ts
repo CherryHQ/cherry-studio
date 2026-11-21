@@ -16,10 +16,27 @@ export function json(value: unknown): Metadata[string][string] {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archived blocks are raw JSON; this only checks the container, leaving consumed field validation to each decoder.
-function object(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+function object(value: unknown):
+  | {
+      type?: unknown
+      id?: unknown
+      content?: unknown
+      text?: unknown
+      citations?: unknown
+      thinking?: unknown
+      signature?: unknown
+      data?: unknown
+      name?: unknown
+      input?: unknown
+      server_name?: unknown
+      tool_use_id?: unknown
+      is_error?: unknown
+      source?: unknown
+      media_type?: unknown
+      url?: unknown
+    }
+  | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live SDK and raw archive citations share this projection; preserve their payload as JSON without claiming a complete SDK citation type.

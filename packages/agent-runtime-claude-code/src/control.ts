@@ -412,7 +412,9 @@ export class ClaudeControlState {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native task receipts live inside heterogeneous tool content; accept only readable text containing an object JSON root.
-function taskReceipt(content: unknown): Record<string, unknown> | undefined {
+function taskReceipt(
+  content: unknown
+): { taskType?: unknown; taskId?: unknown; agentId?: unknown; status?: unknown } | undefined {
   try {
     const text =
       typeof content === 'string'
