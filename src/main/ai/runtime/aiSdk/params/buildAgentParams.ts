@@ -839,7 +839,10 @@ export function applyCallOverrides(
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
-  const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }
+  const standardParams = {
+    ...base.standardParams,
+    ...filterStandardParams<(typeof sampling)[keyof typeof sampling]>(sampling, model)
+  }
 
   let providerOptions = base.providerOptions
   if (callOverrides.providerOptions) {
