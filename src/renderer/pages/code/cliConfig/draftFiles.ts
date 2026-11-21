@@ -88,19 +88,21 @@ export function parseDraftFileOrThrow<T>(
   }
 }
 
-function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<string, string> {
-  switch (file.language) {
-    case 'json':
-      return parseJsonOrThrow(file.content)
-    case 'toml':
-      return parseTomlOrThrow(file.content)
-    case 'dotenv':
-      return parseDotenv(file.content)
-    case 'yaml':
-      return parseYamlOrThrow(file.content)
-  }
-}
-
 export function validateCliConfigDraftForWrite(files: CliConfigFileDraft[]): void {
-  for (const file of files) parseDraftFile(file)
+  for (const file of files) {
+    switch (file.language) {
+      case 'json':
+        parseJsonOrThrow(file.content)
+        break
+      case 'toml':
+        parseTomlOrThrow(file.content)
+        break
+      case 'dotenv':
+        parseDotenv(file.content)
+        break
+      case 'yaml':
+        parseYamlOrThrow(file.content)
+        break
+    }
+  }
 }

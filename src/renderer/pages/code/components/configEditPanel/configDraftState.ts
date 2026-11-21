@@ -44,7 +44,7 @@ export function createInitialConfigDraftState(
   providerConfig: CliProviderConfig | null | undefined
 ): {
   modelId: UniqueModelId | undefined
-  config: Record<string, unknown>
+  config: ConfigDraft['config']
   claudeModelMode: ClaudeModelMode
   draft: ConfigDraft
 } {
@@ -90,7 +90,7 @@ export function resolveManagedDraftOptions(
   cliTool: CodeCli,
   providerId: string,
   modelMode: ClaudeModelMode,
-  config: Record<string, unknown>,
+  config: ConfigDraft['config'],
   modelId: UniqueModelId | undefined,
   gatewayModels?: Map<UniqueModelId, Model>
 ): ManagedDraftOptions {
@@ -116,7 +116,7 @@ export async function createManagedConfigDraft({
 }: {
   cliTool: CodeCli
   modelId: UniqueModelId | undefined
-  config: Record<string, unknown>
+  config: ConfigDraft['config']
   files?: CliConfigFileDraft[]
   options?: ManagedDraftOptions
   gateway?: CliConfigGatewayContext
@@ -169,7 +169,7 @@ export async function loadInitialConfigDraft({
   providerId: string
   isCurrentProvider: boolean
   initialModelId: UniqueModelId | undefined
-  initialConfig: Record<string, unknown>
+  initialConfig: ConfigDraft['config']
   initialClaudeModelMode: ClaudeModelMode
   initialDraftSeed: ConfigDraft
   connectionMatchesProvider: (connection: CliConfigConnection | null, expectedModelId?: UniqueModelId) => boolean

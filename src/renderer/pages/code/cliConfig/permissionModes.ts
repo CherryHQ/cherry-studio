@@ -65,7 +65,10 @@ export function codexPermissionModeToConfig(mode: CodexPermissionMode): {
   return CODEX_PERMISSION_CONFIG[mode]
 }
 
-export function codexConfigToPermissionMode(config: Record<string, any>): CodexPermissionMode | undefined {
+export function codexConfigToPermissionMode(config: {
+  approval_policy?: unknown
+  sandbox_mode?: unknown
+}): CodexPermissionMode | undefined {
   return CODEX_PERMISSION_MODES.find((mode) => {
     const candidate = CODEX_PERMISSION_CONFIG[mode]
     return config.approval_policy === candidate.approval_policy && config.sandbox_mode === candidate.sandbox_mode

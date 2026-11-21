@@ -4,6 +4,7 @@ import { parse as parseYaml } from 'yaml'
 
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { InputFor } from '@shared/ipc/types'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
@@ -14,6 +15,10 @@ import {
   updateCliConfigDraftConfig,
   writeCliConfigDraft
 } from '../index'
+
+type CliConfigRequest = {
+  [Route in 'code_cli.read_config' | 'code_cli.write_config']: [route: Route, input: InputFor<Route>]
+}['code_cli.read_config' | 'code_cli.write_config']
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
@@ -27,6 +32,7 @@ vi.mock('@renderer/ipc', () => ({
 /** Per-path DataApi.get mock returning provider / api-keys / model payloads.
  * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
  * shadowed by the `/providers/:id` entry. */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This generic bound retains heterogeneous per-route fixture results; the mapped factories preserve each response type.
 function mockGet<TResponses extends Record<string, unknown>>(handlers: {
   [Path in keyof TResponses]: () => TResponses[Path]
 }) {
@@ -130,10 +136,10 @@ describe('writeCliConfigDraft', () => {
     // Draft building still reads on-disk config files renderer-side
     // (`code_cli.read_config`); the mock maps declarative spec paths to
     // deterministic `/resolved…` entries for the `existing` fixture.
-    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+    mocks.request.mockImplementation(async (...[route, input]: CliConfigRequest) => {
       if (route === 'code_cli.read_config') {
         return {
-          files: (input.targets as CliConfigTarget[]).map((target) => {
+          files: input.targets.map((target) => {
             const resolvedPath = resolvedSpecPath(target)
             return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
@@ -142,7 +148,7 @@ describe('writeCliConfigDraft', () => {
       // The disk mutation is main-process now (`code_cli.write_config` carries
       // a target, never a path). Translate each write target back to the
       // same deterministic path so the content fixtures stay unchanged.
-      for (const file of input.files as CliConfigWriteFile[]) {
+      for (const file of input.files) {
         if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
         const nextWrite = { path: resolvedSpecPath(file.target), content: file.content }
         written = nextWrite
@@ -758,11 +764,11 @@ describe('writeCliConfigDraft', () => {
         '/models/': () => ({ id: 'deepseek::large-model', contextWindow: 1000000 })
       })
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
-      const config = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      const config = parseToml(findWrite('config.toml')!.content)
       expect(config.model_context_window).toBe(1000000)
       expect(config.model).toBe('large-model')
       expect(config.model_provider).toBe('cherry-DeepSeek')
-      expect(config.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(config).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'base_url'], 'https://api.deepseek.com/v1')
       expect(JSON.parse(findWrite('auth.json')!.content).OPENAI_API_KEY).toBe('sk-secret')
     })
 
@@ -779,7 +785,7 @@ describe('writeCliConfigDraft', () => {
         }
       })
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
-      const config = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      const config = parseToml(findWrite('config.toml')!.content)
       expect(config.model).toBe('large-model')
       if (kind === 'fresh') {
         expect(config).not.toHaveProperty('model_context_window')
@@ -830,16 +836,16 @@ describe('writeCliConfigDraft', () => {
       expect(authWrite).toBeTruthy()
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(tomlWrite!.content) as Record<string, any>
+      const parsed = parseToml(tomlWrite!.content)
       expect(parsed.model).toBe('deepseek-chat')
       expect(parsed.model_provider).toBe('cherry-DeepSeek')
-      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
-      expect(parsed.model_providers['cherry-DeepSeek'].requires_openai_auth).toBe(true)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'base_url'], 'https://api.deepseek.com/v1')
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'requires_openai_auth'], true)
       // Codex rejects `wire_api = "chat"`; only the Responses API is supported.
-      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('responses')
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'wire_api'], 'responses')
       // key lives in auth.json now, not as a bearer token
-      expect(parsed.model_providers['cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
-      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
+      expect(parsed).not.toHaveProperty(['model_providers', 'cherry-DeepSeek', 'experimental_bearer_token'])
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'name'], 'DeepSeek')
       // goal mode is off by default → no features block
       expect(parsed).not.toHaveProperty('features')
 
@@ -897,9 +903,9 @@ describe('writeCliConfigDraft', () => {
       })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      const parsed = parseToml(findWrite('config.toml')!.content)
       expect(parsed.features).toEqual({ goals: true })
-      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('OpenAI')
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'name'], 'OpenAI')
       expect(parsed.approval_policy).toBe('on-request')
       expect(parsed.sandbox_mode).toBe('workspace-write')
       expect(parsed.model_reasoning_effort).toBe('high')
@@ -940,13 +946,13 @@ describe('writeCliConfigDraft', () => {
       })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      const parsed = parseToml(findWrite('config.toml')!.content)
       expect(parsed).not.toHaveProperty('features')
       expect(parsed).not.toHaveProperty('approval_policy')
       expect(parsed).not.toHaveProperty('sandbox_mode')
       expect(parsed).not.toHaveProperty('default_permissions')
       expect(parsed).not.toHaveProperty('model_reasoning_effort')
-      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'name'], 'DeepSeek')
     })
 
     // Regression: Codex treats a model_providers[...].name of exactly "OpenAI" as a signal
@@ -963,8 +969,8 @@ describe('writeCliConfigDraft', () => {
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed.model_providers['cherry-OpenAI'].name).toBe('OpenAI (Cherry)')
+      const parsed = parseToml(findWrite('config.toml')!.content)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-OpenAI', 'name'], 'OpenAI (Cherry)')
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
@@ -982,8 +988,8 @@ describe('writeCliConfigDraft', () => {
       })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed.model_providers['cherry-OpenAI'].name).toBe('OpenAI')
+      const parsed = parseToml(findWrite('config.toml')!.content)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-OpenAI', 'name'], 'OpenAI')
     })
 
     it('uses the responses endpoint even when a chat-completions endpoint is also present', async () => {
@@ -1003,9 +1009,9 @@ describe('writeCliConfigDraft', () => {
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
-      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('responses')
+      const parsed = parseToml(findWrite('config.toml')!.content)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'base_url'], 'https://api.deepseek.com/v1')
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'wire_api'], 'responses')
     })
 
     it('throws when the provider has no Responses API endpoint', async () => {
@@ -1034,8 +1040,8 @@ describe('writeCliConfigDraft', () => {
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      const parsed = parseToml(findWrite('config.toml')!.content)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-DeepSeek', 'base_url'], 'https://api.deepseek.com/v1')
     })
   })
 
@@ -1459,7 +1465,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(written!.content) as Record<string, any>
+      const parsed = parseToml(written!.content)
       expect(parsed.default_model).toBe('cherry-DeepSeek')
       expect(parsed.default_permission_mode).toBe('auto')
       expect(parsed.default_plan_mode).toBe(true)
@@ -1468,7 +1474,7 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.loop_control).toBeUndefined()
       expect(parsed.background).toEqual({ keep_alive_on_exit: true })
       expect(parsed.experimental).toEqual({ micro_compaction: true })
-      expect(parsed.models['cherry-DeepSeek'].max_context_size).toBe(65536)
+      expect(parsed).toHaveProperty(['models', 'cherry-DeepSeek', 'max_context_size'], 65536)
     })
 
     it('preserves a field Cherry has no UI for instead of silently deleting it', async () => {
@@ -1488,7 +1494,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(written!.content) as Record<string, any>
+      const parsed = parseToml(written!.content)
       expect(parsed.loop_control).toEqual({ max_steps_per_turn: 12 })
     })
   })
@@ -1599,13 +1605,13 @@ describe('writeCliConfigDraft', () => {
         }
       ]
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model', gateway, files })
-      const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content) as Record<string, any>
+      const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content)
       expect(config.model_context_window).toBe(1000000)
       expect(config.model_auto_compact_token_limit).toBe(900000)
       expect(config.user_key).toBe('keep')
       expect(config.model).toBe('deepseek:large-api-model')
       expect(config.model_provider).toBe('cherry-gateway')
-      expect(config.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(config).toHaveProperty(['model_providers', 'cherry-gateway', 'base_url'], `${GATEWAY_BASE_URL}/v1`)
       expect(JSON.parse(writes.find((w) => w.path.endsWith('auth.json'))!.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
     })
 
@@ -1621,7 +1627,7 @@ describe('writeCliConfigDraft', () => {
           }
         })
         await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model', gateway })
-        const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content) as Record<string, any>
+        const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content)
         expect(config.model).toBe('deepseek:large-model')
         expect(config.model_context_window).toBe(1000000)
         expect(config.model_auto_compact_token_limit).toBe(900000)
@@ -1640,10 +1646,10 @@ describe('writeCliConfigDraft', () => {
       const { parse: parseToml } = await import('smol-toml')
       const tomlWrite = writes.find((w) => w.path.endsWith('config.toml'))!
       const authWrite = writes.find((w) => w.path.endsWith('auth.json'))!
-      const parsed = parseToml(tomlWrite.content) as Record<string, any>
+      const parsed = parseToml(tomlWrite.content)
       expect(parsed.model).toBe('deepseek:deepseek-chat')
       expect(parsed.model_provider).toBe('cherry-gateway')
-      expect(parsed.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(parsed).toHaveProperty(['model_providers', 'cherry-gateway', 'base_url'], `${GATEWAY_BASE_URL}/v1`)
       expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
     })
 
@@ -1757,13 +1763,13 @@ describe('writeCliConfigDraft', () => {
         content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
       }
       mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
-      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      mocks.request.mockImplementation(async (...[route, input]: CliConfigRequest) => {
         if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
-        for (const file of input.files as CliConfigWriteFile[]) {
-          // This path asserts writes only; delete entries never reach it (the suite pins that).
+        for (const file of input.files) {
+          if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
           const nextWrite = {
             path: resolvedSpecPath(file.target),
-            content: (file as { content: string }).content
+            content: file.content
           }
           written = nextWrite
           writes.push(nextWrite)

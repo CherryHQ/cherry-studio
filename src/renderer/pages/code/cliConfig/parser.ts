@@ -1,5 +1,5 @@
 import { getAdapter } from './adapters'
-import type { CliConfigConnection, CliConfigFileDraft } from './types'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigWriteArgs } from './types'
 
 export function extractConnectionFromCliConfigDraft(
   cliTool: string,
@@ -27,7 +27,7 @@ function extractConnectionFromCliConfigDraftInternal(
 export function extractConfigFromCliConfigDraft(
   cliTool: string,
   files: CliConfigFileDraft[]
-): Record<string, unknown> | null {
+): NonNullable<CliConfigWriteArgs['configBlob']> | null {
   try {
     return getAdapter(cliTool)?.extractConfig(files) ?? null
   } catch {

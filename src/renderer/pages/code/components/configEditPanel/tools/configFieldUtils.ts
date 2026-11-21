@@ -1,9 +1,13 @@
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- User-edited CLI configuration has arbitrary nested values; only nonarray records can hold named section fields.
+import type { CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
+import type { Serializable } from '@shared/types/serializable'
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- User-edited CLI configuration has arbitrary nested values; only nonarray records can hold named section fields.
 export function getRecord(value: unknown): Record<string, unknown> {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The non-array container is checked; field controls validate consumed values and updates preserve foreign fields.
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
-type SectionFieldValue = string | number | boolean | string[] | Record<string, unknown> | undefined
+type SectionFieldValue = Serializable | undefined
 
 /**
  * Build a `(section, key, value)` updater that writes `value` into a nested
@@ -11,8 +15,8 @@ type SectionFieldValue = string | number | boolean | string[] | Record<string, u
  * `useMemo(..., [config, onChange])` at the call site for referential stability.
  */
 export function makeUpdateSectionField(
-  config: Record<string, unknown>,
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>,
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
 ) {
   return (section: string, key: string, value: SectionFieldValue): void => {
     const next = { ...config }
@@ -29,7 +33,10 @@ export function makeUpdateSectionField(
  * Build a `(key, value)` updater that writes `value` into a top-level config
  * field, pruning empty values. Wrap in `useMemo(..., [config, onChange])`.
  */
-export function makeUpdateField(config: Record<string, unknown>, onChange: (next: Record<string, unknown>) => void) {
+export function makeUpdateField(
+  config: NonNullable<CliConfigWriteArgs['configBlob']>,
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
+) {
   return (key: string, value: string | number | boolean | undefined): void => {
     const next = { ...config }
     if (value !== undefined && value !== '') next[key] = value

@@ -145,7 +145,7 @@ function assertCliConfigCredentials(cliTool: string, context: ResolvedCliConfigC
 export async function writeCliConfigDraft(args: {
   cliTool: string
   modelId?: UniqueModelId
-  configBlob?: Record<string, unknown>
+  configBlob?: CliConfigWriteArgs['configBlob']
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
   gateway?: CliConfigGatewayContext
@@ -209,7 +209,7 @@ export function isOwnLoginConfigurable(cliTool: string): boolean {
  */
 async function buildOwnLoginConfigDraftFiles(
   cliTool: string,
-  configBlob: Record<string, unknown>
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
 ): Promise<CliConfigFileDraft[]> {
   const adapter = getAdapter(cliTool)
   if (!adapter?.buildOwnLoginDraft) {
@@ -225,7 +225,7 @@ async function buildOwnLoginConfigDraftFiles(
  */
 export async function readOwnLoginCliConfigDraft(args: {
   cliTool: string
-  configBlob?: Record<string, unknown>
+  configBlob?: CliConfigWriteArgs['configBlob']
 }): Promise<CliConfigFileDraft[]> {
   return buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
 }
@@ -239,7 +239,7 @@ export async function readOwnLoginCliConfigDraft(args: {
  */
 export async function writeOwnLoginCliConfigDraft(args: {
   cliTool: string
-  configBlob?: Record<string, unknown>
+  configBlob?: CliConfigWriteArgs['configBlob']
   files?: CliConfigFileDraft[]
 }): Promise<void> {
   const files = args.files?.length
