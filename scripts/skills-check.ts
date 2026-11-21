@@ -2,6 +2,8 @@ import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 
+import matter from 'gray-matter'
+
 import {
   AGENTS_SKILLS_DIR,
   AGENTS_SKILLS_GITIGNORE,
@@ -11,7 +13,8 @@ import {
   CLAUDE_SKILLS_GITIGNORE,
   listSkillNames,
   readFileSafe,
-  ROOT_DIR
+  ROOT_DIR,
+  SKILL_NAME_PATTERN
 } from './skills-common'
 
 function isAgentsReadmeFile(file: string): boolean {
@@ -60,6 +63,59 @@ function checkClaudeSkillSymlink(skillName: string, errors: string[]) {
   if (actualTarget !== expectedTarget) {
     errors.push(`.claude/skills/${skillName} symlink points to '${actualTarget}', expected '${expectedTarget}'`)
   }
+}
+
+/** The file every skill directory owes, per `.agents/skills/README.md` and the `create-skill` skill's template. */
+const SKILL_FILE = 'SKILL.md'
+
+/** The fields a SKILL.md's frontmatter owes: what the skill is called, and when to reach for it. */
+const SKILL_FRONTMATTER_FIELDS = ['name', 'description'] as const
+
+/**
+ * Validates the SKILL.md contract of one public skill: the file exists, opens with a frontmatter block
+ * that carries a `name` and a `description`, names itself by the naming rules, and has a body.
+ *
+ * A skill whose SKILL.md is missing or unnamed still passes the whitelist and symlink checks, because
+ * those only look at the directory — it fails later, when `SkillInstaller` hashes the SKILL.md it
+ * cannot find.
+ */
+export function checkSkillFile(skillDir: string, skillName: string): string[] {
+  const errors: string[] = []
+  const displayPath = `.agents/skills/${skillName}/${SKILL_FILE}`
+
+  let raw: string
+  try {
+    raw = fs.readFileSync(path.join(skillDir, SKILL_FILE), 'utf-8')
+  } catch {
+    errors.push(`${displayPath} is missing (every skill needs a SKILL.md)`)
+    return errors
+  }
+
+  if (!/^---[ \t]*\r?\n/.test(raw)) {
+    errors.push(`${displayPath} is missing its YAML frontmatter block`)
+    return errors
+  }
+
+  const { data, content } = matter(raw)
+  for (const field of SKILL_FRONTMATTER_FIELDS) {
+    const value = data[field]
+    if (typeof value !== 'string' || value.trim() === '') {
+      errors.push(`${displayPath} is missing the frontmatter \`${field}\` field`)
+    }
+  }
+
+  const declaredName = data.name
+  if (typeof declaredName === 'string' && declaredName.trim() !== '' && !SKILL_NAME_PATTERN.test(declaredName)) {
+    errors.push(
+      `${displayPath}: frontmatter \`name\` '${declaredName}' breaks the naming rules (lowercase letters, digits and hyphens)`
+    )
+  }
+
+  if (content.trim() === '') {
+    errors.push(`${displayPath} has no body — it owes its workflow instructions`)
+  }
+
+  return errors
 }
 
 function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[]) {
@@ -114,6 +170,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
  * - generated gitignore files are up to date
  * - Claude skill files match source skills by content
  * - tracked skill files do not exceed the public whitelist
+ * - every public skill's SKILL.md carries the frontmatter the README requires
  */
 function main() {
   let skillNames: string[]
@@ -137,6 +194,7 @@ function main() {
       continue
     }
 
+    errors.push(...checkSkillFile(agentSkillDir, skillName))
     checkClaudeSkillSymlink(skillName, errors)
   }
   checkTrackedFilesAgainstWhitelist(skillNames, errors)
@@ -152,4 +210,4 @@ function main() {
   console.log(`skills:check passed (${skillNames.length} public skill${skillNames.length === 1 ? '' : 's'})`)
 }
 
-main()
+if (require.main === module) main()
