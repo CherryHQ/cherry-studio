@@ -1,11 +1,11 @@
 import { isAbsolute, parse, relative, sep } from 'node:path'
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, type Page } from '@playwright/test'
 
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectVisibleModel } from '../regression/helpers/models'
 import { selectSidebarApp } from '../regression/helpers/navigation'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
 const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: ElectronApplication; page: Page }> } }>({
@@ -20,7 +20,7 @@ const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: Elect
         launch: async () => {
           const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
           Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-          app = await electron.launch({
+          app = await launchSmokeElectron({
             args: ['.'],
             env,
             timeout: 60_000

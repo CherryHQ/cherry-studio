@@ -129,4 +129,17 @@ describe('Cloud analytics wire formatting', () => {
     )
     expect(mocks.trackEvent).not.toHaveBeenCalled()
   })
+
+  it('reports an AMD model click under its flow id even after the account scope moved on', async () => {
+    mocks.scopeId = 'scope-b'
+    await trackCherryCloudAnalyticsEvent(
+      { event: 'amd_entry_clicked', flowId: click.flowId, modelId: 'qwen3-8-27b' },
+      'scope-a'
+    )
+    expect(mocks.trackEvent).toHaveBeenCalledWith(
+      'amd_entry_clicked',
+      expect.objectContaining({ flow_id: click.flowId, model_id: 'qwen3-8-27b', surface: 'desktop', region: 'cn' }),
+      { distinctId: 'anonymous-client', processPersonProfile: false }
+    )
+  })
 })

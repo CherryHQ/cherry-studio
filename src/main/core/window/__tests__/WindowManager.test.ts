@@ -2,6 +2,7 @@ import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { WindowOptions } from '@main/core/window/types'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
@@ -1907,6 +1908,43 @@ describe('WindowManager', () => {
       wm.open('singletonRemember' as never)
 
       expect(createdWindows[0].constructorOptions).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+    })
+
+    it('applies caller configuration after saved bounds and before construction', () => {
+      cache().setPersist('window.bounds', { singletonRemember: savedRect() })
+
+      wm.open('singletonRemember' as never, {
+        options: { width: 1440, height: 900 },
+        configureOptions: (config: WindowOptions) => {
+          expect(config).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+          config.width = 900
+          config.minWidth = 600
+        }
+      })
+
+      expect(createdWindows[0].constructorOptions).toMatchObject({
+        x: 200,
+        y: 150,
+        width: 900,
+        height: 700,
+        minWidth: 600
+      })
+    })
+
+    it('preserves an existing singleton when creation configuration is supplied on reopen', () => {
+      const id = wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getBounds.mockReturnValue({ x: 400, y: 250, width: 1200, height: 800 })
+
+      const reopened = wm.open('singletonRemember' as never, {
+        configureOptions: () => {
+          throw new Error('Creation configuration must not run on reuse')
+        }
+      })
+
+      expect(reopened).toBe(id)
+      expect(createdWindows).toHaveLength(1)
+      expect(win.getBounds()).toEqual({ x: 400, y: 250, width: 1200, height: 800 })
     })
 
     it('does not inject for a non-singleton type that declares rememberBounds', () => {

@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Уменьшить",
   "backup.restore.failed": "Восстановление не удалось",
   "backup.restore.retry": "Резервная копия не восстановлена. Ваши прежние данные сохранены. Повторите восстановление.",
+  "chat.cherryai.sign_in_required": "Войдите в Cherry AI, чтобы использовать эту модель",
   "chat.conversation.new": "Новый чат",
   "command_approval.builtin-destructive-command": "Этот встроенный агент не может выполнять разрушительные операции. Для подтверждённого удаления файлов используйте корзину. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Не удалось загрузить политику команд. Выполнение заблокировано.",
