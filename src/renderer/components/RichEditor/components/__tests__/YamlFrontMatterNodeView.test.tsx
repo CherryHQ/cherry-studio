@@ -21,7 +21,7 @@ it('retains literal frontmatter keys and unrelated values when a property is edi
     />
   )
 
-  await user.click(await screen.findByRole('button', { name: 'Before', exact: true }))
+  await user.click(await screen.findByRole('button', { name: /^Before$/ }))
   const input = screen.getByDisplayValue('Before')
   await user.clear(input)
   await user.type(input, 'After{Enter}')
@@ -29,7 +29,7 @@ it('retains literal frontmatter keys and unrelated values when a property is edi
   await waitFor(() => {
     const markdown = changes.at(-1) ?? ''
     const match = /^---\n([\s\S]*?)\n---/.exec(markdown)
-    if (!match) throw new Error('Expected edited frontmatter in Markdown output')
+    if (!match) throw new Error(`Expected edited frontmatter in Markdown output, received ${JSON.stringify(markdown)}`)
     const metadata = parse(match[1])
     expect(metadata.title).toBe('After')
     expect(Object.getOwnPropertyDescriptor(metadata, '__proto__')?.value).toEqual(['reserved', 'value'])

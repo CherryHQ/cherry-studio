@@ -9,6 +9,8 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 
+import { RICH_EDITOR_USER_COMMAND_META } from '../userCommandIntent'
+
 const logger = loggerService.withContext('YamlFrontMatterNodeView')
 
 interface ParsedProperty {
@@ -17,7 +19,7 @@ interface ParsedProperty {
   type: 'string' | 'array' | 'date' | 'number' | 'boolean'
 }
 
-const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttributes, editor }) => {
+const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor }) => {
   const { t } = useTranslation()
   const [editingProperty, setEditingProperty] = useState<string | null>(null)
   const [newPropertyName, setNewPropertyName] = useState('')
@@ -115,12 +117,18 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
 
         const yamlContent = stringify(yamlObject).trim()
         const contentWithFence = yamlContent + '\n---'
-        updateAttributes({ content: contentWithFence })
+        editor.commands.command(({ tr }) => {
+          const position = getPos()
+          if (typeof position !== 'number') return false
+          tr.setMeta(RICH_EDITOR_USER_COMMAND_META, true)
+          tr.setNodeAttribute(position, 'content', contentWithFence)
+          return true
+        })
       } catch (error) {
         logger.error('Failed to update YAML:', error as Error)
       }
     },
-    [updateAttributes]
+    [editor, getPos]
   )
 
   // Handle property value change
