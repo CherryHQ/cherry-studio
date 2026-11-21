@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, validatePath } from '../types'
+import { type BaseDirInput, logger, relativeToBaseDir, validatePath } from '../types'
 
 // Schema definition
 export const WriteToolSchema = z.object({
@@ -19,7 +19,10 @@ export const writeToolDefinition = {
 }
 
 // Handler implementation
-export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleWriteTool(
+  args: z.infer<typeof WriteToolSchema>,
+  baseDir: BaseDirInput
+): Promise<CallToolResult> {
   const filePath = args.file_path
   const validPath = await validatePath(filePath, baseDir)
 
@@ -57,7 +60,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
   })
 
   // Format output
-  const relativePath = path.relative(baseDir, validPath)
+  const relativePath = relativeToBaseDir(baseDir, validPath)
   const action = isOverwrite ? 'Updated' : 'Created'
   const lines = args.content.split('\n').length
 

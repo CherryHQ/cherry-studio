@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
+import { type BaseDirInput, logger, relativeToBaseDir, replaceWithFuzzyMatch, validatePath } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
@@ -21,7 +21,10 @@ export const editToolDefinition = {
 }
 
 // Handler implementation
-export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleEditTool(
+  args: z.infer<typeof EditToolSchema>,
+  baseDir: BaseDirInput
+): Promise<CallToolResult> {
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
 
   // Validate path
@@ -46,7 +49,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
 
         logger.info('File created', { path: validPath })
 
-        const relativePath = path.relative(baseDir, validPath)
+        const relativePath = relativeToBaseDir(baseDir, validPath)
         return {
           content: [
             {
@@ -70,7 +73,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
 
     logger.info('File overwritten', { path: validPath })
 
-    const relativePath = path.relative(baseDir, validPath)
+    const relativePath = relativeToBaseDir(baseDir, validPath)
     return {
       content: [
         {
@@ -97,7 +100,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
   const newLines = newContent.split('\n').length
   const lineDiff = newLines - oldLines
 
-  const relativePath = path.relative(baseDir, validPath)
+  const relativePath = relativeToBaseDir(baseDir, validPath)
   let diffSummary = `Edited: ${relativePath}`
   if (lineDiff > 0) {
     diffSummary += `\n+${lineDiff} lines`

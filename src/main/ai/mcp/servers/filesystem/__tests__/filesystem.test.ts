@@ -8,23 +8,23 @@ import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
-import { resolveFilesystemBaseDir } from '../config'
+import { resolveFilesystemBaseDirs } from '../config'
 import { createFileSystemServer } from '../server'
 import * as types from '../types'
 import { validatePath } from '../types'
 
-async function callFsTool(name: string, args: Record<string, unknown>, root: string) {
+async function callFsTool(name: string, args: Record<string, unknown>, root: string | readonly string[]) {
   const result = await callBuiltinTool(() => createFileSystemServer(root), name, args)
   if (result.isError) throw new Error(toolText(result))
   return result
 }
 
-const globTool = (args: Record<string, unknown>, root: string) => callFsTool('glob', args, root)
-const lsTool = (args: Record<string, unknown>, root: string) => callFsTool('ls', args, root)
-const readTool = (args: Record<string, unknown>, root: string) => callFsTool('read', args, root)
-const editTool = (args: Record<string, unknown>, root: string) => callFsTool('edit', args, root)
-const writeTool = (args: Record<string, unknown>, root: string) => callFsTool('write', args, root)
-const deleteTool = (args: Record<string, unknown>, root: string) => callFsTool('delete', args, root)
+const globTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('glob', args, root)
+const lsTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('ls', args, root)
+const readTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('read', args, root)
+const editTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('edit', args, root)
+const writeTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('write', args, root)
+const deleteTool = (args: Record<string, unknown>, root: string | readonly string[]) => callFsTool('delete', args, root)
 
 const tempDirs: string[] = []
 
@@ -52,7 +52,7 @@ describe('filesystem MCP preset root', () => {
     const result = await callBuiltinTool(
       () =>
         createFileSystemServer(
-          resolveFilesystemBaseDir(
+          resolveFilesystemBaseDirs(
             [...(PRESET_MCP_SERVERS.find((s) => s.name === BuiltinMcpServerNames.filesystem)?.args ?? [])],
             {}
           )
@@ -73,7 +73,7 @@ describe('filesystem MCP preset root', () => {
     )
 
     const result = await callBuiltinTool(
-      () => createFileSystemServer(resolveFilesystemBaseDir([configuredDir], {})),
+      () => createFileSystemServer(resolveFilesystemBaseDirs([configuredDir], {})),
       'read',
       { file_path: 'configured-note.txt' }
     )
@@ -82,11 +82,51 @@ describe('filesystem MCP preset root', () => {
   })
 })
 
+describe('filesystem MCP multiple roots', () => {
+  it('allows every configured root and resolves relative paths against the first', async () => {
+    const firstRoot = await createTempDir('filesystem-multi-first-')
+    const secondRoot = await createTempDir('filesystem-multi-second-')
+    await fs.writeFile(path.join(firstRoot, 'first.txt'), 'first note')
+    await fs.writeFile(path.join(secondRoot, 'second.txt'), 'second note')
+    const roots = [firstRoot, secondRoot]
+
+    expect(toolText(await readTool({ file_path: 'first.txt' }, roots))).toContain('first note')
+    expect(toolText(await readTool({ file_path: path.join(secondRoot, 'second.txt') }, roots))).toContain(
+      'second note'
+    )
+    await expect(readTool({ file_path: 'second.txt' }, roots)).rejects.toThrow('File not found')
+  })
+
+  it('writes and lists through a non-first root', async () => {
+    const firstRoot = await createTempDir('filesystem-multi-write-first-')
+    const secondRoot = await createTempDir('filesystem-multi-write-second-')
+    const roots = [firstRoot, secondRoot]
+    const filePath = path.join(secondRoot, 'created.txt')
+
+    expect(toolText(await writeTool({ file_path: filePath, content: 'created' }, roots))).toContain('created.txt')
+    await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('created')
+    expect(toolText(await lsTool({ path: secondRoot }, roots))).toContain('created.txt')
+  })
+
+  it('rejects a path outside every configured root', async () => {
+    const firstRoot = await createTempDir('filesystem-multi-outside-first-')
+    const secondRoot = await createTempDir('filesystem-multi-outside-second-')
+    const outsideRoot = await createTempDir('filesystem-multi-outside-third-')
+    const outsideFile = path.join(outsideRoot, 'secret.txt')
+    await fs.writeFile(outsideFile, 'secret')
+
+    await expect(readTool({ file_path: outsideFile }, [firstRoot, secondRoot])).rejects.toThrow(
+      'outside the configured workspace root'
+    )
+  })
+})
+
 describe('filesystem MCP security', () => {
-  it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
-    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
-    expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
-    expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
+  it('resolves every configured root and lets WORKSPACE_ROOT override the args', () => {
+    expect(resolveFilesystemBaseDirs(['C:/args-root'], {})).toEqual(['C:/args-root'])
+    expect(resolveFilesystemBaseDirs(['C:/a', ' D:/b ', 'C:/a', ''], {})).toEqual(['C:/a', 'D:/b'])
+    expect(resolveFilesystemBaseDirs(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toEqual(['C:/env-root'])
+    expect(resolveFilesystemBaseDirs([], {})).toEqual([])
   })
 
   it('allows paths inside the configured root and rejects paths outside it', async () => {

@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
+import { type BaseDirInput, logger, MAX_FILES_LIMIT, primaryBaseDir, validatePath } from '../types'
 
 // Schema definition
 export const LsToolSchema = z.object({
@@ -19,8 +19,11 @@ export const lsToolDefinition = {
 }
 
 // Handler implementation
-export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const targetPath = args.path || baseDir
+export async function handleLsTool(
+  args: z.infer<typeof LsToolSchema>,
+  baseDir: BaseDirInput
+): Promise<CallToolResult> {
+  const targetPath = args.path || primaryBaseDir(baseDir)
   const validPath = await validatePath(targetPath, baseDir)
 
   // Verify the target exists and is a directory before walking it: the recursive

@@ -41,21 +41,56 @@ export function expandHome(filepath: string): string {
   return filepath
 }
 
+/**
+ * A filesystem server may be configured with one root (legacy call sites and
+ * tests) or several roots (the MCP argument list). The first root is the base
+ * for relative paths.
+ */
+export type BaseDirInput = string | readonly string[] | undefined
+
+/** Normalize a single or multi-root configuration into a non-empty root list. */
+export function normalizeBaseDirs(baseDir?: BaseDirInput): string[] {
+  const roots = (typeof baseDir === 'string' ? [baseDir] : (baseDir ?? []))
+    .map((root) => expandHome(root).trim())
+    .filter(Boolean)
+  return roots.length > 0 ? Array.from(new Set(roots)) : [process.cwd()]
+}
+
+/** Root used for relative paths and for listing/searching when no path is given. */
+export function primaryBaseDir(baseDir?: BaseDirInput): string {
+  return normalizeBaseDirs(baseDir)[0]
+}
+
+/** Path relative to the most specific configured root that contains it, for user-facing output. */
+export function relativeToBaseDir(baseDir: BaseDirInput, target: string): string {
+  let containingRoot: string | undefined
+  for (const root of normalizeBaseDirs(baseDir)) {
+    const resolvedRoot = path.resolve(root)
+    if (isOutsidePath(path.relative(resolvedRoot, target))) continue
+    if (!containingRoot || resolvedRoot.length > containingRoot.length) containingRoot = resolvedRoot
+  }
+  return path.relative(containingRoot ?? path.resolve(primaryBaseDir(baseDir)), target)
+}
+
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: BaseDirInput): Promise<string> {
+  const roots = normalizeBaseDirs(baseDir)
   const expandedPath = expandHome(requestedPath)
-  const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
+  const primaryRoot = path.resolve(roots[0])
+  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(primaryRoot, expandedPath)
 
-  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
-
-  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
-    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+  if (resolvedPath) {
+    for (const root of roots) {
+      const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+      // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
+      if (resolvedRoot && !isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
+        return resolvedPath
+      }
+    }
   }
 
-  return resolvedPath
+  throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
 }
 
 // ============================================================================
