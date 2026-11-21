@@ -226,7 +226,7 @@ describe('SessionItem', () => {
     expect(onDelete).not.toHaveBeenCalled()
   })
 
-  it('hides permanent delete on a pinned row and refuses it while a delete is in flight', async () => {
+  it('allows permanent delete on a pinned row and refuses it while a delete is in flight', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
     const onDeletePermanently = vi.fn()
@@ -249,8 +249,11 @@ describe('SessionItem', () => {
       </Provider>
     )
 
-    expect(screen.queryByRole('menuitem', { name: /common.delete_permanently/ })).not.toBeInTheDocument()
-    expect(onDeletePermanently).not.toHaveBeenCalled()
+    const pinnedPermanentDelete = screen.getByRole('menuitem', { name: /common.delete_permanently/ })
+    expect(pinnedPermanentDelete).toBeEnabled()
+    await user.click(pinnedPermanentDelete)
+    expect(onDeletePermanently).toHaveBeenCalledOnce()
+    onDeletePermanently.mockClear()
 
     rerender(
       <Provider items={[session]} selectedId={session.id}>

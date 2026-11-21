@@ -296,50 +296,41 @@ describe('pinned active permanent deletion', () => {
     expect(dbh.db.select().from(pinTable).all()).toEqual([])
   })
 
-  it('rejects a session pinned after selection and leaves the session, message, and pin', () => {
+  it('permanently deletes a pinned active session and its dependent data', () => {
+    // A pinned session can be purged without unpinning, while its user workspace survives.
     seedConversations()
-    expect(agentSessionService.getById('active-session').id).toBe('active-session')
     pin('session', 'active-session')
 
-    expect(() =>
-      agentSessionService.deleteByIdsWithImpact(['active-session'], { permanent: true, targetState: 'active' })
-    ).toThrow(
-      expect.objectContaining({
-        code: ErrorCode.INVALID_OPERATION,
-        details: { operation: 'delete pinned session', reason: 'active-session' }
-      })
-    )
+    const result = agentSessionService.deleteByIdsWithImpact(['active-session'], {
+      permanent: true,
+      targetState: 'active'
+    })
 
-    expect(sessionIds()).toEqual(['active-session', 'archived-session', 'other-session', 'unrelated-session'])
+    expect(result.deletedIds).toEqual(['active-session'])
+    expect(sessionIds()).toEqual(['archived-session', 'other-session', 'unrelated-session'])
     expect(
-      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ACTIVE_MESSAGE)).get()?.data
-    ).toMatchObject({ parts: [{ type: 'text', text: 'active session body' }] })
-    expect(dbh.db.select({ entityId: pinTable.entityId }).from(pinTable).all()).toEqual([
-      { entityId: 'active-session' }
-    ])
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ACTIVE_MESSAGE)).get()
+    ).toBeUndefined()
+    expect(dbh.db.select().from(pinTable).all()).toEqual([])
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
   })
 
-  it('rejects a mixed active session batch without deleting the unpinned session', () => {
+  it('permanently deletes a mixed batch containing a pinned active session', () => {
+    // A pinned session must not prevent the rest of a batch from being purged.
     seedConversations()
     pin('session', 'active-session')
 
-    expect(() =>
-      agentSessionService.deleteByIdsWithImpact(['other-session', 'active-session'], {
-        permanent: true,
-        targetState: 'active'
-      })
-    ).toThrow(
-      expect.objectContaining({
-        code: ErrorCode.INVALID_OPERATION,
-        details: { operation: 'delete pinned session', reason: 'active-session' }
-      })
-    )
+    const result = agentSessionService.deleteByIdsWithImpact(['other-session', 'active-session'], {
+      permanent: true,
+      targetState: 'active'
+    })
 
-    expect(sessionIds()).toHaveLength(4)
+    expect(result.deletedIds.sort()).toEqual(['active-session', 'other-session'])
+    expect(sessionIds()).toEqual(['archived-session', 'unrelated-session'])
     expect(
-      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, OTHER_MESSAGE)).get()?.id
-    ).toBe(OTHER_MESSAGE)
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, OTHER_MESSAGE)).get()
+    ).toBeUndefined()
+    expect(dbh.db.select().from(pinTable).all()).toEqual([])
   })
 
   it('permanently deletes an unpinned active session and ignores a pin on a non-active id', () => {

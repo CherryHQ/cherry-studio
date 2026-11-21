@@ -7,12 +7,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { CommandProvider } from '@renderer/components/command'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { isMac } from '@renderer/utils/platform'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -2868,6 +2870,43 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(permanentDeletePopupMocks.show.mock.calls.length).toBeGreaterThan(showCalls))
   }
 
+  it('opens permanent delete confirmation for the active pinned session via the keyboard shortcut', async () => {
+    const session = { ...createSession({ id: 'session-pinned', name: 'Pinned session' }), pinned: true }
+    setupSessions({
+      sessions: [session],
+      pinIdBySessionId: new Map([[session.id, 'pin-session']])
+    })
+    render(
+      <CommandProvider>
+        <SessionsForTest activeSessionId={session.id} />
+      </CommandProvider>
+    )
+    const listbox = screen.getByRole('listbox')
+    act(() => {
+      listbox.focus()
+    })
+    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getByRole('option', { name: /Pinned session/ }).id)
+
+    fireEvent.keyDown(listbox, {
+      key: 'Backspace',
+      code: 'Backspace',
+      ...(isMac ? { metaKey: true } : { ctrlKey: true })
+    })
+
+    await vi.waitFor(() =>
+      expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'conversation',
+          target: 'session',
+          name: session.name,
+          workspace: session.workspace
+        })
+      )
+    )
+    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+  })
+
   it('shows permanent delete and does not delete until the confirmation action runs', async () => {
     const setActiveSessionId = vi.fn()
     render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
@@ -3001,7 +3040,8 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalled()
   })
 
-  it('refuses permanent delete when the session becomes pinned or busy before confirmation', async () => {
+  it('permanently deletes a session pinned before confirmation', async () => {
+    // Pinning during confirmation must not block the requested deletion.
     const setActiveSessionId = vi.fn()
     let confirm: (() => Promise<void>) | undefined
     permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
@@ -3019,11 +3059,22 @@ describe('Sessions', () => {
       pinIdBySessionId: new Map([['session-b', 'pin-b']])
     })
     rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
-    await expect(confirm?.()).rejects.toThrow('recycle_bin.delete.pinned')
-    expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    await expect(confirm?.()).resolves.toBeUndefined()
+    expect(sessionDataMocks.deleteSessionWithOutcome).toHaveBeenCalledWith('session-b', {
+      permanent: true,
+      showFeedback: false
+    })
+  })
 
-    setupSessions()
-    rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+  it('refuses permanent delete when the session becomes busy before confirmation', async () => {
+    // A session that starts work during confirmation must remain protected.
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return false
+    })
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={vi.fn()} />)
+    await openPermanentDelete('Beta session')
     cacheService.setShared('topic.stream.statuses.agent-session:session-b', {
       status: 'streaming',
       activeExecutions: [],

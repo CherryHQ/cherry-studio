@@ -636,7 +636,6 @@ const Sessions = ({
         await reload().catch(() => undefined)
         throw new Error(t('recycle_bin.delete.stale'))
       }
-      if (latest.pinned) throw new Error(t('recycle_bin.delete.pinned'))
       if (isAgentSessionBusy(id)) throw new Error(t('recycle_bin.delete.busy'))
 
       const { replacement, wasActive } = planSessionRemoval(id)
@@ -1679,9 +1678,7 @@ const Sessions = ({
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}
       onDeletePermanently={(item) => openPermanentDelete(item.id)}
-      isPermanentDeleteEligible={(item) =>
-        !item.pinned && item.id !== deletingSessionId && !isAgentSessionBusy(item.id)
-      }
+      isPermanentDeleteEligible={(item) => item.id !== deletingSessionId && !isAgentSessionBusy(item.id)}
       onGroupHeaderDeletePermanently={(group) => {
         const agentId = getAgentIdFromSessionGroupId(group.id)
         if (!agentId || !isAgentGroupPermanentDeleteEligible(agentId)) return

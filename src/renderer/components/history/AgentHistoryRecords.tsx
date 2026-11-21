@@ -139,11 +139,9 @@ const AgentHistoryRecords = ({
     [isSessionPinned, optimisticSessions]
   )
   const sessionItemsRef = useRef(sessionItems)
-  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   const activeRecordIdRef = useRef(activeRecordId)
   const permanentDeleteLockRef = useRef(false)
   sessionItemsRef.current = sessionItems
-  pinIdBySessionIdRef.current = pinIdBySessionId
   activeRecordIdRef.current = activeRecordId
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
@@ -257,9 +255,6 @@ const AgentHistoryRecords = ({
           workspace: current?.workspace,
           name: historySessionLabel(current?.name),
           action: async () => {
-            if (pinIdBySessionIdRef.current.has(id)) {
-              throw new Error(t('recycle_bin.delete.pinned'))
-            }
             if (isAgentHistorySessionBusy(id) || streamStatusBySessionIdRef.current.get(id)?.isPending) {
               throw new Error(t('recycle_bin.delete.busy'))
             }

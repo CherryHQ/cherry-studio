@@ -16,6 +16,8 @@ Direct active Chat topic and Agent session permanent deletion reads pin membersh
 
 An earlier revision also deferred Agent file draft disposal until deletion succeeded. #22687 made Agent file navigation save detached drafts in the background without a discard prompt, so that guard was removed when this branch merged main.
 
+The Agent session half of this decision is superseded by [Direct deletion of pinned Agent sessions](2026-11-18-pinned-session-permanent-delete.md): direct permanent deletion of active Agent sessions no longer rejects pins and instead removes the deleted sessions' own pins in the same write transaction. The session pin rejection described elsewhere in this note, including its consequences and verification, records the original decision rather than the current contract. The Chat topic half retains its rejection and rationale: direct topic deletion through `useTopic` also deletes the conversation belonging to that pinned topic, so committed pin membership still protects it.
+
 ## Alternatives considered
 
 - A UI-only pin gate cannot close the race between renderer pin state and the committed pin row.
