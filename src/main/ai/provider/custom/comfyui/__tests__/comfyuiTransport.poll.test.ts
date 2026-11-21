@@ -1,3 +1,4 @@
+import type { JSONValue } from '@ai-sdk/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
@@ -57,11 +58,11 @@ describe('poll', () => {
   })
 
   it('reports a failed execution even when images sit beside the error', async () => {
-    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const posts: Array<{ url: string; body: JSONValue }> = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (init?.method === 'POST') {
-        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        posts.push({ url, body: JSON.parse(String(init.body)) })
         return respond({})
       }
       if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
@@ -230,11 +231,11 @@ describe('poll', () => {
   it('cancels the prompt when the polling deadline expires', async () => {
     // A generation the caller stopped waiting for is work the server does not
     // have to finish: the deadline has to stop it, not just stop looking at it.
-    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const posts: Array<{ url: string; body: JSONValue }> = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (init?.method === 'POST') {
-        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        posts.push({ url, body: JSON.parse(String(init.body)) })
         return respond({})
       }
       if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
@@ -260,11 +261,11 @@ describe('poll', () => {
     // The deadline aborts the body read and `withDeadline` reports it as this
     // request's timeout — a structured failure that exits the loop before the
     // normal-run-out block. The task is just as abandoned there.
-    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const posts: Array<{ url: string; body: JSONValue }> = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (init?.method === 'POST') {
-        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        posts.push({ url, body: JSON.parse(String(init.body)) })
         return respond({})
       }
       if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
