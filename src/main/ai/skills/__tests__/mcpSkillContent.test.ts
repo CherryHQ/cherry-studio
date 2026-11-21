@@ -10,6 +10,20 @@ import { validateMcpSkill, verifyMcpSkillFile } from '../mcpSkillContent'
 const hash = (value: Uint8Array | string) => `sha256:${createHash('sha256').update(value).digest('hex')}`
 
 describe('MCP skill content boundary', () => {
+  it.each(['references/C%23.md', 'references/C%3F.md'])(
+    'accepts and verifies a file with an encoded delimiter in its name: %s',
+    (path) => {
+      const fixture = createMcpSkillsFixture()
+      const uri = `skill://reports/${path}`
+      const bytes = Buffer.from('Reference content')
+      fixture.files.set(uri, bytes)
+      fixture.refresh()
+      const skill = McpSkillSchema.parse(fixture.manifest())
+      expect(() => validateMcpSkill(skill)).not.toThrow()
+      expect(() => verifyMcpSkillFile(skill, uri, bytes)).not.toThrow()
+    }
+  )
+
   it.each(['../secret', '%2e%2e/secret', 'a/%2Fsecret', 'a\\secret', 'a?query', 'a#fragment', 'a//b', 'a/%00'])(
     'rejects root escape or ambiguous path %s',
     (path) => {

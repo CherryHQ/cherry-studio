@@ -330,6 +330,7 @@ export class McpRuntimeService extends BaseService {
           command: server.command,
           args: Array.isArray(server.args) ? server.args : [],
           registryUrl: server.registryUrl,
+          dxtPath: server.dxtPath,
           env: server.env,
           headers: server.headers
         })

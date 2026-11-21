@@ -19,7 +19,7 @@ Cherry 在 Claude Code 和 Pi Agent 会话中，通过工具发现并读取 [MCP
 
 ## 使用流程
 
-1. 为 Agent 选择启用的 MCP 服务，然后打开输入框中的 **Skills**。远端条目与本地技能一起展示，并标明服务和 URI。
+1. 为 Agent 选择启用的 MCP 服务，然后打开输入框中的 **Skills**。远端条目与本地技能一起展示，并标明服务和 URI。服务重名时，选择器描述会在开头显示服务 ID。
 2. 选择条目只插入使用请求，不安装或读取文件。
 3. 模型用服务 ID 和技能 URI 调用 `load_mcp_skill`。加载遵守 MCP Server 设置中该 Skill 的读取权限，默认每次审批；Full Access 跳过提示。拒绝工具不读取文件。
 4. 加载返回当前元数据、完整清单和已验证的 `SKILL.md`。附件仅在通过 `read_mcp_skill_file` 请求时获取。

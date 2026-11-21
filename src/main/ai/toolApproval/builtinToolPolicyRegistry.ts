@@ -112,7 +112,7 @@ const BUILTIN_TOOL_POLICIES = {
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   listMcpSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'list_mcp_skills', 'auto'),
   loadMcpSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'load_mcp_skill', 'required'),
-  readMcpSkillFile: tool(CHERRY_MCP_SERVER.SKILLS, 'read_mcp_skill_file', 'auto'),
+  readMcpSkillFile: tool(CHERRY_MCP_SERVER.SKILLS, 'read_mcp_skill_file', 'required'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
   installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),

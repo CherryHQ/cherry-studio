@@ -3455,6 +3455,42 @@ describe('AgentComposer', () => {
     expect(items.find((item) => item.disabled)?.description).toContain('Origin unavailable')
   })
 
+  it('distinguishes and searches identical Skills from same-named servers', async () => {
+    const ids = ['shared-server-one', 'shared-server-two']
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) =>
+      route === 'mcp.server.list_skills'
+        ? [
+            {
+              serverId,
+              serverName: 'Shared',
+              uri: 'skill://pdf/SKILL.md',
+              frontmatter: { name: 'pdf', description: 'Read PDFs' },
+              resources: 'dynamic'
+            }
+          ]
+        : {}
+    )
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ids }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(2))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => `${item.label} ${item.description}`)).size).toBe(2)
+    for (const serverId of ids) {
+      const item = items.find((item) => item.id === `mcp-skill:${JSON.stringify([serverId, 'skill://pdf/SKILL.md'])}`)!
+      expect(item.description).toContain(serverId)
+      expect(item.filterText).toContain(serverId)
+    }
+  })
+
   it('refreshes an already-open skills submenu when the skill list changes', () => {
     const updateList = vi.fn()
     mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList }

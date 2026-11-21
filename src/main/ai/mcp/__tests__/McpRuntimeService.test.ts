@@ -254,6 +254,29 @@ describe('McpRuntimeService connection ownership', () => {
     expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
   })
 
+  it('invalidates an in-flight Skill request and cached connection when only the package directory changes', async () => {
+    const service = new McpRuntimeService()
+    const started = createDeferred<void>()
+    const response = createDeferred<[]>()
+    getByIdMock.mockReturnValue({ ...server, type: 'stdio', dxtPath: '/packages/first' })
+    vi.spyOn(service as any, 'createConnection').mockResolvedValue({
+      era: 'modern',
+      serverVersion: '1.0.0',
+      listSkills: () => {
+        started.resolve()
+        return response.promise
+      },
+      close: async () => {}
+    })
+    const pending = service.listSkills(server.id)
+    await started.promise
+    getByIdMock.mockReturnValue({ ...server, type: 'stdio', dxtPath: '/packages/second' })
+    response.resolve([])
+    await expect(pending).rejects.toThrow('MCP skill request was invalidated')
+    await expect(service.getServerVersion(server.id, false)).resolves.toBeNull()
+    await service.stopServer(server.id)
+  })
+
   it('shares a failed health probe and backs off before creating one replacement for concurrent callers', async () => {
     const service = new McpRuntimeService()
     const health = createDeferred<void>()

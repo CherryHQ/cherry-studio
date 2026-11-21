@@ -19,7 +19,8 @@ export function skillRelativePath(root: string, uri: string): string {
       !decoded ||
       decoded === '.' ||
       decoded === '..' ||
-      /[\\/?#]/.test(decoded) ||
+      /[?#]/.test(segment) ||
+      /[\\/]/.test(decoded) ||
       [...decoded].some((character) => character.charCodeAt(0) < 32)
     )
       throw new Error('Invalid skill resource path')

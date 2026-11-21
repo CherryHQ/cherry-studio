@@ -1567,6 +1567,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       settings.approvalEmitter!.emit = vi.fn()
       for (mode of ['default', 'auto', 'bypassPermissions']) {
         for (const name of ['mcp__skills__load_mcp_skill', 'mcp__skills__read_mcp_skill_file']) {
+          expect(settings.allowedTools).not.toContain(name)
           mocks.approvalRegister.mockClear()
           const input = { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
           const pending = settings.canUseTool!(name, input, {

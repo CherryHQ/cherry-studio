@@ -19,7 +19,7 @@ Cherry discovers and reads [MCP Skills](https://skills.extensions.modelcontextpr
 
 ## User flow
 
-1. Select an active MCP server for the Agent and open **Skills** in the composer. Remote entries display their server and URI alongside local skills.
+1. Select an active MCP server for the Agent and open **Skills** in the composer. Remote entries display their server and URI alongside local skills. When server names collide, picker descriptions start with the server ID.
 2. Selecting an entry inserts a usage request without installing or fetching files.
 3. The model calls `load_mcp_skill` with the server ID and skill URI. Loading follows the reading permission configured for that Skill in MCP Server settings; the default is to ask each time. Full Access skips that prompt. Declining the tool fetches no files.
 4. Loading returns the current metadata, complete manifest and verified `SKILL.md`. Supporting files are fetched only when requested with `read_mcp_skill_file`.
