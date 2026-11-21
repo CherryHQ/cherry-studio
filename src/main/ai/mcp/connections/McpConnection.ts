@@ -80,6 +80,7 @@ export interface McpConnection {
   callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult>
   forwardRequest(
     method: McpForwardMethod,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Opaque continuation state and tool arguments are relayed unchanged; this interface does not validate their fields.
     params: Record<string, unknown>,
     options: McpForwardOptions
   ): Promise<McpForwardResult>

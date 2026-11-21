@@ -200,7 +200,7 @@ export function redactSensitive(input: unknown): Serializable {
   return redact(input, new WeakSet())
 }
 
-function getServerLogger(server: McpServer, extra?: Record<string, unknown>) {
+function getServerLogger(server: McpServer, extra?: Record<string, string | undefined>) {
   return loggerService.withContext('McpRuntimeService', {
     serverName: server.name,
     serverId: server.id,
@@ -863,7 +863,7 @@ export class McpRuntimeService extends BaseService {
   public async forwardRequest(
     serverId: string,
     method: McpForwardMethod,
-    params: Record<string, unknown>,
+    params: Parameters<McpConnection['forwardRequest']>[1],
     options: Pick<McpForwardOptions, 'signal' | 'capabilities' | 'onProgress'>
   ): Promise<McpForwardResult> {
     const server = this.getServerById(serverId)

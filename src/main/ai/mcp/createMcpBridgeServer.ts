@@ -31,6 +31,7 @@ const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
 
 /** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
 export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Removing catalog bookkeeping does not validate extension/schema values; preserve the remaining native fields, including symbol keys.
   const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
   for (const field of CATALOG_FIELDS) delete result[field]
   return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
@@ -217,7 +218,7 @@ export function createMcpBridgeServer(
     })
   }
 
-  const logged = async <T>(operation: string, fields: Record<string, unknown>, run: () => Promise<T>): Promise<T> => {
+  const logged = async <T>(operation: string, fields: Record<string, string>, run: () => Promise<T>): Promise<T> => {
     logger.debug(`MCP bridge: ${operation}`, { mcpId, ...fields })
     try {
       return await run()

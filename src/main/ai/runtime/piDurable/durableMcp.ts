@@ -39,7 +39,7 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
         const raw = buildPiMcpToolName(serverId, tool.name)
         const name = buildPiMcpToolName(serverId, tool.name, names.indexOf(raw) !== names.lastIndexOf(raw))
         metadata.set(name, { type: 'mcp', name: tool.name, serverId, serverName: server.name })
-        const parameters: Schema<Record<string, unknown>> = tool.inputSchema
+        const parameters: Schema<NonNullable<Parameters<Client['callTool']>[0]['arguments']>> = tool.inputSchema
         tools.push(
           defineTool({
             name,

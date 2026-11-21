@@ -365,7 +365,7 @@ export class ClientMcpConnection implements McpConnection {
 
   public async forwardRequest(
     method: McpForwardMethod,
-    params: Record<string, unknown>,
+    params: Parameters<McpConnection['forwardRequest']>[1],
     options: McpForwardOptions
   ): Promise<McpForwardResult> {
     return this.withRequestContext(options, async (signal) => {

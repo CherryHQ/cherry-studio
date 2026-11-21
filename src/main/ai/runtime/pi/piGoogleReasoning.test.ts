@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Model } from '@earendil-works/pi-ai'
 import { streamSimple } from '@earendil-works/pi-ai/api/google-generative-ai'
@@ -34,7 +35,7 @@ describe('installed Pi Google reasoning wire', () => {
       contextWindow: 1_048_576,
       maxTokens: 65_536
     }
-    let body: { generationConfig?: { thinkingConfig?: Record<string, unknown> } } | undefined
+    let body: { generationConfig?: { thinkingConfig?: JSONObject } } | undefined
     const result = await streamSimple(
       model,
       normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }),

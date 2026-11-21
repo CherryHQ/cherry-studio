@@ -56,7 +56,8 @@ export function createClaudeCodeQueryOptions({
   if (responseFormat?.type === 'json' && responseFormat.schema) {
     opts.outputFormat = {
       type: 'json_schema',
-      schema: responseFormat.schema as Record<string, unknown>
+      // SAFETY: Both SDKs describe JSON Schema objects; this adapter forwards the existing schema unchanged.
+      schema: responseFormat.schema as NonNullable<Options['outputFormat']>['schema']
     }
   }
 
