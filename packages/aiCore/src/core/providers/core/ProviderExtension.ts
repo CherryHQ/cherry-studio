@@ -7,13 +7,10 @@ import type { ProviderVariant, ToolFactoryMap } from '../types'
 export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
 
 /**
- * Provider 模块类型
- * 动态导入的模块应该包含至少一个创建函数
- * 允许 default 导出和其他属性
+ * Imported module namespace; the configured creator export is checked at runtime.
  */
-export type ProviderModule<TSettings = any> = Record<string, any> & {
-  [K: string]: ProviderCreatorFunction<TSettings> | any
-}
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Dynamic modules also export unrelated helpers and constants; check the selected creator before calling it.
+export type ProviderModule = Record<string, unknown>
 
 /**
  * Provider Extension 配置基础接口
@@ -81,7 +78,7 @@ interface ProviderExtensionConfigWithImport<
 > extends ProviderExtensionConfigBase<TSettings, TProvider, TName> {
   create?: never
 
-  import: () => Promise<ProviderModule<TSettings>>
+  import: () => Promise<ProviderModule>
 
   creatorFunctionName: string
 }
