@@ -323,6 +323,37 @@ export default defineCreator({
     // model, `seed` is no longer an API param, and 5.0 adds output_format. Group-image generation
     // (sequential_image_generation + max_images) is 5.0-lite/4.5/4.0 only — 5.0 pro is single-image.
     {
+      id: 'doubao-seedream-5-5',
+      name: 'Doubao Seedream 5.5',
+      capabilities: ['image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          generate: {
+            maxInputImages: 10,
+            supports: {
+              addWatermark: { default: true, type: 'switch' },
+              background: { default: 'auto', options: ['auto', 'transparent', 'opaque'], type: 'enum' },
+              customSize: { type: 'size', pairedEnumKey: 'imageResolution', minSide: 240, maxSide: 8601 },
+              imageResolution: { type: 'enum', options: ['1K', '1.5K', '2K'], default: '1K', render: 'chips' },
+              outputFormat: { default: 'jpeg', options: ['jpeg', 'png'], type: 'enum' }
+            }
+          },
+          edit: {
+            maxInputImages: 10,
+            supports: {
+              addWatermark: { default: true, type: 'switch' },
+              background: { default: 'auto', options: ['auto', 'transparent', 'opaque'], type: 'enum' },
+              customSize: { type: 'size', pairedEnumKey: 'imageResolution', minSide: 240, maxSide: 8601 },
+              imageResolution: { type: 'enum', options: ['1K', '1.5K', '2K'], default: '1K', render: 'chips' },
+              outputFormat: { default: 'jpeg', options: ['jpeg', 'png'], type: 'enum' }
+            }
+          }
+        }
+      }
+    },
+    {
       id: 'doubao-seedream-5-0-pro',
       name: 'Doubao Seedream 5.0 Pro',
       capabilities: ['image-generation'],

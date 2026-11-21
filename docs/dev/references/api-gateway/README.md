@@ -24,8 +24,8 @@ owns outgoing serialization and transport, including same-protocol requests.
 This preserves supported semantics, not arbitrary wire fields or byte identity.
 There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native protocol object
 transports into this same conversion and execution path. They exchange request/event objects
-without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay,
-tools and retry ownership remain in Pi; external clients, including Claude Code, keep HTTP.
+without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay and
+tools remain in Pi; external clients, including Claude Code, keep HTTP.
 Object calls carry a typed trusted context for session ownership, request selections and usage.
 They do not authenticate through synthetic bearer headers. Explicit child captures take precedence
 over a root binding's defaults and ambient trace parent.
@@ -41,6 +41,11 @@ represented as tool argument objects without changing their meaning. The gateway
 tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
+Internal Agent calls to `POST /v1/messages` share a request-size-weighted allowance
+before conversion and outbound encoding. Larger image-heavy calls may wait for a
+previous response to finish, fail, or disconnect. The queued call retains its full
+model history. Cancelling a queued call lets the next request proceed as soon as
+the available allowance can cover it.
 
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway
@@ -143,7 +148,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── gatewayRequest.ts                ← trusted request options and admitted provider/endpoint resolution
 ├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
-├── objectStream.ts                  ← bounded native protocol object transport for Pi / Pi Durable
+├── objectStream.ts                  ← native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
@@ -391,11 +396,10 @@ A streaming request has two error regimes:
   change. A later error or pause therefore emits the dialect's terminal SSE
   error frame and closes the stream.
 
-The in-process object transport also releases its iterator when an adapter accepts a
-deliverable tool-error call, before a textless batch can fill the bounded event queue
-and block further production. Non-object tool arguments still fail before this release.
-The native `timeoutMs` bounds startup and subsequent upstream idle waits; capacity waits do not
-count as upstream idleness. Native providers release the response on every terminal path,
+The in-process object transport uses the same commitment chunks: a failure before
+commitment rejects the call, and a later failure ends its event iterator. Unread events
+are not bounded separately; the stream manager already accumulates the same response.
+The native `timeoutMs` bounds startup and subsequent upstream idle waits. Native providers release the response on every terminal path,
 including a rejected response hook before iteration. Gemini loads its SDK response wrapper
 on demand and rejects config fields the shared converter cannot represent.
 
@@ -635,13 +639,6 @@ frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
 Anthropic status-only 413 errors use `request_too_large` in both JSON responses and
 terminal SSE error frames.
 
-Native Pi bindings acquire a process-shared payload allowance before SDK request serialization.
-Conservative JSON costs above 8 MiB share 64 MiB of allowance; an oversized request uses
-the whole allowance without truncation. The allowance is held until the model stream settles.
-Small calls bypass it, while very large image-history calls may wait for another response.
-Queued cancellation and gateway shutdown release or cancel admission. Conversation history
-and model image content remain complete.
-
 For authenticated internal runtime requests, the prompt stream also passes its original
 provider exception to the gateway without putting it in persisted or renderer-facing error
 state. The existing endpoint error handlers retain provider response details while shaping
@@ -669,7 +666,9 @@ Public gateway clients continue to receive the sanitized errors above.
   and Responses system-message removal apply only to Cherry-owned context.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
-  generation retry, or model fallback. Application chat retains its loop.
+  or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
+  requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is

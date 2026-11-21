@@ -42,6 +42,8 @@ Task conversations stay out of desktop ordinary Agent topic lists and recent-top
 - A new execution offers an explicit switch; it does not replace the conversation being read or edited. Switching tasks invalidates the previous lookup.
 - Conversation messages, tools, approvals, and busy-state protection use the existing Agent chat runtime. Leaving the page does not stop scheduling.
 
+A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error, the next fire can start fresh. Earlier run records still open their original sessions.
+
 ## Read and command boundaries
 
 `GET /agent-tasks` accepts optional `status`: `active`, `paused`, `completed`, or `missed`, or a non-empty list of those states. Paused requests `['paused', 'missed']` and receives one combined ordering, total, and page. Omission preserves the existing unfiltered list. The service derives and filters status before counting and slicing; it still scans candidate schedules in the main process.

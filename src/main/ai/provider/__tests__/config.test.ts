@@ -1,10 +1,12 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import type * as CherryCloudProviderModule from '@main/ai/provider/cherryCloud'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -58,7 +60,8 @@ vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 
-vi.mock('@main/ai/provider/cherryCloud', () => ({
+vi.mock('@main/ai/provider/cherryCloud', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryCloudProviderModule>()),
   buildCherryCloudProviderConfig: buildCherryCloudProviderConfigMock
 }))
 
@@ -70,6 +73,7 @@ vi.mock('@main/services/CopilotService', () => ({
 
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
+const { ModelUnavailableError } = await import('../cherryCloud')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -1387,6 +1391,36 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('CherryAI routing', () => {
+    const cherryAiProvider = () =>
+      makeProvider({
+        id: CHERRYAI_PROVIDER_ID,
+        presetProviderId: CHERRYAI_PROVIDER_ID,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: CHERRYAI_API_BASE_URL } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+    const signInPhase = (phase: 'signed-in' | 'signed-out' | 'authorizing') =>
+      MockApplicationUtils.setService('CherryCloudService', { getStatus: vi.fn(async () => ({ phase })) })
+
+    beforeEach(() => signInPhase('signed-in'))
+
+    it.each(['signed-out', 'authorizing'] as const)(
+      'refuses the built-in free model before any request while %s',
+      async (phase) => {
+        signInPhase(phase)
+        resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+        const model = makeModel({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, providerId: CHERRYAI_PROVIDER_ID })
+
+        const config = await providerToAiSdkConfig(cherryAiProvider(), model)
+        const request = (config.providerSettings as { fetch: typeof fetch }).fetch(
+          `${CHERRYAI_API_BASE_URL}/chat/completions`,
+          { method: 'POST', body: JSON.stringify({ model: CHERRYAI_DEFAULT_MODEL_ID }) }
+        )
+
+        await expect(request).rejects.toThrow(ModelUnavailableError)
+        expect(net.fetch).not.toHaveBeenCalled()
+      }
+    )
+
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
       generateSignatureMock.mockReturnValue({
