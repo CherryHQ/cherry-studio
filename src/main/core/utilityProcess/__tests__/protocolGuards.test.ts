@@ -5,7 +5,7 @@ import type { FrameIdentity } from '../protocol/frames'
 import { isChildFrame, isConnectFrame, isMainFrame, isRemoteError, matchesIdentity } from '../protocol/guards'
 
 const identity: FrameIdentity = { protocol: PROTOCOL, version: PROTOCOL_VERSION, processId: 'test.echo', generation: 1 }
-const stamp = (frame: Record<string, unknown>) => ({ ...identity, ...frame })
+const stamp = <T extends object>(frame: T) => ({ ...identity, ...frame })
 
 describe('frame guards', () => {
   it('accepts every canonical frame kind on both directions', () => {

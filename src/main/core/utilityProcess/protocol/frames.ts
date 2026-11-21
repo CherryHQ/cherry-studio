@@ -64,6 +64,7 @@ export type LogFrame = FrameIdentity & {
   kind: 'log'
   level: LogLevel
   message: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Log fields preserve native structured-clone values; the sender handles clone failures without pretending arbitrary fields are JSON.
   fields?: Record<string, unknown>
   requestId?: number
 }

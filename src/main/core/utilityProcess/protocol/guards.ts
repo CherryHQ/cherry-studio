@@ -10,6 +10,7 @@ import type { ChildFrame, ConnectFrame, FrameIdentity, LogLevel, MainFrame, Remo
 
 const LOG_LEVELS: ReadonlySet<string> = new Set<LogLevel>(['debug', 'info', 'warn', 'error'])
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This predicate checks only the object container; individual frame guards validate envelope fields and leave method payloads opaque.
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 /** Request ids are allocated by main, monotonically per generation, starting at 1. */
@@ -20,6 +21,7 @@ export function isRequestId(value: unknown): value is number {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional request IDs come from raw log/protocol-error frames; validate them before correlating a request.
 const isOptionalRequestId = (value: unknown): boolean => value === undefined || isRequestId(value)
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Identity validation does not validate the remaining frame fields; kind-specific guards inspect those raw values next.
 export function isFrameIdentity(value: unknown): value is FrameIdentity & { kind: string } & Record<string, unknown> {
   return (
     isRecord(value) &&
@@ -129,6 +131,7 @@ export function isChildFrame(value: unknown): value is ChildFrame {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stream envelopes arrive with only their identity validated; sequence, metadata and native byte payloads are checked here.
 function isStreamMessage(frame: Record<string, unknown>): boolean {
   if (!isRequestId(frame.requestId) || !Number.isSafeInteger(frame.sequence)) return false
   if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return (frame.sequence as number) >= 0

@@ -869,7 +869,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   // ─── Helpers ───
 
   private relayLog(generation: Generation<Contract>, frame: LogFrame): void {
-    const fields: Record<string, unknown> = {
+    const fields: NonNullable<LogFrame['fields']> = {
       ...frame.fields,
       processId: this.definition.id,
       generation: generation.id,
