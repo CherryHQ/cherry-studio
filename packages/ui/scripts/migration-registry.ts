@@ -17,7 +17,7 @@ export interface MigrationRegistry {
   rules: MigrationRule[]
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is { [Key in keyof MigrationRegistry | keyof MigrationRule]?: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

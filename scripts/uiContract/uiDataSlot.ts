@@ -14,6 +14,7 @@ import {
 
 import { mergeDataUi } from './runtime'
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- React slots forward native and custom props verbatim; only ref, event, style, className and data-ui fields are interpreted here.
 type AnyProps = Record<string, unknown>
 type RefTarget = Ref<unknown> | null | undefined
 
