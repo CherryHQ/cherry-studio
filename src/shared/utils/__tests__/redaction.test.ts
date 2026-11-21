@@ -107,37 +107,39 @@ describe('redactDeep', () => {
   })
 
   it('redacts sensitive keys at any depth, keeps benign ones', () => {
-    const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } }) as Record<string, any>
-    expect(out.authorization).toBe(REDACTED)
-    expect(out.keep).toBe('ok')
-    expect(out.nested.apiKey).toBe(REDACTED)
+    const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } })
+    expect(out).toMatchObject({ authorization: REDACTED, keep: 'ok', nested: { apiKey: REDACTED } })
   })
 
   it('does not stack-overflow on a circular enumerable graph', () => {
-    const a: Record<string, unknown> = { name: 'a' }
-    const b: Record<string, unknown> = { name: 'b', a }
+    const a: { name: string; b?: unknown } = { name: 'a' }
+    const b = { name: 'b', a }
     a.b = b // a -> b -> a cycle
-    expect(() => redactDeep(a)).not.toThrow()
     expect(redactDeep(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
   })
 
   it('redacts a shared reference at every occurrence instead of reporting [Circular]', () => {
     const shared = { name: 'shared-config', apiKey: 'sk-live' }
-    const out = redactDeep({ primary: shared, secondary: shared }) as Record<string, any>
-    expect(out.primary).toEqual({ name: 'shared-config', apiKey: REDACTED })
-    expect(out.secondary).toEqual({ name: 'shared-config', apiKey: REDACTED })
-    expect(out.secondary).not.toBe('[Circular]')
+    const out = redactDeep({ primary: shared, secondary: shared })
+    expect(out).toEqual({
+      primary: { name: 'shared-config', apiKey: REDACTED },
+      secondary: { name: 'shared-config', apiKey: REDACTED }
+    })
   })
 
   it('redacts a shared array element at every index', () => {
     const shared = { name: 'endpoint', token: 't' }
-    const out = redactDeep({ endpoints: [shared, shared] }) as Record<string, any>
-    expect(out.endpoints[0]).toEqual({ name: 'endpoint', token: REDACTED })
-    expect(out.endpoints[1]).toEqual({ name: 'endpoint', token: REDACTED })
+    const out = redactDeep({ endpoints: [shared, shared] })
+    expect(out).toEqual({
+      endpoints: [
+        { name: 'endpoint', token: REDACTED },
+        { name: 'endpoint', token: REDACTED }
+      ]
+    })
   })
 
   it('still short-circuits a self-referencing node', () => {
-    const node: Record<string, unknown> = { name: 'self' }
+    const node: { name: string; self?: unknown } = { name: 'self' }
     node.self = node
     expect(redactDeep(node)).toMatchObject({ name: 'self', self: '[Circular]' })
   })

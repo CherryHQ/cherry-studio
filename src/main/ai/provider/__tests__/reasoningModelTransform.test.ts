@@ -98,35 +98,35 @@ describe('isOpenAIReasoningModelId', () => {
 describe('applyReasoningModelMaxTokensConversion', () => {
   it('converts max_tokens to max_completion_tokens for reasoning models', () => {
     const body = { model: 'o3', max_tokens: 1000, messages: [] }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.max_completion_tokens).toBe(1000)
     expect(result.max_tokens).toBeUndefined()
   })
 
   it('converts for GPT-5 models', () => {
     const body = { model: 'gpt-5', max_tokens: 128000 }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.max_completion_tokens).toBe(128000)
     expect(result.max_tokens).toBeUndefined()
   })
 
   it('converts for GPT-6 Astra', () => {
     const body = { model: 'gpt-6-astra', max_tokens: 128000 }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.max_completion_tokens).toBe(128000)
     expect(result.max_tokens).toBeUndefined()
   })
 
   it('passes through non-reasoning models unchanged', () => {
     const body = { model: 'gpt-4o', max_tokens: 4096 }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.max_tokens).toBe(4096)
     expect(result.max_completion_tokens).toBeUndefined()
   })
 
   it('passes through when max_tokens is absent', () => {
     const body = { model: 'o3', messages: [] }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result).toEqual(body)
   })
 
@@ -138,14 +138,14 @@ describe('applyReasoningModelMaxTokensConversion', () => {
 
   it('keeps an explicit max_completion_tokens and still drops max_tokens', () => {
     const body = { model: 'gpt-5', max_tokens: 4096, max_completion_tokens: 8192 }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.max_completion_tokens).toBe(8192)
     expect(result.max_tokens).toBeUndefined()
   })
 
   it('preserves other body fields', () => {
     const body = { model: 'o3', max_tokens: 1000, temperature: 0.7, stream: true }
-    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    const result = applyReasoningModelMaxTokensConversion(body)
     expect(result.temperature).toBe(0.7)
     expect(result.stream).toBe(true)
     expect(result.max_completion_tokens).toBe(1000)
