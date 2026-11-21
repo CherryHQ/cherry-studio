@@ -512,6 +512,7 @@ required service tier.`
   })
 
   it('ignores non-serializable provider data when classifying an error', () => {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This malformed native-data fixture is cyclic by design; classification must ignore it rather than require JSON serialization.
     const circularData: Record<string, unknown> = {}
     circularData.self = circularData
 

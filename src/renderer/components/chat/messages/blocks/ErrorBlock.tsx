@@ -48,18 +48,14 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     return t('error.claude_code_exit.start', { reference })
   }
 
-  const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
+  const i18nKey = error && 'i18nKey' in error ? `error.${error.i18nKey}` : ''
   const errorKey = `error.${error?.message}`
   const localModelFailure = getLocalModelResolutionFailure(error)
   const errorStatus =
-    error && ('status' in error || 'statusCode' in error)
-      ? ((error as Record<string, unknown>).status as number | undefined) ||
-        ((error as Record<string, unknown>).statusCode as number | undefined)
-      : undefined
+    error && ('status' in error || 'statusCode' in error) ? error.status || error.statusCode : undefined
 
   if (i18n.exists(i18nKey)) {
-    const providerId =
-      error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
+    const providerId = error && 'providerId' in error ? error.providerId : undefined
     if (providerId && typeof providerId === 'string') {
       return (
         <Trans
@@ -84,13 +80,12 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     }
     // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
     // its values may embed a verbatim provider diagnostic.
-    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    const detailKey = error?.detailI18nKey
     if (typeof detailKey === 'string' && detailKey) {
       const detailFullKey = `error.${detailKey}`
       if (i18n.exists(detailFullKey)) {
-        const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
-          | Record<string, string>
-          | undefined
+        // SAFETY: attachmentRouting emits string interpolation values; error serialization preserves that map.
+        const detailValues = error?.detailI18nValues as Record<string, string> | undefined
         return (
           <span>
             {t(i18nKey)} {t(detailFullKey, detailValues)}
@@ -132,8 +127,9 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
-  const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
-  const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  // SAFETY: SerializedError documents providerId as string metadata, preserved by both error serializers.
+  const errorProviderId = error?.providerId as string | undefined
+  const errorI18nKey = error?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
   const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
