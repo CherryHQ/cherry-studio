@@ -124,24 +124,39 @@ describe('available generic anti-slop rules', () => {
     expect(result.diagnostics).toEqual([])
   })
 
-  it.each(['probe.test.ts', 'probe.spec.tsx', '__tests__/helper.ts', 'nested/tests/helper.ts'])(
-    'allows test boundaries without disabling other rules in %s',
-    (filename) => {
-      const boundary = lint(
-        'export function read(value: unknown) { return value }\nexport const result = "value" as unknown as number',
-        undefined,
-        filename
-      )
-      expect(boundary.status).toBe(0)
-      expect(boundary.diagnostics).toEqual([])
+  it.each([
+    'probe.test.ts',
+    'probe.spec.tsx',
+    'probe.test.mts',
+    '__tests__/helper.ts',
+    '__mocks__/helper.ts',
+    'nested/tests/helper.ts'
+  ])('exempts test code from anti-slop while retaining other lint rules in %s', (filename) => {
+    const boundary = lint(
+      `import { vi } from "vitest";
+export type Boundary = unknown;
+export type Metadata = Record<string, unknown>;
+export function read(value: object): unknown { return value }
+export function classify(value: string | number) { return typeof value === "string" }
+export const result = "value" as unknown as number;
+export const broad: unknown = "value";
+export const reflected = Reflect.get({ value: 1 }, "value");
+export const applied = Reflect.apply(Math.max, undefined, [1, 2]);
+export const mapped = [1, 2].filter(value => value > 0).map(value => value * 2);
+export const spread = { ...(Math.random() > 0.5 ? { value: 1 } : {}) };
+export const copied = [1, 2].reduce((acc, item) => acc.concat([item]), [] as number[]);
+export const accumulated = [1, 2].reduce((acc, item) => [...acc, item], [] as number[]);
+vi.mock("./dependency");`,
+      undefined,
+      filename
+    )
+    expect(boundary.status).toBe(0)
+    expect(boundary.diagnostics).toEqual([])
 
-      const invalid = lint('export function read(value: object) { return value }', undefined, filename)
-      expect(invalid.status).toBe(1)
-      expect(invalid.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ code: 'anti-slop(no-object-parameters)', severity: 'error' })
-        ])
-      )
-    }
-  )
+    const invalid = lint('export const result = eval("1")', undefined, filename)
+    expect(invalid.status).toBe(1)
+    expect(invalid.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'eslint(no-eval)', severity: 'error' })])
+    )
+  })
 })
