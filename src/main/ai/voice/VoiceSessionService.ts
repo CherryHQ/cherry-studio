@@ -1061,7 +1061,13 @@ export class VoiceSessionService extends BaseService {
       startPhase?: ActivePhase
       failurePhase?: ActivePhase
       cleanupOnFailure?: boolean
-      log?: Record<string, unknown>
+      log?: {
+        locale?: string
+        mimeType?: string
+        normalizedTextLength?: number
+        chunkIndex?: number
+        chunkCount?: number
+      }
     } = {}
   ): Promise<T> {
     this.requireAdmission()
