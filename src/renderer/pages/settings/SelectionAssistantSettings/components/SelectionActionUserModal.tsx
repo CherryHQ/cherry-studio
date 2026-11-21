@@ -1,8 +1,7 @@
-import { CircleHelp, Dices, ExternalLink, OctagonX } from 'lucide-react'
-import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
+import { CircleHelp } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -34,6 +33,8 @@ import { SELECTION_ACTION_RUNNER, type SelectionActionRunner } from '@shared/dat
 import type { CustomSelectionAction } from '@shared/types/selection'
 
 import { SelectionAgentPicker, SelectionWorkspacePicker } from './selectionAgentPickers'
+
+const SelectionActionIconPicker = lazy(() => import('./SelectionActionIconPicker'))
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
@@ -79,10 +80,6 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
     if (!formData.name?.trim()) {
       newErrors.name = t('selection.settings.user_modal.name.hint')
-    }
-
-    if (formData.icon && !iconNames.includes(formData.icon as any)) {
-      newErrors.icon = t('selection.settings.user_modal.icon.error')
     }
 
     if (runner === SELECTION_ACTION_RUNNER.AGENT && !formData.agentId) {
@@ -159,43 +156,13 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
                     <QuestionIcon size={14} />
                   </Tooltip>
-                  <Spacer />
-                  <a
-                    href="https://lucide.dev/icons/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-link">
-                    {t('selection.settings.user_modal.icon.view_all')}
-                    <ExternalLink size={12} />
-                  </a>
-                  <Tooltip content={t('selection.settings.user_modal.icon.random')}>
-                    <DiceButton
-                      onClick={() => {
-                        const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
-                        handleInputChange('icon', randomIcon)
-                      }}>
-                      <Dices size={14} className="btn-icon" />
-                    </DiceButton>
-                  </Tooltip>
                 </ModalSectionTitle>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={t('selection.settings.user_modal.icon.placeholder')}
+                <Suspense fallback={<div aria-busy="true" className="h-9 w-full rounded-md border border-border" />}>
+                  <SelectionActionIconPicker
                     value={formData.icon || ''}
-                    onChange={(e) => handleInputChange('icon', e.target.value)}
-                    className="w-full"
-                    aria-invalid={!!errors.icon}
+                    onChange={(icon) => handleInputChange('icon', icon)}
                   />
-                  <IconPreview>
-                    {formData.icon &&
-                      (iconNames.includes(formData.icon as any) ? (
-                        <DynamicIcon name={formData.icon as any} size={18} />
-                      ) : (
-                        <OctagonX size={18} color="var(--error)" />
-                      ))}
-                  </IconPreview>
-                </div>
-                {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
+                </Suspense>
               </div>
             </div>
           </ModalSection>
@@ -356,16 +323,6 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
   <div className={cn('flex-1', className)} {...props} />
 )
 
-const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      'flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background-subtle',
-      className
-    )}
-    {...props}
-  />
-)
-
 const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn('flex h-7 w-full max-w-full min-w-0 flex-row items-center gap-2 overflow-hidden', className)}
@@ -386,16 +343,6 @@ const CurrentTag = ({
     className={cn(
       'shrink-0 rounded px-1 py-0.5 text-xs',
       isCurrent ? 'text-primary' : 'text-foreground-tertiary',
-      className
-    )}
-    {...props}
-  />
-)
-
-const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-muted-foreground hover:[&_.btn-icon]:text-foreground',
       className
     )}
     {...props}

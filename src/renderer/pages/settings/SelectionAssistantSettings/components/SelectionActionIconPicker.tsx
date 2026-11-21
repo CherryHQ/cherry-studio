@@ -1,0 +1,70 @@
+import { ChevronDown, Dices } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip, usePortalContainer } from '@cherrystudio/ui'
+import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
+
+const SelectionActionIconGrid = lazy(() => import('./SelectionActionIconGrid'))
+
+interface SelectionActionIconPickerProps {
+  value: string
+  onChange: (icon: string) => void
+}
+
+const SelectionActionIconPicker = ({ value, onChange }: SelectionActionIconPickerProps) => {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const portalContainer = usePortalContainer()
+  const selectIcon = (icon: string) => {
+    onChange(icon)
+    setOpen(false)
+  }
+  const selectRandomIcon = async () => {
+    const { iconNames } = await import('lucide-react/dynamic')
+    selectIcon(iconNames[Math.floor(Math.random() * iconNames.length)])
+  }
+
+  return (
+    <div className="flex w-full gap-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="min-w-0 flex-1 justify-start gap-2">
+            {value ? (
+              <>
+                <SelectionActionIcon name={value} size={16} />
+                <span className="truncate">{value}</span>
+              </>
+            ) : (
+              <span className="truncate text-muted-foreground">
+                {t('selection.settings.user_modal.icon.placeholder')}
+              </span>
+            )}
+            <ChevronDown size={14} className="ml-auto shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" collisionBoundary={portalContainer} className="w-80 p-2">
+          <Button variant="ghost" className="mb-2 w-full justify-start" onClick={() => selectIcon('')}>
+            {t('selection.settings.user_modal.icon.default')}
+          </Button>
+          {open && (
+            <Suspense fallback={<div aria-busy="true" className="h-64" />}>
+              <SelectionActionIconGrid value={value} onSelect={selectIcon} />
+            </Suspense>
+          )}
+        </PopoverContent>
+      </Popover>
+      <Tooltip content={t('selection.settings.user_modal.icon.random')}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('selection.settings.user_modal.icon.random')}
+          onClick={selectRandomIcon}>
+          <Dices size={14} />
+        </Button>
+      </Tooltip>
+    </div>
+  )
+}
+
+export default SelectionActionIconPicker
