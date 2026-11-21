@@ -15,6 +15,7 @@ const menuItemVariants = cva(
     'transition-all duration-150',
     'outline-none select-none',
     'focus-visible:bg-accent',
+    'focus-visible:inset-shadow-[0_0_0_2px_var(--ring)]',
     'disabled:pointer-events-none disabled:opacity-40',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0'
   ),
