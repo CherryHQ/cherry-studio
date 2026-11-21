@@ -24,6 +24,7 @@ import type { AuthConfig } from '@shared/data/types/provider'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import type { AppProviderSettingsMap } from '../../types'
 import { customFetch } from '../../utils/customFetch'
 import { splitParamValues } from '../../utils/imageOptions'
 import { resolveImageTransport } from '../custom/imageTransportRegistry'
@@ -70,6 +71,15 @@ vi.mock('@main/services/CopilotService', () => ({
 
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
+
+function settingsFor<P extends keyof AppProviderSettingsMap>(
+  config: Awaited<ReturnType<typeof providerToAiSdkConfig>>,
+  providerId: P
+): AppProviderSettingsMap[P] {
+  expect(config.providerId).toBe(providerId)
+  // SAFETY: The factory pairs settings with the checked SDK id; ProviderConfig erases that correlation.
+  return config.providerSettings as AppProviderSettingsMap[P]
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -148,7 +158,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
-    expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+    expect(config.providerSettings).toHaveProperty('apiKey', 'sk-selected')
   })
 
   it('returns the safe provenance captured with the serving key', async () => {
@@ -164,7 +174,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
-    expect((resolved.config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+    expect(resolved.config.providerSettings).toHaveProperty('apiKey', 'sk-selected')
     expect(resolved.credentialReceipt).toEqual(apiKeySelection)
   })
 
@@ -196,7 +206,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect(resolved.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
-    expect((resolved.config.providerSettings as Record<string, unknown>).apiKey).toBeUndefined()
+    expect(
+      'apiKey' in resolved.config.providerSettings ? resolved.config.providerSettings.apiKey : undefined
+    ).toBeUndefined()
     expect(resolveApiKeyMock).not.toHaveBeenCalled()
   })
 
@@ -340,7 +352,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex-anthropic')
 
       // Routed to the anthropic Vertex builder, not the generic fallback.
       expect(config.providerId).toBe('google-vertex-anthropic')
@@ -377,7 +389,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex')
 
       expect(config.providerId).toBe('google-vertex')
       expect(settings.project).toBe('my-project')
@@ -405,7 +417,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex')
 
       expect(config.providerId).toBe('google-vertex')
       expect(settings.project).toBe('my-project')
@@ -473,7 +485,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex')
 
       expect(settings.baseURL).toBe(expectedBaseUrl)
     })
@@ -509,7 +521,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex')
 
       expect(settings.googleCredentials).toMatchObject({
         clientEmail: 'svc@my-project.iam.gserviceaccount.com'
@@ -539,7 +551,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'google-vertex')
 
       expect(config.providerId).toBe('google-vertex')
       // The fix: undefined (not '' and not '/publishers/google') so the SDK auto-derives the host.
@@ -569,7 +581,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         })
 
         const config = await providerToAiSdkConfig(provider, model)
-        const settings = config.providerSettings as Record<string, unknown>
+        const settings = settingsFor(config, 'google-vertex-maas')
 
         expect(config.providerId).toBe('google-vertex-maas')
         expect(settings.project).toBe('my-project')
@@ -649,7 +661,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'bedrock')
 
       expect(config.providerId).toBe('bedrock')
       expect(settings.region).toBe('us-east-1')
@@ -684,7 +696,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'bedrock')
 
       expect(config.providerId).toBe('bedrock')
       expect(settings.baseURL).toBeUndefined()
@@ -709,7 +721,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'azure-anthropic')
 
       expect(config.providerId).toBe('azure-anthropic')
       // The anthropic branch normalizes the host WITHOUT the '/openai' suffix.
@@ -751,7 +763,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'azure')
 
       expect(config.providerId).toBe('azure')
       expect(settings.baseURL).toMatch(/\/openai$/)
@@ -900,7 +912,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'cherryin-chat')
 
       // The variant id still flows through as the providerId so the chat transform is selected.
       expect(config.providerId).toBe('cherryin-chat')
@@ -1015,7 +1027,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'cherryin-chat')
 
       expect(config.providerId).toBe('cherryin-chat')
       // The fix: relay base URLs come from THIS instance, not open.cherryin.net.
@@ -1074,7 +1086,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         })
 
         const config = await providerToAiSdkConfig(provider, model)
-        const settings = config.providerSettings as Record<string, unknown>
+        const settings = settingsFor(config, 'qwencloud')
 
         expect(config.providerId).toBe('qwencloud')
         expect(settings.imageBaseURL).toBe('https://ap-southeast-1.maas.qwencloudapi.com')
@@ -1134,7 +1146,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
     })
 
     it.each([
@@ -1157,7 +1169,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe(expectedProviderId)
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBeUndefined()
+      expect(
+        'imageBaseURL' in config.providerSettings ? config.providerSettings.imageBaseURL : undefined
+      ).toBeUndefined()
     })
   })
 
@@ -1193,7 +1207,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       config: Awaited<ReturnType<typeof providerToAiSdkConfig>>,
       expectedBaseURL: string
     ) {
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = config.providerSettings
       const wireModelId = resolveWireModelId(imageModel, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
       expect(config.providerId).toBe('dashscope')
       vi.mocked(net.fetch).mockResolvedValue(
@@ -1237,7 +1251,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, imageModel)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe(expectedBaseURL)
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', expectedBaseURL)
       await expectNativeSubmit(config, expectedBaseURL)
     })
 
@@ -1251,7 +1265,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
       await expectNativeSubmit(config, 'https://proxy.example.com/ds')
     })
 
@@ -1270,7 +1284,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, imageModel)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe(expectedBaseURL)
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', expectedBaseURL)
     })
 
     it('submits without a version suffix when the chat host ends in #', async () => {
@@ -1303,7 +1317,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, imageModel)
 
       // The submit URL already matched before the fix; the field assertion detects the regression.
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://dashscope.aliyuncs.com')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://dashscope.aliyuncs.com')
       await expectNativeSubmit(config, 'https://dashscope.aliyuncs.com')
     })
 
@@ -1312,7 +1326,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, imageModel)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', '')
       await expectNativeSubmit(config, 'https://maas.qianwenaiapi.com')
     })
 
@@ -1322,7 +1336,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, imageModel)
 
       expect(config.providerId).toBe('openai')
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
     })
 
     it('honors a model Chat Completions pin over the provider Responses default', async () => {
@@ -1331,7 +1345,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
       await expectNativeSubmit(config, 'https://proxy.example.com/ds')
     })
 
@@ -1350,7 +1364,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         const model = makeModel({ ...imageModel, capabilities })
 
         const config = await providerToAiSdkConfig(provider, model)
-        const settings = config.providerSettings as Record<string, unknown>
+        const settings = config.providerSettings
 
         expect(config.providerId).toBe(expectedProviderId)
         expect(settings).not.toHaveProperty('imageBaseURL')
@@ -1366,7 +1380,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(dashscopeProvider, model)
 
       expect(config.providerId).toBe('dashscope')
-      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
     })
   })
 
@@ -1446,12 +1460,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, LOCAL_EMBEDDING_PROVIDER_ID)
 
       expect(config.providerId).toBe(LOCAL_EMBEDDING_PROVIDER_ID)
       // The local builder returns empty providerSettings: no baseURL/apiKey leak from the
       // openai-compatible builder, and no unused provider key is selected.
-      expect(settings.baseURL).toBeUndefined()
+      expect('baseURL' in settings ? settings.baseURL : undefined).toBeUndefined()
       expect(settings.apiKey).toBeUndefined()
       expect(resolveApiKeyMock).not.toHaveBeenCalled()
       // Still defaulted to the proxy-aware fetch by the shared tail of providerToAiSdkConfig.
@@ -1475,7 +1489,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ providerId: 'tokendance', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'openai-compatible')
 
       expect(settings.headers).toMatchObject({ 'X-App-URL': 'app://cherryai.com.cn' })
     })
@@ -1505,8 +1519,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const radeonConfig = await providerToAiSdkConfig(radeonProvider, model)
       const openAIConfig = await providerToAiSdkConfig(openAIProvider, model)
-      const radeonSettings = radeonConfig.providerSettings as Record<string, unknown>
-      const openAISettings = openAIConfig.providerSettings as Record<string, unknown>
+      const radeonSettings = settingsFor(radeonConfig, 'openai-compatible')
+      const openAISettings = settingsFor(openAIConfig, 'openai-compatible')
 
       expect(radeonSettings.headers).toMatchObject({ 'X-Source': 'cherry-studio' })
       expect(openAISettings.headers).not.toHaveProperty('X-Source')
@@ -1528,12 +1542,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ providerId: 'dashscope', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'dashscope')
 
       expect(config.providerId).toBe('dashscope')
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
-      expect(settings.name).toBeUndefined()
+      expect('name' in settings ? settings.name : undefined).toBeUndefined()
       // A builder that installs no fetch of its own must default to the proxy-aware customFetch
       // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
       expect(settings.fetch).toBe(customFetch)
@@ -1580,7 +1594,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ providerId: 'modelscope', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'modelscope')
 
       expect(config.providerId).toBe('modelscope')
       expect(settings.apiKey).toBe('sk-test-key')
@@ -1602,7 +1616,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ providerId: 'modelscope', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'openai-compatible')
 
       expect(config.providerId).toBe('openai-compatible')
       expect(settings.includeUsage).toBe(true)
@@ -1648,7 +1662,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('comfyui')
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
+      expect(config.providerSettings).toHaveProperty('baseURL', 'http://localhost:8188')
     })
 
     it.each([
@@ -1674,7 +1688,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+      expect(config.providerSettings).toHaveProperty('baseURL', expected)
     })
 
     it('hands ComfyUI the stored key for partner nodes, never as a header', async () => {
@@ -1695,7 +1709,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       // The transport puts the key in the prompt's `extra_data` for the workflow's
       // partner nodes; the server takes no credential, so no header carries it.
-      const settings = resolved.config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(resolved.config, 'comfyui')
       expect(resolved.config.providerId).toBe('comfyui')
       expect(resolveApiKeyMock).toHaveBeenCalledWith('comfyui', undefined)
       expect(settings.apiKey).toBe('sk-test-key')
@@ -1721,7 +1735,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ providerId: id, capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
 
       const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'minimax')
 
       expect(config.providerId).toBe('minimax')
       expect(settings.baseURL).toBe(baseUrl)
@@ -1771,7 +1785,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         const model = makeModel({ providerId: id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
         const config = await providerToAiSdkConfig(provider, model)
-        const settings = config.providerSettings as Record<string, unknown>
+        const settings = settingsFor(config, 'moonshot')
 
         expect(config.providerId).toBe('moonshot')
         expect(settings.baseURL).toBe(expectedBaseUrl)
@@ -1801,7 +1815,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'doubao')
 
       expect(config.providerId).toBe('doubao')
       // `/api/v3` already carries a version, so no `/v1` is appended — the Ark image
@@ -1832,7 +1846,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('doubao')
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(host)
+      expect(config.providerSettings).toHaveProperty('baseURL', host)
     })
 
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
@@ -1871,7 +1885,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('openai')
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'openai')
       const fetch = settings.fetch as typeof globalThis.fetch
 
       await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/responses', {
@@ -1911,7 +1925,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'openai')
       const fetch = settings.fetch as typeof globalThis.fetch
 
       const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/responses', {
@@ -1944,8 +1958,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
         })
         const config = await providerToAiSdkConfig(provider, model)
-        const settings = config.providerSettings as Record<string, unknown>
-        expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBe('true')
+        const settings = settingsFor(config, 'openai')
+        expect(settings.headers).toHaveProperty('X-Fornax-Trace', 'true')
       } finally {
         MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
       }
@@ -1995,7 +2009,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'dmxapi')
 
       expect(config.providerId).toBe('dmxapi')
       expect(settings.baseURL).toBe('https://gemini.dmx.example/custom/v1beta')
@@ -2036,7 +2050,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'aihubmix')
 
       expect(config.providerId).toBe('aihubmix')
       expect(settings.baseURL).toBe('https://gemini.aihubmix.example/custom/v1beta')
@@ -2084,15 +2098,15 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
       const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'openai-compatible')
 
       expect(config.providerId).toBe('openai-compatible')
       expect(settings.name).toBe('some-relay')
       expect(settings.apiKey).toBe('sk-test-key')
       // No Vertex leakage into the generic fallback.
-      expect(settings.project).toBeUndefined()
-      expect(settings.location).toBeUndefined()
-      expect(settings.googleCredentials).toBeUndefined()
+      expect('project' in settings ? settings.project : undefined).toBeUndefined()
+      expect('location' in settings ? settings.location : undefined).toBeUndefined()
+      expect('googleCredentials' in settings ? settings.googleCredentials : undefined).toBeUndefined()
     })
 
     it('routes a core-registered adapter (deepseek) to buildGenericProviderConfig', async () => {
@@ -2114,7 +2128,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('deepseek')
-      expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-test-key')
+      expect(config.providerSettings).toHaveProperty('apiKey', 'sk-test-key')
     })
   })
 
@@ -2284,7 +2298,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('newapi')
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'newapi')
       expect(settings.baseURL).toBe('https://api.newapi.com/anthropic/v1')
     })
 
@@ -2303,7 +2317,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      const settings = config.providerSettings as Record<string, unknown>
+      const settings = settingsFor(config, 'newapi')
       expect(settings.baseURL).toBe('https://api.newapi.com/v1')
     })
 
@@ -2325,7 +2339,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+      expect(config.providerSettings).toHaveProperty('baseURL', expected)
     })
 
     // The Anthropic SDK appends `/messages`, so the baseURL must carry `/v1` — a version-less host
@@ -2347,7 +2361,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+      expect(config.providerSettings).toHaveProperty('baseURL', expected)
     })
 
     // One self-hosted host serves every protocol, so the `/v1` a user types belongs to the OpenAI
@@ -2369,7 +2383,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
 
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+      expect(config.providerSettings).toHaveProperty('baseURL', expected)
     })
 
     // Every endpoint must reach the NewAPI adapter: the plain `google` / `openai` adapters read the
@@ -2395,7 +2409,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('newapi')
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+      expect(config.providerSettings).toHaveProperty('baseURL', expected)
     })
   })
 })

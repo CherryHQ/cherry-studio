@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import { type CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { app } from 'electron'
 import * as z from 'zod'
@@ -114,7 +115,7 @@ function textResult(text: string, isError?: true): CallToolResult {
   return result
 }
 
-function readProductManifest(): Record<string, unknown> {
+function readProductManifest(): JSONObject {
   const manifestPath = application.getPath('feature.agents.assistant.manifest.file')
   let rawManifest: string
   try {
@@ -123,21 +124,19 @@ function readProductManifest(): Record<string, unknown> {
     throw new Error('Product manifest is unavailable')
   }
 
-  let manifest: unknown
+  let manifest: JSONValue
   try {
     manifest = JSON.parse(rawManifest)
   } catch {
     throw new Error('Product manifest contains invalid JSON')
   }
   const manifestRecord =
-    typeof manifest === 'object' && manifest !== null && !Array.isArray(manifest)
-      ? (manifest as Record<string, unknown>)
-      : undefined
+    typeof manifest === 'object' && manifest !== null && !Array.isArray(manifest) ? manifest : undefined
   const packageRecord =
     typeof manifestRecord?.package === 'object' &&
     manifestRecord.package !== null &&
     !Array.isArray(manifestRecord.package)
-      ? (manifestRecord.package as Record<string, unknown>)
+      ? manifestRecord.package
       : undefined
   if (
     manifestRecord?.schemaVersion !== 1 ||
@@ -149,12 +148,12 @@ function readProductManifest(): Record<string, unknown> {
   return manifestRecord
 }
 
-function getManifestNavigationRoutes(manifest: Record<string, unknown>): string[] {
+function getManifestNavigationRoutes(manifest: JSONObject): string[] {
   const routes = manifest.routes
   if (typeof routes !== 'object' || routes === null || Array.isArray(routes)) {
     throw new Error('Product manifest routes are invalid')
   }
-  const allRoutes = (routes as Record<string, unknown>).all
+  const allRoutes = routes.all
   if (!Array.isArray(allRoutes)) {
     throw new Error('Product manifest routes are invalid')
   }
@@ -203,9 +202,10 @@ const ProductInfoInputSchema = z.strictObject({
 
 function productInfo({ section }: z.infer<typeof ProductInfoInputSchema>): CallToolResult {
   const manifest = readProductManifest()
-  const manifestVersion = (manifest.package as Record<string, unknown>).version as string
+  // SAFETY: readProductManifest checks the package container and its non-empty version before returning.
+  const manifestVersion = (manifest.package as JSONObject).version
 
-  let result: Record<string, unknown>
+  let result: JSONObject
   if (section === undefined) {
     result = {
       runtimeVersion: app.getVersion(),
