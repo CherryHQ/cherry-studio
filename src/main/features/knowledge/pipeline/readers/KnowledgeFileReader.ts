@@ -36,9 +36,10 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
         import('@vectorstores/readers/pdf').then(({ PDFReader }) => new PDFReader())
       )
     case '.csv':
-      return new LazyFileReader(async () =>
-        import('@vectorstores/readers/csv').then(({ CSVReader }) => new CSVReader())
-      )
+      return new LazyFileReader(async () => {
+        const { CsvReader } = await import('./files/CsvReader')
+        return new CsvReader()
+      })
     case '.doc':
       return new AnydocReader(async () => {
         const { DocReader } = await import('./files/DocReader')
