@@ -17,6 +17,7 @@ import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import { MemoryDreamingService } from '@main/ai/memory/MemoryDreamingService'
 import { MemoryEditorService } from '@main/ai/memory/MemoryEditorService'
 import { MemoryMigrationService } from '@main/ai/memory/MemoryMigrationService'
 import { MemoryService } from '@main/ai/memory/MemoryService'
@@ -195,6 +196,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   MemoryService,
+  MemoryDreamingService,
   MemoryMigrationService,
   MemoryEditorService,
   McpCatalogService,
