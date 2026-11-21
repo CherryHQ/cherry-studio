@@ -27,7 +27,8 @@ Each rule-specific stack layer clears that rule's findings, verifies affected
 contracts, and enables it as an error. Do not weaken an activated rule, exempt owned
 source directories or disguise module mocks to make it pass. Test files and test-only
 directories temporarily disable all anti-slop rules and the native
-`oxc/no-accumulating-spread` companion. Partial mocks, invalid inputs and historical
+`oxc/no-accumulating-spread` companion, including the dedicated `scripts/e2e/` and
+`scripts/utility-process-smoke/` harnesses. Partial mocks, invalid inputs and historical
 fixtures have different constraints from production inputs; keep substantive contract
 fixes without expanding fixtures just to satisfy this migration. Other test lint
 rules retain their scope. Production activation continues rule by rule. Boundary parsing,
