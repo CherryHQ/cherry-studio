@@ -1,10 +1,11 @@
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { knowledgeFileProcessingExts } from '@shared/utils/file'
+import { imageExts, knowledgeFileProcessingExts } from '@shared/utils/file'
 
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../../items'
 
+const KNOWLEDGE_IMAGE_EXT_SET = new Set<string>(imageExts)
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 export type KnowledgeSourcePlan =
@@ -42,7 +43,7 @@ export function planKnowledgeItemSource(
 }
 
 function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem, options: KnowledgeSourcePlanOptions): boolean {
-  if (item.type !== 'file' || !base.fileProcessorId) {
+  if (item.type !== 'file') {
     return false
   }
 
@@ -53,5 +54,5 @@ function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem, options: 
   }
 
   const ext = getFileExt(item.data.relativePath).toLowerCase()
-  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext)
+  return KNOWLEDGE_IMAGE_EXT_SET.has(ext) || Boolean(base.fileProcessorId && KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext))
 }

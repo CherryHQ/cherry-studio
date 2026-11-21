@@ -25,7 +25,13 @@ export const knowledgeSupportedFileExts = [
   '.ods',
   '.rtf',
   '.epub',
-  '.draftsexport'
+  '.draftsexport',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.bmp',
+  '.gif',
+  '.webp'
 ] as const
 /**
  * The extensions a knowledge base routes through a `document_to_markdown` processor.

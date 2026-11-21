@@ -21,7 +21,7 @@ import {
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { imageExts, knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import { classifyKnowledgeItemReacquireSource } from '../items'
@@ -59,6 +59,7 @@ import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
+const KNOWLEDGE_IMAGE_EXT_SET = new Set<string>(imageExts)
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
@@ -434,7 +435,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       if (item.type !== 'file') {
         throw new Error(`File processing source plan produced for non-file item: ${item.id}`)
       }
-      const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
+      const isImage = KNOWLEDGE_IMAGE_EXT_SET.has(getFileExt(item.data.relativePath).toLowerCase())
+      // Images always use the global OCR choice (and its platform fallback), never the base's
+      // document-only processor. startTask resolves that default when processorId is omitted.
+      const processorId = isImage ? undefined : FileProcessorIdSchema.parse(base.fileProcessorId)
       const fileProcessing = application.get('FileProcessingService')
       const sourcePath = getKnowledgeBaseFilePath(baseId, item.data.relativePath)
       const processedRelativePath = getProcessedMarkdownRelativePath(item.data.relativePath)
@@ -444,11 +448,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
       const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
       const { task, done } = await fileProcessing.startTask({
-        feature: 'document_to_markdown',
+        feature: isImage ? 'image_to_text' : 'document_to_markdown',
         file: { kind: 'path', path: sourcePath },
         output: { kind: 'path', path: processedPath },
         context: { dataId: item.id },
-        processorId
+        ...(processorId ? { processorId } : {})
       })
       this.fileProcessingWaits.add(baseId, itemId, task.id)
       done

@@ -19,6 +19,7 @@ import { getFileExt } from '@main/utils/legacyFile'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import {
+  imageExts,
   knowledgeFileProcessingExts,
   type PosixRelativeFilePath,
   resolvePosixRelativeSegments
@@ -31,6 +32,7 @@ const logger = loggerService.withContext('Knowledge:PathStorage')
 // `needsFileProcessing` (sourcePlanning) uses. Sharing it keeps import-time name
 // selection and scheduling in agreement — were they to diverge, a name chosen at
 // import could collide with the artifact a later processing job writes.
+const KNOWLEDGE_IMAGE_EXT_SET = new Set<string>(imageExts)
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 /**
@@ -233,10 +235,8 @@ export function needsProcessedArtifactReservation(
   fileProcessorId: string | null | undefined,
   relativePath: string
 ): boolean {
-  if (!fileProcessorId) {
-    return false
-  }
-  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
+  const ext = getFileExt(relativePath).toLowerCase()
+  return KNOWLEDGE_IMAGE_EXT_SET.has(ext) || Boolean(fileProcessorId && KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext))
 }
 
 /**

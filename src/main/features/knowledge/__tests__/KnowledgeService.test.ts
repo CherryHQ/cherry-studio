@@ -1132,6 +1132,36 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
   })
 
+  it.each([null, 'mineru', 'doc2x'])(
+    'schedules images with the global OCR default, not base processor %s',
+    async (processor) => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: processor }))
+      knowledgeItemGetByIdMock.mockReturnValueOnce(
+        createFileItem('file-1', 'kb-1', resolvePath('/docs/source.png'), 'processing')
+      )
+      const done = createDeferred<SettledFileProcessingTask>()
+      fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
+
+      await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+
+      expect(fileProcessingStartTaskMock).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.png') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
+        context: { dataId: 'file-1' }
+      })
+      expect(enqueueMock).not.toHaveBeenCalled()
+      done.resolve(completedTask())
+      await flushMicrotasks()
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.check-file-processing-result',
+        expect.objectContaining({ processedRelativePath: 'source.md' }),
+        expect.anything()
+      )
+    }
+  )
+
   it("checks a copied document's file-processing result once its task settles, without polling", async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', resolvePath('/docs/source.pdf'), 'processing')
