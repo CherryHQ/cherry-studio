@@ -17,6 +17,18 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
+export const KnowledgeCitationTargetSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('available'),
+    filePath: AbsoluteFilePathSchema,
+    page: z.number().int().positive().optional(),
+    excerpt: z.string()
+  }),
+  z.strictObject({ status: z.literal('invalid') }),
+  z.strictObject({ status: z.literal('unavailable') })
+])
+export type KnowledgeCitationTarget = z.infer<typeof KnowledgeCitationTargetSchema>
+
 /**
  * Knowledge IPC schemas — caller-facing runtime operations on knowledge bases and
  * their items, each delegating to the stateful KnowledgeService in main.
@@ -80,6 +92,16 @@ export const knowledgeRequestSchemas = {
   'knowledge.get_file_path': defineRoute({
     input: z.strictObject({ itemId: z.string().trim().min(1) }),
     output: AbsoluteFilePathSchema
+  }),
+  'knowledge.resolve_citation': defineRoute({
+    input: z.strictObject({
+      baseId: baseIdSchema,
+      conceptId: z.string().min(1),
+      id: z.string().min(1),
+      charStart: z.number().int().nonnegative().optional(),
+      charEnd: z.number().int().nonnegative().optional()
+    }),
+    output: KnowledgeCitationTargetSchema
   }),
   'knowledge.list_item_chunks': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, itemId: z.string().trim().min(1) }),

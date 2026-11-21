@@ -1,7 +1,7 @@
 import './pdfViewer.css'
 import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
 import { AnnotationMode, getDocument, PDFWorker, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
-import { EventBus, PDFLinkService, type PDFPageView, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import { EventBus, PDFFindController, PDFLinkService, type PDFPageView, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -520,6 +520,8 @@ export default function PdfFilePreview({
 
     const eventBus = new EventBus()
     const linkService = new PDFLinkService({ eventBus })
+    const citation = options?.pdf?.citation
+    const findController = citation ? new PDFFindController({ eventBus, linkService }) : undefined
     const viewerAbortController = new AbortController()
     let pdfViewer: PdfJsViewer
     const isCurrent = () => pdfViewerRef.current === pdfViewer && isCurrentDocument?.() !== false
@@ -530,6 +532,7 @@ export default function PdfFilePreview({
         viewer: viewerElement,
         eventBus,
         linkService,
+        ...(findController ? { findController } : {}),
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE,
         ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
@@ -753,6 +756,31 @@ export default function PdfFilePreview({
             zoomIntentRef.current = { value: DEFAULT_PDF_SCALE, width: container.clientWidth }
             pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
           }
+          if (citation && !position) {
+            if (!Number.isSafeInteger(citation.page) || citation.page < 1 || citation.page > documentProxy.numPages) {
+              logger.warn('Citation page is outside the source document')
+            } else {
+              pdfViewer.currentPageNumber = citation.page
+              if (citation.excerpt.trim()) {
+                // PDFViewer initializes its find controller after the first
+                // rendered page. Dispatching earlier races that reset.
+                setStatus('ready')
+                await pdfViewer.onePageRendered
+                await Promise.resolve()
+                if (!isCurrent()) return
+                eventBus.dispatch('find', {
+                  source: pdfViewer,
+                  type: '',
+                  query: citation.excerpt.trim(),
+                  caseSensitive: false,
+                  entireWord: false,
+                  highlightAll: true,
+                  findPrevious: false,
+                  matchDiacritics: false
+                })
+              }
+            }
+          }
           syncBackground()
           syncPreviewControls()
           restoredViewerRef.current = pdfViewer
@@ -794,6 +822,10 @@ export default function PdfFilePreview({
       clearPinchWheelTimers()
       detachTouchPinch()
       if (touchPinchFrame !== null) window.cancelAnimationFrame(touchPinchFrame)
+      if (findController) {
+        // pdf.js accepts null to reset; its published types omit that overload.
+        ;(findController.setDocument as (document: PDFDocumentProxy | null) => void)(null)
+      }
       detachDocument(pdfViewer)
       pdfViewer.cleanup()
       if (pdfViewerRef.current === pdfViewer) {
@@ -804,7 +836,16 @@ export default function PdfFilePreview({
         linkServiceRef.current = null
       }
     }
-  }, [applyViewerBackground, documentProxy, sourceId, focusContainer, logger, failDocument, isCurrentDocument])
+  }, [
+    applyViewerBackground,
+    documentProxy,
+    sourceId,
+    focusContainer,
+    logger,
+    failDocument,
+    isCurrentDocument,
+    options?.pdf?.citation
+  ])
 
   const hasPages = status === 'ready' && pageCount > 0
 

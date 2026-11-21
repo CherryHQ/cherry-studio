@@ -31,6 +31,33 @@ import {
 afterEach(() => vi.restoreAllMocks())
 
 describe('searchKnowledge', () => {
+  it('keeps citation identity across calls and moved chunks, while retaining location', async () => {
+    const hit = {
+      pageContent: 'evidence',
+      chunkId: 'unit-old',
+      score: 0.9,
+      conceptId: 'paper.pdf',
+      charStart: 0,
+      charEnd: 8,
+      page: 1
+    }
+    knowledgeSearchMock
+      .mockResolvedValueOnce([hit])
+      .mockResolvedValueOnce([{ ...hit, chunkId: 'unit-new', charStart: 20, charEnd: 28, page: 2 }])
+    const first = await searchKnowledge('q', ['base1'], [])
+    const second = await searchKnowledge('q', ['base1'], [])
+    expect(Array.isArray(first) && Array.isArray(second) && first[0].id).toBe(Array.isArray(second) && second[0].id)
+    expect(Array.isArray(second) && second[0]).toMatchObject({ page: 2, charStart: 20, charEnd: 28 })
+  })
+
+  it('does not collapse identical text from distinct bases', async () => {
+    const hit = { pageContent: 'shared evidence', score: 0.9, conceptId: 'paper.pdf' }
+    knowledgeSearchMock.mockResolvedValueOnce([hit]).mockResolvedValueOnce([hit])
+    const result = await searchKnowledge('q', ['base1', 'base2'], [])
+    expect(result).toHaveLength(2)
+    if (Array.isArray(result)) expect(result[0].id).not.toBe(result[1].id)
+  })
+
   it('tags each hit with the base it came from', async () => {
     // conceptId is base-relative, so without baseId two bases' `README.md` are
     // indistinguishable downstream — and kb_read needs the baseId to follow a hit up.

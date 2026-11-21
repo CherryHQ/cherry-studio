@@ -19,6 +19,7 @@ export interface RebuildMaterialUnitInput {
   unitIndex: number
   charStart: number
   charEnd: number
+  page?: number
 }
 
 export interface RebuildMaterialEmbeddingInput {
@@ -84,6 +85,7 @@ export interface KnowledgeSearchUnit {
   title: string | null
   charStart: number
   charEnd: number
+  page?: number
   text: string
 }
 
@@ -99,6 +101,9 @@ export interface KnowledgeIndexSearchInput {
 
 /** One search hit. `score` is higher-is-better; its semantics depend on `mode`. */
 export interface KnowledgeIndexSearchMatch {
+  charStart?: number
+  charEnd?: number
+  page?: number
   unitId: string
   materialId: string
   unitIndex: number

@@ -33,9 +33,17 @@ export default function ElectronFilePreview({
   metadata,
   metadataRequest,
   refreshKey,
+  pdfCitation,
   onSelectionReference
 }: FilePreviewPluginProps) {
   const { i18n, t } = useTranslation()
+  const options = useMemo<PreviewOptions>(
+    () => ({
+      ...previewOptions,
+      ...(pdfCitation ? { pdf: { citation: pdfCitation } } : {})
+    }),
+    [pdfCitation]
+  )
   const sourceMetadata = metadataRequest ?? metadata
   const source = useMemo(
     () => createElectronPreviewSource(filePath, fileName, sourceMetadata),
@@ -86,7 +94,7 @@ export default function ElectronFilePreview({
       refreshKey={metadataRequest ? undefined : refreshKey}
       locale={i18n.language}
       resources={resources}
-      options={previewOptions}
+      options={options}
       onSelection={onSelectionReference ? onSelection : undefined}
       onDiagnostic={onDiagnostic}
       onRequestOpen={onRequestOpen}

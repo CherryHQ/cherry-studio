@@ -38,7 +38,11 @@ vi.mock('@vectorstores/readers/csv', () => ({ CSVReader: class MockCSVReader {} 
 vi.mock('@vectorstores/readers/docx', () => ({ DocxReader: class MockDocxReader {} }))
 vi.mock('@vectorstores/readers/json', () => ({ JSONReader: class MockJSONReader {} }))
 vi.mock('@vectorstores/readers/markdown', () => ({ MarkdownReader: class MockMarkdownReader {} }))
-vi.mock('@vectorstores/readers/pdf', () => ({ PDFReader: class MockPDFReader {} }))
+vi.mock('@vectorstores/readers/pdf', () => ({
+  PDFReader: class MockPDFReader {
+    loadData = loadDataMock
+  }
+}))
 
 // The URL reader reads its snapshot file verbatim (minus the cherry
 // frontmatter) instead of going through a vectorstores reader.
@@ -80,6 +84,24 @@ describe('knowledge reader metadata', () => {
     expect(documents[0]?.metadata).toEqual({
       source: resolvePath('/tmp/original.txt')
     })
+  })
+
+  it('keeps reader page boundaries while stripping unrelated provider metadata', async () => {
+    loadDataMock.mockResolvedValueOnce([
+      { text: 'page content', metadata: { page_number: 4, private_field: 'discard' } }
+    ])
+    const documents = await loadFileDocuments({
+      id: 'file-item-1',
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'file',
+      data: { source: resolvePath('/tmp/paper.pdf'), relativePath: 'paper.pdf' as PosixRelativeFilePath },
+      status: 'processing',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    })
+    expect(documents[0].metadata).toEqual({ source: resolvePath('/tmp/paper.pdf'), page_number: 4 })
   })
 
   it('reads the url snapshot verbatim minus its cherry frontmatter and tags the source', async () => {

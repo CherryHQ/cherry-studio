@@ -49,6 +49,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       throw error
     }
   },
+  'knowledge.resolve_citation': async ({ baseId, conceptId, id, charStart, charEnd }) =>
+    application.get('KnowledgeService').resolveCitation(baseId, conceptId, id, { charStart, charEnd }),
   'knowledge.list_item_chunks': async ({ baseId, itemId }) =>
     application.get('KnowledgeService').listItemChunks(baseId, itemId)
 }

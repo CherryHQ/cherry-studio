@@ -31,6 +31,12 @@ export interface Citation {
   content?: string
   showFavicon?: boolean
   type?: string
+  baseId?: string
+  sourceId?: string
+  conceptId?: string
+  page?: number
+  charStart?: number
+  charEnd?: number
   metadata?: Record<string, any>
 }
 

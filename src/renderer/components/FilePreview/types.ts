@@ -16,6 +16,7 @@ export interface FilePreviewPluginProps {
   /** Shares the host's current metadata request, including while an earlier preview is retained. */
   metadataRequest?: FilePreviewMetadataRequest
   refreshKey: number
+  pdfCitation?: { page: number; excerpt: string }
   type?: FilePreviewType
   /**
    * Reports the user's current selection as a structural document anchor

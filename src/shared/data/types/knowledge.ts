@@ -570,6 +570,9 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   metadata: KnowledgeChunkMetadataSchema,
   itemId: KnowledgeItemIdSchema.optional(),
   chunkId: z.string(),
+  charStart: z.number().int().nonnegative().optional(),
+  charEnd: z.number().int().nonnegative().optional(),
+  page: z.number().int().positive().optional(),
   // Concept ID (the material's relative path, OKF §2) and display title of the
   // source document, so a hit can be followed up with kb_read. Optional
   // because a not-yet-indexed snapshot has no relativePath to derive the id from.
