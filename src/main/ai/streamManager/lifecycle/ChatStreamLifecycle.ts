@@ -14,7 +14,7 @@ const logger = loggerService.withContext('ChatStreamLifecycle')
  */
 export function createChatStreamLifecycle(
   gracePeriodMs: number,
-  onConversationCompleted: (event: ConversationCompletedEvent) => void
+  onConversationCompleted: (event: ConversationCompletedEvent, stream: ActiveStream) => void
 ): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const completedAt = status === 'done' ? Date.now() : undefined
@@ -87,15 +87,22 @@ export function createChatStreamLifecycle(
               .trim()
           )
           .find((text) => text)
-        onConversationCompleted({
-          topicId: stream.topicId,
-          turnId: stream.turnId,
-          ...(stream.completedTaskCount && stream.completedTaskCount > 1
-            ? { completedTaskCount: stream.completedTaskCount }
-            : {}),
-          completedAt,
-          responseText
-        })
+        const memoryResponseIds = [...stream.executions.values()].flatMap((execution) =>
+          execution.anchorMessageId ? [execution.anchorMessageId] : []
+        )
+        onConversationCompleted(
+          {
+            ...(memoryResponseIds.length ? { memoryResponseIds } : {}),
+            topicId: stream.topicId,
+            turnId: stream.turnId,
+            ...(stream.completedTaskCount && stream.completedTaskCount > 1
+              ? { completedTaskCount: stream.completedTaskCount }
+              : {}),
+            completedAt,
+            responseText
+          },
+          stream
+        )
       }
     },
     canAttach() {

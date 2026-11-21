@@ -15,6 +15,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
 import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -126,6 +127,9 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
@@ -133,6 +137,7 @@ export class TopicService {
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
+    if (options.deleted) for (const id of entityIds) this.memoryAccessRevoked.fire(id)
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
     // and one entry can carry only one routeParams).
@@ -383,10 +388,11 @@ export class TopicService {
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   update(id: string, dto: UpdateTopicDto): Topic {
     const dbService = application.get('DbService')
+    let ownerChanged = false
 
     const topic = dbService.withWriteTx((tx) => {
       const [existing] = tx
-        .select({ id: topicTable.id })
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
@@ -407,6 +413,7 @@ export class TopicService {
           assertActiveAssistantTx(tx, dto.assistantId)
         }
         updates.assistantId = dto.assistantId
+        ownerChanged = existing.assistantId !== dto.assistantId
       }
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
@@ -415,6 +422,7 @@ export class TopicService {
       return rowToTopic(row)
     })
     this.notifyReadModelChange([id], 'projection')
+    if (ownerChanged) this.memoryAccessRevoked.fire(id)
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
@@ -423,14 +431,16 @@ export class TopicService {
 
   /** Atomically update a topic's assistant and global order. */
   move(id: string, dto: MoveTopicDto): Topic {
+    let ownerChanged = false
     const topic = application.get('DbService').withWriteTx((tx) => {
       const [target] = tx
-        .select({ id: topicTable.id })
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
         .all()
       if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+      ownerChanged = target.assistantId !== dto.assistantId
 
       assertActiveAssistantTx(tx, dto.assistantId)
 
@@ -465,6 +475,7 @@ export class TopicService {
       return rowToTopic(row)
     })
     this.notifyReadModelChange([id], 'projection')
+    if (ownerChanged) this.memoryAccessRevoked.fire(id)
     return topic
   }
 

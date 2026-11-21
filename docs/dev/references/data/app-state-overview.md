@@ -1,13 +1,14 @@
 ---
 description: app_state SQLite table for durable owner-private completion and reconciliation markers
 sources:
-  - src/main/ai/memory/memoryRuntimeState.ts
   - src/main/data/db/schemas/appState.ts
   - src/main/data/db/seeding/SeedRunner.ts
   - src/main/data/migration/migrationStatus.ts
   - src/main/services/file/tasks/contentMetadataGeneration.ts
   - src/main/ai/memory/MemoryMigrationService.ts
   - src/main/ai/memory/memoryDreamingState.ts
+  - src/main/ai/memory/memoryExtractionState.ts
+  - src/main/ai/memory/memoryRuntimeState.ts
 ---
 
 # App State System Overview
@@ -85,8 +86,9 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `migration_v2_status` | `migrationStatus.ts` (read-only) | historical conversion status  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
 | `memory:migration:<agentId>` | `MemoryMigrationService` | `{ version, status, sourceHash, files, backupId?, error? }` | Private FACT cutover marker. Files contain paths and before/after hashes, never bodies. Complete only after preservation checks; partial results remain inactive and are not replayed. |
-| `memory:dreaming:<scope>` | `MemoryDreamingService` via `memoryDreamingState` | `{ version, scope, generation, files, cursor, manual, manualAttempts, cancelled, lastScanAt, lastRunAt?, status, reason? }` | Per-file observed/processed hashes, first pending time, controlled-change count, revision, bounded attempts, and retry time. No bodies, model outputs, or chat history. Job history is not the progress owner. |
-
+| `memory:dreaming:<scope>` | `MemoryDreamingService` via `memoryDreamingState` | `{ version, scope, generation, files, cursor, manual, manualAttempts, cancelled, lastScanAt, lastRunAt?, lastResult?, status, reason? }` | Per-file observed/processed hashes, first pending time, controlled-change count, revision, bounded attempts, retry time, and last completed/failed/cancelled result. No bodies, model outputs, or chat history. Job history is not the progress owner. |
+| `memory:extraction:<kind>/<conversationId>` | `memoryExtractionState` | `{ version, entityKey, boundary, pending, settledAt, settled, batchEnd?, completed?, attempts, retryAt, skippedBudget, skippedSource, skippedConflict, excludedThrough?, prepared?, outcome, reason? }` | Durable admitted references and frozen batches. Completed positions retain only same-time IDs; no message or candidate bodies. Failed batches retain progress for limited retries. Prepared source/before/after hashes and optional per-file versions reconcile additions and corrections after restart. A partially applied correction revalidates known versions and retains unfinished targets. Invalid references and uncertain changed commits are retired separately from completion; new counters default to zero for existing records. An uncertain batch sets a source-time boundary with same-time IDs so later automatic windows cannot re-extract its evidence. |
+| `memory:extraction-boundary[:<sourceKey>]` | `memoryExtractionState` | timestamp | Global or caller/conversation invalidation boundary. Survives restart even without a pending task; generation off/on and revocation cannot revive old work. |
 | `memory:runtime:<conversation-and-scope>` | `memoryRuntimeState` | `{ version, protection }` | Initial memory isolation boundary. Stores only a protection-state fingerprint. Requests cannot overwrite it to accept stale history; missing records with protected state require a fresh conversation. |
 
 ## Related Source Code

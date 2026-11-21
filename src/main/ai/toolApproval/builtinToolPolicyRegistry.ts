@@ -109,6 +109,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 
+  memorySearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'memory_search', 'auto'),
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   listMcpSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'list_mcp_skills', 'auto'),
   loadMcpSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'load_mcp_skill', 'required'),

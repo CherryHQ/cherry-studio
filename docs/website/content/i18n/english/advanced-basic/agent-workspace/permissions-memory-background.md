@@ -35,15 +35,56 @@ Channels can individually override the Agent's permission mode. External chat en
 
 ### Agent Memory
 
-Agent memory follows the Agent, not a specific task or working directory. It is suitable for storing long-term preferences, project facts, technical decisions, and experience; one-time progress should be recorded as timestamped logs for retrieval by subsequent tasks.
+Memory has shared and private scopes. Shared memory is available to Assistants and Agents that have enabled access. It can contain personal preferences, facts, experiences, plans and constraints that help with future assistance. Private memory holds project and customer knowledge and follows one Agent across tasks and working directories.
 
-Tell the Agent directly in **Work**:
+#### Enable Shared Memory
+
+Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
+
+* **Generate memory in chats** extracts information from newly completed, authorized conversations.
+* **Automatically organize memory** organizes existing files, including duplicates and topic structure.
+
+Both global switches default to on. They use the application's default model and may consume its quota. Generation and organization can be switched independently, and **Organize now** runs organization manually.
+
+Also check **Shared memory** in each Agent or Assistant's **Basic** settings. Agents default to on, with the switch above **Heartbeat**; Assistants default to off. Shared conversation extraction applies to authorized desktop main sessions and persistent Assistant conversations.
+
+#### How Conversation Information Is Saved
+
+After eight successful turns in a conversation, the app extracts memory during idle time. Remaining new turns are processed daily at 21:00 in the system local time zone. Admitted pending work survives shutdown, and the next launch catches up missed batches. Each batch includes existing shared memory and up to sixteen user/assistant messages ending at its final reply. Long input retains newer complete turns and records budget skips; ambiguous context is not guessed. User quotes support saved facts; Assistant replies provide context. Multiple model batches receive an additional duplicate/conflict check. Model or network failures allow two retries ten minutes apart, then wait for the next 21:00; foreground chat only defers extraction. Disabling generation, clearing memory or revoking access discards affected pending work.
+
+Experiences and plans with future value are considered automatically, including one-time events and temporary circumstances. Saved information retains the original timing, conditions and certainty.
+
+You can also tell the Agent directly in **Work**:
 
 ```
 Remember: All externally published Chinese copy must use full-width punctuation and avoid exaggerated titles. Apply this rule to all future related tasks.
 ```
 
-When corrections are needed, explicitly state that the old information is no longer valid and request a memory update. Do not write passwords, API Keys, private identity information, or short-term irrelevant content into long-term memory.
+When correcting information, identify the old fact and what changed. Explicit user corrections of a uniquely matched old item replace the current fact and retain the old claim as changed, originally mistaken, or qualified by an explicit condition or exception. Ambiguous conflicts preserve the existing fact. Classic Pi and Claude Code support memory-file writes through native file tools, with permission and version checks. Pi Durable blocks native file tools from accessing managed memory files. Check the tool result to confirm a save; if saving is unconfirmed, read the file again before editing.
+
+Stopped or failed turns are omitted as whole turns within the same sixteen-message window. Ordinary Agent or Assistant configuration changes preserve pending extraction. If a save is uncertain and the file was subsequently changed, that batch is recorded as conflict-skipped while later batches continue. Foreground chat also defers organization without consuming its attempt allowance.
+
+#### When Saved Information Takes Effect
+
+Each topic or Agent session reads an entry snapshot on its first authorized request. Later turns and context compaction reuse that snapshot, with authorization and forgotten state checked again. Ordinary additions and edits load automatically in a new conversation.
+
+The model reads linked topic files as needed through the controlled tools available to the current runtime.
+
+#### Recall Earlier Conversations
+
+With shared memory enabled, supported Assistants, Pi and Claude Code can use `memory_search` to recall their own conversations. The prompt directs the model to search when necessary information is missing from the current context.
+
+Assistants search only their own topics. Agents search only their own desktop main conversations. The question currently being answered is excluded; earlier messages in the same conversation remain searchable. Each answer allows four calls, shared by search and message expansion. Results return original excerpts for the current answer, with truncation marked on longer content.
+
+#### View, Clear and Restore
+
+Shared-memory settings show the latest run result and provide **Restore backup** and **Clear global memory**. Both actions require confirmation. Clearing affects only shared-memory content and preserves Agent-private memory, legacy files and existing backups.
+
+{% hint style="warning" %}
+Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Ordinary corrections do not trigger forgetting protection; legacy protected or invalid states still require verification. If clearing was the latest operation and the shared memory still matches its version immediately after the clear, choose **Restore backup** to undo it. Content forgotten before the clear stays protected. If a file has a version conflict, recovery preserves its current contents.
+{% endhint %}
+
+The Agent's **Memory** tab shows the identity files `SOUL.md` and `USER.md`, legacy `memory/FACT.md`, and read-only `memory/JOURNAL.jsonl`. Active memory uses `MEMORY.md` and `.memories/` topics. After migration, the retained FACT file is read-only in this tab. JOURNAL is kept as history.
 
 ### Sub-agents, Workflows, and Background Commands
 
@@ -67,7 +108,7 @@ The team writes stable code conventions into Agent memory and creates detailed r
 
 <summary>Can memory replace a knowledge base? </summary>
 
-No. Memory is suitable for a small amount of stable facts and experience used across tasks; a knowledge base is suitable for systematic documentation and can control the Agent's retrieval scope.
+Each serves a different purpose: memory holds personal information or Agent-private knowledge for future answers; conversation recall finds earlier discussions; a Knowledge Base manages organized reference documents with a controlled retrieval scope.
 
 </details>
 
@@ -78,3 +119,5 @@ No. Memory is suitable for a small amount of stable facts and experience used ac
 First open the **Status** panel on the right to check if it is waiting for permissions, if background commands are still running, if subtasks have failed, or if the service provider is retrying. If you need deeper request details, open Developer Mode to view the call chain.
 
 </details>
+
+Explicit goals are saved with unresolved conditions, such as intending to compete without selecting a tournament. Temporal facts retain the source-message date without interpretation-timezone labels; delayed extraction does not reinterpret “next year” against its execution date. Known corrections refresh the current conversation entry and accompany historical recall so old conclusions are not reused.

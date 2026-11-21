@@ -2,13 +2,17 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import type { JobContext } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { MemoryScope } from '@shared/types/memory'
+import type { MemoryExtractionRange, MemoryScope } from '@shared/types/memory'
 
+import { agentMemoryAuthority, assistantMemoryAuthority } from './memoryAuthority'
 import type { MemoryMutationSource } from './memoryBackups'
 import { memoryDreamingJobHandler } from './memoryDreamingJobHandler'
 import { DreamingError, fitDreamingInputs, generateDreamingPlan, resolveDreamingModel } from './memoryDreamingModel'
@@ -22,12 +26,40 @@ import {
   writeDreamingState,
   type DreamingState
 } from './memoryDreamingState'
+import type { MemoryRevision } from './memoryEntries'
+import {
+  extractContextCandidates,
+  extractionBranch,
+  InvalidExtractionSource,
+  readExtractionRange,
+  readExtractionSource,
+  type ExtractionInput,
+  type ExtractionTicket
+} from './memoryExtraction'
+import {
+  completeExtraction,
+  deferExtraction,
+  enqueueExtraction,
+  extractionBoundary,
+  hasPendingExtractionInvalidation,
+  invalidateExtractions,
+  readExtractionState,
+  recordExtractionSubmission,
+  readyExtraction,
+  withReconciledExtractionHistory,
+  skipExtractionTurn,
+  skipExtractionTurns,
+  writeExtractionState,
+  type ExtractionState
+} from './memoryExtractionState'
 import { MEMORY_ENTRY, MemoryError, memoryHash } from './memoryFiles'
 import type { MemorySession } from './MemoryService'
-import type { MemoryCommitResult, MemoryRead } from './MemoryStore'
+import type { MemoryCommitResult, MemoryRead, MemoryMutation } from './MemoryStore'
+import { anchorMemoryTime } from './memoryTime'
 
 const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
+const GENERATION_KEY = 'feature.memory.generation.enabled'
 const manualReady = (state: DreamingState, now: number) =>
   state.manual &&
   (state.manualAttempts === 0 || Object.values(state.files).some((file) => file.attempts < 2 && file.retryAt <= now))
@@ -47,14 +79,19 @@ export class MemoryDreamingService extends BaseService {
   private readonly work = createInFlightWorkTracker()
   private stopped = true
   private epoch = 0
-  private active?: { scope: MemoryScope; controller: AbortController }
+  private active?: { scope: MemoryScope; controller: AbortController; extraction?: ExtractionTicket }
+  private extractionBoundary = Date.now()
+  private readonly sourceBoundaries = new Map<string, number>()
 
   protected onInit(): void {
     application.get('JobManager').registerHandler('memory.dreaming', memoryDreamingJobHandler)
   }
 
-  protected override onReady(): void {
+  protected override async onReady(): Promise<void> {
+    await this.reconcileExtraction()
     this.stopped = false
+    this.extractionBoundary = extractionBoundary()
+    if (!application.get('PreferenceService').get(GENERATION_KEY)) this.resetExtraction()
     for (const state of readDreamingStates()) {
       state.generation++
       state.manual = false
@@ -78,13 +115,61 @@ export class MemoryDreamingService extends BaseService {
     )
     this.registerDisposable(
       agentService.onMemoryAccessRevoked((agentId) => {
+        this.resetExtraction(`agent/${agentId}`)
         if (!agentService.getAgent(agentId)) this.invalidate({ kind: 'private', agentId }, true)
+      })
+    )
+    this.registerDisposable(
+      agentService.onAgentUpdated(({ agentId, agent }) => {
+        if (agent.configuration?.shared_memory_enabled === false) this.resetExtraction(`agent/${agentId}`)
+      })
+    )
+    this.registerDisposable(assistantDataService.onMemoryAccessRevoked((id) => this.resetExtraction(`assistant/${id}`)))
+    this.registerDisposable(
+      topicService.onMemoryAccessRevoked((id) => this.resetExtraction(`memory:extraction:assistant/${id}`))
+    )
+    this.registerDisposable(
+      agentSessionService.onSessionUpdated(({ sessionId }) => {
+        try {
+          const session = agentSessionService.getConversationById(sessionId)
+          const key = `memory:extraction:agent/${sessionId}`
+          const state = readExtractionState(key)
+          if (state && state.entityKey !== `agent/${session.agentId}`) this.resetExtraction(key)
+        } catch {
+          this.resetExtraction(`memory:extraction:agent/${sessionId}`)
+        }
+      })
+    )
+    this.registerDisposable(
+      application.get('AiStreamManager').onMemoryResponsesCompleted((event) => {
+        for (const responseId of event.memoryResponseIds ?? [])
+          this.captureExtraction({ kind: 'assistant', topicId: event.topicId, responseId })
+      })
+    )
+    this.registerDisposable(
+      application.get('AgentSessionRuntimeService').onTurnTerminal((event) => {
+        if (event.status === 'success' && event.boundary === 'turn' && event.memoryUserMessageId)
+          this.captureExtraction({
+            kind: 'agent',
+            sessionId: event.sessionId,
+            userMessageId: event.memoryUserMessageId,
+            responseId: event.assistantMessageId
+          })
+      })
+    )
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange(GENERATION_KEY, (enabled) => {
+        this.resetExtraction()
+        if (enabled) this.wake()
       })
     )
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange(AUTO_KEY, (enabled) => {
         if (!enabled) {
-          for (const state of readDreamingStates()) this.invalidate(state.scope, false)
+          for (const state of readDreamingStates()) {
+            if (this.active?.extraction && state.scope.kind === 'shared') continue
+            this.invalidate(state.scope, false)
+          }
         } else this.wake()
       })
     )
@@ -119,6 +204,15 @@ export class MemoryDreamingService extends BaseService {
         catchUpPolicy: { kind: 'skip-missed' }
       })
     }
+    if (!jobScheduleService.getByTypeAndName('memory.dreaming', 'extraction-daily')) {
+      application.get('JobManager').registerJobSchedule({
+        type: 'memory.dreaming',
+        name: 'extraction-daily',
+        trigger: { kind: 'cron', expr: '0 21 * * *' },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 }
+      })
+    }
     this.wake()
   }
 
@@ -138,7 +232,12 @@ export class MemoryDreamingService extends BaseService {
   request(scope: MemoryScope): void {
     this.assertScope(scope)
     const state = readDreamingState(scope)
-    if (this.active && memoryScopeKey(this.active.scope) === memoryScopeKey(scope)) return
+    if (
+      this.active &&
+      !this.active.controller.signal.aborted &&
+      memoryScopeKey(this.active.scope) === memoryScopeKey(scope)
+    )
+      return
     state.manual = true
     state.manualAttempts = 0
     state.cancelled = false
@@ -153,20 +252,160 @@ export class MemoryDreamingService extends BaseService {
   }
 
   cancel(scope: MemoryScope): void {
+    if (scope.kind === 'shared') this.resetExtraction()
     this.invalidate(scope, true)
+  }
+
+  previewExtraction(range: MemoryExtractionRange, assertCaller: () => undefined) {
+    // No persisted body, cursor advancement or write capability until forgetting is supported.
+    const epoch = this.epoch
+    const boundary = this.extractionBoundary
+    const generation = readDreamingState({ kind: 'shared' }).generation
+    return this.work.track(
+      this.queue.runExclusive(async () => {
+        const scope = { kind: 'shared' } as const
+        const controller = new AbortController()
+        let session: MemorySession | undefined
+        let revoke: { dispose(): void } | undefined
+        assertCaller()
+        this.assertScope(scope)
+        if (!application.get('PreferenceService').get(GENERATION_KEY)) throw new DreamingError('unavailable')
+        if (!(await this.reconcileExtraction())) throw new DreamingError('unavailable')
+        const initial = readExtractionSource(range.source)
+        const currentBoundary = () =>
+          Math.max(
+            boundary,
+            extractionBoundary(),
+            extractionBoundary(initial.key),
+            extractionBoundary(initial.entityKey)
+          )
+        const minimum = currentBoundary()
+        const assertActive = (): undefined => {
+          assertCaller()
+          this.assertScope(scope)
+          controller.signal.throwIfAborted()
+          initial.authority.assertAuthorized()
+          if (
+            this.epoch !== epoch ||
+            this.extractionBoundary !== boundary ||
+            readDreamingState(scope).generation !== generation ||
+            !application.get('PreferenceService').get(GENERATION_KEY) ||
+            this.foregroundBusy() ||
+            hasPendingExtractionInvalidation() ||
+            currentBoundary() !== minimum
+          )
+            throw new DOMException('Memory preview invalidated', 'AbortError')
+          return undefined
+        }
+        assertActive()
+        const readRange = () => {
+          const state = readExtractionState(initial.key)
+          const admissions = new Map(
+            [...(state?.recent ?? []), ...(state?.pending ?? [])]
+              .filter((item) => item.inputHash)
+              .map((item) => [item.input.responseId, item])
+          )
+          return readExtractionRange(range, minimum, false, undefined, admissions)
+        }
+        const source = readRange()
+        const assertCurrent = (): undefined => {
+          assertActive()
+          if (readRange().hash !== source.hash) throw new DreamingError('conflict')
+          return undefined
+        }
+        const ticket: ExtractionTicket = {
+          input: initial.input,
+          entityKey: initial.entityKey,
+          key: initial.key,
+          messageId: initial.messageId,
+          createdAt: initial.createdAt,
+          hash: initial.hash
+        }
+        this.active = { scope, controller, extraction: ticket }
+        try {
+          revoke = initial.authority.onRevoked?.(() => controller.abort('source-revoked'))
+          session = application.get('MemoryService').open(
+            { scope, assertAuthorized: assertCurrent },
+            'extraction',
+            source.messages.map((message) => ({
+              kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+              conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+              messageId: message.id,
+              sourceVersion: message.version
+            })),
+            Math.min(...source.messages.map((message) => message.createdAt))
+          )
+          const paths = await session.list()
+          if (paths.length > 40) throw new DreamingError('budget')
+          const files: MemoryRead[] = []
+          let bytes = 0
+          for (const path of paths) {
+            const file = await session.read(path)
+            bytes += Buffer.byteLength(file.content ?? '', 'utf8')
+            if (bytes > 32_000) throw new DreamingError('budget')
+            files.push(file)
+          }
+          const result = await extractContextCandidates(
+            source,
+            files.map(({ path, hash, content }) => ({ path, hash, content })),
+            controller.signal,
+            async () => {
+              if (!(await this.reconcileExtraction())) throw new DreamingError('unavailable')
+              await session!.validateModelReads()
+              return assertCurrent()
+            }
+          )
+          if (JSON.stringify(await session.list()) !== JSON.stringify(paths)) throw new DreamingError('conflict')
+          for (const file of files)
+            if ((await session.read(file.path)).hash !== file.hash) throw new DreamingError('conflict')
+          assertCurrent()
+          return result
+        } catch (error) {
+          if (controller.signal.aborted) throw new DOMException('Memory preview interrupted', 'AbortError')
+          throw error
+        } finally {
+          revoke?.dispose()
+          session?.dispose()
+          this.active = undefined
+        }
+      })
+    )
+  }
+
+  private async reconcileExtraction(): Promise<boolean> {
+    try {
+      await withReconciledExtractionHistory(async () => {
+        this.extractionBoundary = extractionBoundary()
+      })
+      return true
+    } catch (error) {
+      logger.warn('Shared memory extraction is waiting for recovery reconciliation', { error })
+      return false
+    }
   }
 
   execute(ctx: JobContext<Record<string, never>>): Promise<unknown> {
     return this.work.track(
       this.queue.runExclusive(async () => {
         ctx.signal.throwIfAborted()
-        if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        if (this.stopped || application.isQuitting || this.foregroundBusy()) return { deferred: true }
+        const reconciled =
+          application.get('PreferenceService').get(GENERATION_KEY) && (await this.reconcileExtraction())
+        ctx.signal.throwIfAborted()
+        if (this.stopped || application.isQuitting || this.foregroundBusy()) return { deferred: true }
         const states = new Map(readDreamingStates().map((state) => [memoryScopeKey(state.scope), state]))
         const scopes: MemoryScope[] = [
           { kind: 'shared' },
           ...agentService.listAgents().agents.map((agent): MemoryScope => ({ kind: 'private', agentId: agent.id }))
         ]
         const now = Date.now()
+        if (
+          application.get('PreferenceService').get(GENERATION_KEY) &&
+          ![...states.values()].some((state) => manualReady(state, now))
+        ) {
+          const pending = reconciled && readyExtraction()
+          if (pending) return this.extract(pending, ctx)
+        }
         const automatic = application.get('PreferenceService').get(AUTO_KEY)
         const candidates = scopes
           .map((scope) => states.get(memoryScopeKey(scope)) ?? readDreamingState(scope))
@@ -199,7 +438,7 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private assertScope(scope: MemoryScope): void {
-    if (this.stopped || (scope.kind === 'private' && !agentService.getAgent(scope.agentId)))
+    if (this.stopped || application.isQuitting || (scope.kind === 'private' && !agentService.getAgent(scope.agentId)))
       throw new DOMException('Memory maintenance is unavailable', 'AbortError')
   }
 
@@ -228,6 +467,9 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private recordChanges(scope: MemoryScope, source: MemoryMutationSource, result: MemoryCommitResult): void {
+    if (scope.kind === 'shared' && (source === 'clear' || source === 'recovery')) {
+      this.extractionBoundary = extractionBoundary()
+    }
     if (source === 'dreaming') return
     const state = readDreamingState(scope)
     for (const file of result.files) {
@@ -236,7 +478,7 @@ export class MemoryDreamingService extends BaseService {
       state.files[file.path] = {
         ...previous,
         observedHash: file.hash,
-        changes: (previous?.changes ?? 0) + Number(source === 'controlled'),
+        changes: (previous?.changes ?? 0) + Number(source === 'controlled' || source === 'extraction'),
         revision: (previous?.revision ?? 0) + 1,
         pendingSince: previous?.pendingSince ?? Date.now(),
         reason: undefined,
@@ -250,6 +492,465 @@ export class MemoryDreamingService extends BaseService {
     if (Object.values(state.files).some((file) => file.changes >= 10)) this.wake()
   }
 
+  private resetExtraction(sourceKey?: string): void {
+    if (sourceKey) this.sourceBoundaries.set(sourceKey, Date.now())
+    else this.extractionBoundary = Date.now()
+    invalidateExtractions(sourceKey)
+    const ticket = this.active?.extraction
+    if (ticket && (!sourceKey || ticket.entityKey === sourceKey || ticket.key === sourceKey))
+      this.active?.controller.abort('source-invalidated')
+  }
+
+  authorizeSubmission(kind: 'assistant' | 'agent', conversationId: string, ownerId: string) {
+    const submittedAt = Date.now()
+    const entityKey = `${kind}/${ownerId}`
+    const key = `memory:extraction:${kind}/${conversationId}`
+    try {
+      if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
+      const turn = { assertActive: (): undefined => undefined, isHeadless: () => false }
+      const authority =
+        kind === 'assistant'
+          ? assistantMemoryAuthority({ kind: 'conversation', topicId: conversationId, assistantId: ownerId }, turn)
+          : agentMemoryAuthority(conversationId, 'shared', turn)
+      return (messageId: string, parts: readonly unknown[]) => {
+        try {
+          if (
+            this.stopped ||
+            !application.get('PreferenceService').get(GENERATION_KEY) ||
+            submittedAt <= Math.max(this.extractionBoundary, extractionBoundary(key), extractionBoundary(entityKey))
+          )
+            return
+          authority.assertAuthorized()
+          recordExtractionSubmission(
+            key,
+            entityKey,
+            messageId,
+            memoryHash(Buffer.from(JSON.stringify(parts))),
+            this.extractionBoundary,
+            submittedAt
+          )
+        } catch (error) {
+          logger.debug('Memory submission was not admitted', { error })
+        }
+      }
+    } catch {
+      return undefined
+    }
+  }
+
+  private captureExtraction(input: ExtractionInput): void {
+    if (this.stopped || !application.get('PreferenceService').get(GENERATION_KEY)) return
+    try {
+      const resolved = readExtractionSource(input, true)
+      const admission = readExtractionState(resolved.key)
+      const source: ExtractionTicket = {
+        input,
+        entityKey: resolved.entityKey,
+        key: resolved.key,
+        messageId: resolved.messageId,
+        // The placeholder row can predate the first submission of its actual body.
+        createdAt:
+          admission?.submittedAt[resolved.messageId] ??
+          admission?.pending.find(
+            (ticket) => ticket.messageId === resolved.messageId && ticket.inputHash === resolved.inputHash
+          )?.createdAt ??
+          resolved.createdAt,
+        inputHash: resolved.inputHash,
+        hash: resolved.hash
+      }
+      if (
+        source.createdAt <=
+        Math.max(
+          this.extractionBoundary,
+          this.sourceBoundaries.get(source.entityKey) ?? 0,
+          this.sourceBoundaries.get(source.key) ?? 0
+        )
+      )
+        return
+      const firstPending = readExtractionState(source.key)?.pending[0]?.messageId ?? source.messageId
+      if (!enqueueExtraction(source, this.extractionBoundary, extractionBranch(input, firstPending))) return
+      this.wake()
+    } catch {
+      // Ineligible or deleted conversations are not extraction sources.
+    }
+  }
+
+  private readBatch(state: ExtractionState) {
+    const end = state.pending.findIndex((item) => item.messageId === state.batchEnd)
+    if (end < 0) throw new DreamingError('conflict')
+    const ticket = state.pending[end]
+    const admissions = new Map(
+      [...state.recent, ...state.pending.slice(0, end + 1)]
+        .filter((item) => item.inputHash)
+        .map((item) => [item.input.responseId, item])
+    )
+    const source = readExtractionRange(
+      { source: ticket.input, fromMessageId: '' },
+      Math.max(
+        this.extractionBoundary,
+        this.sourceBoundaries.get(ticket.entityKey) ?? 0,
+        this.sourceBoundaries.get(ticket.key) ?? 0,
+        extractionBoundary(ticket.key),
+        extractionBoundary(ticket.entityKey),
+        state.boundary
+      ),
+      true,
+      state.excludedThrough,
+      admissions
+    )
+    const included = new Set(source.messages.filter((message) => message.role === 'user').map((message) => message.id))
+    const skippedBudget = state.pending.slice(0, end + 1).filter((item) => !included.has(item.messageId)).length
+    return { source, ticket, skippedBudget }
+  }
+
+  private async extract(
+    pending: { key: string; state: ExtractionState },
+    ctx: JobContext<Record<string, never>>
+  ): Promise<unknown> {
+    let batch: ReturnType<MemoryDreamingService['readBatch']>
+    const end = pending.state.pending.findIndex((ticket) => ticket.messageId === pending.state.batchEnd)
+    const tickets = pending.state.pending.slice(0, end + 1)
+    try {
+      if (!tickets.length) throw new DreamingError('conflict')
+      const first = tickets[0]
+      const selected = extractionBranch(first.input, first.messageId, false)
+      const invalid: string[] = []
+      for (const ticket of tickets) {
+        if (!ticket.inputHash || !selected.has(ticket.input.responseId)) {
+          invalid.push(ticket.messageId)
+          continue
+        }
+        try {
+          if (readExtractionSource(ticket.input, true).hash !== ticket.hash) invalid.push(ticket.messageId)
+        } catch (error) {
+          if (!(error instanceof InvalidExtractionSource)) throw error
+          invalid.push(ticket.messageId)
+        }
+      }
+      if (invalid.length) {
+        const skippedSource = skipExtractionTurns(pending.key, invalid, 'source')
+        pending.state = readExtractionState(pending.key)!
+        if (!pending.state.batchEnd) return { saved: 0, skippedSource }
+      }
+      batch = this.readBatch(pending.state)
+    } catch (error) {
+      if (error instanceof InvalidExtractionSource) {
+        const skippedSource = skipExtractionTurns(
+          pending.key,
+          tickets.map((ticket) => ticket.messageId),
+          'source'
+        )
+        return { saved: 0, skippedSource }
+      }
+      if (error instanceof DreamingError && error.reason === 'budget' && pending.state.batchEnd) {
+        skipExtractionTurn(pending.key, pending.state.batchEnd)
+        return { saved: 0, skippedBudget: 1 }
+      }
+      deferExtraction(
+        pending.key,
+        pending.state.generation,
+        false,
+        error instanceof DreamingError ? error.reason : 'unavailable'
+      )
+      throw error
+    }
+    const { ticket, source } = batch
+    writeExtractionState(pending.key, pending.state)
+    const scope = { kind: 'shared' } as const
+    const controller = new AbortController()
+    const abort = () => controller.abort(ctx.signal.reason)
+    ctx.signal.addEventListener('abort', abort, { once: true })
+    this.active = { scope, controller, extraction: ticket }
+    const generation = readDreamingState(scope).generation
+    let session: MemorySession | undefined
+    let revoke: { dispose(): void } | undefined
+    const assertCurrent = (): undefined => {
+      ctx.signal.throwIfAborted()
+      controller.signal.throwIfAborted()
+      this.assertScope(scope)
+      if (!application.get('PreferenceService').get(GENERATION_KEY))
+        throw new DOMException('Memory generation is disabled', 'AbortError')
+      if (this.foregroundBusy()) throw new DOMException('Foreground work started', 'AbortError')
+      const current = readExtractionState(ticket.key)
+      if (
+        !current?.pending.some((item) => item.messageId === ticket.messageId) ||
+        current.generation !== pending.state.generation ||
+        current.batchEnd !== pending.state.batchEnd ||
+        current.pending[0].messageId !== pending.state.pending[0].messageId ||
+        this.readBatch(current).source.hash !== source.hash ||
+        !extractionBranch(ticket.input, source.messages[0].id).has(source.messages[0].id)
+      )
+        throw new DreamingError('conflict')
+      return undefined
+    }
+    try {
+      assertCurrent()
+      revoke = source.source.authority.onRevoked?.(() => controller.abort('source-revoked'))
+      session = application.get('MemoryService').open(
+        { scope, assertAuthorized: assertCurrent },
+        'extraction',
+        source.messages.map((message) => ({
+          kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+          conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+          messageId: message.id,
+          sourceVersion: message.version
+        })),
+        Math.min(...source.messages.map((message) => message.createdAt))
+      )
+      const paths = await session.list()
+      if (paths.length > 40) throw new DreamingError('budget')
+      const files: MemoryRead[] = []
+      let bytes = 0
+      for (const path of paths) {
+        const file = await session.read(path)
+        // A filtered view cannot authorize an append over protected entry metadata.
+        if (!file.receipt) throw new DreamingError('conflict')
+        bytes += Buffer.byteLength(file.content ?? '', 'utf8')
+        if (bytes > 32_000) throw new DreamingError('budget')
+        files.push(file)
+      }
+      const entry = files.find((file) => file.path === MEMORY_ENTRY)
+      if (!entry) throw new DreamingError('conflict')
+      const start = readDreamingState(scope)
+      start.status = 'running'
+      start.lastRunAt = Date.now()
+      start.reason = undefined
+      writeDreamingState(start)
+      const prepared = pending.state.prepared
+      const unfinished = new Set<string>()
+      const appliedFiles =
+        prepared?.files?.filter(
+          (item) => item.before !== item.after && files.find((file) => file.path === item.path)?.hash === item.after
+        ) ?? []
+      if (prepared) {
+        const sameSource = prepared.sourceHash === source.hash && prepared.end === ticket.messageId
+        const expected = prepared.files ?? [{ path: MEMORY_ENTRY, before: prepared.before, after: prepared.after }]
+        const allAfter = expected.every((item) => files.find((file) => file.path === item.path)?.hash === item.after)
+        if (sameSource && allAfter) {
+          completeExtraction(ticket.key, ticket.messageId, 'completed', batch.skippedBudget, pending.state.generation)
+          start.status = 'idle'
+          start.lastResult = { outcome: 'completed', finishedAt: Date.now() }
+          writeDreamingState(start)
+          return { recovered: true, saved: 0 }
+        }
+        const knownVersions = expected.every((item) => {
+          const hash = files.find((file) => file.path === item.path)?.hash
+          if (hash === item.before && hash !== item.after) unfinished.add(item.path)
+          return hash === item.before || hash === item.after
+        })
+        if (
+          !knownVersions ||
+          (!sameSource && expected.some((item) => files.find((file) => file.path === item.path)?.hash !== item.before))
+        ) {
+          const end = pending.state.pending.findIndex((item) => item.messageId === ticket.messageId)
+          const skippedConflict = skipExtractionTurns(
+            ticket.key,
+            pending.state.pending.slice(0, end + 1).map((item) => item.messageId),
+            'conflict'
+          )
+          start.status = 'failed'
+          start.reason = 'conflict'
+          start.lastResult = { outcome: 'failed', finishedAt: Date.now(), reason: 'conflict' }
+          writeDreamingState(start)
+          return { saved: 0, skippedConflict }
+        }
+      }
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const proposal = await extractContextCandidates(source, files, controller.signal, async () => {
+        await session!.validateModelReads()
+        return assertCurrent()
+      })
+      proposal.candidates = proposal.candidates.map((candidate) => ({
+        ...candidate,
+        text: anchorMemoryTime(candidate, source.messages, timeZone)
+      }))
+      const additions = [
+        ...new Set(
+          proposal.candidates
+            .filter((candidate) => candidate.action === 'add' && candidate.scope === 'personal')
+            .map((candidate) => candidate.text)
+        )
+      ].filter(
+        (text) => !files.some((file) => file.content?.includes(text) || file.content?.includes(JSON.stringify(text)))
+      )
+      const original = entry.content ?? ''
+      const content = additions.length
+        ? `${original}${original.endsWith('\n') || !original ? '' : '\n'}${additions.map((text) => `- ${JSON.stringify(text)}`).join('\n')}\n`
+        : original
+      const corrections = proposal.candidates.filter(
+        (candidate) => candidate.action === 'correct' && candidate.scope === 'personal'
+      )
+      const planned: Array<{ file: MemoryRead; mutation: MemoryMutation & { content: string } }> = []
+      for (const file of files) {
+        const revisions = new Map<string, MemoryRevision>()
+        for (const candidate of corrections) {
+          for (const reference of candidate.existing.filter((reference) => reference.path === file.path)) {
+            const previous = revisions.get(reference.quote)
+            if (previous && previous.text !== candidate.text) throw new DreamingError('output')
+            revisions.set(reference.quote, {
+              quote: reference.quote,
+              text: candidate.text,
+              reason: candidate.correction!,
+              recordedAt: new Date(
+                Math.max(
+                  ...candidate.evidence.map(
+                    (evidence) => source.messages.find((message) => message.id === evidence.messageId)!.createdAt
+                  )
+                )
+              ).toISOString(),
+              sources: candidate.evidence.map((evidence) => ({
+                kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+                conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+                messageId: evidence.messageId,
+                sourceVersion: evidence.version
+              }))
+            })
+          }
+        }
+        if (revisions.size)
+          planned.push({
+            file,
+            mutation: await session.prepareRevisions(
+              file.receipt,
+              [...revisions.values()],
+              file.path === MEMORY_ENTRY ? additions : []
+            )
+          })
+        else if (file.path === MEMORY_ENTRY && content !== original)
+          planned.push({ file, mutation: { kind: 'write', receipt: file.receipt, content } })
+      }
+      if (
+        appliedFiles.length &&
+        (planned.length !== unfinished.size || planned.some(({ file }) => !unfinished.has(file.path)))
+      )
+        throw new DreamingError('output')
+      await session.validateModelReads()
+      assertCurrent()
+      const progress = readExtractionState(ticket.key)!
+      const fileVersions = planned.map(({ file, mutation }) => ({
+        path: file.path,
+        before: file.hash,
+        after: memoryHash(Buffer.from(mutation.content))
+      }))
+      progress.prepared = {
+        end: ticket.messageId,
+        sourceHash: source.hash,
+        before: entry.hash,
+        after: memoryHash(
+          Buffer.from(planned.find(({ file }) => file.path === MEMORY_ENTRY)?.mutation.content ?? original)
+        ),
+        files: [...appliedFiles, ...fileVersions],
+        through: prepared?.through
+      }
+      writeExtractionState(ticket.key, progress)
+      const clearPrepared = () => {
+        const current = readExtractionState(ticket.key)
+        if (
+          current?.generation === pending.state.generation &&
+          current.prepared?.end === ticket.messageId &&
+          current.prepared.sourceHash === source.hash
+        ) {
+          current.prepared = appliedFiles.length ? prepared : undefined
+          writeExtractionState(ticket.key, current)
+        }
+      }
+      let result: MemoryCommitResult
+      try {
+        result = await session.commit(
+          planned.map(({ mutation }) => mutation),
+          async () => assertCurrent,
+          files.map((file) => file.receipt),
+          undefined,
+          paths
+        )
+      } catch (error) {
+        // MemoryStore returns per-file outcomes once writes start; rejection precedes the write phase.
+        clearPrepared()
+        throw error
+      }
+      const applied = result.files.some((file) => file.outcome === 'applied')
+      if (result.files.some((file) => file.outcome === 'conflict' || file.outcome === 'pending'))
+        throw new DreamingError('conflict')
+      if (result.error && !applied) {
+        clearPrepared()
+        throw new DreamingError('conflict')
+      }
+      if (
+        fileVersions.some(
+          (expected) =>
+            (result.files.find((file) => file.path === expected.path)?.hash ?? expected.before) !== expected.after
+        )
+      )
+        throw new DreamingError('conflict')
+      completeExtraction(
+        ticket.key,
+        ticket.messageId,
+        proposal.batches.map(({ outcome }) => outcome).join(','),
+        batch.skippedBudget,
+        pending.state.generation
+      )
+      const latest = readDreamingState(scope)
+      if (latest.generation === generation) {
+        latest.status = result.error ? 'failed' : 'idle'
+        latest.reason = result.error ? 'backup' : undefined
+        latest.lastResult = {
+          outcome: result.error ? 'failed' : 'completed',
+          finishedAt: Date.now(),
+          ...(result.error ? { reason: 'backup' as const } : {})
+        }
+        writeDreamingState(latest)
+      }
+      return {
+        extracted: result.files.filter((file) => file.outcome === 'applied').length,
+        saved: additions.length + corrections.length,
+        ...(result.error ? { warning: result.error } : {}),
+        skippedBudget: batch.skippedBudget,
+        outcomes: proposal.candidates.map(({ action }) => action),
+        batches: proposal.batches
+      }
+    } catch (error) {
+      const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
+      const cancelled =
+        application.isQuitting ||
+        (!timedOut &&
+          (controller.signal.aborted ||
+            ctx.signal.aborted ||
+            (error instanceof DOMException && error.name === 'AbortError')))
+      deferExtraction(
+        ticket.key,
+        pending.state.generation,
+        cancelled,
+        error instanceof DreamingError ? error.reason : 'unavailable'
+      )
+      const latest = readDreamingState(scope)
+      if (latest.generation === generation) {
+        latest.status = cancelled ? 'cancelled' : 'failed'
+        latest.reason =
+          error instanceof DreamingError
+            ? error.reason
+            : error instanceof MemoryError && error.code === 'backup-capacity'
+              ? 'backup'
+              : error instanceof MemoryError && error.code === 'limit'
+                ? 'budget'
+                : 'unavailable'
+        latest.lastResult = {
+          outcome: cancelled ? 'cancelled' : 'failed',
+          finishedAt: Date.now(),
+          reason: latest.reason
+        }
+        writeDreamingState(latest)
+      }
+      throw cancelled
+        ? new DOMException('Memory extraction interrupted', 'AbortError')
+        : new DreamingError(latest.reason ?? 'unavailable')
+    } finally {
+      revoke?.dispose()
+      session?.dispose()
+      ctx.signal.removeEventListener('abort', abort)
+      this.active = undefined
+    }
+  }
+
   private async organize(scope: MemoryScope, ctx: JobContext<Record<string, never>>): Promise<unknown> {
     const start = readDreamingState(scope)
     const generation = start.generation
@@ -260,6 +961,7 @@ export class MemoryDreamingService extends BaseService {
     this.active = { scope, controller }
     const revisions = new Map<string, number>()
     const attempts = new Map<string, number>()
+    let mayHaveWritten = false
     let readingFiles = false
     let attempted = false
     let inputs: MemoryRead[] = []
@@ -381,13 +1083,18 @@ export class MemoryDreamingService extends BaseService {
       } catch {
         throw new DreamingError('output')
       }
+      assertCurrent()
       const result = await session.commit(
         plan.mutations,
         async () => assertCurrent,
         [...plan.reads.values()].map((read) => read.receipt),
         undefined,
-        plan.deleted.size ? paths : undefined
+        plan.deleted.size ? paths : undefined,
+        () => {
+          mayHaveWritten = true
+        }
       )
+      mayHaveWritten &&= result.files.some((file) => file.outcome !== 'unchanged')
       const partial =
         !!result.error || result.files.some((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged')
       let checked = 0
@@ -429,7 +1136,7 @@ export class MemoryDreamingService extends BaseService {
       }
     } catch (error) {
       const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
-      const interrupted = !timedOut && (controller.signal.aborted || ctx.signal.aborted)
+      const interrupted = application.isQuitting || (!timedOut && (controller.signal.aborted || ctx.signal.aborted))
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
         if (error instanceof DreamingError)
@@ -440,7 +1147,9 @@ export class MemoryDreamingService extends BaseService {
             file.reason = 'budget'
           }
         const preempted = controller.signal.reason === 'foreground' && !ctx.signal.aborted
-        if (preempted && attempted) {
+        const quittingBeforeWrite =
+          (application.isQuitting || controller.signal.reason === 'stopped') && !mayHaveWritten
+        if ((preempted || quittingBeforeWrite) && attempted) {
           for (const read of inputs) {
             const file = latest.files[read.path]
             const previous = attempts.get(read.path)
@@ -461,7 +1170,7 @@ export class MemoryDreamingService extends BaseService {
         const retryable =
           attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
         latest.manual = start.manual && (preempted || retryable)
-        if (ctx.signal.aborted && !timedOut) {
+        if (ctx.signal.aborted && !timedOut && !quittingBeforeWrite) {
           latest.generation++
           latest.manual = false
           latest.cancelled = true
