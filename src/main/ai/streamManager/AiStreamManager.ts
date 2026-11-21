@@ -116,6 +116,8 @@ type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
   resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
+  /** In-process options (adds `signal`/`streamContinuation`); this request never crosses IPC. */
+  requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -1030,6 +1032,8 @@ export class AiStreamManager extends BaseService {
     source?: SourceSnapshot | null
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
+    /** `false` disables mid-stream resume (structured-output consumers cannot splice a continuation). */
+    streamContinuation?: boolean
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1054,11 +1058,12 @@ export class AiStreamManager extends BaseService {
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined || input.streamContinuation !== undefined
         ? {
             requestOptions: {
               ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
-              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
+              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {}),
+              ...(input.streamContinuation !== undefined ? { streamContinuation: input.streamContinuation } : {})
             }
           }
         : {})

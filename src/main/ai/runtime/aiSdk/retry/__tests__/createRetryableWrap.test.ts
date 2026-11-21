@@ -1,3 +1,4 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
-const { createRetryableWrap } = await import('../createRetryableWrap')
+const { bufferedActivityIntervalMs, createRetryableWrap } = await import('../createRetryableWrap')
 
 function makeApiError(statusCode: number): APICallError {
   return new APICallError({
@@ -369,11 +370,11 @@ describe('createRetryableWrap', () => {
     }
   })
 
-  it('does not retry a doStream error after content has already been emitted', async () => {
+  it('does not retry a doStream error after non-resumable content has been emitted', async () => {
     const streamError = makeApiError(429)
     const doStream = vi.fn().mockResolvedValue(
       streamResult([
-        { type: 'text-delta', id: 'text', delta: 'partial' },
+        { type: 'tool-input-start', id: 'call', toolName: 'search' },
         { type: 'error', error: streamError }
       ])
     )
@@ -388,8 +389,392 @@ describe('createRetryableWrap', () => {
 
     expect(doStream).toHaveBeenCalledOnce()
     expect(parts).toEqual([
-      expect.objectContaining({ type: 'text-delta', delta: 'partial' }),
+      expect.objectContaining({ type: 'tool-input-start' }),
       { type: 'error', error: streamError }
     ])
   })
+})
+
+it('shares the configured retry budget between pre-content errors and interrupted continuations', async () => {
+  vi.useFakeTimers()
+  try {
+    const doStream = vi.fn(async () => {
+      if (doStream.mock.calls.length % 3 !== 0) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'partial' },
+        { type: 'text-delta', id: 'partial', delta: 'x' },
+        { type: 'error', error: new Error('connection reset') }
+      ])
+    })
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const resultPromise = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    const result = await resultPromise
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+    expect(doStream.mock.calls.length).toBeLessThanOrEqual(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('isolates the retry budget for simultaneous operations and resets it for a later stream', async () => {
+  vi.useFakeTimers()
+  try {
+    const counts = new Map<string, number>()
+    const doStream = vi.fn(async (options: { prompt: unknown[] }) => {
+      const key = JSON.stringify(options.prompt)
+      const count = (counts.get(key) ?? 0) + 1
+      counts.set(key, count)
+      if (count % 3 !== 0) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'done' },
+        { type: 'text-end', id: 'a' }
+      ])
+    })
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(
+      makeFakeLanguageModel('primary', vi.fn(), doStream)
+    )
+    const a = model.doStream({ prompt: [] })
+    const b = model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'other' }] }] })
+    await vi.runAllTimersAsync()
+    await collectStream((await a).stream)
+    await collectStream((await b).stream)
+    expect(doStream).toHaveBeenCalledTimes(6)
+    const later = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    await collectStream((await later).stream)
+    expect(doStream).toHaveBeenCalledTimes(9)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('charges pre-content failures of a resumed request against the same budget', async () => {
+  vi.useFakeTimers()
+  try {
+    const doStream = vi.fn(async () => {
+      if (doStream.mock.calls.length > 1) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' },
+        { type: 'error', error: new Error('socket reset') }
+      ])
+    })
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(
+      makeFakeLanguageModel('primary', vi.fn(), doStream)
+    )
+    const result = await model.doStream({ prompt: [] })
+    const consuming = collectStream(result.stream).catch((error) => error)
+    await vi.runAllTimersAsync()
+    expect(await consuming).toBeInstanceOf(Error)
+    expect(doStream).toHaveBeenCalledTimes(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('resumes the locked OpenAI adapter after a 503 and an interrupted successful body', async () => {
+  vi.useFakeTimers()
+  try {
+    const requests: unknown[] = []
+    const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)))
+      if (requests.length === 1) return new Response(JSON.stringify({ error: { message: 'busy' } }), { status: 503 })
+      const text = requests.length === 2 ? 'Hello ' : 'world'
+      const chunk = (delta: object, finish_reason: string | null = null) =>
+        `data: ${JSON.stringify({ id: 'response', object: 'chat.completion.chunk', created: 1, model: 'test', choices: [{ index: 0, delta, finish_reason }] })}\n\n`
+      const body = chunk({ role: 'assistant', content: text })
+      let sent = false
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            if (!sent) {
+              sent = true
+              controller.enqueue(new TextEncoder().encode(body))
+            } else if (text === 'Hello ') controller.error(new Error('terminated'))
+            else {
+              controller.enqueue(new TextEncoder().encode(chunk({}, 'stop') + 'data: [DONE]\n\n'))
+              controller.close()
+            }
+          }
+        }),
+        { headers: { 'content-type': 'text/event-stream' } }
+      )
+    })
+    const adapter = createOpenAI({ apiKey: 'test-only', fetch }).chat('test')
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(adapter)
+    const resultPromise = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    const result = await resultPromise
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    const parts = await collecting
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(
+      parts
+        .filter((part: any) => part.type === 'text-delta')
+        .map((part: any) => part.delta)
+        .join('')
+    ).toBe('Hello world')
+    expect(parts).not.toContainEqual(expect.objectContaining({ type: 'error' }))
+    expect(requests[2]).toMatchObject({ messages: [{ role: 'assistant', content: 'Hello ' }] })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('does not resume an interrupted stream through a model fallback chain', async () => {
+  const interrupted = new Error('connection reset')
+  const primaryStream = vi.fn().mockResolvedValue(
+    streamResult([
+      { type: 'text-start', id: 'partial' },
+      { type: 'text-delta', id: 'partial', delta: 'partial answer' },
+      { type: 'error', error: interrupted }
+    ])
+  )
+  const fallbackStream = vi.fn().mockResolvedValue(streamResult([]))
+  const wrap = createRetryableWrap({
+    fallbacks: [fallbackOf(makeFakeLanguageModel('fallback', vi.fn(), fallbackStream))],
+    retryPolicy: policy({ maxAttempts: 2 })
+  })!
+  const model = wrap(makeFakeLanguageModel('primary', vi.fn(), primaryStream))
+
+  const result = await model.doStream({ prompt: [] })
+  const parts = await collectStream(result.stream)
+
+  expect(parts).toContainEqual({ type: 'error', error: interrupted })
+  expect(primaryStream).toHaveBeenCalledOnce()
+  expect(fallbackStream).not.toHaveBeenCalled()
+})
+
+describe('resuming with an API-key pool', () => {
+  const interruptedStream = () =>
+    streamResult([
+      { type: 'text-start', id: 'partial' },
+      { type: 'text-delta', id: 'partial', delta: 'partial ' },
+      { type: 'error', error: new Error('connection reset') }
+    ])
+
+  it('resumes on the key that produced the visible text and never hands it to another key', async () => {
+    vi.useFakeTimers()
+    try {
+      const keyA = vi
+        .fn()
+        .mockResolvedValueOnce(interruptedStream())
+        .mockResolvedValueOnce(
+          streamResult([
+            { type: 'text-start', id: 'cont' },
+            { type: 'text-delta', id: 'cont', delta: 'answer' },
+            { type: 'text-end', id: 'cont' }
+          ])
+        )
+      const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
+      const model = createRetryableWrap({
+        fallbacks: [],
+        apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
+        retryPolicy: policy({ maxAttempts: 2 })
+      })!(makeFakeLanguageModel('primary', vi.fn(), keyA))
+
+      const result = await model.doStream({ prompt: [] })
+      const collected = collectStream(result.stream)
+      await vi.runAllTimersAsync()
+      const parts = (await collected) as Array<{ type: string; delta?: string }>
+
+      expect(parts.filter((p) => p.type === 'text-delta').map((p) => p.delta)).toEqual(['partial ', 'answer'])
+      expect(keyA).toHaveBeenCalledTimes(2)
+      expect(keyBStream).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('surfaces the interruption when the pinned key rejects the continuation', async () => {
+    vi.useFakeTimers()
+    try {
+      const rejected = new APICallError({
+        message: 'rate limited',
+        url: 'https://api.test/v1',
+        requestBodyValues: {},
+        statusCode: 429,
+        isRetryable: false
+      })
+      const keyA = vi.fn().mockResolvedValueOnce(interruptedStream()).mockRejectedValue(rejected)
+      const keyBStream = vi.fn().mockResolvedValue(streamResult([]))
+      const model = createRetryableWrap({
+        fallbacks: [],
+        apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), keyBStream))],
+        retryPolicy: policy({ maxAttempts: 2 })
+      })!(makeFakeLanguageModel('primary', vi.fn(), keyA))
+
+      const result = await model.doStream({ prompt: [] })
+      const collected = collectStream(result.stream).catch((error) => error)
+      await vi.runAllTimersAsync()
+
+      expect(await collected).toBe(rejected)
+      expect(keyBStream).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+it('does not replay a settled retry status from a late buffered-activity heartbeat', async () => {
+  vi.useFakeTimers()
+  try {
+    const events: Array<{ state: string }> = []
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce(
+        streamResult([
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          }
+        ])
+      )
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      onRetryEvent: (event) => events.push(event)
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    const states = events.map((event) => event.state)
+    const settledAt = states.lastIndexOf('settled')
+    expect(settledAt).toBeGreaterThan(-1)
+    expect(states.slice(settledAt + 1)).not.toContain('retrying')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('shortens the buffered-activity heartbeat under a small idle timeout', () => {
+  expect(bufferedActivityIntervalMs()).toBe(5_000)
+  expect(bufferedActivityIntervalMs(120 * 60 * 1000)).toBe(5_000)
+  expect(bufferedActivityIntervalMs(1_600)).toBe(533)
+  expect(bufferedActivityIntervalMs(50)).toBe(100)
+})
+
+it('keeps emitting retry activity under a 1.6s idle timeout while a resumed attempt is buffered', async () => {
+  vi.useFakeTimers()
+  try {
+    const stamps: number[] = []
+    const replacement = new ReadableStream({
+      async start(controller) {
+        for (let i = 0; i < 30; i++) {
+          controller.enqueue({ type: 'text-delta', id: 'partial', delta: 'x' })
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+        controller.enqueue({
+          type: 'finish',
+          finishReason: { unified: 'stop', raw: 'stop' },
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        })
+        controller.close()
+      }
+    })
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce({ stream: replacement })
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      idleTimeoutMs: 1_600,
+      onRetryEvent: () => stamps.push(Date.now())
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    const gaps = stamps.slice(1).map((at, i) => at - stamps[i])
+    expect(gaps.length).toBeGreaterThan(0)
+    expect(Math.max(...gaps)).toBeLessThan(1_600)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('counts a throttled buffered delta as activity before the idle window closes', async () => {
+  vi.useFakeTimers()
+  try {
+    const stamps: number[] = []
+    let startedAt = 0
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const delta = { type: 'text-delta', id: 'partial', delta: 'x' } as const
+    // Pull-driven so the 0, 350 and 1800 ms offsets start at the first read, after the retry backoff.
+    let step = 0
+    const replacement = new ReadableStream({
+      async pull(controller) {
+        if (step === 0) startedAt = Date.now()
+        if (step === 1) await wait(350)
+        if (step === 2) await wait(1_450)
+        if (step < 3) {
+          controller.enqueue(delta)
+        } else {
+          controller.enqueue({
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          })
+          controller.close()
+        }
+        step++
+      }
+    })
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-start', id: 'partial' },
+          { type: 'text-delta', id: 'partial', delta: 'x' },
+          { type: 'error', error: new Error('connection reset') }
+        ])
+      )
+      .mockResolvedValueOnce({ stream: replacement })
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ maxAttempts: 2 }),
+      idleTimeoutMs: 1_600,
+      onRetryEvent: (event) => {
+        if (event.state !== 'settled') stamps.push(Date.now() - startedAt)
+      }
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const result = await model.doStream({ prompt: [] })
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+
+    // The 350 ms delta falls inside the throttle window. Without a trailing emit the idle timer's last
+    // signal is the first delta, 1800 ms before the third one, and a 1600 ms timeout closes the stream.
+    const gaps = stamps.slice(1).map((at, index) => at - stamps[index])
+    expect(Math.max(...gaps)).toBeLessThan(1_600)
+  } finally {
+    vi.useRealTimers()
+  }
 })

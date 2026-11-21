@@ -13,8 +13,13 @@
  * retry condition does not handle request-scope timeout or abort errors.
  *
  * Streaming caveat: ai-retry can only retry/fall back before the first
- * content chunk is emitted; mid-stream errors surface as stream errors.
+ * content chunk is emitted. Mid-stream interruptions of plain-text replies are
+ * resumed by `withStreamContinuation` (same retry budget); other mid-stream
+ * errors surface as stream errors.
  */
+
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
@@ -31,6 +36,7 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
+import { withStreamContinuation } from './streamContinuation'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -71,6 +77,18 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
+  /**
+   * Mid-stream resume of interrupted text output (default on). Callers whose
+   * consumer cannot splice a continuation — structured-output transports that
+   * parse the whole body as one document — disable it so a mid-stream failure
+   * surfaces instead of re-issuing behind partial output.
+   */
+  streamContinuation?: boolean
+  /**
+   * The consumer's idle-chunk timeout (ms). While a resumed attempt is buffered the live retry status is the
+   * only chunk the consumer sees, so its heartbeat interval is kept well under this bound.
+   */
+  idleTimeoutMs?: number
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
@@ -78,6 +96,19 @@ export interface CreateRetryableWrapOptions {
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
+const BUFFERED_ACTIVITY_INTERVAL_MS = 5_000
+const MIN_BUFFERED_ACTIVITY_INTERVAL_MS = 100
+
+/** Heartbeat interval: 5s by default, shortened to a third of a smaller idle timeout so the timer never starves. */
+export function bufferedActivityIntervalMs(idleTimeoutMs?: number): number {
+  if (idleTimeoutMs === undefined || !Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0) {
+    return BUFFERED_ACTIVITY_INTERVAL_MS
+  }
+  return Math.min(
+    BUFFERED_ACTIVITY_INTERVAL_MS,
+    Math.max(MIN_BUFFERED_ACTIVITY_INTERVAL_MS, Math.floor(idleTimeoutMs / 3))
+  )
+}
 
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
@@ -163,32 +194,52 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   // original call in `maxAttempts`, so +1 yields that many same-model retries.
   const retryCount = options.retryPolicy.maxAttempts
   const backoffEnabled = options.retryPolicy.backoffEnabled
-  const transientRetry = and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
-    maxAttempts: retryCount + 1,
-    delay: RETRY_BASE_DELAY_MS,
-    ...(backoffEnabled && { backoffFactor: 2 })
-  })
-  const retries: Retries<LanguageModel> = [
-    // Same-model transient retry on retryable errors: honors Retry-After headers,
-    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
-    // holds since retryCount >= 1.)
-    apiKeyFallbacks.length > 0
-      ? transientRetry
-      : error.isRetryable(true).retry({
-          maxAttempts: retryCount + 1,
-          delay: RETRY_BASE_DELAY_MS,
-          ...(backoffEnabled && { backoffFactor: 2 })
-        }),
-    // Cross-model fallback, tried in user-configured order (one attempt each).
-    // Resolved lazily on first failure (memoized) so the happy path pays nothing;
-    // each fallback carries its own middleware + params (a per-retry override).
-    // Error-only (like a plain-model fallback): ai-retry also evaluates function
-    // retryables on *result* attempts (content-filter etc.), so guard on
-    // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-    ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
-  ]
+  const retryScope = new AsyncLocalStorage<{ remaining: number }>()
+  const takeRetry = () => {
+    const budget = retryScope.getStore()
+    return !budget || (budget.remaining > 0 && (budget.remaining--, true))
+  }
+  const build = (base: LanguageModelV3): LanguageModelV3 => {
+    const transientRetry = and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
+      maxAttempts: retryCount + 1,
+      delay: RETRY_BASE_DELAY_MS,
+      ...(backoffEnabled && { backoffFactor: 2 })
+    })
+    const retries: Retries<LanguageModel> = [
+      // Same-model transient retry on retryable errors: honors Retry-After headers,
+      // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
+      // holds since retryCount >= 1.)
+      apiKeyFallbacks.length > 0
+        ? transientRetry
+        : error.isRetryable(true).retry({
+            maxAttempts: retryCount + 1,
+            delay: RETRY_BASE_DELAY_MS,
+            ...(backoffEnabled && { backoffFactor: 2 })
+          }),
+      // Cross-model fallback, tried in user-configured order (one attempt each).
+      // Resolved lazily on first failure (memoized) so the happy path pays nothing;
+      // each fallback carries its own middleware + params (a per-retry override).
+      // Error-only (like a plain-model fallback): ai-retry also evaluates function
+      // retryables on *result* attempts (content-filter etc.), so guard on
+      // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
+      ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
+    ]
 
-  return (base) => {
+    // Evaluate the native retry rule first. Consume only an eligible same-model retry,
+    // not a result probe, exhausted per-model rule, API-key switch or model fallback.
+    const budgeted =
+      (retry: Retryable<LanguageModel>): Retryable<LanguageModel> =>
+      async (context) => {
+        const candidate = await retry(context)
+        if (!candidate || !retryScope.getStore()) return candidate
+        const model = candidate.model
+        if (typeof model === 'string') return candidate
+        const used = context.attempts.filter(
+          (attempt) => attempt.model.provider === model.provider && attempt.model.modelId === model.modelId
+        ).length
+        if (used >= (candidate.maxAttempts ?? 1)) return undefined
+        return takeRetry() ? candidate : undefined
+      }
     const primary = options.onPrimaryActivated
       ? wrapLanguageModel({
           model: base,
@@ -202,16 +253,24 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         })
       : base
     let retryActive = false
+    let lastRetryEvent: RetryPartData | undefined
+    let lastActivityEmit = 0
+    let trailingActivity: ReturnType<typeof setTimeout> | undefined
+    const activityIntervalMs = bufferedActivityIntervalMs(options.idleTimeoutMs)
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
+      if (trailingActivity) clearTimeout(trailingActivity)
+      trailingActivity = undefined
+      // A settled badge must not be replayed by a late buffered-activity heartbeat.
+      lastRetryEvent = undefined
       options.onRetryEvent?.({ state: 'settled' })
     }
     const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
       ? (model) =>
           createRetryableModel({
             model,
-            retries: [transientRetry],
+            retries: [budgeted(transientRetry as Retryable<LanguageModel>)],
             onRetry: (context) => {
               const event = describeAttempt(context)
               logger.info('retrying model call', { ...options.diagnosticContext, ...event })
@@ -281,9 +340,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
 
     if (!options.retryPolicy.enabled) return keyPoolModel
 
-    return createRetryableModel({
+    const retryableModel = createRetryableModel({
       model: keyPoolModel,
-      retries,
+      retries: [budgeted(retries[0] as Retryable<LanguageModel>), ...retries.slice(1)],
       onRetry: (context) => {
         const event = describeAttempt(context)
         const failedModelId = context.attempts.at(-1)?.model.modelId
@@ -323,5 +382,88 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         settleRetryStatus()
       }
     })
+
+    return new Proxy(retryableModel, {
+      get(target, prop) {
+        if (prop === 'doStream')
+          return (callOptions: Parameters<LanguageModelV3['doStream']>[0]) => {
+            const budget = { remaining: retryCount }
+            const scopedModel = new Proxy(target, {
+              get(model, key) {
+                if (key === 'doStream')
+                  return (params: Parameters<LanguageModelV3['doStream']>[0]) =>
+                    retryScope.run(budget, () => model.doStream(params))
+                const value = Reflect.get(model, key, model)
+                return typeof value === 'function' ? value.bind(model) : value
+              }
+            })
+            // The resumed request goes back through the fallback chain, which restarts at the primary and
+            // can hand one model's partial answer to another with different options. Until a continuation
+            // can be bound to the model, credential and options that produced the visible text, a chain
+            // with model fallbacks surfaces the interruption instead of resuming.
+            if (options.streamContinuation === false || options.fallbacks.length > 0) {
+              return scopedModel.doStream(callOptions)
+            }
+            // With an API-key pool the resumed request is pinned to the key that produced the visible text:
+            // it never goes back through the pool, so a 401/429 on the continuation surfaces the interruption
+            // instead of handing that key's output to the next key, which may belong to another project.
+            const resumeModel: LanguageModelV3 | undefined =
+              apiKeyFallbacks.length > 0
+                ? {
+                    specificationVersion: 'v3',
+                    provider: requestApiKeyModel.provider,
+                    modelId: requestApiKeyModel.modelId,
+                    supportedUrls: requestApiKeyModel.supportedUrls,
+                    doGenerate: (params) => requestApiKeyModel.doGenerate(params),
+                    doStream: (params) => {
+                      if (exhaustedApiKeyError) throw exhaustedApiKeyError
+                      return retryScope.run(budget, () => activeApiKeyModel.doStream(params))
+                    }
+                  }
+                : undefined
+            const operation = withStreamContinuation(scopedModel, {
+              maxAttempts: retryCount,
+              takeRetry: () => budget.remaining > 0 && (budget.remaining--, true),
+              baseDelayMs: RETRY_BASE_DELAY_MS,
+              backoffEnabled,
+              ...(resumeModel && { resumeModel }),
+              onRetry: ({ attempt, reason }) => {
+                const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
+                lastRetryEvent = event
+                logger.info('resuming interrupted stream', { ...options.diagnosticContext, ...event })
+                retryActive = true
+                options.onRetryEvent?.(event)
+              },
+              onSettled: settleRetryStatus,
+              // Re-emit the live retry status (idempotent, same part id) so the stream manager's
+              // idle-chunk timer sees activity while the resumed attempt is buffered.
+              onBufferedActivity: () => {
+                if (!retryActive || !lastRetryEvent) return
+                const now = Date.now()
+                const wait = lastActivityEmit + activityIntervalMs - now
+                if (wait <= 0) {
+                  lastActivityEmit = now
+                  options.onRetryEvent?.(lastRetryEvent)
+                  return
+                }
+                // A throttled delta still counts as activity: emit once at the end of the window, or the
+                // idle timer would only see the earlier signal and abort a stream that is still delivering.
+                if (trailingActivity) return
+                trailingActivity = setTimeout(() => {
+                  trailingActivity = undefined
+                  if (!retryActive || !lastRetryEvent) return
+                  lastActivityEmit = Date.now()
+                  options.onRetryEvent?.(lastRetryEvent)
+                }, wait)
+              }
+            })
+            return operation.doStream(callOptions)
+          }
+        const value = Reflect.get(target, prop, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      }
+    })
   }
+
+  return (base) => build(base)
 }

@@ -5417,7 +5417,7 @@
   "settings.models.retry.fallback_models_description": "Modely, které se zkoušejí v pořadí, když hlavní model selže",
   "settings.models.retry.fallback_models_unavailable": "Žádné platné záložní modely (nedostupných: {{count}})",
   "settings.models.retry.max_attempts": "Maximální počet opakování",
-  "settings.models.retry.tooltip": "U chyb, které lze opakovat, se aktuální model opakuje až do nastaveného limitu. Pokud stále selže nebo chyba opakovat nelze, každý záložní model se zkusí jednou v pořadí. Pokud má stejný model více API klíčů, chyby 401/429 nejprve přepnou na další klíč. Opakování a zálohy se uplatní pouze před začátkem výstupu obsahu.",
+  "settings.models.retry.tooltip": "U chyb, které lze opakovat, se aktuální model opakuje až do nastaveného limitu. Pokud stále selže nebo chyba opakovat nelze, každý záložní model se zkusí jednou v pořadí. Pokud má stejný model více API klíčů, chyby 401/429 nejprve přepnou na další klíč. Opakování a zálohy se uplatní před začátkem výstupu obsahu; přerušená odpověď v prostém textu se také obnoví uprostřed streamu v rámci limitu opakování.",
   "settings.models.toolbar.pull_short": "Synchronizovat modely",
   "settings.models.topic_naming.auto": "Automatické pojmenování konverzací",
   "settings.models.topic_naming.label": "Pojmenování konverzací",
