@@ -736,12 +736,18 @@ export class MemoryStore {
     return { changes, files }
   }
 
-  private protectRecovery(batch: MemoryBatch, changes: MemoryFileChange[], scope: Map<string, Buffer | null>): void {
+  private protectRecovery(batch: RecoveryBatch, changes: MemoryFileChange[], scope: Map<string, Buffer | null>): void {
     if (batch.source === 'clear') {
       const hashes = new Map([...scope].map(([target, bytes]) => [target, memoryHash(bytes)]))
       const matches = batch.steps.every((step) => {
         const actual = hashes.get(step.path) ?? null
-        if (actual !== (step.outcome === 'unchanged' ? step.beforeHash : step.afterHash)) return false
+        const expected =
+          step.outcome === 'unchanged'
+            ? step.restoredHash === undefined
+              ? step.beforeHash
+              : step.restoredHash
+            : step.afterHash
+        if (actual !== expected) return false
         hashes.set(step.path, step.afterHash)
         return true
       })
