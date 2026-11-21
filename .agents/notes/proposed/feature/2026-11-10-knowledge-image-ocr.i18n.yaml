@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-10-knowledge-image-ocr.md
+2026-11-10-knowledge-image-ocr.md: e5efce1c73ea751238af4acf6ee72b3152fdff41
+2026-11-10-knowledge-image-ocr.zh.md: faa4dbe998f984c65ea2ce337658b11625f1ac5d
