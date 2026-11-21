@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-09-agent-workspace-storage-policy.md
+2026-11-09-agent-workspace-storage-policy.md: d2edf097e56fbcb88643b42e88336d68a693026f
+2026-11-09-agent-workspace-storage-policy.zh.md: 8a39aa156d6e43ffa00be760bb9758cb027bc71e
