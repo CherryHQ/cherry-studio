@@ -18,6 +18,7 @@ import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serpkite } from '../providers/serpkite'
 import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
+import { webz } from '../providers/webz'
 import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
 import type { WebSearchCall, WebSearchHttpRequest, WebSearchProviderModule, WebSearchTransport } from '../types'
@@ -74,7 +75,8 @@ describe('portable provider contracts', () => {
       '/v2/search',
       { query: 'hello', limit: 4, scrapeOptions: { formats: ['markdown'] } },
       'Scraped Markdown Content'
-    ]
+    ],
+    [webz, 'webz-response.json', '/api/news/context', { query: 'hello', k: 4 }, 'Webz excerpt']
   ] as const)('constructs %s requests and preserves provider content', async (provider, name, path, body, content) => {
     const { client, requests } = setup(provider, fixture(name))
     const result = await client.execute(search(provider.metadata.id))
@@ -255,6 +257,42 @@ describe('portable provider contracts', () => {
     const { client } = setup(desearch, JSON.stringify({ detail: 'Forbidden' }), 403)
     const error = await client.execute(search('desearch')).catch((caught: unknown) => caught)
     expect(error).toMatchObject({ kind: 'http', status: 403 })
+    expect(JSON.stringify(error)).not.toContain('test-key')
+  })
+
+  it('caps the Webz request count at 50 and slices mapped results to maxResults', async () => {
+    const { client, requests } = setup(webz, fixture('webz-response.json'))
+    await client.execute({
+      ...search('webz'),
+      config: { apiHost: 'https://service.example/proxy', maxResults: 80 }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', k: 50 })
+
+    const sliced = await client.execute({
+      ...search('webz'),
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 }
+    })
+    expect(sliced.results.map((item) => item.url)).toEqual(['https://webz.example/news/story'])
+  })
+
+  it('drops Webz results without a URL and blanks missing titles and excerpts', async () => {
+    const { client } = setup(webz, fixture('webz-response.json'))
+    const result = await client.execute(search('webz'))
+    expect(result.results).toEqual([
+      {
+        title: 'Webz Title',
+        content: 'Webz excerpt',
+        url: 'https://webz.example/news/story',
+        sourceInput: 'hello'
+      },
+      { title: '', content: '', url: 'https://webz.example/news/second', sourceInput: 'hello' }
+    ])
+  })
+
+  it('reports a rejected Webz key as an HTTP error without echoing the key', async () => {
+    const { client } = setup(webz, JSON.stringify({ error: 'Invalid API key' }), 401)
+    const error = await client.execute(search('webz')).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ kind: 'http', status: 401 })
     expect(JSON.stringify(error)).not.toContain('test-key')
   })
 

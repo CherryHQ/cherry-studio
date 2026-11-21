@@ -39,6 +39,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://desearch.ai',
     apiKeyWebsite: 'https://console.desearch.ai/api-keys'
   },
+  webz: {
+    descriptionKey: 'settings.tool.websearch.provider_description.webz',
+    iconRef: providerIconRef('webz'),
+    officialWebsite: 'https://webz.io',
+    apiKeyWebsite: 'https://app.webz.io'
+  },
   stepfun: {
     descriptionKey: 'settings.tool.websearch.provider_description.stepfun',
     iconRef: providerIconRef('step'),

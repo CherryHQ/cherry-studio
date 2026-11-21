@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-11-12T05:01:56.909Z
- * Total icons: 175
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -174,6 +174,7 @@ export { WenxinIcon as Wenxin } from './wenxin'
 export { WorkersAiIcon as WorkersAi } from './workers-ai'
 export { XiaoyiIcon as Xiaoyi } from './xiaoyi'
 export { XinghuoIcon as Xinghuo } from './xinghuo'
+export { WebzIcon as Webz } from './webz/webz'
 export { XirangIcon as Xirang } from './xirang'
 export { YouIcon as You } from './you'
 export { YuanbaoIcon as Yuanbao } from './yuanbao'

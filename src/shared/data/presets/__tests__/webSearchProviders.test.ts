@@ -100,6 +100,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Webz as an API-key-authenticated news keyword search provider', () => {
+    const webz = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'webz')
+
+    expect(webz).toBeDefined()
+    expect(webz!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.webz.io'
+      }
+    ])
+  })
+
   it('models Duckduckgo as a hostless keyless keyword search provider', () => {
     const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
 

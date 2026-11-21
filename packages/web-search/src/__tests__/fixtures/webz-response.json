@@ -1,0 +1,35 @@
+{
+  "query": "hello",
+  "total_results": 3,
+  "results": [
+    {
+      "score": 8.4,
+      "article": {
+        "article_id": "aaa111",
+        "url": "https://webz.example/news/story",
+        "title": " Webz Title ",
+        "published_at": "2026-11-20T10:00:00.000+00:00",
+        "summary": "Story summary"
+      },
+      "chunk": { "chunk_id": "aaa111_2", "chunk_index": 2, "text": " Webz excerpt " },
+      "metadata": { "domain": "webz.example", "language": "english" }
+    },
+    {
+      "score": 6.2,
+      "article": {
+        "article_id": "bbb222",
+        "url": "https://webz.example/news/second",
+        "title": null,
+        "published_at": "2026-11-19T08:00:00.000+00:00"
+      },
+      "chunk": { "chunk_id": "bbb222_0", "chunk_index": 0, "text": null }
+    },
+    {
+      "score": 5.1,
+      "article": { "article_id": "ccc333", "url": null, "title": "No URL" },
+      "chunk": { "chunk_id": "ccc333_1", "chunk_index": 1, "text": "dropped" }
+    }
+  ],
+  "requests_left": 99,
+  "credits_used": 1
+}
