@@ -18,6 +18,11 @@ import {
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
 import { validateNotesDirectory } from '@main/services/notesDirectory'
+import {
+  assertNotesPathNotMutatingDuringMigration,
+  NotesMigrationWriteBlockedError,
+  withNotesFilesystemMutation
+} from '@main/services/notesRelocation'
 import { copyNew, PathStaleVersionError, probeReadable } from '@main/utils/file'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileHandle } from '@shared/data/types/file'
@@ -81,11 +86,18 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       const fileManager = application.get('FileManager')
       return await dispatchHandle(
         handle as FileHandle,
-        (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
-        async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
-        }
+        (entryId) =>
+          withNotesFilesystemMutation(async () => {
+            const physicalPath = fileManager.getPhysicalPath(entryId)
+            assertNotesPathNotMutatingDuringMigration(physicalPath)
+            return fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash)
+          }),
+        (path) =>
+          withNotesFilesystemMutation(async () => {
+            await assertOutsideManagedStorageMutation(path)
+            assertNotesPathNotMutatingDuringMigration(path)
+            return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+          })
       )
     } catch (error) {
       if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
@@ -171,28 +183,43 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_permanent_delete_from_trash': async ({ ids }) =>
     application.get('FileManager').batchPermanentDeleteFromTrash(ids),
   'file.batch_remove_from_library': async ({ ids }) => application.get('FileManager').batchRemoveFromLibrary(ids),
-  'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
+  'file.rename': async ({ id, newName }) =>
+    withNotesFilesystemMutation(async () => {
+      const fileManager = application.get('FileManager')
+      try {
+        const physicalPath = fileManager.getPhysicalPath(id)
+        assertNotesPathNotMutatingDuringMigration(physicalPath)
+      } catch (error) {
+        if (error instanceof NotesMigrationWriteBlockedError) {
+          throw error
+        }
+        // Internal entries use managed storage paths outside the notes roots.
+      }
+      return fileManager.rename(id, newName)
+    }),
   // Guard the destination only: sources legitimately live inside managed storage
   // (attachments, generated images) and copying reads them without mutating.
   'file.copy': async ({ sourcePath, destPath }, { senderId }) => {
-    // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
-    await assertOutsideManagedStorageMutation(destPath)
-    const managedSource = await isInsideManagedStorage(sourcePath)
-    try {
-      await copyNew(sourcePath, destPath)
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      let external = !managedSource
-      if (managedSource && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code ?? '')) {
-        // copyFile reports both paths; probe the source before blaming the external destination.
-        external = (await probeReadable(sourcePath)) === 'readable'
-      } else if (['EEXIST', 'ENOSPC', 'EROFS'].includes(code ?? '')) {
-        external = true
+    await withNotesFilesystemMutation(async () => {
+      await assertOutsideManagedStorageMutation(destPath)
+      assertNotesPathNotMutatingDuringMigration(destPath)
+      const managedSource = await isInsideManagedStorage(sourcePath)
+      try {
+        await copyNew(sourcePath, destPath)
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        let external = !managedSource
+        if (managedSource && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code ?? '')) {
+          // copyFile reports both paths; probe the source before blaming the external destination.
+          external = (await probeReadable(sourcePath)) === 'readable'
+        } else if (['EEXIST', 'ENOSPC', 'EROFS'].includes(code ?? '')) {
+          external = true
+        }
+        logFailure(logger, 'File copy failed', error, 'file.copy', classifyFileFailure(error, external))
+        throw error
       }
-      logFailure(logger, 'File copy failed', error, 'file.copy', classifyFileFailure(error, external))
-      throw error
-    }
+    })
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
@@ -259,10 +286,12 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const owner = senderWebContents(senderId)
     if (owner) application.get('DirectoryTreeManager').dispose(treeId, owner.id)
   },
-  'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) => {
-    const owner = senderWebContents(senderId)
-    return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
-  }
+  'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) =>
+    withNotesFilesystemMutation(async () => {
+      assertNotesPathNotMutatingDuringMigration(oldPath)
+      const owner = senderWebContents(senderId)
+      return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
+    })
 }
 
 function usesExternalPath(route: string, input: unknown): boolean {

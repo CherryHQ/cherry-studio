@@ -13,6 +13,7 @@ import { loggerService } from '@logger'
 import { logFailure } from '@main/core/logger/logFailure'
 import { t } from '@main/i18n'
 import { classifyFileFailure } from '@main/services/file'
+import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -378,59 +379,62 @@ export class ExportService {
   }
 
   public exportToWord = async (markdown: string, fileName: string, senderId?: string | null): Promise<boolean> => {
-    try {
-      // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
-      // opens without waiting on the markdown→docx conversion.
-      const dialogOptions = {
-        title: t('dialog.save_file'),
-        filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
-        defaultPath: fileName
-      }
-      // Parented dialog avoids the unparented-save crash with Unicode names.
-      // Missing or destroyed caller window falls back to the unparented overload.
-      const candidate: BrowserWindow | undefined = senderId
-        ? application.get('WindowManager').getWindow(senderId)
-        : undefined
-      const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
-      const { canceled, filePath } = parent
-        ? await dialog.showSaveDialog(parent, dialogOptions)
-        : await dialog.showSaveDialog(dialogOptions)
-      if (canceled || !filePath) {
-        return false
-      }
+    return withNotesFilesystemMutation(async () => {
+      try {
+        // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
+        // opens without waiting on the markdown→docx conversion.
+        const dialogOptions = {
+          title: t('dialog.save_file'),
+          filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
+          defaultPath: fileName
+        }
+        // Parented dialog avoids the unparented-save crash with Unicode names.
+        // Missing or destroyed caller window falls back to the unparented overload.
+        const candidate: BrowserWindow | undefined = senderId
+          ? application.get('WindowManager').getWindow(senderId)
+          : undefined
+        const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+        const { canceled, filePath } = parent
+          ? await dialog.showSaveDialog(parent, dialogOptions)
+          : await dialog.showSaveDialog(dialogOptions)
+        if (canceled || !filePath) {
+          return false
+        }
 
-      const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
-      const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
+        const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
+        const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
 
-      const doc = new docx.Document({
-        styles: {
-          paragraphStyles: [
-            {
-              id: 'Normal',
-              name: 'Normal',
-              run: {
-                size: 24,
-                font: 'Arial'
+        const doc = new docx.Document({
+          styles: {
+            paragraphStyles: [
+              {
+                id: 'Normal',
+                name: 'Normal',
+                run: {
+                  size: 24,
+                  font: 'Arial'
+                }
               }
+            ]
+          },
+          sections: [
+            {
+              properties: {},
+              children: elements
             }
           ]
-        },
-        sections: [
-          {
-            properties: {},
-            children: elements
-          }
-        ]
-      })
+        })
 
-      const buffer = await docx.Packer.toBuffer(doc)
+        const buffer = await docx.Packer.toBuffer(doc)
 
-      await fs.promises.writeFile(filePath, buffer)
-      logger.debug('Document exported successfully')
-      return true
-    } catch (error) {
-      logFailure(logger, 'Export to Word failed:', error, 'export.word', classifyFileFailure(error, true))
-      throw error
-    }
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        await fs.promises.writeFile(filePath, buffer)
+        logger.debug('Document exported successfully')
+        return true
+      } catch (error) {
+        logFailure(logger, 'Export to Word failed:', error, 'export.word', classifyFileFailure(error, true))
+        throw error
+      }
+    })
   }
 }
