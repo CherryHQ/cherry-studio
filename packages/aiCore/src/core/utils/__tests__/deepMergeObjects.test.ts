@@ -14,7 +14,7 @@ describe('provider settings merge', () => {
     expect(Object.getPrototypeOf(result.nested)).toBe(Object.prototype)
     expect(Object.getOwnPropertyDescriptor(result.nested, '__proto__')?.value).toEqual({ leaf: 'value' })
     expect(result.nested.retained).toBe(true)
-    expect(Object.hasOwn(target.nested, '__proto__')).toBe(false)
+    expect(Object.getOwnPropertyDescriptor(target.nested, '__proto__')).toBeUndefined()
   })
 
   it('retains callback identity, target symbols and untouched nested defaults', () => {
