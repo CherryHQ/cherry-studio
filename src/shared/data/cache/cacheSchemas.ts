@@ -441,6 +441,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover' | 'dialog'
+  'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
@@ -524,6 +525,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover',
+  'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],

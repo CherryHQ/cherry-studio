@@ -156,6 +156,13 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  importedHistory?: {
+    insertedAt?: string
+    source: 'deepseek'
+    messageId: string
+    status: string
+    missingFiles?: Array<{ id: string; name: string; size: number; isImage: boolean }>
+  }
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
@@ -181,6 +188,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  importedHistory?: MessageData['importedHistory']
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means

@@ -95,7 +95,8 @@ export function useStreamCommands(
         mentionedModelIds: body.mentionedModels,
         reasoningEffort: body.reasoningEffort,
         serviceTier: body.serviceTier,
-        ...(body.fastMode ? { fastMode: true } : {})
+        ...(body.fastMode ? { fastMode: true } : {}),
+        ...(body.followUp ? { followUp: true } : {})
       })
     },
     [dispatch, setMessages, topicId]

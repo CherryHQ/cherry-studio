@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useRef } from 'react'
 
 import { resolveMermaidTheme } from '@cherrystudio/ui/mermaid'
@@ -29,7 +28,7 @@ const MermaidPreview = ({
   ref?: React.RefObject<BasicPreviewHandles | null>
 }) => {
   const { theme } = useTheme()
-  const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
+  const diagramId = useRef<string>(`mermaid-${crypto.randomUUID()}`).current
 
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
