@@ -38,23 +38,20 @@ describe('azure extension — webSearch capability', () => {
     const tool = await resolveWebSearchTool(createCoreRegistry(), 'azure')
 
     expect(tool).toBeDefined()
-    expect(tool.type).toBe('provider')
-    expect(tool.id).toBe('openai.web_search_preview')
+    expect(tool).toMatchObject({ type: 'provider', id: 'openai.web_search_preview' })
   })
 
   it('azure-openai alias resolves webSearch through the same path (issue #23013)', async () => {
     const tool = await resolveWebSearchTool(createCoreRegistry(), 'azure-openai')
 
     expect(tool).toBeDefined()
-    expect(tool.type).toBe('provider')
-    expect(tool.id).toBe('openai.web_search_preview')
+    expect(tool).toMatchObject({ type: 'provider', id: 'openai.web_search_preview' })
   })
 
   it('azure-responses variant still resolves webSearch with the same tool', async () => {
     const tool = await resolveWebSearchTool(createCoreRegistry(), 'azure-responses')
 
     expect(tool).toBeDefined()
-    expect(tool.type).toBe('provider')
-    expect(tool.id).toBe('openai.web_search_preview')
+    expect(tool).toMatchObject({ type: 'provider', id: 'openai.web_search_preview' })
   })
 })
