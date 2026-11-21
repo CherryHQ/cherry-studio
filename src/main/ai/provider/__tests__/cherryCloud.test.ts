@@ -7,7 +7,7 @@ import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
-  authenticatedFetch: vi.fn(),
+  modelFetch: vi.fn(),
   getApiOrigin: vi.fn(),
   syncEntitledModelsIfStale: vi.fn()
 }))
@@ -24,7 +24,7 @@ describe('Cherry Cloud provider transport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getApiOrigin.mockReturnValue('https://cloud.cherryai.com.cn')
-    mocks.authenticatedFetch.mockResolvedValue(new Response('{}', { status: 200 }))
+    mocks.modelFetch.mockResolvedValue(new Response('{}', { status: 200 }))
     mocks.syncEntitledModelsIfStale.mockResolvedValue({
       entitledModelIds: [MODEL_ID],
       freeModelIds: [MODEL_ID],
@@ -83,8 +83,8 @@ describe('Cherry Cloud provider transport', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mocks.authenticatedFetch).toHaveBeenCalledOnce()
-    const [requestPath, init] = mocks.authenticatedFetch.mock.calls[0]
+    expect(mocks.modelFetch).toHaveBeenCalledOnce()
+    const [requestPath, init] = mocks.modelFetch.mock.calls[0]
     const headers = new Headers(init.headers)
     expect(requestPath).toBe(`${path}?beta=true`)
     expect(init).toMatchObject({ method: 'POST', body: '{"model":"claude"}' })
@@ -116,7 +116,7 @@ describe('Cherry Cloud provider transport', () => {
     await expect(
       fetch(`https://cloud.cherryai.com.cn${mismatchedPath}`, { method: 'POST', body: '{}' })
     ).rejects.toThrow('configured Cherry Cloud API origin')
-    expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
+    expect(mocks.modelFetch).not.toHaveBeenCalled()
   })
 
   it('rejects models outside the current entitlement before sending a provider request', async () => {
@@ -134,7 +134,7 @@ describe('Cherry Cloud provider transport', () => {
         body: '{}'
       })
     ).rejects.toBeInstanceOf(ModelUnavailableError)
-    expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
+    expect(mocks.modelFetch).not.toHaveBeenCalled()
   })
 
   it('lets the server refuse a quota-exhausted model so the plan wording reaches the caller', async () => {
@@ -145,7 +145,7 @@ describe('Cherry Cloud provider transport', () => {
       quotaExhaustedModelIds: [MODEL_ID]
     })
     const refusal = { error: { code: 'QUOTA_EXHAUSTED', type: 'quota_error', message: 'Cherry Plus quota is used up' } }
-    mocks.authenticatedFetch.mockResolvedValueOnce(Response.json(refusal, { status: 429 }))
+    mocks.modelFetch.mockResolvedValueOnce(Response.json(refusal, { status: 429 }))
 
     const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
     const response = await config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
@@ -218,7 +218,7 @@ describe('Cherry Cloud provider transport', () => {
           ? await generateText({ model, prompt: 'hello', maxRetries: 0 })
           : streamText({ model, prompt: 'hello', maxRetries: 0 })
       expect(await result.text).toBe('Recovered')
-      expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
+      expect(mocks.modelFetch).not.toHaveBeenCalled()
     }
   )
 })
