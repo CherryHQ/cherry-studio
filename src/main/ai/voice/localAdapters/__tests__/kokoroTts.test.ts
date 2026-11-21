@@ -7,7 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { KOKORO_TTS_BUNDLE_ID, VoiceModelSupport } from '@shared/ai/localVoice'
 
-import { createKokoroSpeechModel, getKokoroTtsStatus, kokoroSpeechDefinition, kokoroTtsSupport } from '../kokoroTts'
+import {
+  createKokoroSpeechModel,
+  getKokoroTtsStatus,
+  kokoroSpeechDefinition,
+  kokoroTtsSupport,
+  planKokoroSpeechSegments
+} from '../kokoroTts'
 
 const synthesize = vi.fn()
 const refreshStatus = vi.fn()
@@ -52,12 +58,37 @@ describe('Kokoro Chinese-English speech', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
-  it('keeps every voice available for both languages and chooses a Chinese voice for Chinese', async () => {
-    const voice = await kokoroSpeechDefinition.getDefaultVoice('zh-CN')
-    expect(voice?.id).toBe('zf_001')
+  it('declares languages per voice family instead of for every voice', async () => {
     const voices = await kokoroSpeechDefinition.voices()
     expect(voices).toHaveLength(103)
-    expect(voices.every((voice) => voice.languages?.includes('zh-CN') && voice.languages.includes('en-US'))).toBe(true)
+
+    const english = voices.filter((voice) => voice.id.startsWith('af_') || voice.id.startsWith('bf_'))
+    expect(english).toHaveLength(3)
+    for (const voice of english) {
+      expect(voice.languages).not.toContain('zh-CN')
+      expect(voice.languages).toEqual([voice.id.startsWith('af_') ? 'en-US' : 'en-GB'])
+    }
+
+    const chinese = voices.filter((voice) => voice.id.startsWith('zf_') || voice.id.startsWith('zm_'))
+    expect(chinese).toHaveLength(100)
+    expect(chinese.every((voice) => voice.languages?.length === 1 && voice.languages[0] === 'zh-CN')).toBe(true)
+  })
+
+  it('picks the explicit preferred voice for each language', async () => {
+    expect((await kokoroSpeechDefinition.getDefaultVoice('zh-CN'))?.id).toBe('zf_001')
+    expect((await kokoroSpeechDefinition.getDefaultVoice('en-US'))?.id).toBe('af_maple')
+    expect((await kokoroSpeechDefinition.getDefaultVoice('en-GB'))?.id).toBe('bf_vale')
+  })
+
+  it('routes each script run to a voice trained on that language', () => {
+    const text = '这是中文。This is an English sentence. 这是混合 React 句子。'
+    expect(planKokoroSpeechSegments(text, 'zf_001', 'af_maple')).toEqual([
+      { text: '这是中文。', voice: 'zf_001' },
+      { text: 'This is an English sentence.', voice: 'af_maple' },
+      { text: '这是混合', voice: 'zf_001' },
+      { text: 'React', voice: 'af_maple' },
+      { text: '句子。', voice: 'zf_001' }
+    ])
   })
 
   it('checks this model download independently of other speech or recognition models', () => {
@@ -67,7 +98,9 @@ describe('Kokoro Chinese-English speech', () => {
 
   it.each([
     { voice: 'missing', language: 'zh-CN' },
-    { voice: 'zf_001', language: 'ja-JP' }
+    { voice: 'zf_001', language: 'ja-JP' },
+    { voice: 'zf_001', language: 'en-US' },
+    { voice: 'af_maple', language: 'zh-CN' }
   ])('rejects unsupported voice or language %j before inference', async (options) => {
     await expect(createKokoroSpeechModel(options).doGenerate({ text: '你好' })).rejects.toMatchObject({
       reason: 'invalid_request'
