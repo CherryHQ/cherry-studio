@@ -1346,6 +1346,57 @@ describe('coding-agent behavior adapter', () => {
     await expect(pi.harness.createThread()).rejects.toThrow('closed')
   })
 
+  it('rewrites native tool arguments in place without interpreting reserved JSON keys', async () => {
+    const rewritten = Object.freeze(JSON.parse('{"__proto__":{"label":"literal"},"constructor":"value","path":"new"}'))
+    const nativeMarker = Symbol('native input')
+    let original: object | undefined
+    let executed: unknown
+    const pi = await openPiHarness(
+      (ports) => {
+        ports.tools.register({
+          ...tool('echo'),
+          run: async (call) => {
+            executed = call.args
+            return { text: 'rewritten', isError: false }
+          }
+        })
+        ports.toolGate.register({
+          before: async () => ({ args: rewritten }),
+          after: async () => undefined
+        })
+      },
+      [
+        (api) =>
+          api.on('tool_call', (event) => {
+            original = event.input
+            Object.defineProperty(event.input, nativeMarker, { value: 'native', enumerable: true })
+          })
+      ]
+    )
+    const thread = await pi.harness.createThread()
+    pi.harness.script(thread, [
+      { text: '', toolCalls: [{ name: 'echo', args: { removed: true, path: 'old' } }] },
+      { text: 'done' }
+    ])
+    await pi.harness.sendUser(thread, 'go')
+    await pi.harness.settle()
+
+    expect(executed).toBe(original)
+    expect(Object.getPrototypeOf(executed)).toBe(Object.prototype)
+    expect(Object.keys(executed as object)).toEqual(['__proto__', 'constructor', 'path'])
+    expect(Object.getOwnPropertyDescriptor(executed, '__proto__')).toEqual({
+      value: { label: 'literal' },
+      enumerable: true,
+      configurable: true,
+      writable: true
+    })
+    expect(Object.getOwnPropertyDescriptor(executed, nativeMarker)?.value).toBe('native')
+    expect(executed).toMatchObject({ constructor: 'value', path: 'new' })
+    expect(rewritten).toEqual(JSON.parse('{"__proto__":{"label":"literal"},"constructor":"value","path":"new"}'))
+    expect(Object.getPrototypeOf(rewritten)).toBe(Object.prototype)
+    expect(pi.errors).toEqual([])
+  })
+
   // Catches rule-handler errors Pi swallows never reaching onError: a failing omit sends the request unfiltered, a
   // failing before is just an error result, a failing after leaves the result unreplaced, a failing onClose is lost.
   it('reports what the rule handlers throw', async () => {
