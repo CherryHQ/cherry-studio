@@ -254,7 +254,11 @@ export function countToolDefs(rawTools: unknown, tokenizer: TextTokenizer): numb
   let total = 0
   for (const tool of rawTools) {
     if (!tool || typeof tool !== 'object') continue
-    const { name, description, input_schema } = tool as Record<string, unknown>
+    const { name, description, input_schema } = tool as {
+      name?: unknown
+      description?: unknown
+      input_schema?: unknown
+    }
     total += TOOL_OVERHEAD + countToolTokens({ name, description, schema: input_schema }, tokenizer)
   }
   return total
