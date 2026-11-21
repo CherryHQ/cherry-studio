@@ -22,6 +22,13 @@ export function boundedBodyTokens(body: unknown, tokenizer: TextTokenizer): numb
   return walk(body, tokenizer, 0, undefined, undefined)
 }
 
+interface InlineMediaFields {
+  type?: unknown
+  media_type?: unknown
+  mimeType?: unknown
+  mediaType?: unknown
+}
+
 /**
  * A data URL, or the `data` field of a known inline-media carrier: anthropic
  * `{type:'base64', media_type, data}`, gemini `inlineData` `{mimeType, data}`, AI SDK
@@ -29,7 +36,7 @@ export function boundedBodyTokens(body: unknown, tokenizer: TextTokenizer): numb
  * that happens to be called `data` (tool input, DNA text, encoded logs) is ordinary text
  * and must be estimated as text.
  */
-function isMediaPayload(value: string, key: string | undefined, parent: Record<string, unknown> | undefined): boolean {
+function isMediaPayload(value: string, key: string | undefined, parent: InlineMediaFields | undefined): boolean {
   if (value.startsWith('data:') && value.includes(';base64,')) return true
   if (key !== 'data' || !parent) return false
   return (
@@ -51,7 +58,7 @@ function walk(
   tokenizer: TextTokenizer,
   depth: number,
   key: string | undefined,
-  parent: Record<string, unknown> | undefined
+  parent: InlineMediaFields | undefined
 ): number {
   if (depth > MAX_DEPTH) return 0
   if (typeof value === 'string') {
@@ -64,9 +71,9 @@ function walk(
     return total
   }
   if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>
+    const entries: [string, unknown][] = Object.entries(value)
     let total = 0
-    for (const [childKey, item] of Object.entries(record)) total += walk(item, tokenizer, depth + 1, childKey, record)
+    for (const [childKey, item] of entries) total += walk(item, tokenizer, depth + 1, childKey, value)
     return total
   }
   return 0
