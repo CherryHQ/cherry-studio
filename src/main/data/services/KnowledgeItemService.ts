@@ -789,7 +789,8 @@ export class KnowledgeItemService {
         })
       }
 
-      const nextData: Record<string, unknown> = { ...existingItem.data, ...patch }
+      // Item schemas validate string-valued fields; null is only the patch's removal sentinel.
+      const nextData: Record<string, string | null | undefined> = { ...existingItem.data, ...patch }
       for (const [key, value] of Object.entries(patch)) {
         if (value === null) {
           delete nextData[key]
