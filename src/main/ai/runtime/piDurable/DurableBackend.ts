@@ -17,6 +17,7 @@ import { createPiTelemetry } from '@main/ai/observability'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
+import { isAgentModelUnavailableError } from '../agentModelUnavailableError'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
@@ -64,6 +65,9 @@ export class DurableBackend {
     ])
     const owner = new DurableBackend(createRegistry())
     const root = await prepareDurableRoot(context.id)
+    // Native thread ids of peers skipped because their model is unavailable; their
+    // persisted conversations stay parked (not orphaned) until the peer restores.
+    const skippedPeers = new Set<string>()
     let storageOwned = true
     try {
       for (const binding of contexts.roots(context.backendId)) {
@@ -78,7 +82,25 @@ export class DurableBackend {
           : undefined
         const modelId = saved?.modelId ?? session.model ?? agent?.model
         if (!agent || !modelId) continue
-        await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
+        try {
+          await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
+        } catch (error) {
+          // Peer restore stays availability-aware: a peer whose provider/model went
+          // disabled or unroutable rejects in createPiGatewayModelBinding, but it must
+          // not abort opening the backend for the requested context. Availability
+          // validation still applies when that peer requests generation again.
+          if (isAgentModelUnavailableError(error)) {
+            logger.warn('Skipping Durable peer with unavailable model during cold restore', {
+              contextId: binding.id,
+              sessionId: binding.sessionId,
+              modelId,
+              error: String(error)
+            })
+            if (binding.nativeThreadId) skippedPeers.add(binding.nativeThreadId)
+            continue
+          }
+          throw error
+        }
       }
       const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
       let cursor: Parameters<typeof root.storage.scanConversations>[2]
@@ -97,14 +119,34 @@ export class DurableBackend {
         return contextId
       }
       for (const id of records.keys()) resolve(id)
+      // A conversation is parked when its owner chain reaches a skipped unavailable
+      // peer: its work is preserved but cannot run until that peer restores, so it
+      // must not block opening an available context.
+      const isParked = (id: number): boolean => {
+        const seen = new Set<number>()
+        let current: number | undefined = id
+        while (current !== undefined && !seen.has(current)) {
+          seen.add(current)
+          if (skippedPeers.has(String(current))) return true
+          current = records.get(current)?.owner?.conversationId
+        }
+        return false
+      }
       let taskCursor: Parameters<typeof root.storage.scanTasks>[2]
       do {
         const page = await root.storage.scanTasks({}, 256, taskCursor, BACKGROUND_CONTEXT)
         for (const task of page.items) {
           const rootId = owner.nativeRoots.get(runtimeId(String(task.conversationId)))
           if (task.state.status === 'terminal') continue
-          if (!rootId && records.has(task.conversationId))
+          if (!rootId && records.has(task.conversationId)) {
+            if (isParked(task.conversationId)) {
+              logger.warn('Parking unfinished Durable work behind an unavailable peer', {
+                conversationId: task.conversationId
+              })
+              continue
+            }
             throw new Error('Unfinished Durable conversation has no product host')
+          }
           if (rootId) owner.pendingRoots.add(rootId)
         }
         taskCursor = page.next

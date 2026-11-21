@@ -1,12 +1,15 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { assertAgentGatewayModelAvailable } from '@main/ai/runtime/agentGatewayModelAvailability'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
+
+export { assertAgentGatewayModelAvailable }
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
