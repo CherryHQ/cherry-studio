@@ -50,6 +50,12 @@ export const MCP_MARKETS = [
     descriptionKey: 'settings.mcp.more.pulsemcp'
   },
   {
+    name: 'allmcps.com',
+    url: 'https://allmcps.com',
+    logo: 'https://allmcps.com/icon.png',
+    descriptionKey: 'settings.mcp.more.allmcps'
+  },
+  {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
     logo: 'icon:composio',
