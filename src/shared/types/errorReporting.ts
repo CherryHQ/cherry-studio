@@ -8,5 +8,6 @@ export interface FailureFacts {
 
 export interface ErrorObservation {
   error?: Error
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Logger observations retain arbitrary caller data; reporting validates consumed fields before building sanitized capture context.
   entry: Record<string, unknown>
 }
