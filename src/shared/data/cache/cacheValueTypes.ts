@@ -75,6 +75,7 @@ export interface Tab {
   url: string
   title: string
   icon?: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Route and webview consumers own metadata, including older persisted values; the tab cache forwards it without interpreting fields.
   metadata?: Record<string, unknown>
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
