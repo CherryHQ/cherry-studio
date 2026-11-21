@@ -141,6 +141,7 @@ export class BlacklistSubscriptionService extends BaseService {
 
   private async fetchRules(url: string): Promise<{ rules: string[]; droppedCount: number }> {
     const body = await fetchRemoteText(url, {
+      respectAppProxy: true,
       timeoutMs: FETCH_TIMEOUT_MS,
       maxBytes: MAX_RESPONSE_BYTES
     })

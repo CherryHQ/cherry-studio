@@ -7,6 +7,8 @@ import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { describe, expect, it, vi } from 'vitest'
 
+import { REMOTE_FETCH_OWNS_ROUTE } from '@main/utils/remoteFetchRoute'
+
 import type { ProxyBypassRuleMatcher } from '../bypassRules'
 import { NodeProxyBackend } from '../NodeProxyBackend'
 
@@ -39,6 +41,18 @@ function readResponse(request: http.ClientRequest): Promise<string> {
 }
 
 describe('NodeProxyBackend request binding', () => {
+  it('does not replace the validated agent or explicit direct route owned by bounded fetch', () => {
+    const { bound, originalMethod, sharedProxyAgent } = bindWithSharedAgent()
+    const pinnedAgent = new https.Agent()
+    for (const agent of [false, pinnedAgent]) {
+      bound({ hostname: '93.184.216.34', agent, [REMOTE_FETCH_OWNS_ROUTE]: true })
+      const options = originalMethod.mock.calls.at(-1)?.[0]
+      expect(options.agent).toBe(agent)
+      expect(options.agent).not.toBe(sharedProxyAgent)
+    }
+    pinnedAgent.destroy()
+    sharedProxyAgent.destroy()
+  })
   it('propagates the caller agent TLS stance per-request without mutating the shared proxy agent', () => {
     const { bound, originalMethod, sharedProxyAgent } = bindWithSharedAgent()
 

@@ -9,8 +9,9 @@ import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
+import { ProxyBypassRuleMatcher } from './bypassRules'
 import { NodeProxyController } from './NodeProxyController'
-import { normalizeProxyEndpoint } from './proxyRouting'
+import { normalizeProxyEndpoint, proxyUrlFromChromiumRoute } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -146,6 +147,7 @@ export interface ProxyAppliedSnapshot {
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
+  private appliedConfig: ProxyConfig | null = null
   private desiredKey: string | null = null
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
@@ -184,6 +186,25 @@ export class ProxyService extends BaseService {
       converged,
       ...(error != null && { lastError: error instanceof Error ? error.message : String(error) })
     }
+  }
+
+  /** Route a bounded, DNS-pinned fetch using the fully applied app policy. */
+  async getRemoteFetchProxy(url: string): Promise<string | undefined> {
+    await this.proxyReconciler.flush()
+    if (this.desiredKey !== this.appliedKey || !this.appliedConfig) {
+      throw new Error('App proxy configuration is not available')
+    }
+    const config = this.appliedConfig
+    if (config.mode === 'system') {
+      // Chromium resolves PAC and per-URL OS bypasses, unlike the Node-side OS
+      // snapshot. A resolution failure must not send a subscription directly.
+      const route = await session.defaultSession.resolveProxy(url)
+      return proxyUrlFromChromiumRoute(route, config.proxyRules)
+    }
+    if (config.mode === 'direct' || !config.proxyRules) return undefined
+    const matcher = new ProxyBypassRuleMatcher()
+    matcher.updateByPassRules((config.proxyBypassRules ?? '').split(/[,;]/))
+    return matcher.isByPass(url) ? undefined : config.proxyRules
   }
 
   async testConnection({
@@ -311,7 +332,9 @@ export class ProxyService extends BaseService {
     else this.clearSystemProxyMonitor()
 
     this.appliedKey = null
+    this.appliedConfig = null
     await this.setGlobalProxy(config)
+    this.appliedConfig = { ...config }
     this.appliedKey = proxyConfigKey(config)
   }
 

@@ -33,6 +33,7 @@ describe('BlacklistSubscriptionService HTTP integration', () => {
         subscriptions = value
       }
     })
+    MockApplicationUtils.setService('ProxyService', { getRemoteFetchProxy: async () => undefined })
     service = new BlacklistSubscriptionService()
   })
   afterEach(async () => {

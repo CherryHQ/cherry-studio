@@ -5,6 +5,7 @@ import { ProxyBypassRuleMatcher } from '../bypassRules'
 
 const {
   nodeProxyConfigureMock,
+  defaultResolveProxyMock,
   nodeProxyControllerConstructorMock,
   sessionSetProxyMock,
   webviewSetProxyMock,
@@ -30,6 +31,7 @@ const {
 
   return {
     nodeProxyConfigureMock,
+    defaultResolveProxyMock: vi.fn(),
     nodeProxyControllerConstructorMock: vi.fn(function NodeProxyControllerMock() {
       return { configure: nodeProxyConfigureMock }
     }),
@@ -98,7 +100,7 @@ vi.mock('os-proxy-config', () => ({ getSystemProxy: getSystemProxyMock }))
 vi.mock('electron', () => ({
   app: { setProxy: appSetProxyMock },
   session: {
-    defaultSession: { setProxy: sessionSetProxyMock },
+    defaultSession: { setProxy: sessionSetProxyMock, resolveProxy: defaultResolveProxyMock },
     fromPartition: sessionFromPartitionMock
   }
 }))
@@ -227,7 +229,63 @@ describe('ProxyService — preference wiring', () => {
     proxyTestResolveProxyMock.mockResolvedValue('PROXY proxy.example:8080')
     proxyTestFetchMock.mockResolvedValue({ ok: true, status: 204 })
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
+    defaultResolveProxyMock.mockImplementation(async (url: string) =>
+      new URL(url).hostname === 'localhost' ? 'DIRECT' : 'PROXY system:1080'
+    )
   })
+
+  it('routes bounded fetches from applied custom policy and ordered bypass rules', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', '*.direct.test,localhost,<-loopback>')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await expect(manager.getRemoteFetchProxy('https://lists.example/list')).resolves.toBe('http://127.0.0.1:7890')
+    await expect(manager.getRemoteFetchProxy('https://a.direct.test/list')).resolves.toBeUndefined()
+    await expect(manager.getRemoteFetchProxy('http://localhost/list')).resolves.toBe('http://127.0.0.1:7890')
+  })
+
+  it('uses the resolved system proxy for bounded fetches and honors its bypass list', async () => {
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await expect(manager.getRemoteFetchProxy('https://lists.example')).resolves.toBe('http://system:1080/')
+    await expect(manager.getRemoteFetchProxy('http://localhost')).resolves.toBeUndefined()
+  })
+
+  it('uses a per-URL system PAC route even without a concrete OS proxy snapshot', async () => {
+    getSystemProxyMock.mockResolvedValue(null)
+    defaultResolveProxyMock.mockResolvedValue('SOCKS5 pac.example:1080; DIRECT')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await expect(manager.getRemoteFetchProxy('https://lists.example')).resolves.toBe('socks5://pac.example:1080')
+    expect(defaultResolveProxyMock).toHaveBeenCalledWith('https://lists.example')
+  })
+
+  it('does not silently leak a bounded fetch direct when proxy application or system lookup failed', async () => {
+    nodeProxyConfigureMock.mockRejectedValueOnce(new Error('cannot apply'))
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await expect(manager.getRemoteFetchProxy('https://lists.example')).rejects.toThrow('not available')
+    getSystemProxyMock.mockRejectedValue(new Error('cannot read OS'))
+    defaultResolveProxyMock.mockRejectedValue(new Error('cannot resolve system route'))
+    const failedSystem = new ProxyService()
+    await (failedSystem as any).onReady()
+    await expect(failedSystem.getRemoteFetchProxy('https://lists.example')).rejects.toThrow(
+      'cannot resolve system route'
+    )
+  })
+
+  it.each(['none', 'system'] as const)(
+    'allows direct bounded fetches in %s mode when no proxy applies',
+    async (mode) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', mode)
+      getSystemProxyMock.mockResolvedValue(null)
+      defaultResolveProxyMock.mockResolvedValue('DIRECT')
+      const manager = new ProxyService()
+      await (manager as any).onReady()
+      await expect(manager.getRemoteFetchProxy('https://lists.example')).resolves.toBeUndefined()
+    }
+  )
 
   it('applies the custom proxy from preferences on ready (Node stack + Electron sessions)', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
@@ -319,6 +377,7 @@ describe('ProxyService — preference wiring', () => {
 
   it('applies bare system mode when the OS proxy is unavailable', async () => {
     getSystemProxyMock.mockResolvedValue(null)
+    defaultResolveProxyMock.mockResolvedValue('DIRECT')
     const manager = new ProxyService()
     await (manager as any).onReady()
     await reconcilerOf(manager).flush()

@@ -6,6 +6,8 @@ import axios from 'axios'
 import { socksDispatcher } from 'fetch-socks'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
+import { REMOTE_FETCH_OWNS_ROUTE } from '@main/utils/remoteFetchRoute'
+
 import { type NodeProxyLogger, ProxyBypassRuleMatcher } from './bypassRules'
 import type { ProxyEndpoint } from './proxyRouting'
 
@@ -144,6 +146,10 @@ export class NodeProxyBackend {
       } else {
         options = { ...args[0] }
         callback = args[1]
+      }
+
+      if ((options as { [REMOTE_FETCH_OWNS_ROUTE]?: boolean })[REMOTE_FETCH_OWNS_ROUTE]) {
+        return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
       }
 
       const targetOptions = url
