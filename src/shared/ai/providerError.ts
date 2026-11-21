@@ -10,6 +10,9 @@ const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
 const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
+// Also the documented wrapper shape `API Error: 400 null (request id: …)`; the status survives separately.
+const STATUS_ONLY_PROVIDER_TEXT =
+  /^(?:API Error:\s*)?[45]\d{2}\s+(?:null|undefined|\[object object\])(?:\s*\(request id:[^)\n]*\))?$/i
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
 const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+(?:\s*,\s*\d+)*\s*\])[^\]]*(?:\]|$)/i
 
@@ -45,7 +48,9 @@ const SAFE_AI_SDK_STRING_FIELDS = [
 function actionableText(value: unknown): string {
   if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   const text = value.trim()
-  return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
+  return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) && !STATUS_ONLY_PROVIDER_TEXT.test(text)
+    ? redactSecretText(text)
+    : ''
 }
 
 function containsEncodedContainer(text: string): boolean {

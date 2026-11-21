@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
+import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -52,11 +53,15 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
   const localModelFailure = getLocalModelResolutionFailure(error)
-  const errorStatus =
+  const outerStatus =
     error && ('status' in error || 'statusCode' in error)
       ? ((error as Record<string, unknown>).status as number | undefined) ||
         ((error as Record<string, unknown>).statusCode as number | undefined)
       : undefined
+  // Older saved error parts keep the HTTP status only in the validated execution failure.
+  const storedFailure = error ? executionFailureSchema.safeParse(error.executionFailure) : undefined
+  const errorStatus =
+    outerStatus ?? (storedFailure?.success ? storedFailure.data.failure.context?.statusCode : undefined)
 
   if (i18n.exists(i18nKey)) {
     const providerId =
@@ -115,14 +120,16 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
     HTTP_ERROR_CODES.includes(errorStatus) &&
     !(errorStatus === 429 && category === 'quota')
   ) {
+    const providerMessage = providerErrorText(error)
     return (
       <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))}
+        {providerMessage ? ` ${providerMessage}` : ''}
       </span>
     )
   }
 
-  return providerErrorText(error)
+  return providerErrorText(error) || t('error.unknown')
 }
 
 const MessageErrorInfo: React.FC<{

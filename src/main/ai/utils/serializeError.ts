@@ -3,7 +3,7 @@ import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'a
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { isErrorCategory } from '@shared/utils/errorCategory'
+import { classifyErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 /** Lenient JSON serialization with circular-reference safety.
@@ -113,6 +113,59 @@ export function serializeError(error: unknown): SerializedError {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null,
+    ...plainErrorFacts(error),
     ...ownership
+  }
+}
+
+const WRAPPER_STATUS_PATTERN =
+  /^(?:API Error:\s*)?([45]\d{2})\s+(?:null|undefined|\[object object\])(?:\s*\(request id:[^)\n]*\))?$/i
+const LABELLED_STATUS_PATTERN = /\b(?:http|status(?:\s*code)?)\s*[:=]?\s*([45]\d{2})\b/i
+
+function wrapperTextStatus(text: string): number | undefined {
+  const match = WRAPPER_STATUS_PATTERN.exec(text.trim())
+  return match ? Number(match[1]) : undefined
+}
+
+function labelledTextStatus(text: string): number | undefined {
+  const match = LABELLED_STATUS_PATTERN.exec(text)
+  return match ? Number(match[1]) : undefined
+}
+
+/**
+ * A plain error object carries its HTTP status only in text the display filter drops (e.g. `429 null`).
+ * Keep the allowlisted status and category so the failure still classifies as a provider rate limit.
+ */
+function plainErrorFacts(error: unknown): Partial<Pick<SerializedError, 'statusCode' | 'providerErrorCategory'>> {
+  if (typeof error !== 'object' || error === null || Array.isArray(error)) return {}
+  const record = error as Record<string, unknown>
+  const nested =
+    typeof record.error === 'object' && record.error !== null ? (record.error as Record<string, unknown>) : undefined
+  const allTexts = [record.message, nested?.message, record.code, nested?.code, record.type, nested?.type].filter(
+    (value): value is string => typeof value === 'string'
+  )
+  // Status extraction stays on short texts, but classification sees the whole message: a recognized cause
+  // (a context-limit message over 500 characters) must not be dropped before it is classified.
+  const texts = allTexts.filter((value) => value.length <= 500)
+  const numeric = [record.statusCode, record.status, nested?.statusCode, nested?.status].find(
+    (value): value is number => typeof value === 'number' && value >= 400 && value <= 599
+  )
+  // An explicit wrapper (`429 null`) outranks a numeric status, which the SDK may have synthesized (500) when
+  // the frame had no code. Otherwise recover a status only from explicit formats, never from a bare number.
+  const wrapperStatus = texts.map(wrapperTextStatus).find((value) => value !== undefined)
+  // The adapter assigns 500 to a `response.failed` frame whose code it does not map. When the text itself
+  // names a safety or context-limit failure, that 500 is a fallback and must not override the classification.
+  const textCategory = classifyErrorCategory({ text: allTexts.join('\n') })
+  const fallbackStatus =
+    numeric === 500 &&
+    (textCategory === 'content' || textCategory === 'context_length' || textCategory === 'rate_limit')
+  const status =
+    wrapperStatus ??
+    (fallbackStatus ? undefined : numeric) ??
+    texts.map(labelledTextStatus).find((value) => value !== undefined)
+  const category = classifyErrorCategory({ text: allTexts.join('\n'), status })
+  return {
+    ...(status === undefined ? {} : { statusCode: status }),
+    ...(category === 'unknown' ? {} : { providerErrorCategory: category })
   }
 }

@@ -334,4 +334,73 @@ describe('serializeError', () => {
       expect(result.availableTools).toEqual(['alpha', 'beta'])
     })
   })
+
+  it('keeps the status and category of a plain 429 object whose text is only "429 null"', () => {
+    const serialized = serializeError({ message: '429 null', code: 'rate_limit_exceeded' })
+    expect(serialized.statusCode).toBe(429)
+    expect(serialized.providerErrorCategory).toBe('rate_limit')
+    expect(serialized.message).toBeNull()
+  })
+
+  it('prefers an explicit "429 null" wrapper over an SDK-synthesized 500', () => {
+    const serialized = serializeError({ message: '429 null', code: null, statusCode: 500 })
+    expect(serialized.statusCode).toBe(429)
+    expect(serialized.providerErrorCategory).toBe('rate_limit')
+  })
+
+  it('keeps rate-limit text over an adapter fallback 500 and still reports a genuine 500', () => {
+    const limited = serializeError({ message: 'Too many requests', code: null, statusCode: 500 })
+    expect(limited.statusCode).toBeUndefined()
+    expect(limited.providerErrorCategory).toBe('rate_limit')
+    const genuine = serializeError({ message: 'Internal server error', code: null, statusCode: 500 })
+    expect(genuine.statusCode).toBe(500)
+    expect(genuine.providerErrorCategory).toBe('server')
+  })
+
+  it('classifies a context-limit message longer than 500 characters despite a fallback 500', () => {
+    const message = `Input exceeds the context window of this model. ${'x'.repeat(600)}`
+    const serialized = serializeError({ message, code: null, statusCode: 500 })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
+  it('keeps a safety classification when the adapter assigned its fallback 500', () => {
+    const serialized = serializeError({
+      message: 'Your request was rejected by the content policy',
+      code: 'content_policy_violation',
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('content')
+  })
+
+  it('keeps a context-limit classification when the adapter assigned its fallback 500', () => {
+    const serialized = serializeError({
+      message: 'Input exceeds the context window of this model',
+      code: null,
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
+  it('keeps a genuine 500 server failure as a server error', () => {
+    const serialized = serializeError({
+      message: 'The server had an error while processing your request',
+      code: 'server_error',
+      statusCode: 500
+    })
+    expect(serialized.statusCode).toBe(500)
+    expect(serialized.providerErrorCategory).toBe('server')
+  })
+
+  it('does not read a token count in a statusless context-limit message as an HTTP status', () => {
+    const serialized = serializeError({ message: 'Input exceeds the context limit by 500 tokens' })
+    expect(serialized.statusCode).toBeUndefined()
+    expect(serialized.providerErrorCategory).toBe('context_length')
+  })
+
+  it('still recovers a labelled status from statusless text', () => {
+    expect(serializeError({ message: 'upstream failed with HTTP 503' }).statusCode).toBe(503)
+  })
 })
