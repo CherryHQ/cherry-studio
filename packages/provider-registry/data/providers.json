@@ -2966,7 +2966,46 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Hostlinku - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.hostlinku.com"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://api.hostlinku.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.hostlinku.com",
+          "modelsApiUrls": {
+            "default": "https://api.hostlinku.com/v1/models"
+          },
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.hostlinku.com"
+        }
+      },
+      "id": "hostlinku",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.hostlinku.com",
+          "docs": "https://docs.hostlinku.com",
+          "models": "https://hostlinku.com/models",
+          "official": "https://hostlinku.com"
+        }
+      },
+      "name": "Hostlinku"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "e7332b46b12fb294"
 }

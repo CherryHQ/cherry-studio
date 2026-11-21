@@ -1820,6 +1820,41 @@ describe('listModels — Rapid-MLX', () => {
   )
 })
 
+describe('listModels — Hostlinku', () => {
+  it('discovers models via https://api.hostlinku.com/v1/models with Bearer auth', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-hostlinku-test')
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        object: 'list',
+        data: [
+          { id: 'claude-sonnet-5-5', object: 'model', owned_by: 'anthropic' },
+          { id: 'deepseek-v4-1-flash', object: 'model', owned_by: 'deepseek' }
+        ]
+      }
+    })
+    const provider = makeProvider({
+      id: 'hostlinku',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.hostlinku.com',
+          adapterFamily: 'openai-compatible'
+        }
+      }
+    })
+
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(models).toHaveLength(2)
+    expect(models[0]).toMatchObject({ apiModelId: 'claude-sonnet-5-5', providerId: 'hostlinku' })
+    expect(models[1]).toMatchObject({ apiModelId: 'deepseek-v4-1-flash', providerId: 'hostlinku' })
+    const request = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: HeadersInit }
+    expect(request.url).toBe('https://api.hostlinku.com/v1/models')
+    const headers = new Headers(request.headers)
+    expect(headers.get('authorization')).toBe('Bearer sk-hostlinku-test')
+  })
+})
+
 describe('listModels — oMLX', () => {
   it('lists only chat models, dropping the diffusion and non-chat families', async () => {
     const provider = makeProvider({

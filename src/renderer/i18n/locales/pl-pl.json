@@ -3512,6 +3512,7 @@
   "provider.grok": "Grok",
   "provider.grok-cli": "Grok CLI",
   "provider.groq": "Groq",
+  "provider.hostlinku": "Hostlinku",
   "provider.huggingface": "Hugging Face",
   "provider.hunyuan": "Tencent Hunyuan",
   "provider.hyperbolic": "Hyperbolic",
