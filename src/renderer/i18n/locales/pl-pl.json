@@ -6171,7 +6171,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Nie udało się załadować dostępnych procesorów",
   "settings.tool.file_processing.errors.save_failed": "Zapisywanie nie powiodło się",
   "settings.tool.file_processing.features.document_to_markdown.title": "Przetwarzanie dokumentów",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Używane do parsowania dokumentów na potrzeby baz wiedzy",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Służy do przetwarzania dokumentów baz wiedzy i zeskanowanych plików PDF konwertowanych przez agentów.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Używane do rozpoznawania tekstu na obrazach",
   "settings.tool.file_processing.fields.api_base_url": "Podstawowy adres URL API",

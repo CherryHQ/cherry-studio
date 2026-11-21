@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Failed to load available processors",
   "settings.tool.file_processing.errors.save_failed": "Save failed",
   "settings.tool.file_processing.features.document_to_markdown.title": "Document Processing",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Used to parse documents for knowledge bases",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Used for knowledge base documents and scanned PDFs converted by Agents.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Used to recognize text in images",
   "settings.tool.file_processing.fields.api_base_url": "API Base URL",

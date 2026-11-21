@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "사용 가능한 처리기를 불러오지 못했습니다",
   "settings.tool.file_processing.errors.save_failed": "저장 실패",
   "settings.tool.file_processing.features.document_to_markdown.title": "문서 처리",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "지식 베이스용 문서 분석에 사용합니다",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "지식 베이스 문서와 에이전트가 변환하는 스캔 PDF에 사용됩니다.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "이미지의 텍스트 인식에 사용합니다",
   "settings.tool.file_processing.fields.api_base_url": "API 기본 URL",

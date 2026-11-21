@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Không thể tải các bộ xử lý khả dụng",
   "settings.tool.file_processing.errors.save_failed": "Lưu thất bại",
   "settings.tool.file_processing.features.document_to_markdown.title": "Xử lý tài liệu",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Dùng để phân tích tài liệu trong cơ sở tri thức",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Dùng cho tài liệu trong cơ sở tri thức và PDF đã quét do tác nhân chuyển đổi.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Dùng để nhận dạng chữ trong hình ảnh cho tính năng dịch",
   "settings.tool.file_processing.fields.api_base_url": "URL Cơ Sở API",

@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Nu s-au putut încărca procesoarele disponibile",
   "settings.tool.file_processing.errors.save_failed": "Salvarea a eșuat",
   "settings.tool.file_processing.features.document_to_markdown.title": "Procesarea documentelor",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Pentru analizarea documentelor în bazele de cunoștințe",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Pentru documentele bazelor de cunoștințe și PDF-urile scanate convertite de agenți.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Pentru recunoașterea textului din imagini în funcția de traducere",
   "settings.tool.file_processing.fields.api_base_url": "URL de bază API",

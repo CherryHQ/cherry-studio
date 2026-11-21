@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "載入可用處理器失敗",
   "settings.tool.file_processing.errors.save_failed": "儲存失敗",
   "settings.tool.file_processing.features.document_to_markdown.title": "文件處理",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用於知識庫解析文件",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用於知識庫文件及代理轉換的掃描 PDF。",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "用於識別圖片內文字內容",
   "settings.tool.file_processing.fields.api_base_url": "API 位址",

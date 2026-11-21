@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Nepodařilo se načíst dostupné procesory",
   "settings.tool.file_processing.errors.save_failed": "Uložení se nezdařilo",
   "settings.tool.file_processing.features.document_to_markdown.title": "Zpracování dokumentů",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Slouží k analýze dokumentů pro znalostní báze",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Pro dokumenty znalostní báze a skenovaná PDF převáděná agenty.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Slouží k rozpoznávání textu na obrázcích",
   "settings.tool.file_processing.fields.api_base_url": "API adresa",
