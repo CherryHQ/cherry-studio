@@ -33,7 +33,8 @@ export function AgentToolDisclosure({
   item,
   onOpenDetails,
   stateId,
-  showInlineDetails = true
+  showInlineDetails = true,
+  unmountOnClose = false
 }: {
   className?: string
   defaultActiveKey?: string[]
@@ -42,6 +43,7 @@ export function AgentToolDisclosure({
   onOpenDetails?: () => void
   stateId?: string
   showInlineDetails?: boolean
+  unmountOnClose?: boolean
 }) {
   const contentId = useId()
   const itemKey = String(item.key)
@@ -102,7 +104,7 @@ export function AgentToolDisclosure({
               'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground',
               item.classNames?.body
             )}>
-            {item.children}
+            {!unmountOnClose || isExpanded ? item.children : null}
           </div>
         )}
       </div>

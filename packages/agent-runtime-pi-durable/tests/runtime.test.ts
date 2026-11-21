@@ -180,7 +180,10 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(() =>
         fast.some((batch) =>
-          batch.events.some((event) => event.type === 'snapshot' && event.activity.state === 'active')
+          batch.events.some(
+            (event) =>
+              (event.type === 'snapshot' || event.type === 'activity.changed') && event.activity.state === 'active'
+          )
         )
       )
       .toBe(true)

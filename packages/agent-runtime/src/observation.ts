@@ -1,3 +1,5 @@
+import { isToolUIPart } from 'ai'
+
 import type {
   InputId,
   Observation,
@@ -7,6 +9,82 @@ import type {
   ThreadSnapshot
 } from './contracts'
 import { immutable } from './immutable'
+
+const immutableOutputs = new WeakSet<object>()
+const acceptedToolParts = new WeakSet<object>()
+
+export function isAcceptedToolOutput(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && immutableOutputs.has(value)
+}
+
+export function isAcceptedToolPart(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && acceptedToolParts.has(value)
+}
+
+/** Establishes immutable part ownership after adapter decoration, including primitive result values. */
+export function snapshotToolPart<T extends RuntimeMessage['parts'][number]>(part: T): T {
+  if (isAcceptedToolPart(part)) return part
+  const accepted = immutable(part)
+  if (freezeOutput(accepted)) acceptedToolParts.add(accepted)
+  return accepted
+}
+
+function freezeOutput(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (typeof value !== 'object' || value === null || immutableOutputs.has(value) || seen.has(value)) return true
+  if (
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) !== Object.prototype &&
+    Object.getPrototypeOf(value) !== null
+  )
+    return false
+  seen.add(value)
+  const children = Object.values(value).map((item) => freezeOutput(item, seen))
+  if (!children.every(Boolean)) return false
+  Object.freeze(value)
+  immutableOutputs.add(value)
+  return true
+}
+
+/** Copies delivery containers while sharing only deeply frozen, accepted JSON tool payloads. */
+export function cloneObservationValue<T>(value: T): T {
+  const copies = new WeakMap<object, object>()
+  const clone = (item: unknown): unknown => {
+    // oxlint-disable-next-line no-restricted-globals -- Preserve native rejection of unsupported values at acceptance.
+    if (typeof item === 'function' || typeof item === 'symbol') return structuredClone(item)
+    if (typeof item !== 'object' || item === null || immutableOutputs.has(item)) return item
+    const known = copies.get(item)
+    if (known) return known
+    if (Array.isArray(item)) {
+      const result: unknown[] = []
+      copies.set(item, result)
+      for (const child of item) result.push(clone(child))
+      return result
+    }
+    if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null)
+      // oxlint-disable-next-line no-restricted-globals -- Non-JSON native payloads require the platform clone at acceptance.
+      return structuredClone(item)
+    const result: Record<string, unknown> = {}
+    copies.set(item, result)
+    for (const [key, child] of Object.entries(item))
+      Object.defineProperty(result, key, { value: clone(child), enumerable: true, writable: true, configurable: true })
+    return result
+  }
+  return clone(value) as T
+}
+
+/** Reuses accepted parts when the producer identifies the changed positions. */
+export function snapshotRuntimeMessage(
+  message: RuntimeMessage,
+  previous?: RuntimeMessage,
+  changedParts?: readonly number[]
+): RuntimeMessage {
+  const changed = changedParts && new Set(changedParts)
+  const parts = message.parts.map((part, index) => {
+    if (previous?.parts[index] && changed && !changed.has(index)) return previous.parts[index]
+    return isToolUIPart(part) && part.state === 'output-available' ? snapshotToolPart(part) : immutable(part)
+  })
+  return immutable(parts.every((part, index) => part === message.parts[index]) ? message : { ...message, parts })
+}
 
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
@@ -21,7 +99,7 @@ export class ThreadFeed {
     value: ThreadSnapshot,
     private readonly report: (error: unknown) => void
   ) {
-    this.value = immutable(value)
+    this.value = immutable({ ...value, messages: value.messages.map((message) => snapshotRuntimeMessage(message)) })
   }
 
   /** The current frozen snapshot, shared with observers rather than copied. */
@@ -46,9 +124,17 @@ export class ThreadFeed {
     return this.value.messages.find((message) => message.id === id)?.metadata?.inputId
   }
 
-  publish(event: ObservationPayload): void {
+  publish(event: ObservationPayload): ObservationPayload | undefined {
     if (this.ended) return
-    const next = immutable(event)
+    let next = event
+    if (event.type === 'message.upsert')
+      next = {
+        ...event,
+        message: snapshotRuntimeMessage(event.message, this.message(event.message.id), event.changedParts)
+      }
+    else if (event.type === 'snapshot')
+      next = { ...event, messages: event.messages.map((message) => snapshotRuntimeMessage(message)) }
+    next = immutable(next)
     switch (next.type) {
       case 'snapshot':
         this.value = next
@@ -93,6 +179,7 @@ export class ThreadFeed {
     }
     this.value = immutable(this.value)
     for (const observer of this.observers) observer.send(next)
+    return next
   }
 
   observe(sink: ObservationSink): Observation {

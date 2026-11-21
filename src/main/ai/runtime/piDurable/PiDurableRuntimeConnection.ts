@@ -370,7 +370,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.handle!.thread,
         this.context!.id,
         (projection) => this.events.push({ type: 'message-projection', projection }),
-        (message) => this.adapter.decorate(message)
+        (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts)
       )
       await this.projection.accept(batch)
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
@@ -678,7 +678,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             if (archive.status !== 'confirmed') throw new Error(archive.error.message)
             return archive.value
           },
-          (message) => this.adapter.decorate(message),
+          (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts),
           (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId })
         )
         resource = { relation, handle: access, projection, pins: 0, finished: false }

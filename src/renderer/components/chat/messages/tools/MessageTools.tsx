@@ -3,10 +3,9 @@ import type { McpTool } from '@renderer/types/tool'
 
 import { agentInlineResultPresentationRegistry, isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
 import { getAutomationReplKind } from './automation/automationRepl'
-import { isChannelAuthQrToolResponse } from './channelConfigTool'
+import { isChannelAuthQrRequest, isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
-import { useResolvedToolResponse } from './useResolvedToolResponse'
 
 interface Props {
   toolResponse: McpToolResponse | NormalToolResponse
@@ -36,16 +35,14 @@ export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolR
 }
 
 export default function MessageTools({ toolResponse }: Props) {
-  const resolvedToolResponse = useResolvedToolResponse(toolResponse)
-
-  const agentInlineResult = agentInlineResultPresentationRegistry.renderResult(resolvedToolResponse)
+  const agentInlineResult = agentInlineResultPresentationRegistry.renderResult(toolResponse)
   if (agentInlineResult) return agentInlineResult
-  if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
-  if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
-    return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />
+  if (isReportArtifactsToolResponse(toolResponse)) return null
+  if (isChannelAuthQrRequest(toolResponse)) {
+    return <MessageChannelConfigTool toolResponse={toolResponse} />
   }
-  if (rendersThroughChooseTool(resolvedToolResponse)) {
-    return <MessageTool toolResponse={resolvedToolResponse as NormalToolResponse} />
+  if (rendersThroughChooseTool(toolResponse)) {
+    return <MessageTool toolResponse={toolResponse as NormalToolResponse} />
   }
-  return <MessageMcpTool toolResponse={resolvedToolResponse} />
+  return <MessageMcpTool toolResponse={toolResponse} />
 }

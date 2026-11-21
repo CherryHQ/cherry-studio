@@ -9,7 +9,8 @@ import MessageMetaTool from '../meta/MessageMetaTool'
 const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
-  useOptionalMessageListActions: () => mockActions()
+  useOptionalMessageListActions: () => mockActions(),
+  useOptionalMessageListTopicId: () => undefined
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({

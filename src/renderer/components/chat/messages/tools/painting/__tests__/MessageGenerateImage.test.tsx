@@ -21,6 +21,7 @@ vi.mock('@shared/utils/file', async (importOriginal) => ({
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
+  useOptionalMessageListTopicId: () => undefined,
   useOptionalMessageListActions: () => mocks.messageListActions
 }))
 vi.mock('@renderer/components/ImageViewer', () => ({
@@ -142,6 +143,26 @@ describe('MessageGenerateImageToolTitle', () => {
     )
 
     expect(screen.getByTestId('image-viewer')).toHaveTextContent('data:image/png;base64,iVBORw0KGgo=')
+    expect(mocks.getPhysicalPath).not.toHaveBeenCalled()
+  })
+
+  it('renders resource-backed image previews without FileEntry or inline base64 reads', () => {
+    const uri = 'cherry-media://tool-result/topic/message/call/0'
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={mcpToolResponse({
+          content: [
+            {
+              type: 'resource_link',
+              uri,
+              name: 'image',
+              mimeType: 'image/png'
+            }
+          ]
+        })}
+      />
+    )
+    expect(screen.getByTestId('image-viewer')).toHaveAttribute('data-src', uri)
     expect(mocks.getPhysicalPath).not.toHaveBeenCalled()
   })
 

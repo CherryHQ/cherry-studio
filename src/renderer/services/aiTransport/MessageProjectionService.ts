@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import {
   applyMessageProjectionUpdate,
@@ -6,6 +7,8 @@ import {
   type MessageProjectionView,
   type ProjectionTarget
 } from '@shared/ai/messageProjection'
+
+import { toolResultService } from './ToolResultService'
 
 const logger = loggerService.withContext('MessageProjectionService')
 export interface ProjectionSnapshot {
@@ -65,6 +68,41 @@ export class MessageProjectionService {
   }
 
   private connect(target: ProjectionTarget, entry: Entry): void {
+    let detailOwner: { topicId: string; sessionId?: string; release: () => void } | undefined
+    const bindDetailOwner = (view: MessageProjectionView | null) => {
+      const topicId =
+        target.kind === 'topic'
+          ? target.topicId
+          : view?.kind === 'child'
+            ? `agent-session:${view.sessionId}`
+            : undefined
+      if (detailOwner?.topicId === topicId) return
+      detailOwner?.release()
+      detailOwner = topicId
+        ? {
+            topicId,
+            sessionId: topicId.startsWith('agent-session:') ? topicId.slice('agent-session:'.length) : undefined,
+            release: toolResultService.retainTopic(topicId)
+          }
+        : undefined
+    }
+    bindDetailOwner(null)
+    const stopDataChanges = dataApiService.onDataChanged(
+      ['/agent-sessions/:sessionId/messages', '/topics/:topicId/messages'],
+      (effects) => {
+        const owner = detailOwner
+        if (
+          owner &&
+          effects.some(
+            (effect) =>
+              'routeParams' in effect &&
+              ((owner.sessionId !== undefined && effect.routeParams?.sessionId === owner.sessionId) ||
+                effect.routeParams?.topicId === owner.topicId)
+          )
+        )
+          toolResultService.invalidateTopic(owner.topicId)
+      }
+    )
     let subscriptionId = ''
     let disposed = false
     let loading = false
@@ -83,12 +121,16 @@ export class MessageProjectionService {
         void attach()
         return false
       }
+      if (next === current) return true
+      bindDetailOwner(next)
+      for (const patch of update.patches) if (patch.type === 'tool-result') toolResultService.invalidate(patch.ref)
       this.notify(entry, { view: next })
       return true
     }
     const attach = async () => {
       if (disposed || loading) return
       detach(subscriptionId)
+      if (detailOwner) toolResultService.invalidateTopic(detailOwner.topicId)
       const generation = crypto.randomUUID()
       subscriptionId = generation
       pending = []
@@ -99,6 +141,8 @@ export class MessageProjectionService {
         if (disposed || subscriptionId !== generation) return
         loading = false
         if (view && view.kind !== target.kind) throw new Error('Projection owner mismatch')
+        bindDetailOwner(view)
+        if (detailOwner) toolResultService.invalidateTopic(detailOwner.topicId)
         this.notify(entry, { view })
         if (overflow) {
           void attach()
@@ -130,6 +174,9 @@ export class MessageProjectionService {
       off()
       detach(subscriptionId)
       pending = []
+      stopDataChanges()
+      detailOwner?.release()
+      detailOwner = undefined
     }
     void attach()
   }

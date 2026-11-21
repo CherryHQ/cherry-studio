@@ -70,7 +70,7 @@ const blob = (key: string, n: number) => ({
 })
 
 describe('message tool-output projection', () => {
-  it('delivers a large replacement on the same call with a fresh cache identity', () => {
+  it('keeps latest-value references stable and invalidates details on replacement', () => {
     const parts = (value: string) => [projectMessagePartForRenderer(partWith(value), TOPIC_ID, MESSAGE_ID)]
     const first = { id: MESSAGE_ID, role: 'assistant' as const, parts: parts('a'.repeat(64 * 1024)) }
     const state: TopicProjectionState = { kind: 'topic', topicId: TOPIC_ID, executions: [] }
@@ -80,9 +80,13 @@ describe('message tool-output projection', () => {
       view = applyMessageProjectionUpdate(view, update)!
     })
     const replacement = { ...first, parts: parts('b'.repeat(64 * 1024)) }
-    projection.update({ ...state, messages: [replacement] }, true)
+    const revision = view.revision
+    projection.update({ ...state, messages: [replacement] }, true, [
+      { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
+    ])
+    expect(view.revision).toBe(revision + 1)
+    expect(view.messages[0]).toEqual(first)
     expect(view.messages[0]).toEqual(replacement)
-    expect(view.messages[0]).not.toEqual(first)
     expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
     projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
     expect(view.messages[0].parts).toEqual([])
@@ -106,13 +110,12 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       }
     })
   })
 
-  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its deferred reference', (source) => {
     let serialized = false
     const output = {
       toJSON() {
@@ -131,8 +134,7 @@ describe('message tool-output projection', () => {
         $deferredToolResult: {
           topicId: TOPIC_ID,
           messageId: MESSAGE_ID,
-          toolCallId: TOOL_CALL_ID,
-          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+          toolCallId: TOOL_CALL_ID
         }
       }
     })
@@ -305,8 +307,7 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       },
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
@@ -329,8 +330,7 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })
