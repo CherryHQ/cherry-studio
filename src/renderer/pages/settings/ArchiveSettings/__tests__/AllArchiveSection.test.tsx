@@ -225,7 +225,7 @@ describe('All Archive entry reads', () => {
   it('refreshes retained pages sequentially with the new cursor and preserves row order', async () => {
     let refreshed = false
     const freshHead = deferred()
-    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
+    vi.mocked(dataApiService.get<'/archives'>).mockImplementation(async (_path, options) => {
       const cursor = options?.query?.cursor
       if (!cursor) return refreshed ? freshHead.promise : page([entry('First')], 'old-cursor')
       return page([entry(refreshed ? 'Fresh second' : 'Second')])

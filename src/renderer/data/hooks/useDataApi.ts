@@ -746,7 +746,7 @@ export function useReadCache() {
   return useCallback(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
-      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
+      // oxlint-disable-next-line anti-slop/no-object-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
       query?: object,
       infinite?: { limit: number }
     ): TResponse | undefined => {
@@ -799,7 +799,7 @@ export function useWriteCache() {
     async <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
       value: TResponse,
-      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
+      // oxlint-disable-next-line anti-slop/no-object-parameters -- Cache identity accepts endpoint-owned query objects without interpreting or validating their fields.
       query?: object
     ): Promise<void> => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0
@@ -1238,10 +1238,6 @@ export function usePaginatedQuery<TPath extends ApiPath>(
  * @internal
  * @param method - HTTP method to use
  * @returns Async function that makes the API request
- *
- * @remarks
- * Type assertion at dataApiService boundary is intentional since dataApiService
- * accepts 'any' for maximum flexibility.
  */
 function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod
@@ -1253,31 +1249,31 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
       query?: QueryParamsForPath<TPath, TMethod>
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    // TS can't narrow generic TMethod in switch branches, so per-branch type assertions are needed
+    // SAFETY: The captured method owns the options; TS cannot narrow generic TMethod in these branches.
     const query = options?.query
     switch (method) {
       case 'GET':
         return dataApiService.get(path, {
-          query: query as QueryParamsForPath<TPath, 'GET'>
+          query: query as QueryParamsForPath<TPath, 'GET'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
         return dataApiService.post(path, {
           body: options?.body as BodyForPath<TPath, 'POST'>,
-          query: query as QueryParamsForPath<TPath, 'POST'>
+          query: query as QueryParamsForPath<TPath, 'POST'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
         return dataApiService.put(path, {
           body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>,
-          query: query as QueryParamsForPath<TPath, 'PUT'>
+          query: query as QueryParamsForPath<TPath, 'PUT'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
         return dataApiService.delete(path, {
-          query: query as QueryParamsForPath<TPath, 'DELETE'>
+          query: query as QueryParamsForPath<TPath, 'DELETE'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
         return dataApiService.patch(path, {
           body: options?.body as BodyForPath<TPath, 'PATCH'>,
-          query: query as QueryParamsForPath<TPath, 'PATCH'>
+          query: query as QueryParamsForPath<TPath, 'PATCH'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
         throw new Error(`Unsupported method: ${method}`)

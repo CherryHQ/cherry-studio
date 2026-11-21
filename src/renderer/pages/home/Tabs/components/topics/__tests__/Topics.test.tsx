@@ -18,6 +18,7 @@ import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ListPinsQuerySchema } from '@shared/data/api/schemas/pins'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -1019,7 +1020,7 @@ describe('Topics', () => {
     permanentDeletePopupMocks.show.mockResolvedValue(false)
     mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
-        const entityType = options?.query?.entityType
+        const entityType = ListPinsQuerySchema.safeParse(options?.query).data?.entityType
         const enabled = options?.enabled
         return {
           data:
@@ -1885,7 +1886,7 @@ describe('Topics', () => {
     if (!pins) throw new Error('mockUseQuery implementation is not configured')
     mockUseQuery.mockImplementation((path, options) => {
       const result = pins(path, options)
-      if (path === '/pins' && options?.query?.entityType !== 'assistant') {
+      if (path === '/pins' && ListPinsQuerySchema.safeParse(options?.query).data?.entityType !== 'assistant') {
         return { ...result, data: [{ id: 'pin-topic-a', entityId: 'topic-a', entityType: 'topic' }] }
       }
       return result
@@ -3357,7 +3358,7 @@ describe('Topics', () => {
     })
     const defaultUseQuery = mockUseQuery.getMockImplementation()
     mockUseQuery.mockImplementation((path, options) => {
-      const entityType = options?.query?.entityType
+      const entityType = path === '/pins' ? ListPinsQuerySchema.safeParse(options?.query).data?.entityType : undefined
       if (path === '/pins' && entityType === 'assistant') {
         return {
           data: [
@@ -3735,7 +3736,7 @@ describe('Topics', () => {
     if (!pins) throw new Error('mockUseQuery implementation is not configured')
     mockUseQuery.mockImplementation((path, options) => {
       const result = pins(path, options)
-      if (path === '/pins' && options?.query?.entityType === 'assistant') {
+      if (path === '/pins' && ListPinsQuerySchema.safeParse(options?.query).data?.entityType === 'assistant') {
         return {
           ...result,
           data: [{ id: 'pin-assistant-1', entityId: 'assistant-1', entityType: 'assistant' }]
