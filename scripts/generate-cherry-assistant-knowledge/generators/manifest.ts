@@ -31,7 +31,7 @@ interface PackageJson {
 
 interface ProviderRegistryFile {
   version: string
-  providers: Array<{ id: string; name: string } & Record<string, unknown>>
+  providers: Array<{ id: string; name: string }>
 }
 
 export interface ProductManifest {
