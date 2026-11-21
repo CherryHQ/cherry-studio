@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "利用可能なプロセッサの読み込みに失敗しました",
   "settings.tool.file_processing.errors.save_failed": "保存に失敗しました",
   "settings.tool.file_processing.features.document_to_markdown.title": "ドキュメント処理",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "ナレッジベースでドキュメントを解析するために使用します",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "ナレッジベースの文書と、エージェントが変換するスキャン PDF に使用します。",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "翻訳機能で画像内の文字を認識するために使用します",
   "settings.tool.file_processing.fields.api_base_url": "APIベースURL",

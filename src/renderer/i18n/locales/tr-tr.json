@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Kullanılabilir işleyiciler yüklenemedi",
   "settings.tool.file_processing.errors.save_failed": "Kaydetme başarısız",
   "settings.tool.file_processing.features.document_to_markdown.title": "Belge İşleme",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Bilgi tabanları için belgeleri ayrıştırmada kullanılır",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Bilgi tabanı belgeleri ve ajanların dönüştürdüğü taranmış PDF’ler için kullanılır.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Görüntülerdeki metni tanımak için kullanılır",
   "settings.tool.file_processing.fields.api_base_url": "API Temel URL'si",

@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Error al cargar los procesadores disponibles",
   "settings.tool.file_processing.errors.save_failed": "Error al guardar",
   "settings.tool.file_processing.features.document_to_markdown.title": "Procesamiento de documentos",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Para analizar documentos en bases de conocimiento",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Se usa para documentos de bases de conocimiento y PDF escaneados que convierten los agentes.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Para reconocer texto en imágenes en la función de traducción",
   "settings.tool.file_processing.fields.api_base_url": "URL base de la API",

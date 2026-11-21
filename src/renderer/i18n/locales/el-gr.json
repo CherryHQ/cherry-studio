@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Αποτυχία φόρτωσης διαθέσιμων επεξεργαστών",
   "settings.tool.file_processing.errors.save_failed": "Η αποθήκευση απέτυχε",
   "settings.tool.file_processing.features.document_to_markdown.title": "Επεξεργασία Εγγράφων",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Για ανάλυση εγγράφων στις βάσεις γνώσης",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Για έγγραφα της βάσης γνώσεων και σαρωμένα PDF που μετατρέπουν οι πράκτορες.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Για αναγνώριση κειμένου σε εικόνες στη λειτουργία μετάφρασης",
   "settings.tool.file_processing.fields.api_base_url": "Βασικό URL API",

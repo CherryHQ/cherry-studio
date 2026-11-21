@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Fehler beim Laden der verfügbaren Prozessoren",
   "settings.tool.file_processing.errors.save_failed": "Speichern fehlgeschlagen",
   "settings.tool.file_processing.features.document_to_markdown.title": "Dokumentenverarbeitung",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Zum Parsen von Dokumenten in Wissensdatenbanken",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Für Dokumente in Wissensdatenbanken und gescannte PDFs, die Agents konvertieren.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Dient zum Erkennen von Text in Bildern",
   "settings.tool.file_processing.fields.api_base_url": "API-Basis-URL",

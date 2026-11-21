@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Impossibile caricare gli elaboratori disponibili",
   "settings.tool.file_processing.errors.save_failed": "Salvataggio non riuscito",
   "settings.tool.file_processing.features.document_to_markdown.title": "Elaborazione dei documenti",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Usato per analizzare i documenti delle basi di conoscenza",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Per i documenti delle basi di conoscenza e i PDF scansionati convertiti dagli agenti.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Usato per riconoscere il testo nelle immagini",
   "settings.tool.file_processing.fields.api_base_url": "URL di base dell'API",

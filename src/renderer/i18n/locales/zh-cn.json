@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "加载可用处理器失败",
   "settings.tool.file_processing.errors.save_failed": "保存失败",
   "settings.tool.file_processing.features.document_to_markdown.title": "文档处理",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用于知识库解析文档",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用于知识库文档和智能体转换的扫描 PDF。",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "用于识别图片内文字内容",
   "settings.tool.file_processing.fields.api_base_url": "API 地址",

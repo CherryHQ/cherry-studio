@@ -6099,7 +6099,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Не удалось загрузить доступные процессоры",
   "settings.tool.file_processing.errors.save_failed": "Ошибка сохранения",
   "settings.tool.file_processing.features.document_to_markdown.title": "Обработка документов",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Для разбора документов в базах знаний",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Для документов баз знаний и отсканированных PDF, которые преобразуют агенты.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Используется для распознавания текста на изображениях",
   "settings.tool.file_processing.fields.api_base_url": "Базовый URL API",

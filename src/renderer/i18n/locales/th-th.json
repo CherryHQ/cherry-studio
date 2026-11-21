@@ -6097,7 +6097,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "โหลดตัวประมวลผลไม่สำเร็จ",
   "settings.tool.file_processing.errors.save_failed": "บันทึกไม่สำเร็จ",
   "settings.tool.file_processing.features.document_to_markdown.title": "การประมวลผลเอกสาร",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "ใช้แยกวิเคราะห์เอกสารสำหรับฐานความรู้",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "ใช้กับเอกสารในฐานความรู้และ PDF ที่สแกนซึ่งเอเจนต์แปลง",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "ใช้รู้จำข้อความในรูปภาพ",
   "settings.tool.file_processing.fields.api_base_url": "Base URL ของ API",
