@@ -467,6 +467,27 @@ export class TopicService {
     return topic
   }
 
+  /**
+   * Mini-app previews are session-local and the session IS the topic id: a
+   * deleted (or trashed) topic's previews, extracted trees and artifact tokens
+   * must not outlive it until restart. The delete path is a sync write tx, so
+   * cleanup is fire-and-log; the preview service's own startup sweep is the
+   * backstop for a failed close.
+   */
+  private closeMiniAppPreviewsForDeletedTopics(deletedIds: string[]): void {
+    if (deletedIds.length === 0) return
+    // getExisting, not get: previews exist only after the service has run, and
+    // its startup sweep empties the root wholesale, so an unstarted service has
+    // nothing live to close and nothing on disk it will not reclaim itself.
+    const previews = application.getExisting('MiniAppPreviewService')
+    if (!previews) return
+    for (const sessionId of deletedIds) {
+      void previews.closeSessionPreviews(sessionId).catch((error: unknown) => {
+        logger.warn('Failed to close mini app previews for deleted topic', { sessionId, error })
+      })
+    }
+  }
+
   /** Move an active topic to the Recycle Bin by default; permanently remove only a topic already there. */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
@@ -477,6 +498,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
+    this.closeMiniAppPreviewsForDeletedTopics(deletedIds)
 
     logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
@@ -497,6 +519,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
+    this.closeMiniAppPreviewsForDeletedTopics(deletedIds)
 
     logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
       count: deletedIds.length

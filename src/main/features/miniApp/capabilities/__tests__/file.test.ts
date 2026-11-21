@@ -9,6 +9,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 
+import type { MiniAppPreviewService } from '../../preview/MiniAppPreviewService'
 import { type CallLease, MiniAppQuiescingError } from '../../runtime/MiniAppRuntimeService'
 import { base64CharCap, MINI_APP_QUOTAS } from '../quota'
 
@@ -77,7 +78,9 @@ vi.mock('@application', async () => {
 // The dialog title is asserted by key: the catalog is not what is under test.
 vi.mock('@main/i18n', () => ({ t: (key: string, vars?: { name: string }) => `${key}:${vars?.name ?? ''}` }))
 
+const { application } = await import('@application')
 const { fileCapability } = await import('../file')
+const { clearPreviewStores } = await import('../previewStores')
 const { QuotaExceededError, RateLimitedError } = await import('../quota')
 const { InvalidArgumentError } = await import('../../errors')
 const { PermissionDeniedError } = await import('../../grants')
@@ -500,5 +503,63 @@ describe('cherry.file', () => {
       finish({ canceled: true, filePath: '' })
       await expect(first).resolves.toEqual({ saved: false })
     })
+  })
+})
+
+describe('cherry.file under a live preview', () => {
+  const RUNTIME = 'preview-22222222-2222-2222-2222-222222222222'
+
+  beforeEach(() => {
+    createInternalEntry.mockClear()
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService'
+        ? ({
+            getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined)
+          } as unknown as MiniAppPreviewService)
+        : undefined
+    )
+  })
+
+  afterEach(() => {
+    clearPreviewStores(RUNTIME)
+  })
+
+  it('save, load, list, usage and delete round-trip with no FileManager entry and no ref row', async () => {
+    const data = Buffer.from('preview bytes').toString('base64')
+    await fileCapability.save(RUNTIME, { name: 'asset.bin', data })
+
+    // The FK failure the review reproduced: a preview must never reach the
+    // installation-backed backend at all.
+    expect(createInternalEntry).not.toHaveBeenCalled()
+    expect(
+      dbh.db
+        .select()
+        .from(miniAppFileRefTable)
+        .all()
+        .filter((r) => r.sourceId === RUNTIME)
+    ).toEqual([])
+
+    await expect(fileCapability.load(RUNTIME, { name: 'asset.bin' })).resolves.toEqual({
+      data: Buffer.from('preview bytes').toString('base64')
+    })
+    await expect(fileCapability.list(RUNTIME)).resolves.toEqual({ names: ['asset.bin'] })
+    await expect(fileCapability.usage(RUNTIME)).resolves.toMatchObject({ bytes: 13, count: 1 })
+
+    await fileCapability.delete(RUNTIME, { name: 'asset.bin' })
+    await expect(fileCapability.load(RUNTIME, { name: 'asset.bin' })).resolves.toEqual({ data: null })
+  })
+
+  it('a replace accounts as a swap, not an add', async () => {
+    await fileCapability.save(RUNTIME, { name: 'state', data: Buffer.alloc(100).toString('base64') })
+    await fileCapability.save(RUNTIME, { name: 'state', data: Buffer.alloc(150).toString('base64') })
+    await expect(fileCapability.usage(RUNTIME)).resolves.toMatchObject({ bytes: 150, count: 1 })
+  })
+
+  it('still refuses an over-cap entry and commits nothing', async () => {
+    // The params schema's base64 char cap refuses before the backend is reached —
+    // the assertion that matters is that nothing is committed either way.
+    const over = Buffer.alloc(MINI_APP_QUOTAS.file.single + 1).toString('base64')
+    await expect(fileCapability.save(RUNTIME, { name: 'huge', data: over })).rejects.toThrow()
+    await expect(fileCapability.usage(RUNTIME)).resolves.toMatchObject({ bytes: 0, count: 0 })
   })
 })

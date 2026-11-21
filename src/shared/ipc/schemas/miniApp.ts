@@ -49,6 +49,18 @@ const UpdateStatusSchema = z.discriminatedUnion('status', [
   ...UpdateOfferSchema.options
 ])
 
+/** One live agent-authored preview, mirrored from `MiniAppPreviewSummary` in main. */
+const MiniAppPreviewSummarySchema = z.object({
+  previewId: z.string(),
+  runtimeId: z.string(),
+  sessionId: z.string(),
+  appId: z.string(),
+  version: z.string(),
+  entry: z.string(),
+  packageSha256: z.string(),
+  openedAt: z.number()
+})
+
 const MiniAppSourceSchema = z.enum(['file', 'url', 'builtin'])
 const InstalledAppSummarySchema = z.object({ version: z.string(), source: MiniAppSourceSchema })
 
@@ -238,7 +250,23 @@ export const miniAppRequestSchemas = {
   }),
   'mini_app.activity.clear': defineRoute({ input: AppIdInputSchema, output: z.void() }),
   /** Opens the app's log folder in the system file manager. */
-  'mini_app.activity.open_folder': defineRoute({ input: AppIdInputSchema, output: z.void() })
+  'mini_app.activity.open_folder': defineRoute({ input: AppIdInputSchema, output: z.void() }),
+
+  // Agent-authored previews (stage 2, issue #21646): the preview pane lists, and
+  // the user closes; opening itself goes through the `mini_app` tool, which is the
+  // only path that can prove an artifact token.
+  'mini_app.authoring.list': defineRoute({
+    input: z.object({ sessionId: z.string().min(1) }),
+    output: z.array(MiniAppPreviewSummarySchema)
+  }),
+  'mini_app.authoring.close': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), previewId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'mini_app.authoring.close_session': defineRoute({
+    input: z.object({ sessionId: z.string().min(1) }),
+    output: z.object({ closed: z.number(), tokensRevoked: z.number() })
+  })
 }
 
 export type MiniAppEventSchemas = {
