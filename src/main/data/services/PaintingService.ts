@@ -230,7 +230,7 @@ class PaintingService {
     const row = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
-          const inserted = insertWithOrderKey(
+          const insertedRow = insertWithOrderKey(
             tx,
             paintingTable,
             {
@@ -245,7 +245,6 @@ class PaintingService {
             }
           )
 
-          const insertedRow = inserted as PaintingRow
           const now = Date.now()
           const refRows = buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
           if (refRows.length > 0) {

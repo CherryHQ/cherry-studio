@@ -552,7 +552,7 @@ class ProviderService {
           return insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId,
             position: 'first'
-          }) as UserProviderRow
+          })
         }),
       {
         unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')

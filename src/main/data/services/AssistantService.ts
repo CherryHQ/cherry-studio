@@ -445,7 +445,7 @@ export class AssistantDataService {
     const inserted = insertWithOrderKey(tx, assistantTable, insertValues, {
       pkColumn: assistantTable.id,
       scope: isNull(assistantTable.deletedAt)
-    }) as AssistantRow
+    })
 
     this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 

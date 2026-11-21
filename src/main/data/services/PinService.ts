@@ -145,7 +145,7 @@ export class PinService {
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )
-        const mapped = rowToPin(inserted as PinRow)
+        const mapped = rowToPin(inserted)
         logger.info('Created pin', {
           id: mapped.id,
           entityType: mapped.entityType,

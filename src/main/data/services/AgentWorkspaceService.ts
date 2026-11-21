@@ -272,7 +272,7 @@ export class AgentWorkspaceService {
       agentWorkspaceTable,
       { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
-    ) as AgentWorkspaceRow
+    )
     return { row, created: true }
   }
 
@@ -296,7 +296,7 @@ export class AgentWorkspaceService {
             type: AGENT_WORKSPACE_TYPE.SYSTEM
           },
           { pkColumn: agentWorkspaceTable.id, position: 'first' }
-        ) as AgentWorkspaceRow,
+        ),
       {
         ...defaultHandlersFor('Workspace', workspacePath),
         unique: () =>

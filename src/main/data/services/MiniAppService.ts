@@ -212,13 +212,10 @@ export class MiniAppService {
               scope: orderScopeForStatus(status)
             }
           )
-          return inserted as MiniAppRow | undefined
+          return inserted
         }),
       defaultHandlersFor('MiniApp', dto.appId)
     )
-    if (!row) {
-      throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
-    }
     logger.info('Created custom miniapp', { appId: row.appId, orderKey: row.orderKey })
     // Only site rows are created here (the custom-site form is the sole entry), so
     // there is no installation row to join — say so explicitly.

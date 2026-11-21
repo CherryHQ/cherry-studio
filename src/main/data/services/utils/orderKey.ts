@@ -131,7 +131,7 @@ export function insertWithOrderKey<TTable extends TableWithOrderKey, TValues ext
   table: TTable,
   values: ValuesWithoutOrderKey<TValues>,
   options: InsertWithOrderKeyOptions
-): Record<string, unknown> {
+): TTable['$inferSelect'] {
   const [row] = insertManyWithOrderKey(tx, table, [values], options)
   if (!row) {
     throw new Error('insertWithOrderKey: insert returned no rows')
@@ -153,7 +153,7 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
   table: TTable,
   valuesList: Array<ValuesWithoutOrderKey<TValues>>,
   options: InsertManyWithOrderKeyOptions
-): Record<string, unknown>[] {
+): TTable['$inferSelect'][] {
   if (valuesList.length === 0) return []
 
   const position = options.position ?? 'last'
@@ -169,8 +169,8 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
   }
 
   const rowsToInsert = valuesList.map((values, i) => ({ ...values, orderKey: keys[i] }))
-  const inserted = tx.insert(table).values(rowsToInsert).returning().all()
-  return inserted as Record<string, unknown>[]
+  const inserted: TTable['$inferSelect'][] = tx.insert(table).values(rowsToInsert).returning().all()
+  return inserted
 }
 
 /**
@@ -315,7 +315,7 @@ export function resetOrder<T extends Record<string, unknown>>(
   const pkColumn = options.pkColumn
 
   for (let i = 0; i < orderedRows.length; i++) {
-    const row = orderedRows[i] as Record<string, unknown>
+    const row = orderedRows[i]
     const pkValue = resolvePkValue(row, pkColumn)
     tx.update(table).set({ orderKey: keys[i] }).where(eq(pkColumn, pkValue)).run()
   }
@@ -379,6 +379,7 @@ function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>): {
  * Read the primary-key value from a plain row using the Drizzle column's name.
  * Throws if absent — a silent `undefined` pk would cause an unscoped UPDATE.
  */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Caller-selected row snapshots can contain partial fields; check the named primary key before constructing an update.
 function resolvePkValue(row: Record<string, unknown>, pkColumn: AnyColumn): string {
   const name = pkColumn.name
   const value = row[name]

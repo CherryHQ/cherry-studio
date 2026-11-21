@@ -305,7 +305,7 @@ export class TopicService {
         position: 'first',
         scope: isNull(topicTable.deletedAt)
       }
-    ) as TopicRow
+    )
     getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
     return topicRow
   }
@@ -340,7 +340,7 @@ export class TopicService {
           position: 'first',
           scope: isNull(topicTable.deletedAt)
         }
-      ) as TopicRow
+      )
 
       // New topic is a creation path → create its virtual root before copying the path
       // (copyPathRowsTx reparents the copied head onto it).

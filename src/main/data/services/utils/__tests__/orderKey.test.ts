@@ -144,10 +144,7 @@ describe('orderKey', () => {
 
   describe('insertWithOrderKey', () => {
     it('inserts into an empty table with a non-empty orderKey', async () => {
-      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id }) as {
-        id: string
-        orderKey: string
-      }
+      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })
       expect(row.id).toBe('a')
       expect(row.orderKey).toBeTruthy()
       expect(row.orderKey.length).toBeGreaterThan(0)
@@ -194,10 +191,7 @@ describe('orderKey', () => {
     })
 
     it('returns the inserted row shape', async () => {
-      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id }) as {
-        id: string
-        orderKey: string
-      }
+      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id })
       expect(row).toHaveProperty('id', 'only')
       expect(row).toHaveProperty('orderKey')
       expect(typeof row.orderKey).toBe('string')
@@ -501,7 +495,7 @@ describe('orderKey', () => {
     it("appends N rows when position='last' (default) on an empty table", async () => {
       const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'a' }, { id: 'b' }, { id: 'c' }], {
         pkColumn: fxTable.id
-      }) as Array<{ id: string; orderKey: string }>
+      })
 
       expect(inserted.map((r) => r.id)).toEqual(['a', 'b', 'c'])
       // Each row has a non-empty orderKey and keys are strictly increasing
@@ -542,7 +536,7 @@ describe('orderKey', () => {
         fxTable,
         [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }],
         { pkColumn: fxTable.id }
-      ) as Array<{ id: string; orderKey: string }>
+      )
 
       const sortedByKey = [...inserted].sort((x, y) => x.orderKey.localeCompare(y.orderKey))
       expect(sortedByKey.map((r) => r.id)).toEqual(['a', 'b', 'c', 'd', 'e'])
@@ -589,7 +583,7 @@ describe('orderKey', () => {
     it('supports a non-"id" primary-key column', async () => {
       const inserted = insertManyWithOrderKey(dbh.db, fxAppTable, [{ appKey: 'one' }, { appKey: 'two' }], {
         pkColumn: fxAppTable.appKey
-      }) as Array<{ appKey: string; orderKey: string }>
+      })
 
       expect(inserted.map((r) => r.appKey)).toEqual(['one', 'two'])
       expect(inserted[1].orderKey > inserted[0].orderKey).toBe(true)
@@ -617,7 +611,7 @@ describe('orderKey', () => {
 
       const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
         pkColumn: fxTable.id
-      }) as Array<{ id: string; orderKey: string }>
+      })
 
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       // No row lost, batch appended after the re-keyed row in input order.
@@ -682,7 +676,7 @@ describe('orderKey', () => {
 
       const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
         pkColumn: fxTable.id
-      }) as Array<{ id: string; orderKey: string }>
+      })
 
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(rows).toHaveLength(5)
@@ -730,7 +724,7 @@ describe('orderKey', () => {
 
       const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
         pkColumn: fxTable.id
-      }) as Array<{ id: string; orderKey: string }>
+      })
 
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(rows).toHaveLength(6)
