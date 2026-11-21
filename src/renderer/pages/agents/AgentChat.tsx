@@ -52,6 +52,7 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
+import { AgentFileSnapshotUndo } from './components/AgentFileSnapshotUndo'
 import {
   type AgentFileNavigationRequest,
   AgentRightPane,
@@ -479,25 +480,32 @@ const AgentChat = ({
         activeAgent={activeAgent ?? null}
         conversationControls={
           activeAgent ? (
-            <AgentTopBarControls
-              agent={activeAgent}
-              model={activeModel}
-              workspace={sessionSnapshot.workspace}
-              workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
-              workspaceChanging={replacingSessionWorkspace}
-              workspaceWarning={workspaceWarning}
-              selectAgentLabel={t('chat.alerts.select_agent')}
-              selectModelLabel={t('button.select_model')}
-              selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
-              shouldAutoSelectCreatedAgent
-              agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
-              canChangeModel
-              onAgentChange={handleSessionAgentChange}
-              onModelSelect={handleAgentModelChange}
-              onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
-              modelFilter={agentModelFilter}
-              onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
-            />
+            <>
+              <AgentFileSnapshotUndo
+                key={sessionSnapshot.id}
+                sessionId={sessionSnapshot.id}
+                pending={runtime.isPending}
+              />
+              <AgentTopBarControls
+                agent={activeAgent}
+                model={activeModel}
+                workspace={sessionSnapshot.workspace}
+                workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
+                workspaceChanging={replacingSessionWorkspace}
+                workspaceWarning={workspaceWarning}
+                selectAgentLabel={t('chat.alerts.select_agent')}
+                selectModelLabel={t('button.select_model')}
+                selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+                shouldAutoSelectCreatedAgent
+                agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+                canChangeModel
+                onAgentChange={handleSessionAgentChange}
+                onModelSelect={handleAgentModelChange}
+                onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
+                modelFilter={agentModelFilter}
+                onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
+              />
+            </>
           ) : undefined
         }
         showSidebarControls={showResourceListControls}

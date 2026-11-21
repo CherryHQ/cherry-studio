@@ -21,8 +21,12 @@ const sources = (dir: string, except = '') =>
 const orchestration = sources('../../src/orchestration/')
 const writers = `${sources('../../src/core/', 'keys.ts')}\n${orchestration}`
 
-type HostPortMethod = { [P in keyof HostPorts]: `${P}.${Extract<keyof HostPorts[P], string>}` }[keyof HostPorts]
+type HostPortMethod = {
+  [P in keyof HostPorts]-?: `${P}.${Extract<keyof NonNullable<HostPorts[P]>, string>}`
+}[keyof HostPorts]
 const HOST_PORT_METHODS = [
+  'fileWrites.protect',
+  'fileWrites.settle',
   'approvals.facts',
   'approvals.ask',
   'questions.ask',

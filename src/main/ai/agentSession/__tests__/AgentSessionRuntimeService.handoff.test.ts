@@ -1,8 +1,13 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -22,6 +27,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { MessageSnapshot } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
+import { AgentFileSnapshotService } from '../AgentFileSnapshotService'
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 
 const dbh = setupTestDatabase()
@@ -546,6 +552,82 @@ it.each([undefined, ['previous-call'], ['current-call', 'previous-call']])(
     expect(f.service.isSessionBusy('root')).toBe(false)
   }
 )
+
+it('restores snapshot ownership when an autonomous reply releases the deferred user reply', async () => {
+  const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-deferred-'))
+  const workspace = path.join(testDir, 'workspace')
+  await mkdir(workspace)
+  onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+  const snapshots = new AgentFileSnapshotService()
+  MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+  const f = await fixture({ headless: true })
+  vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+  f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const original = f.service.getLiveSnapshotRound('root')!
+  const target = path.join(workspace, 'file')
+  await writeFile(target, 'before')
+  const first = await snapshots.protectWrite({
+    round: original,
+    callId: 'first',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'first' } },
+    filePath: target,
+    cwd: workspace
+  })
+  await writeFile(target, 'first')
+  await snapshots.settleWrite({
+    round: original,
+    attemptId: first.attemptId!,
+    outcome: 'success'
+  })
+  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
+  f.suspended.resolve()
+  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+  const autonomous = f.service.getLiveSnapshotRound('root')!
+  expect(autonomous.replyId).not.toBe(original.replyId)
+  const goalFile = path.join(workspace, 'goal')
+  await snapshots.protectWrite({
+    round: autonomous,
+    callId: 'goal',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'after' } },
+    filePath: goalFile,
+    cwd: workspace
+  })
+  f.blockPersistence()
+  const finishAutonomous = f.open(f.starts[0])
+  await f.emit({ type: 'turn-complete' })
+  await f.persistenceEntered
+  await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+  const resumed = f.service.getLiveSnapshotRound('root')!
+  expect(resumed.replyId).toBe(original.replyId)
+  const second = await snapshots.protectWrite({
+    round: resumed,
+    callId: 'second',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'second' } },
+    filePath: target,
+    cwd: workspace
+  })
+  await writeFile(target, 'second')
+  await snapshots.settleWrite({
+    round: resumed,
+    attemptId: second.attemptId!,
+    outcome: 'success'
+  })
+  const manifest = JSON.parse(
+    await readFile(path.join(testDir, 'snapshots/root', original.replyId, 'manifest.json'), 'utf8')
+  )
+  expect(manifest.files[0].attempts).toHaveLength(2)
+  expect(manifest.inputMessageIds).toEqual([f.user.id])
+  f.persistenceGate.resolve()
+  await finishAutonomous()
+  await vi.waitFor(() => expect(f.starts).toHaveLength(2))
+})
 
 // A failed autonomous placeholder must neither discard its facts nor lend them to the waiting user.
 it.each([

@@ -1353,6 +1353,26 @@ describe('coding-agent behavior adapter', () => {
 
   // Catches rule-handler errors Pi swallows never reaching onError: a failing omit sends the request unfiltered, a
   // failing before is just an error result, a failing after leaves the result unreplaced, a failing onClose is lost.
+  it('settles each native tool result once', async () => {
+    const calls: string[] = []
+    const pi = await openPiHarness((ports) => {
+      ports.tools.register(tool('echo'))
+      ports.toolGate.register({
+        before: async () => ({}),
+        settle: async (call) => {
+          calls.push(call.tool)
+        },
+        after: async () => undefined
+      })
+    })
+    const thread = await pi.harness.createThread()
+    pi.harness.script(thread, [{ text: '', toolCalls: [{ name: 'echo', args: {} }] }, { text: 'done' }])
+    await pi.harness.sendUser(thread, 'go')
+    await pi.harness.settle()
+    expect(calls).toEqual(['echo'])
+    await pi.harness.close()
+  })
+
   it('reports what the rule handlers throw', async () => {
     const failures = {
       omit: new Error('omit failed'),

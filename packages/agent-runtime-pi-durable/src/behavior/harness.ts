@@ -786,6 +786,16 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         },
         async afterTool(call, result, api, callContext) {
           if (!gate) return
+          await gate.settle?.(
+            {
+              key: callKeyOf(String(api.taskId)),
+              thread: threadId(api.conversationId),
+              tool: call.name,
+              args: call.arguments,
+              nested: !!call.parent
+            },
+            result.isError ?? false
+          )
           const output: NonNullable<typeof result.output> = []
           let isError = result.isError
           let details = result.details

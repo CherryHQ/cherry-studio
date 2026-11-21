@@ -209,6 +209,8 @@ export class DurableBackend {
       this.models = binding.modelRuntime
       const behavior = await createPiBehaviorHost({
         input,
+        cwd: desktop.snapshot.session.workspace.path,
+        runtime: 'pi-durable',
         root: () => runtimeId(this.roots.get(context.id)?.context.nativeThreadId ?? context.nativeThreadId ?? '0'),
         binding,
         model: desktop.snapshot.model,
@@ -326,6 +328,10 @@ export class DurableBackend {
     const host = (thread: ThreadId) => this.forThread(thread).behavior.host
     const global = () => this.roots.values().next().value!.behavior.host
     return {
+      fileWrites: {
+        protect: (call) => host(runtimeId(call.thread)).fileWrites!.protect(call),
+        settle: (call) => host(runtimeId(call.thread)).fileWrites!.settle(call)
+      },
       approvals: {
         facts: (call, tool) => host(call.thread).approvals.facts(call, tool),
         ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal)
