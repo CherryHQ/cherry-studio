@@ -45,6 +45,7 @@ import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
 import { OpenResponsesExtension } from '../extensions'
 import { resolveSdkConfig } from '../sdkConfig'
+import { exactPathSuccessFixture } from './fixtures/exactPathSuccessFixture'
 
 if (!extensionRegistry.has(OpenResponsesExtension.config.name)) extensionRegistry.register(OpenResponsesExtension)
 
@@ -2635,6 +2636,101 @@ describe('complete path mode (endpoint config pathMode: complete, #18972)', () =
         expect((error as APICallError).statusCode).toBe(404)
         expect(paths).toEqual(['/literal/?api_key=private-token&version=2'])
         expect(JSON.stringify(chatErrorContext(error))).not.toMatch(/private-token|chat\/completions|sk-test-key/)
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
+
+  it.each([
+    ['generate', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['stream', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['generate', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['stream', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['generate', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['stream', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['generate', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses'],
+    ['stream', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses']
+  ] as const)(
+    'preserves successful SDK output through exact routing and diagnostics (%s, %s)',
+    async (mode, endpointType, adapterFamily) => {
+      const requests: Array<{
+        path: string
+        method: string
+        headers: import('node:http').IncomingHttpHeaders
+        body: string
+      }> = []
+      const server = createServer((request, response) => {
+        let body = ''
+        request.on('data', (chunk) => {
+          body += chunk
+        })
+        request.on('end', () => {
+          requests.push({ path: request.url!, method: request.method!, headers: request.headers, body })
+          response.writeHead(200, { 'Content-Type': mode === 'stream' ? 'text/event-stream' : 'application/json' })
+          response.end(exactPathSuccessFixture(endpointType, mode === 'stream'))
+        })
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-success',
+          defaultChatEndpoint: endpointType,
+          endpointConfigs: {
+            [endpointType]: {
+              baseUrl: `${origin}/literal/?api_key=private-token&version=2`,
+              pathMode: 'complete',
+              adapterFamily
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: provider.id,
+          apiModelId: 'fixture-model',
+          endpointTypes: [endpointType]
+        })
+        const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+        const { sdkConfig } = await resolveSdkConfig(provider, model, resolvedEndpoint)
+        const plugins = collectFromFeatures(
+          { sdkConfig } as never,
+          INTERNAL_FEATURES.filter((feature) => feature.name === 'exact-path-diagnostics')
+        ).modelAdapters
+        const executor = await createExecutor<AppProviderSettingsMap>(
+          sdkConfig.providerId,
+          sdkConfig.providerSettings,
+          plugins
+        )
+        const resolvedModel = await executor.resolveLanguageModel(sdkConfig.modelId)
+        const options = { model: resolvedModel, prompt: 'hello', maxRetries: 0, maxOutputTokens: 16 }
+        const result = mode === 'generate' ? await generateText(options) : streamText(options)
+        expect(await result.text).toBe('OK')
+        expect(await result.finishReason).toBe('stop')
+        expect((await result.usage).inputTokens).toBe(1)
+        expect((await result.usage).outputTokens).toBe(1)
+        expect(requests).toHaveLength(1)
+        expect(requests[0]).toMatchObject({ path: '/literal/?api_key=private-token&version=2', method: 'POST' })
+        const headers = requests[0].headers
+        expect(
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+            ? headers['x-api-key']
+            : endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+              ? headers['x-goog-api-key']
+              : headers.authorization
+        ).toBe(
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+            ? 'sk-test-key'
+            : 'Bearer sk-test-key'
+        )
+        const body = JSON.parse(requests[0].body)
+        if (endpointType !== ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) expect(body.model).toBe('fixture-model')
+        if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+          expect(body.contents[0].parts).toEqual([{ text: 'hello' }])
+        else if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(JSON.stringify(body.input)).toContain('hello')
+        else expect(JSON.stringify(body.messages)).toContain('hello')
       } finally {
         vi.mocked(net.fetch).mockReset()
         server.closeAllConnections()
