@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Řadit podle",
   "chat.mcp.warning.gemini_web_search": "Gemini nepodporuje současné použití nativních nástrojů webového vyhledávání a volání funkcí",
   "chat.message.branches": "Přepnout větev",
+  "chat.message.copy_latex": "Kopírovat LaTeX",
   "chat.message.flow.branches": "větve",
   "chat.message.flow.copy_topic.created": "Zkopírováno do nové konverzace",
   "chat.message.flow.copy_topic.label": "Kopírovat jako novou konverzaci",

@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Ordina per",
   "chat.mcp.warning.gemini_web_search": "Gemini non supporta l'uso simultaneo degli strumenti di ricerca web nativi e delle chiamate a funzioni",
   "chat.message.branches": "Cambia ramo",
+  "chat.message.copy_latex": "Copia LaTeX",
   "chat.message.flow.branches": "rami",
   "chat.message.flow.copy_topic.created": "Copiato in una nuova conversazione",
   "chat.message.flow.copy_topic.label": "Copia come nuova conversazione",

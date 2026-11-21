@@ -965,6 +965,7 @@
   "chat.list.sort.title": "Sortuj według",
   "chat.mcp.warning.gemini_web_search": "Gemini nie obsługuje jednoczesnego korzystania z natywnego wyszukiwania w sieci oraz wywoływania funkcji (function calling)",
   "chat.message.branches": "Przełącz gałąź",
+  "chat.message.copy_latex": "Kopiuj LaTeX",
   "chat.message.flow.branches": "gałęzie",
   "chat.message.flow.copy_topic.created": "Skopiowano do nowej rozmowy",
   "chat.message.flow.copy_topic.label": "Kopiuj jako nową rozmowę",

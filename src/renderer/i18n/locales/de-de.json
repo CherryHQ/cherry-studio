@@ -951,6 +951,7 @@
   "chat.list.sort.title": "Sortieren nach",
   "chat.mcp.warning.gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
   "chat.message.branches": "Zweig wechseln",
+  "chat.message.copy_latex": "LaTeX kopieren",
   "chat.message.flow.branches": "Zweige",
   "chat.message.flow.copy_topic.created": "In eine neue Unterhaltung kopiert",
   "chat.message.flow.copy_topic.label": "Als neue Konversation kopieren",
