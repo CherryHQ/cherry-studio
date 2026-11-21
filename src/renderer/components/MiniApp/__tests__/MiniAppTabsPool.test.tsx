@@ -4,8 +4,9 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
+import i18n from 'i18next'
 import { useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSidebarActivationGateway } from '@renderer/components/app/sidebarShortcuts'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -21,11 +22,21 @@ import MiniAppTabsPool from '../MiniAppTabsPool'
 
 vi.unmock('@renderer/data/hooks/useCache')
 
-const ipc = vi.hoisted(() => ({ request: vi.fn(async () => true), events: new Map<string, (payload: any) => void>() }))
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipc.request },
-  useIpcOn: (name: string, fn: (payload: any) => void) => {
-    ipc.events.set(name, fn)
+const ipc = vi.hoisted(() => ({
+  request: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => true),
+  events: new Map<string, Set<(payload: unknown) => void>>()
+}))
+vi.mock('@renderer/ipc/ipcApi', () => ({
+  ipcApi: {
+    request: ipc.request,
+    on: (name: string, callback: (payload: unknown) => void) => {
+      const listeners = ipc.events.get(name) ?? new Set()
+      listeners.add(callback)
+      ipc.events.set(name, listeners)
+      return () => {
+        listeners.delete(callback)
+      }
+    }
   }
 }))
 vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
@@ -53,6 +64,10 @@ vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
 vi.mock('@renderer/components/WebviewSearch', () => ({ default: () => null }))
 
 const queryGuest = (appId: string) => document.querySelector<WebviewTag>(`webview[data-mini-app-id="${appId}"]`)
+function emitIpc(name: string, payload: unknown) {
+  for (const listener of ipc.events.get(name) ?? []) listener(payload)
+}
+
 const getGuest = (appId: string) => {
   const guest = queryGuest(appId)
   expect(guest).not.toBeNull()
@@ -135,6 +150,13 @@ function Controls() {
   )
 }
 
+let previousLanguage: string
+beforeAll(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+afterAll(() => i18n.changeLanguage(previousLanguage))
+
 beforeEach(() => {
   MockCacheUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
@@ -142,7 +164,11 @@ beforeEach(() => {
   MockUseDataApiUtils.mockQueryData('/mini-apps', [createMiniApp('a'), createMiniApp('b')])
   webviewRuntimeService.dispose()
   ipc.events.clear()
-  ipc.request.mockReset().mockResolvedValue(true)
+  ipc.request
+    .mockReset()
+    .mockImplementation(async (route) =>
+      route === 'webview.region.prepare' ? { partition: 'persist:webview', fake: false } : true
+    )
 })
 afterEach(cleanup)
 const mount = () =>
@@ -153,6 +179,207 @@ const mount = () =>
   )
 
 describe('MiniApp guest ownership', () => {
+  it('keeps an open Default guest on its current page when historical regional data is cleared', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: null }
+    })
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    guest.getWebContentsId = () => 42
+    await act(async () => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    guest.setAttribute('src', 'https://a.example.com/conversation')
+
+    await act(async () => emitIpc('webview.region.invalidated', { appId: 'a' }))
+
+    expect(getGuest('a')).toBe(guest)
+    expect(guest).toHaveAttribute('src', 'https://a.example.com/conversation')
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+  })
+
+  it('releases and prepares a new regional guest when the session is invalidated', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: 'JP' }
+    })
+    const leaseId = '00000000-0000-4000-8000-000000000011'
+    ipc.request.mockImplementation(async (route) =>
+      route === 'webview.region.prepare' ? { partition: 'persist:region-jp-a', fake: true, leaseId } : true
+    )
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const original = getGuest('a')
+
+    await act(async () => emitIpc('webview.region.invalidated', { appId: 'a' }))
+
+    expect(getGuest('a')).not.toBe(original)
+    expect(getGuest('a')).toHaveAttribute('partition', 'persist:region-jp-a')
+    expect(ipc.request).toHaveBeenCalledWith('webview.region.release', { leaseId })
+  })
+
+  it.each([
+    ['webview.region.prepare', 'Could not prepare this mini app. Close it and try again.'],
+    [
+      'webview.region.wait_until_ready',
+      'Regional emulation stopped. Reopen this mini app. If the problem persists, check the application logs.'
+    ]
+  ])('dismisses the loading mask and shows recovery instructions when %s fails', async (failedRoute, message) => {
+    const user = userEvent.setup()
+    const failure = Promise.withResolvers<never>()
+    const regional = failedRoute === 'webview.region.wait_until_ready'
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: regional ? 'JP' : null }
+    })
+    ipc.request.mockImplementation(async (route) => {
+      if (route === failedRoute) return failure.promise
+      if (route === 'webview.region.prepare') return { partition: 'persist:region-jp-a', fake: true }
+      return true
+    })
+    mount()
+    await user.click(screen.getByText('Open A'))
+    if (regional) {
+      const guest = getGuest('a')
+      guest.getWebContentsId = () => 42
+      await act(async () => {
+        guest.dispatchEvent(new Event('dom-ready'))
+      })
+    }
+    expect(screen.getByRole('status', { name: 'Loading...' })).toBeVisible()
+    await act(async () => failure.reject(new Error('Regional session unavailable')))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(screen.queryByRole('status', { name: 'Loading...' })).not.toBeInTheDocument()
+    expect(queryGuest('a')).toBeNull()
+
+    const partition = regional ? 'persist:region-jp-a' : 'persist:webview'
+    ipc.request.mockImplementation(async (route) =>
+      route === 'webview.region.prepare' ? { partition, fake: regional } : true
+    )
+    await act(async () => emitIpc('webview.region.invalidated', { appId: 'a' }))
+    expect(getGuest('a')).toHaveAttribute('partition', partition)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('delivers a regional failure to the affected guest while another guest is attaching', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: 'JP', b: 'DE' }
+    })
+    ipc.request.mockImplementation(async (route, input) =>
+      route === 'webview.region.prepare'
+        ? { partition: `persist:region-${(input as { appId: string }).appId}`, fake: true }
+        : true
+    )
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const attaching = getGuest('a')
+    attaching.getWebContentsId = () => {
+      throw new Error('WebView is still attaching')
+    }
+    await user.click(screen.getByText('Open B'))
+    getGuest('b').getWebContentsId = () => 42
+
+    act(() => emitIpc('webview.region.failed', { webviewId: 42 }))
+
+    expect(queryGuest('b')).toBeNull()
+    expect(getGuest('a')).toBe(attaching)
+  })
+
+  it('moves a site edited to a file URL into the default runtime partition', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: 'JP' }
+    })
+    let fileSite = false
+    ipc.request.mockImplementation(async (route, input) => {
+      if (route !== 'webview.region.prepare') return true
+      const regional = (input as { appId: string }).appId === 'a' && !fileSite
+      return { partition: regional ? 'persist:webview-fake:JP:a' : 'persist:webview', fake: regional }
+    })
+    const view = mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    const original = getGuest('a')
+    expect(original).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+
+    fileSite = true
+    await act(async () => {
+      MockUseDataApiUtils.mockQueryData('/mini-apps', [
+        { ...createMiniApp('a'), url: 'file:///C:/mini-app/index.html' },
+        createMiniApp('b')
+      ])
+      view.rerender(
+        <TabsProvider>
+          <Controls />
+        </TabsProvider>
+      )
+    })
+    expect(webviewRuntimeService.get('miniapp:a')!.source).toEqual({
+      src: 'file:///C:/mini-app/index.html',
+      environment: 'default'
+    })
+    expect(getGuest('a')).not.toBe(original)
+    expect(getGuest('a')).toHaveAttribute('partition', 'persist:webview')
+    expect(getGuest('a')).toHaveAttribute('src', 'file:///C:/mini-app/index.html')
+    expect(getGuest('b')).toBe(b)
+  })
+
+  it('replaces only the regional guest when its country changes and retains the partition on restart', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.fake_environment.country': 'US',
+      'feature.mini_app.us_environment_app_ids': ['a']
+    })
+    let country = 'US'
+    ipc.request.mockImplementation(async (route, input) => {
+      if (route !== 'webview.region.prepare') return true
+      if ((input as { appId: string }).appId !== 'a') return { partition: 'persist:webview', fake: false }
+      return { partition: country === 'US' ? 'persist:webview-us:a' : 'persist:webview-fake:JP:a', fake: true }
+    })
+    const view = mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    const original = getGuest('a')
+    expect(original).toHaveAttribute('partition', 'persist:webview-us:a')
+    const originalInstance = webviewRuntimeService.get('miniapp:a')!.instance
+
+    country = 'JP'
+    MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.fake_environment.country', 'JP')
+    view.rerender(
+      <TabsProvider>
+        <Controls />
+      </TabsProvider>
+    )
+    await act(async () => {})
+    const regional = getGuest('a')
+    expect(regional).not.toBe(original)
+    expect(regional).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+    expect(webviewRuntimeService.get('miniapp:a')!.instance).not.toBe(originalInstance)
+    expect(getGuest('b')).toBe(b)
+
+    await user.click(screen.getByRole('button', { name: 'Restart guest' }))
+    expect(getGuest('a')).not.toBe(regional)
+    expect(getGuest('a')).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+    expect(getGuest('b')).toBe(b)
+  })
+
   it.each([false, true])('restarts only the requested guest from its configured URL (ready: %s)', async (ready) => {
     const user = userEvent.setup()
     mount()
@@ -300,7 +527,7 @@ describe('MiniApp guest ownership', () => {
     mount()
     await user.click(screen.getByText('Open A'))
     await user.click(screen.getByText('Duplicate A'))
-    act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
+    act(() => emitIpc('mini_app.runtime.evicted', { appId: 'a' }))
     expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('tabs')).not.toHaveTextContent('duplicate')
   })
@@ -312,7 +539,7 @@ describe('MiniApp guest ownership', () => {
     await user.click(screen.getByRole('button', { name: 'Open Translate' }))
     expect(getGuest('a')).toBeInTheDocument()
 
-    act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
+    act(() => emitIpc('mini_app.runtime.evicted', { appId: 'a' }))
 
     expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('route')).toHaveTextContent('/app/translate')
@@ -394,7 +621,7 @@ describe('MiniApp guest ownership', () => {
     await user.click(screen.getByText('Open A'))
     const guest = getGuest('a')
     await act(async () =>
-      ipc.events.get('tab.attached')?.({
+      emitIpc('tab.attached', {
         id: 'a',
         type: 'route',
         url: '/app/mini-app/a',

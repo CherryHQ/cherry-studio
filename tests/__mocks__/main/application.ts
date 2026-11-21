@@ -119,6 +119,7 @@ export const defaultServiceInstances = {
   FileIntakeService: mockFileIntakeService,
   AttachmentPresenceService: mockAttachmentPresenceService,
   MainWindowService: mockMainWindowService,
+  WebviewService: { isPreparedRegionalPartition: vi.fn((_partition: string | undefined) => false) },
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,

@@ -7,17 +7,20 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
+import type { MiniAppCountry, MiniAppRegionProfile } from '@shared/types/miniAppRegion'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { isMiniAppRegionPartition } from '@shared/utils/miniAppRegion'
+import { getWebviewPartition, hasMatchingWebviewSession, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
 import { exportAnnotationDocument } from './annotationExport'
 import { AnnotationSession } from './AnnotationSession'
 import { HiddenGuestFreezer } from './HiddenGuestFreezer'
+import { RegionalSessionRegistry } from './RegionalSessionRegistry'
 import { RemoteDebuggingMonitor } from './RemoteDebuggingMonitor'
 
 const logger = loggerService.withContext('WebviewService')
-/** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
+/** Default site session; opt-in regional sessions are registered separately. */
 const WEBVIEW_PARTITION = 'persist:webview'
 /** Sessions whose guests run the annotation preload: mini-app sites plus the agent browser panes. */
 const ANNOTATION_PARTITIONS = [
@@ -73,31 +76,67 @@ function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: bo
 }
 
 @Injectable('WebviewService')
-@DependsOn(['BrowserSessionService'])
+@DependsOn(['BrowserSessionService', 'ProxyService'])
 @ServicePhase(Phase.WhenReady)
 export class WebviewService extends BaseService {
+  private originalUserAgent?: string
   private readonly preloadBindings = new Map<Electron.WebContents, () => void>()
   private readonly annotationSessions = new Map<number, AnnotationSession>()
   private debuggingMonitor?: RemoteDebuggingMonitor
   private debuggingRevision = 0
   private readonly debuggingTargets = new Map<string, number>()
   private readonly hiddenGuests = new HiddenGuestFreezer((guest) => this.isGuestDebugging(guest.id))
+  private readonly regions = new RegionalSessionRegistry((guestSession, profile) =>
+    this.initSessionUserAgent(guestSession, profile)
+  )
+  private readonly regionalSessions = this.regions.sessions
+  private readonly regionalGuests = new Map<Electron.WebContents, Promise<void>>()
 
   protected async onInit() {
     this.initSessionUserAgent()
+    await this.regions.resume()
     this.initWebviews()
     this.initDebuggingMonitor()
+    const preferences = application.get('PreferenceService')
+    this.registerDisposable(
+      preferences.subscribeMultipleChanges(
+        [
+          'app.developer_mode.enabled',
+          'feature.mini_app.fake_environment.enabled',
+          'feature.mini_app.fake_environment.country',
+          'feature.mini_app.region_profiles',
+          'feature.mini_app.us_environment_app_ids'
+        ],
+        () => {
+          void this.regions.revokeInactive().catch((error) => logger.warn('Regional revocation failed', error))
+        }
+      )
+    )
   }
 
   protected async onStop() {
+    const suspension = this.regions.suspend()
     this.debuggingMonitor?.stop()
     this.hiddenGuests.dispose()
+    for (const guest of this.regionalGuests.keys())
+      application.get('BrowserSessionService').release(guest, 'mini-app-region')
+    this.regionalGuests.clear()
     const annotationSessions = [...this.annotationSessions.values()]
     for (const annotationSession of annotationSessions) annotationSession.dispose()
-    await Promise.all(annotationSessions.map((annotationSession) => annotationSession.waitForIdle()))
     for (const cleanup of this.preloadBindings.values()) cleanup()
     this.preloadBindings.clear()
     this.annotationSessions.clear()
+    const outcomes = await Promise.allSettled([
+      suspension,
+      ...annotationSessions.map((annotationSession) => annotationSession.waitForIdle())
+    ])
+    const errors = outcomes.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []))
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, 'Failed to stop webview resources')
+  }
+
+  protected async onDestroy() {
+    await this.regions.dispose()
   }
 
   private initDebuggingMonitor() {
@@ -165,24 +204,99 @@ export class WebviewService extends BaseService {
    * Initialize the useragent of the webview session.
    * Removes CherryStudio and Electron from the useragent.
    */
-  private initSessionUserAgent() {
-    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
-    const originUA = wvSession.getUserAgent()
+  private initSessionUserAgent(wvSession = session.fromPartition(WEBVIEW_PARTITION), profile?: MiniAppRegionProfile) {
+    // Later regional sessions inherit the cleaned app fallback.
+    const originUA = (this.originalUserAgent ??= wvSession.getUserAgent())
     const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
-    wvSession.setUserAgent(newUA)
+    if (!profile) {
+      // Shared and service workers use the app fallback instead of the session UA.
+      const previousFallback = app.userAgentFallback
+      app.userAgentFallback = newUA
+      this.registerDisposable(() => {
+        if (app.userAgentFallback === newUA) app.userAgentFallback = previousFallback
+      })
+    }
+    if (profile) wvSession.setUserAgent(newUA, profile.languages.join(','))
+    else wvSession.setUserAgent(newUA)
     wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
       const language = getAppLanguage()
+      const hostname = new URL(details.url).hostname
       // Only sign-in needs the native identity; application APIs must match the page UA.
-      const isGoogleSignIn = new URL(details.url).hostname === 'accounts.google.com'
+      const isGoogleSignIn = hostname === 'accounts.google.com'
       const headers = {
         ...details.requestHeaders,
         'User-Agent': isGoogleSignIn ? originUA : newUA,
-        'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
+        'Accept-Language': profile
+          ? profile.languages
+              .map((value, index) => (index ? `${value};q=${(1 - index * 0.1).toFixed(1)}` : value))
+              .join(',')
+          : `${language}, en;q=0.9, *;q=0.5`
       }
       cb({ requestHeaders: headers })
     })
-    this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
+    const cleanup = () => wvSession.webRequest.onBeforeSendHeaders(null)
+    if (!profile) this.registerDisposable(cleanup)
+    return cleanup
+  }
+
+  prepareRegionSession(appId: string, senderId: WindowId | null) {
+    return this.regions.prepare(appId, senderId)
+  }
+
+  isPreparedRegionalPartition(partition: string | undefined, hostId?: number, src?: string): boolean {
+    return this.regions.isPrepared(partition, hostId, src)
+  }
+
+  releaseRegionSession(leaseId: string, senderId: WindowId | null) {
+    return this.regions.release(leaseId, senderId)
+  }
+
+  clearRegionData(appId: string, senderId: WindowId | null) {
+    return this.regions.clearData(appId, senderId)
+  }
+
+  setRegionCountry(appId: string, country: MiniAppCountry | null, senderId: WindowId | null) {
+    return this.regions.setCountry(appId, country, senderId)
+  }
+
+  removeSiteMiniApp(appId: string, senderId: WindowId | null) {
+    return this.regions.removeApp(appId, senderId)
+  }
+
+  async waitForRegion(webviewId: number, senderId: WindowId | null): Promise<void> {
+    const guest = this.findOwnedSiteWebview(webviewId, senderId)
+    const ready = guest && this.regionalGuests.get(guest)
+    if (!ready) throw new Error('This webview has no regional profile')
+    await ready
+  }
+
+  private initializeRegion(guest: Electron.WebContents): void {
+    const regional = this.regionalSessions.get(guest.session)
+    if (!regional || this.regionalGuests.has(guest)) return
+    this.regions.trackGuest(guest)
+    const browser = application.get('BrowserSessionService')
+    const fail = () => {
+      // Debugger promises can reject during native teardown, before destroyed is emitted.
+      setImmediate(() => {
+        if (guest.isDestroyed()) return
+        guest.stop()
+        void guest.loadURL('about:blank').catch(() => {})
+        application.get('IpcApiService').broadcast('webview.region.failed', { webviewId: guest.id })
+      })
+    }
+    const ready = browser
+      .acquire(guest, 'mini-app-region', { ownership: 'borrowed' })
+      .then((lease) => lease.emulateRegion(regional.profile, fail))
+    this.regionalGuests.set(guest, ready)
+    void ready.catch((error) => {
+      logger.warn('Unable to initialize mini app regional profile', { error })
+      fail()
+    })
+    guest.once('destroyed', () => {
+      this.regionalGuests.delete(guest)
+      browser.release(guest, 'mini-app-region')
+    })
   }
 
   private initWebviews() {
@@ -204,24 +318,46 @@ export class WebviewService extends BaseService {
     if (this.preloadBindings.has(contents)) return
 
     const preloadPath = application.getPath('feature.webview.preload_file')
-    if (!existsSync(preloadPath)) {
+    const preloadAvailable = existsSync(preloadPath)
+    if (!preloadAvailable) {
       logger.error(`Webview preload is missing, annotations and host shortcuts will not work: ${preloadPath}`)
-      return
     }
 
     const handler = (
-      _event: Electron.Event,
+      event: Electron.Event,
       webPreferences: Electron.WebPreferences,
-      params: { partition?: string }
+      params: { partition?: string; src?: string }
     ) => {
+      if (!hasMatchingWebviewSession(webPreferences, params.partition)) {
+        event.preventDefault()
+        return
+      }
+      const partition = webPreferences.partition
       // Local mini apps own a separate capability bridge and sandbox policy. Electron has
       // one preload slot, so writing here would silently replace that bridge.
-      if (params.partition !== WEBVIEW_PARTITION) return
-      webPreferences.preload = preloadPath
+      if (partition !== WEBVIEW_PARTITION) {
+        if (!isMiniAppRegionPartition(partition)) return
+        if (!this.isPreparedRegionalPartition(partition, contents.id, params.src)) {
+          event.preventDefault()
+          return
+        }
+      }
+      if (preloadAvailable) webPreferences.preload = preloadPath
+      else delete webPreferences.preload
       webPreferences.nodeIntegration = false
       webPreferences.nodeIntegrationInSubFrames = false
       webPreferences.contextIsolation = true
       webPreferences.sandbox = true
+      webPreferences.webSecurity = true
+      webPreferences.allowRunningInsecureContent = false
+      const regional = partition && this.regionalSessions.get(session.fromPartition(partition))
+      if (regional) {
+        // Shared workers inherit the renderer language rather than page CDP overrides.
+        webPreferences.additionalArguments = [
+          ...(webPreferences.additionalArguments ?? []),
+          `--lang=${regional.profile.locale}`
+        ]
+      }
     }
 
     contents.on('will-attach-webview', handler)
@@ -239,14 +375,19 @@ export class WebviewService extends BaseService {
 
   private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
     if (contents.isDestroyed()) return
+    this.initializeRegion(contents)
     // Apply before the webview-only guard so popup windows on these sessions are covered too.
     if (
       contents.session === session.fromPartition(WEBVIEW_PARTITION) ||
+      this.regionalSessions.has(contents.session) ||
       contents.session === session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
     ) {
       contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
     }
-    if (contents.getType?.() !== 'webview' || !isAnnotationCapableSession(contents.session)) {
+    if (
+      contents.getType?.() !== 'webview' ||
+      (!isAnnotationCapableSession(contents.session) && !this.regionalSessions.has(contents.session))
+    ) {
       return
     }
     const existing = this.annotationSessions.get(contents.id)
@@ -284,7 +425,7 @@ export class WebviewService extends BaseService {
   private findOwnedSiteWebview(webviewId: number, senderId: WindowId | null): Electron.WebContents | null {
     const guest = this.findOwnedGuest(webviewId, senderId)
     if (!guest) return null
-    if (guest.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    if (guest.session !== session.fromPartition(WEBVIEW_PARTITION) && !this.regionalSessions.has(guest.session)) {
       throw new Error('The caller does not own this webview')
     }
     return guest
@@ -293,7 +434,7 @@ export class WebviewService extends BaseService {
   /** Annotation routes accept agent browser guests too; link policy stays site-only. */
   private requireOwnedAnnotationWebview(webviewId: number, senderId: WindowId | null) {
     const guest = this.findOwnedGuest(webviewId, senderId)
-    if (!guest || !isAnnotationCapableSession(guest.session)) {
+    if (!guest || (!isAnnotationCapableSession(guest.session) && !this.regionalSessions.has(guest.session))) {
       throw new Error('The caller does not own this webview')
     }
     return guest

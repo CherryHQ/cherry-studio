@@ -17,6 +17,30 @@ import { defineRoute } from '../define'
  * cancels the native save dialog (they throw if the guest webContents is gone).
  */
 export const webviewRequestSchemas = {
+  'webview.region.set_country': defineRoute({
+    input: z.strictObject({
+      appId: z.string().min(1).max(256),
+      country: z.enum(['US', 'JP', 'SG', 'GB', 'FR', 'DE']).nullable()
+    }),
+    output: z.void()
+  }),
+  'webview.region.prepare': defineRoute({
+    // Default launch also accepts long IDs already stored in the website catalog.
+    input: z.strictObject({ appId: z.string().min(1) }),
+    output: z.strictObject({ partition: z.string(), fake: z.boolean(), leaseId: z.uuid().nullable() })
+  }),
+  'webview.region.release': defineRoute({
+    input: z.strictObject({ leaseId: z.uuid() }),
+    output: z.void()
+  }),
+  'webview.region.clear_data': defineRoute({
+    input: z.strictObject({ appId: z.string().min(1).max(256) }),
+    output: z.void()
+  }),
+  'webview.region.wait_until_ready': defineRoute({
+    input: z.strictObject({ webviewId: z.number().int().positive() }),
+    output: z.void()
+  }),
   'webview.debugging.get_state': defineRoute({
     input: z.strictObject({ webviewId: z.number().int().positive() }),
     output: z.strictObject({ attached: z.boolean(), revision: z.number().int().nonnegative() })
@@ -50,5 +74,7 @@ export const webviewRequestSchemas = {
 }
 
 export type WebviewEventSchemas = {
+  'webview.region.invalidated': { appId: string }
+  'webview.region.failed': { webviewId: number }
   'webview.debugging.changed': { webviewId: number; attached: boolean; revision: number }
 }

@@ -7,10 +7,11 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { parseCustomProxyUrl } from '@shared/utils/proxyUrl'
 import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
 import { NodeProxyController } from './NodeProxyController'
-import { normalizeProxyEndpoint } from './proxyRouting'
+import { RegionalProxyGate } from './RegionalProxyGate'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -121,14 +122,28 @@ export function resolveProxyConfig({
   switch (mode) {
     case 'none':
       return { mode: 'direct' }
-    case 'custom':
-      return url
-        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: withLoopbackBypass(bypassRules) }
-        : { mode: 'direct' }
+    case 'custom': {
+      if (!url.trim()) return { mode: 'direct' }
+      const endpoint = parseCustomProxyUrl(url)
+      if (!endpoint) throw new Error('Invalid custom proxy endpoint')
+      return {
+        mode: 'fixed_servers',
+        proxyRules: endpoint.href.replace(/\/$/, ''),
+        proxyBypassRules: withLoopbackBypass(bypassRules)
+      }
+    }
     case 'system':
     default:
       return { mode: 'system' }
   }
+}
+
+function toElectronProxyConfig(config: ProxyConfig): ProxyConfig {
+  if (config.mode !== 'fixed_servers' || !config.proxyRules) return config
+
+  // Node adapters can use URL credentials. Chromium accepts only the scheme and host:port.
+  const endpoint = new URL(config.proxyRules)
+  return { ...config, proxyRules: `${endpoint.protocol}//${endpoint.host}` }
 }
 
 export interface ProxyAppliedSnapshot {
@@ -150,6 +165,9 @@ export class ProxyService extends BaseService {
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
   private proxyTestQueue: Promise<void> = Promise.resolve()
+  private readonly additionalSessions = new Map<Electron.Session, RegionalProxyGate>()
+  private readonly pendingSessions = new Set<Electron.Session>()
+  private readonly sessionCleanup = new Map<Electron.Session, Promise<void>>()
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -157,7 +175,7 @@ export class ProxyService extends BaseService {
   private readonly proxyReconciler = createLatestReconciler<ProxyConfig>({
     name: 'proxy',
     getSnapshot: () => this.snapshotProxyConfig(),
-    isSettled: (config) => proxyConfigKey(config) === this.appliedKey,
+    isSettled: (config) => proxyConfigKey(config) === this.appliedKey && this.pendingSessions.size === 0,
     apply: (config) => this.applyProxyConfig(config)
   })
 
@@ -170,11 +188,57 @@ export class ProxyService extends BaseService {
     return this.appliedKey
   }
 
+  async registerSession(guestSession: Electron.Session): Promise<void> {
+    const cleanup = this.sessionCleanup.get(guestSession)
+    if (cleanup) await cleanup
+    if (!this.additionalSessions.has(guestSession)) {
+      this.additionalSessions.set(guestSession, new RegionalProxyGate(guestSession))
+      this.pendingSessions.add(guestSession)
+    }
+    const gate = this.additionalSessions.get(guestSession)!
+    await this.reconcileProxy()
+    if (this.additionalSessions.get(guestSession) !== gate) throw new Error('Regional proxy session was revoked')
+  }
+
+  async unregisterSession(guestSession: Electron.Session): Promise<void> {
+    const gate = this.additionalSessions.get(guestSession)
+    if (!gate) return this.sessionCleanup.get(guestSession)
+    gate.dispose()
+    this.additionalSessions.delete(guestSession)
+    this.pendingSessions.delete(guestSession)
+    const cleanup = this.proxyReconciler.flush().then(() => guestSession.closeAllConnections())
+    this.sessionCleanup.set(guestSession, cleanup)
+    try {
+      await cleanup
+    } finally {
+      if (this.sessionCleanup.get(guestSession) === cleanup) this.sessionCleanup.delete(guestSession)
+    }
+  }
+
+  private async reconcileProxy(changed = false): Promise<void> {
+    if (changed) {
+      this.appliedKey = null
+      for (const gate of this.additionalSessions.values()) {
+        gate.appliedKey = null
+        gate.wait()
+      }
+    }
+    this.proxyReconciler.request()
+    await this.proxyReconciler.flush()
+    const error = this.proxyReconciler.getLastError()
+    const ready =
+      !error && this.appliedKey !== null && this.appliedKey === this.desiredKey && this.pendingSessions.size === 0
+    if (ready || error) {
+      for (const gate of this.additionalSessions.values()) gate.settle(ready)
+    }
+    if (error) throw error
+  }
+
   /** Read-only view of intent vs. what is in effect, for diagnostics. */
   async getAppliedSnapshot(): Promise<ProxyAppliedSnapshot> {
     await this.proxyReconciler.flush()
     const preferenceService = application.get('PreferenceService')
-    const converged = this.desiredKey === this.appliedKey
+    const converged = this.appliedKey !== null && this.desiredKey === this.appliedKey
     // `getLastError()` only clears on a successful apply, so it is meaningful solely while unconverged.
     const error = converged ? null : this.proxyReconciler.getLastError()
     return {
@@ -212,21 +276,19 @@ export class ProxyService extends BaseService {
     url: string
     bypassRules: string
   }): Promise<ProxyConnectionTestResult> {
-    if (mode === 'custom') {
-      try {
-        if (!url.trim()) throw new Error('Missing proxy URL')
-        normalizeProxyEndpoint(url.trim())
-      } catch {
-        return { target: PROXY_TEST_TARGET, route: 'proxy', success: false, error: 'invalid_config' }
-      }
+    let config: ProxyConfig
+    try {
+      config = resolveProxyConfig({ mode, url, bypassRules })
+      if (mode === 'custom' && config.mode === 'direct') throw new Error('Missing proxy URL')
+    } catch {
+      return { target: PROXY_TEST_TARGET, route: 'proxy', success: false, error: 'invalid_config' }
     }
 
-    const config = resolveProxyConfig({ mode, url: url.trim(), bypassRules })
     const testSession = session.fromPartition(PROXY_TEST_PARTITION, { cache: false })
     let route: ProxyConnectionTestResult['route'] = mode === 'none' ? 'direct' : 'proxy'
 
     try {
-      await testSession.setProxy(config)
+      await testSession.setProxy(toElectronProxyConfig(config))
       await testSession.closeAllConnections()
       const resolvedRoute = await testSession.resolveProxy(PROXY_TEST_TARGET)
       const candidates = resolvedRoute
@@ -261,31 +323,26 @@ export class ProxyService extends BaseService {
    */
   protected async onReady(): Promise<void> {
     this.registerDisposable(
-      application
-        .get('PreferenceService')
-        .subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => this.proxyReconciler.request())
+      application.get('PreferenceService').subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => {
+        void this.reconcileProxy(true).catch((error) => logger.warn('Proxy transition failed', error))
+      })
     )
     // Don't gate startup on the initial apply. The OS-proxy read (a `scutil` spawn in system
     // mode) only feeds the Node-side controller, which no startup request hits; Electron sessions
     // already follow the system proxy by Chromium default. Converge in the background instead.
-    this.proxyReconciler.request()
-    void this.proxyReconciler.flush().then(() => {
-      const error = this.proxyReconciler.getLastError()
-      if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
-      }
-    })
+    void this.reconcileProxy().catch((error) => logger.error('Initial proxy apply failed', error))
   }
 
   /** Latest intent from preferences, resolving the concrete OS proxy for `system` mode. */
   private async snapshotProxyConfig(): Promise<ProxyConfig> {
     const preferenceService = application.get('PreferenceService')
+    this.desiredKey = null
+    this.systemProxyReadFailed = false
     const config = resolveProxyConfig({
       mode: preferenceService.get('app.proxy.mode'),
       url: preferenceService.get('app.proxy.url'),
       bypassRules: preferenceService.get('app.proxy.bypass_rules')
     })
-    this.systemProxyReadFailed = false
     if (config.mode === 'system') {
       // A failed OS read must not abort the apply — fall back to bare system mode so Electron
       // still applies something instead of leaving the proxy unconfigured.
@@ -305,7 +362,8 @@ export class ProxyService extends BaseService {
   }
 
   private async applyProxyConfig(config: ProxyConfig): Promise<void> {
-    logger.info(`apply proxy: ${config.mode} ${config.proxyRules ?? ''} ${config.proxyBypassRules ?? ''}`)
+    for (const gate of this.additionalSessions.values()) gate.wait()
+    logger.info(`apply proxy: ${config.mode}`)
     // In system mode, poll the OS proxy so external changes re-converge through the reconciler.
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()
@@ -317,7 +375,9 @@ export class ProxyService extends BaseService {
 
   private ensureSystemProxyMonitor(): void {
     if (this.systemProxyInterval) return
-    this.systemProxyInterval = this.registerInterval(() => this.proxyReconciler.request(), 1000 * 60)
+    this.systemProxyInterval = this.registerInterval(() => {
+      void this.reconcileProxy().catch((error) => logger.warn('System proxy refresh failed', error))
+    }, 1000 * 60)
   }
 
   private clearSystemProxyMonitor(): void {
@@ -346,13 +406,31 @@ export class ProxyService extends BaseService {
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
     // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
     // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
+    const regional = [...this.additionalSessions]
     const sessions = [
       session.defaultSession,
       ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
+    const electronConfig = toElectronProxyConfig(config)
     // Drain every write even on failure so the next apply cannot race stale session writes.
-    const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    const outcomes = await Promise.allSettled([
+      ...sessions.map((s) => s.setProxy(electronConfig)),
+      app.setProxy(electronConfig),
+      ...regional.map(async ([guestSession, gate]) => {
+        if (config.mode === 'direct' && application.get('PreferenceService').get('app.proxy.mode') === 'custom')
+          throw new Error('A custom proxy URL is required for regional sessions')
+        if (gate.appliedKey !== proxyConfigKey(config)) {
+          gate.appliedKey = null
+          await guestSession.setProxy(electronConfig)
+          await guestSession.closeAllConnections()
+          gate.appliedKey = proxyConfigKey(config)
+        }
+      })
+    ])
     const failed = outcomes.find((outcome) => outcome.status === 'rejected')
     if (failed) throw failed.reason
+    for (const [guestSession, gate] of regional) {
+      if (this.additionalSessions.get(guestSession) === gate) this.pendingSessions.delete(guestSession)
+    }
   }
 }

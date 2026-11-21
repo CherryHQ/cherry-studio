@@ -309,16 +309,25 @@ function CommandContextMenuExtraItemView({
     return <ExtraMenuItemTooltip content={item.description}>{submenu}</ExtraMenuItemTooltip>
   }
 
-  const menuItem = (
-    <ContextMenuItem
-      disabled={item.enabled === false}
-      variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={() => (onSelectItem ? onSelectItem(item.onSelect) : item.onSelect())}>
-      <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
-        {item.label}
-      </ContextMenuItemContent>
-    </ContextMenuItem>
+  const content = (
+    <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
+      {item.label}
+    </ContextMenuItemContent>
   )
+  const select = () => (onSelectItem ? onSelectItem(item.onSelect) : item.onSelect())
+  const menuItem =
+    item.checked === undefined ? (
+      <ContextMenuItem
+        disabled={item.enabled === false}
+        variant={item.destructive ? 'destructive' : 'default'}
+        onSelect={select}>
+        {content}
+      </ContextMenuItem>
+    ) : (
+      <ContextMenuCheckboxItem checked={item.checked} disabled={item.enabled === false} onSelect={select}>
+        {content}
+      </ContextMenuCheckboxItem>
+    )
 
   return <ExtraMenuItemTooltip content={item.description}>{menuItem}</ExtraMenuItemTooltip>
 }

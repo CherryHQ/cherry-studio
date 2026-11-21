@@ -52,7 +52,7 @@ beforeEach(() => {
     [
       {
         key: resourceKey,
-        source: { src: customApp.url, partition: 'persist:webview' },
+        source: { src: customApp.url, environment: 'default' },
         visible: true,
         protected: false,
         lastAccessTime: 0

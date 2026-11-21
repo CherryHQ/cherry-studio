@@ -5,7 +5,7 @@ import path from 'node:path'
 import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
-import { createMockApplication } from '@test-mocks/main/application'
+import { createMockApplication, defaultServiceInstances } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state lets individual tests mutate platform flags / preferences without
@@ -758,6 +758,7 @@ describe('MainWindowService', () => {
       if (!listener) throw new Error('will-attach-webview listener was not registered')
       const event = { preventDefault: vi.fn() }
       const webPreferences = {
+        partition: HTML_ARTIFACT_PREVIEW_PARTITION,
         allowRunningInsecureContent: true,
         contextIsolation: false,
         nodeIntegration: true,
@@ -775,6 +776,7 @@ describe('MainWindowService', () => {
 
       expect(event.preventDefault).not.toHaveBeenCalled()
       expect(webPreferences).toEqual({
+        partition: HTML_ARTIFACT_PREVIEW_PARTITION,
         allowRunningInsecureContent: false,
         contextIsolation: true,
         nodeIntegration: false,
@@ -791,7 +793,11 @@ describe('MainWindowService', () => {
       if (!listener) throw new Error('will-attach-webview listener was not registered')
       const event = { preventDefault: vi.fn() }
 
-      listener(event, {}, { partition: HTML_ARTIFACT_PREVIEW_PARTITION, src: 'https://example.com' })
+      listener(
+        event,
+        { partition: HTML_ARTIFACT_PREVIEW_PARTITION },
+        { partition: HTML_ARTIFACT_PREVIEW_PARTITION, src: 'https://example.com' }
+      )
 
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
     })
@@ -802,9 +808,49 @@ describe('MainWindowService', () => {
       if (!listener) throw new Error('will-attach-webview listener was not registered')
       const event = { preventDefault: vi.fn() }
 
-      listener(event, {}, { partition: 'persist:undeclared', src: 'https://example.com' })
+      listener(
+        event,
+        { partition: 'persist:undeclared' },
+        { partition: 'persist:undeclared', src: 'https://example.com' }
+      )
 
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows a regional guest only after its partition has been prepared in main', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const partition = 'persist:webview-us:example'
+      const attach = () => {
+        const event = {
+          defaultPrevented: false,
+          preventDefault() {
+            this.defaultPrevented = true
+          }
+        }
+        listener(event, { partition }, { partition, src: 'about:blank' })
+        return !event.defaultPrevented
+      }
+
+      expect(attach()).toBe(false)
+      defaultServiceInstances.WebviewService.isPreparedRegionalPartition.mockReturnValueOnce(true)
+      expect(attach()).toBe(true)
+      expect(attach()).toBe(false)
+    })
+
+    it.each([
+      { partition: 'persist:webview-us:example' },
+      { partition: 'persist:webview', session: defaultSessionMock }
+    ])('rejects guest preferences that select an undeclared session', (webPreferences) => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const event = { preventDefault: vi.fn() }
+
+      listener(event, webPreferences, { partition: 'persist:webview', src: 'about:blank' })
+
+      expect(event.preventDefault).toHaveBeenCalledOnce()
     })
 
     it.each([WebviewSecurityProfile.AgentDevPreview, WebviewSecurityProfile.AgentHtmlArtifact])(
@@ -814,7 +860,9 @@ describe('MainWindowService', () => {
         const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
         if (!listener) throw new Error('will-attach-webview listener was not registered')
         const event = { preventDefault: vi.fn() }
+        const partition = getWebviewPartition(securityProfile)
         const webPreferences = {
+          partition,
           allowRunningInsecureContent: true,
           contextIsolation: false,
           nodeIntegration: true,
@@ -826,12 +874,13 @@ describe('MainWindowService', () => {
         }
 
         listener(event, webPreferences, {
-          partition: getWebviewPartition(securityProfile),
+          partition,
           src: ''
         })
 
         expect(event.preventDefault).not.toHaveBeenCalled()
         expect(webPreferences).toEqual({
+          partition,
           allowRunningInsecureContent: false,
           contextIsolation: true,
           nodeIntegration: false,
@@ -853,7 +902,7 @@ describe('MainWindowService', () => {
 
       listener(
         artifactEvent,
-        {},
+        { partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact) },
         {
           partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
           src: 'https://example.com'
@@ -861,7 +910,7 @@ describe('MainWindowService', () => {
       )
       listener(
         devEvent,
-        {},
+        { partition: getWebviewPartition(WebviewSecurityProfile.AgentDevPreview) },
         {
           partition: getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
           src: 'file:///tmp/index.html'
@@ -880,7 +929,7 @@ describe('MainWindowService', () => {
 
       listener(
         event,
-        {},
+        { partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact) },
         {
           partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
           src: 'file://attacker/share/index.html'
@@ -1841,17 +1890,18 @@ describe('MainWindowService', () => {
     ;(svc as any).setupWebviewSecurityProfiles(win)
     const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
     if (!listener) throw new Error('will-attach-webview listener was not registered')
-    const webPreferences = {}
+    const partition = getWebviewPartition(WebviewSecurityProfile.MiniApp)
+    const webPreferences = { partition }
     const preventDefault = vi.fn()
 
     listener({ preventDefault }, webPreferences, {
-      partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+      partition,
       src: 'https://example.com'
     })
 
     // `persist:webview` lockdown and preload live in WebviewService.attachWebviewPreload.
     expect(preventDefault).not.toHaveBeenCalled()
-    expect(webPreferences).toEqual({})
+    expect(webPreferences).toEqual({ partition })
   })
 
   it.each([
