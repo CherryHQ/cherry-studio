@@ -74,6 +74,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
         'chat.input.knowledge_base': 'Knowledge Base',
+        'chat.input.knowledge_base_retrieval_label': 'Retrieval',
+        'chat.input.knowledge_base_retrieve': 'Retrieve from Knowledge Base',
         'chat.save.knowledge.empty.no_knowledge_base': 'No knowledge base',
         'common.selectedItems': `${options?.count ?? 0} selected`,
         'library.config.knowledge.doc_count': `${options?.count ?? 0} docs`,
