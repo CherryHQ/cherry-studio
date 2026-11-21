@@ -11,6 +11,7 @@ export async function browserResult(
   controller: BrowserController,
   target: TabTarget,
   signal: AbortSignal | undefined,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each action owns its raw result fields; add the common envelope without validating or rewriting page values before serialization.
   action: (session: GuestSession, options: BrowserActionOptions) => Promise<Record<string, unknown>>
 ) {
   try {
@@ -25,7 +26,7 @@ export async function browserResult(
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
     return await session.run(
       async () => {
-        let result: Record<string, unknown>
+        let result: Awaited<ReturnType<typeof action>>
         try {
           signal?.throwIfAborted()
           result = {
