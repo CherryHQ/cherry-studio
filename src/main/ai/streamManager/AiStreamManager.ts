@@ -29,6 +29,7 @@ import { isAbortError } from '@main/utils/error'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import type {
@@ -2239,7 +2240,9 @@ export class AiStreamManager extends BaseService {
           else anchors.push({ id: anchorId, data })
           exec.finalMessage = withCompactionAnchors(exec.finalMessage ?? ensureTerminalFinalMessage(exec), exec)
           this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
-        }
+        },
+        // Attachments are analyzed before the stream opens, so the reply reads the stage from the shared cache.
+        mediaAnalysisSink: mediaAnalysisSinkFor(exec.anchorMessageId)
       })
     } catch (err) {
       if (signal.aborted && (err === signal.reason || isAbortError(err))) {
@@ -2566,5 +2569,19 @@ export class AiStreamManager extends BaseService {
     }
     this.activeStreams.delete(topicId)
     this.releaseProjection(topicId)
+  }
+}
+
+function mediaAnalysisSinkFor(messageId: string | undefined) {
+  if (!messageId) return undefined
+  const key = `message.media_analysis.${messageId}` as const
+  // Every turn ends with `null`; only a turn that showed progress clears (and broadcasts) the key.
+  let shown = false
+  return (progress: MediaAnalysisProgress | null) => {
+    if (!progress && !shown) return
+    const cache = application.get('CacheService')
+    if (progress) cache.setShared(key, progress)
+    else cache.deleteShared(key)
+    shown = progress !== null
   }
 }

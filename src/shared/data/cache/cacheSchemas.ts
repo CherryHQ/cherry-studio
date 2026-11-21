@@ -1,3 +1,4 @@
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -133,6 +134,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // An attached audio/video file's local pre-analysis is running, keyed by its composer token source.
+  'chat.composer.media_preparing.${fileTokenSourceId}': boolean
   // Per-topic composer draft. Renderer memory only; app restart discards it.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
@@ -228,6 +231,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer.media_preparing.${fileTokenSourceId}': false,
   'chat.composer_draft.${topicId}': {
     text: '',
     tokens: [],
@@ -321,6 +325,8 @@ export type SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
+  // Live audio/video analysis stage of a reply whose attachments are being prepared, main -> all windows.
+  'message.media_analysis.${messageId}': MediaAnalysisProgress | null
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -405,6 +411,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': {},
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
+  'message.media_analysis.${messageId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',

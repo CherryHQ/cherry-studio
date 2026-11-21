@@ -4,6 +4,7 @@ import {
   FileText,
   Folder,
   Link2,
+  Loader2,
   MessageSquareText,
   MessagesSquare,
   TextQuote,
@@ -35,6 +36,7 @@ import {
 } from '@renderer/components/composer/quoteToken'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
@@ -427,8 +429,8 @@ function getPastedTextPreviewPath(
   return getReadOnlyFilePreviewPath(readOnlyFilePreview) ?? file?.path
 }
 
-function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?: string }) {
-  return (
+function TokenPathTooltipContent({ path, sizeLabel, note }: { path: string; sizeLabel?: string; note?: string }) {
+  const pathRow = (
     <span className="inline-flex max-w-full items-start gap-2.5 text-left" data-token-path-tooltip="">
       <span className="min-w-0 break-all" data-token-path="">
         {path}
@@ -438,6 +440,13 @@ function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?
           {sizeLabel}
         </span>
       )}
+    </span>
+  )
+  if (!note) return pathRow
+  return (
+    <span className="flex max-w-full flex-col gap-1 text-left">
+      {pathRow}
+      <span data-token-note="">{note}</span>
     </span>
   )
 }
@@ -842,7 +851,9 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     token,
     tooltipActions
   } = props
+  const { t } = useTranslation()
   const tokenFile = isComposerAttachment(token.payload) ? token.payload : undefined
+  const [mediaPreparing] = useCache(`chat.composer.media_preparing.${tokenFile?.fileTokenSourceId ?? 'none'}`)
   const previewFileType = readOnlyFilePreview?.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : undefined
   const file = readOnlyFilePreview
     ? ({
@@ -923,7 +934,12 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [canOpenFilePreview, openFilePreview]
   )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
-  const tokenIcon = token.icon ?? presentation.icon
+  const preparingNote = mediaPreparing && !readOnly ? t('chat.input.media_analyzing') : undefined
+  const tokenIcon = preparingNote ? (
+    <Loader2 className="size-full shrink-0 animate-spin" aria-hidden />
+  ) : (
+    (token.icon ?? presentation.icon)
+  )
 
   const chipElement = (
     <span
@@ -969,7 +985,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
 
   if (pathTooltipPath && shouldShowPathTooltip) {
     const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
-    const tooltipContent = <TokenPathTooltipContent path={pathTooltipPath} sizeLabel={sizeLabel} />
+    const tooltipContent = <TokenPathTooltipContent path={pathTooltipPath} sizeLabel={sizeLabel} note={preparingNote} />
 
     return (
       <NormalTooltip

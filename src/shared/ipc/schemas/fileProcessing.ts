@@ -8,6 +8,7 @@ import {
   FileProcessingTaskSchema,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -60,5 +61,13 @@ export const fileProcessingRequestSchemas = {
   'file_processing.open_mineru.check_connectivity': defineRoute({
     input: z.void(),
     output: z.boolean()
+  }),
+  /**
+   * Runs the free local analysis of an attached audio/video file so the later send reuses it.
+   * Resolves when the pass ends; analysis failures are left for the send to report.
+   */
+  'file_processing.media.prepare': defineRoute({
+    input: z.object({ path: AbsoluteFilePathSchema }).strict(),
+    output: z.void()
   })
 }

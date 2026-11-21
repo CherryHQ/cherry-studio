@@ -1,18 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, open, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { application } from '@application'
 import { generateText as aiCoreGenerateText, type TranscriptionResult } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
+import type { MediaAnalysisGaps } from '@main/ai/messages/mediaAnalysisRequestError'
 import type { AppProviderSettingsMap } from '@main/ai/types'
 import { startTranscription } from '@main/ai/voice/execution'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tasks/jobExecution'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import type { FileHandle } from '@shared/data/types/file'
+import type { FileInfo } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
@@ -55,7 +58,10 @@ const RECOVERABLE_ANALYSIS_WARNINGS = new Set<MediaAnalysisWarningCode>([
 ])
 
 export class MediaAnalysisError extends Error {
-  constructor(readonly code: 'unusable_media_analysis') {
+  constructor(
+    readonly code: 'unusable_media_analysis',
+    readonly gaps?: MediaAnalysisGaps
+  ) {
     super(code)
     this.name = 'MediaAnalysisError'
   }
@@ -71,27 +77,86 @@ export class MediaAnalysisService extends BaseService {
     return this.mediaFfmpeg().probe({ filePath: fileInfo.path, fallbackExt: fileInfo.ext ?? undefined }, signal)
   }
 
-  async analyze(file: FileHandle, signal?: AbortSignal, options?: MediaAnalysisOptions): Promise<MediaAnalysis> {
+  /** In-flight `prepare` passes by file, so a send waits for one instead of repeating its local work. */
+  private readonly localPasses = new Map<string, LocalPass>()
+
+  async analyze(file: FileHandle, signal?: AbortSignal, options: MediaAnalysisOptions = {}): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
-    const execution = await resolveMediaExecutionConfig(options)
     const fileInfo = await resolveFileProcessingFileInfo(file)
-    const fileIdentity =
-      file.kind === 'entry'
-        ? `entry:${file.entryId}`
-        : `path:${createHash('sha256').update(fileInfo.path).digest('hex').slice(0, 24)}`
-    const cacheKey = [
-      'media-analysis',
-      fileIdentity,
-      fileInfo.modifiedAt,
-      fileInfo.size,
-      hashMediaExecutionConfig(execution)
-    ].join(':')
+    const contentKey = await contentKeyOf(file, fileInfo)
+    const pending = this.localPasses.get(contentKey)
+    if (pending) {
+      // The waiting send shows the running pass's progress instead of a silent wait.
+      const { onProgress } = options
+      if (onProgress) {
+        if (pending.last) onProgress(pending.last)
+        pending.listeners.add(onProgress)
+      }
+      try {
+        await settledUnlessAborted(pending.done, signal)
+      } finally {
+        if (onProgress) pending.listeners.delete(onProgress)
+      }
+    }
+    return this.analyzeFile(file, fileInfo, contentKey, signal, options, false)
+  }
+
+  /**
+   * Runs the free local stages (transcription, frame selection, OCR) ahead of a send, so the send
+   * only adds the paid vision calls. Failures are left for the send to report.
+   */
+  async prepare(file: FileHandle, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
+    const fileInfo = await resolveFileProcessingFileInfo(file)
+    const contentKey = await contentKeyOf(file, fileInfo)
+    const running = this.localPasses.get(contentKey)
+    if (running) return running.done
+    const listeners = new Set<(progress: MediaAnalysisProgress) => void>()
+    const onProgress = (progress: MediaAnalysisProgress) => {
+      pass.last = progress
+      for (const listener of listeners) listener(progress)
+    }
+    const pass: LocalPass = {
+      listeners,
+      done: this.analyzeFile(file, fileInfo, contentKey, signal, { onProgress }, true).then(
+        () => undefined,
+        (error: unknown) => {
+          if (signal?.aborted) return
+          logger.debug('Media pre-analysis ended without a usable result', { error })
+        }
+      )
+    }
+    this.localPasses.set(contentKey, pass)
+    try {
+      await pass.done
+    } finally {
+      this.localPasses.delete(contentKey)
+    }
+  }
+
+  private async analyzeFile(
+    file: FileHandle,
+    fileInfo: FileInfo,
+    contentKey: string,
+    signal: AbortSignal | undefined,
+    options: MediaAnalysisOptions,
+    localOnly: boolean
+  ): Promise<MediaAnalysis> {
+    const resolved = await resolveMediaExecutionConfig(options)
+    // A pre-analysis never pays for vision; the send adds it over the cached local stages.
+    const execution = localOnly ? { ...resolved, vision: null } : resolved
+    const fileKey = fileKeyOf(file, fileInfo)
+    const cacheKey = ['media-analysis', fileKey, hashMediaExecutionConfig(execution)].join(':')
     // Re-check after the awaits above so a cache hit cannot mask a cancellation.
     signal?.throwIfAborted()
     const cache = application.get('CacheService')
     const cached = cache.get<unknown>(cacheKey)
     if (isMediaAnalysis(cached)) return cached
 
+    // Stages key by content: a pre-analysis runs on the picked file, the send on its stored copy.
+    const stageKey = (stage: string, identity: unknown) =>
+      `media-analysis:${stage}:${contentKey}:${hashIdentity({ identity, pipelineVersion: execution.pipelineVersion })}`
+    const startedAt = Date.now()
     const jobDir = application.getPath('app.temp', `media-analysis-${randomUUID()}`)
     await mkdir(jobDir, { recursive: true })
     try {
@@ -100,9 +165,21 @@ export class MediaAnalysisService extends BaseService {
         fileInfo.ext,
         jobDir,
         execution,
-        `${cacheKey}:vision`,
-        signal
+        {
+          vision: `${cacheKey}:vision`,
+          transcript: stageKey('asr', execution.asr),
+          framePlan: stageKey('frames', execution.budget),
+          frameText: stageKey('ocr', { ocr: execution.ocr?.identity ?? null, budget: execution.budget })
+        },
+        signal,
+        options.onProgress
       )
+      logger.info('Media analysis finished', {
+        localOnly,
+        durationMs: Date.now() - startedAt,
+        frames: analysis.visuals?.length ?? 0,
+        warnings: analysis.warnings
+      })
       // Without an ASR model the transcription warning is a settings state the cache key already carries.
       const retryable = analysis.warnings.some(
         (warning) =>
@@ -130,15 +207,16 @@ export class MediaAnalysisService extends BaseService {
     fallbackExt: string | null,
     jobDir: string,
     execution: MediaExecutionConfig,
-    visionCacheKey: string,
-    signal?: AbortSignal
+    keys: StageCacheKeys,
+    signal?: AbortSignal,
+    onProgress?: (progress: MediaAnalysisProgress) => void
   ): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
     const ffmpeg = this.mediaFfmpeg()
     const probe = await ffmpeg.probe({ filePath, fallbackExt: fallbackExt ?? undefined }, signal)
     const [audio, visual] = await Promise.all([
-      this.analyzeAudio(filePath, probe, jobDir, execution, signal),
-      this.analyzeVisuals(filePath, probe, jobDir, execution, visionCacheKey, signal)
+      this.analyzeAudio(filePath, probe, jobDir, execution, keys.transcript, signal, onProgress),
+      this.analyzeVisuals(filePath, probe, jobDir, execution, keys, signal, onProgress)
     ])
     signal?.throwIfAborted()
 
@@ -160,7 +238,10 @@ export class MediaAnalysisService extends BaseService {
     const hasVisualContent = visual.frames.some((frame) => frame.summary?.trim() || frame.ocrText?.trim())
     const successfulSilence = audio.completed && probe.hasAudio && !hasSpeech
     if (!hasSpeech && !hasVisualContent && !successfulSilence) {
-      throw new MediaAnalysisError('unusable_media_analysis')
+      throw new MediaAnalysisError('unusable_media_analysis', {
+        vision: probe.hasVideo && !execution.vision,
+        speech: probe.hasAudio && !audio.completed
+      })
     }
     return analysis
   }
@@ -170,11 +251,18 @@ export class MediaAnalysisService extends BaseService {
     probe: ClassifiedMediaProbe,
     jobDir: string,
     execution: MediaExecutionConfig,
-    signal?: AbortSignal
+    transcriptKey: string,
+    signal?: AbortSignal,
+    onProgress?: (progress: MediaAnalysisProgress) => void
   ): Promise<{ completed: boolean; segments: MediaAudioSegment[]; warnings: MediaAnalysisWarningCode[] }> {
     if (!probe.hasAudio) return { completed: false, segments: [], warnings: [] }
     if (!execution.asr) return { completed: false, segments: [], warnings: ['audio_transcription_failed'] }
 
+    const cache = application.get('CacheService')
+    const transcript = readTranscript(cache.get<unknown>(transcriptKey))
+    if (transcript) return { completed: true, ...transcript }
+
+    onProgress?.({ stage: 'transcribing' })
     const segments: MediaAudioSegment[] = []
     try {
       const outputDir = join(jobDir, 'audio')
@@ -231,10 +319,12 @@ export class MediaAnalysisService extends BaseService {
         if (accepted === 0) noSpeech = true
       }
 
-      return { completed: true, segments, warnings: noSpeech || segments.length === 0 ? ['no_speech'] : [] }
-    } catch {
+      const warnings: MediaAnalysisWarningCode[] = noSpeech || segments.length === 0 ? ['no_speech'] : []
+      cache.set(transcriptKey, { segments, warnings }, CACHE_TTL_MS)
+      return { completed: true, segments, warnings }
+    } catch (error) {
       signal?.throwIfAborted()
-      logger.warn('Audio analysis failed')
+      logger.warn('Audio analysis failed', { error: errorMessage(error) })
       return { completed: false, segments, warnings: ['audio_transcription_failed'] }
     }
   }
@@ -244,40 +334,24 @@ export class MediaAnalysisService extends BaseService {
     probe: ClassifiedMediaProbe,
     jobDir: string,
     execution: MediaExecutionConfig,
-    visionCacheKey: string,
-    signal?: AbortSignal
+    keys: StageCacheKeys,
+    signal?: AbortSignal,
+    onProgress?: (progress: MediaAnalysisProgress) => void
   ): Promise<{ frames: MediaVisualFrame[]; warnings: MediaAnalysisWarningCode[] }> {
     if (!probe.hasVideo) return { frames: [], warnings: [] }
 
     try {
       const outputDir = join(jobDir, 'frames')
       await mkdir(outputDir, { recursive: true })
-      let sceneChanges: Array<{ timestampMs: number; score: number }> = []
-      if (probe.durationMs > 0) {
-        try {
-          const detected = await this.mediaFfmpeg().detectSceneChanges(
-            {
-              filePath,
-              durationMs: probe.durationMs,
-              sampleFps: SCENE_SAMPLE_FPS,
-              scoreThreshold: SCENE_SCORE_THRESHOLD,
-              scanEdgePx: SCENE_SCAN_EDGE_PX,
-              maxCandidates: sceneCandidateLimit(execution.budget.maxFrames)
-            },
-            signal
-          )
-          sceneChanges = detected.changes
-        } catch {
-          signal?.throwIfAborted()
-          logger.warn('Scene detection failed; continuing with uniform frames')
-        }
+      const cache = application.get('CacheService')
+      const plannedMs = cache.get<unknown>(keys.framePlan)
+      let timestampsMs: number[]
+      if (Array.isArray(plannedMs) && plannedMs.every((value) => typeof value === 'number')) {
+        timestampsMs = plannedMs
+      } else {
+        timestampsMs = await this.planFrames(filePath, probe, execution, signal)
+        cache.set(keys.framePlan, timestampsMs, CACHE_TTL_MS)
       }
-      const timestampsMs = planAnalysisFrameTimestamps({
-        durationMs: probe.durationMs,
-        maxFrames: execution.budget.maxFrames,
-        targetIntervalMs: execution.budget.targetIntervalMs,
-        sceneChanges
-      })
       const extracted = await this.mediaFfmpeg().extractFrames(
         {
           filePath,
@@ -300,35 +374,41 @@ export class MediaAnalysisService extends BaseService {
       const warnings = new Set<MediaAnalysisWarningCode>()
 
       if (execution.ocr) {
+        const ocr = execution.ocr
+        // Read text is kept per frame, so a later run never loses it to a flaky system OCR call.
+        const read = readFrameText(cache.get<unknown>(keys.frameText))
+        const unread = distinctFrames.filter((frame) => !read.has(frame.timestampMs))
+        let done = distinctFrames.length - unread.length
+        if (unread.length) onProgress?.({ stage: 'reading_frames', done, total: distinctFrames.length })
         await Promise.all(
-          distinctFrames.map(async (frame) => {
-            try {
-              const text = (
-                await application
-                  .get('FileProcessingService')
-                  .ocrImage(
-                    { kind: 'path', path: AbsoluteFilePathSchema.parse(frame.path) },
-                    signal,
-                    execution.ocr!.processor
-                  )
-              ).trim()
-              if (text) frames.set(frame.timestampMs, { ...frames.get(frame.timestampMs)!, ocrText: text })
-            } catch {
-              signal?.throwIfAborted()
-              warnings.add('ocr_failed')
-            }
+          unread.map(async (frame) => {
+            const text = await ocrFrameWithRetry(frame, ocr, signal)
+            if (text !== null) read.set(frame.timestampMs, text)
+            onProgress?.({ stage: 'reading_frames', done: ++done, total: distinctFrames.length })
           })
         )
+        cache.set(keys.frameText, Object.fromEntries(read), CACHE_TTL_MS)
+        for (const frame of distinctFrames) {
+          const text = read.get(frame.timestampMs)
+          if (text) frames.set(frame.timestampMs, { ...frames.get(frame.timestampMs)!, ocrText: text })
+          if (text === undefined) warnings.add('ocr_failed')
+        }
       }
 
       if (execution.vision) {
         // Answered frames are already paid for; a retry caused by another modality must not resend them.
-        const answered = readAnsweredFrames(visionCacheKey)
+        const answered = readAnsweredFrames(keys.vision)
         try {
           const unanswered = distinctFrames.filter((frame) => !answered.has(frame.timestampMs))
-          await summarizeFrames(execution.vision, unanswered, answered, signal)
+          await summarizeFrames(execution.vision, unanswered, answered, signal, (done) =>
+            onProgress?.({
+              stage: 'describing_frames',
+              done: distinctFrames.length - unanswered.length + done,
+              total: distinctFrames.length
+            })
+          )
         } finally {
-          application.get('CacheService').set(visionCacheKey, Object.fromEntries(answered), CACHE_TTL_MS)
+          cache.set(keys.vision, Object.fromEntries(answered), CACHE_TTL_MS)
         }
         for (const frame of distinctFrames) {
           const summary = answered.get(frame.timestampMs)
@@ -342,11 +422,45 @@ export class MediaAnalysisService extends BaseService {
       const ordered = [...frames.values()].sort((left, right) => left.timestampMs - right.timestampMs)
       if (!ordered.some((frame) => frame.summary?.trim() || frame.ocrText?.trim())) warnings.add('no_visual_content')
       return { frames: ordered, warnings: [...warnings] }
-    } catch {
+    } catch (error) {
       signal?.throwIfAborted()
-      logger.warn('Visual analysis failed')
+      logger.warn('Visual analysis failed', { error: errorMessage(error) })
       return { frames: [], warnings: ['visual_analysis_failed'] }
     }
+  }
+
+  private async planFrames(
+    filePath: string,
+    probe: ClassifiedMediaProbe,
+    execution: MediaExecutionConfig,
+    signal?: AbortSignal
+  ): Promise<number[]> {
+    let sceneChanges: Array<{ timestampMs: number; score: number }> = []
+    if (probe.durationMs > 0) {
+      try {
+        const detected = await this.mediaFfmpeg().detectSceneChanges(
+          {
+            filePath,
+            durationMs: probe.durationMs,
+            sampleFps: SCENE_SAMPLE_FPS,
+            scoreThreshold: SCENE_SCORE_THRESHOLD,
+            scanEdgePx: SCENE_SCAN_EDGE_PX,
+            maxCandidates: sceneCandidateLimit(execution.budget.maxFrames)
+          },
+          signal
+        )
+        sceneChanges = detected.changes
+      } catch {
+        signal?.throwIfAborted()
+        logger.warn('Scene detection failed; continuing with uniform frames')
+      }
+    }
+    return planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: execution.budget.maxFrames,
+      targetIntervalMs: execution.budget.targetIntervalMs,
+      sceneChanges
+    })
   }
 
   // Declared @DependsOn: this service is excluded when MediaFfmpegService is.
@@ -371,10 +485,12 @@ async function summarizeFrames(
   vision: MediaVisionExecutionConfig,
   frames: Array<{ path: string; timestampMs: number }>,
   answered: Map<number, string | null>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onBatchStart?: (done: number) => void
 ): Promise<void> {
   for (let index = 0; index < frames.length; index += VISION_BATCH_SIZE) {
     signal?.throwIfAborted()
+    onBatchStart?.(index)
     const batch = frames.slice(index, index + VISION_BATCH_SIZE)
     try {
       const content: Array<{ type: 'text'; text: string } | { type: 'image'; image: Buffer; mediaType: 'image/jpeg' }> =
@@ -422,4 +538,105 @@ function assignSummaries(
   }
   // A paid reply that skips a frame still answers it; asking again would bill the same frame.
   for (const frame of batch) answered.set(frame.timestampMs, parsed.get(frame.timestampMs) ?? null)
+}
+
+interface LocalPass {
+  done: Promise<void>
+  listeners: Set<(progress: MediaAnalysisProgress) => void>
+  last?: MediaAnalysisProgress
+}
+
+interface StageCacheKeys {
+  vision: string
+  transcript: string
+  framePlan: string
+  frameText: string
+}
+
+function fileKeyOf(file: FileHandle, fileInfo: FileInfo): string {
+  const identity =
+    file.kind === 'entry'
+      ? `entry:${file.entryId}`
+      : `path:${createHash('sha256').update(fileInfo.path).digest('hex').slice(0, 24)}`
+  return `${identity}:${fileInfo.modifiedAt}:${fileInfo.size}`
+}
+
+const CONTENT_SAMPLE_BYTES = 1024 * 1024
+
+/** Size plus the first and last MiB: cheap for long videos and equal for a file and its stored copy. */
+async function contentKeyOf(file: FileHandle, fileInfo: FileInfo): Promise<string> {
+  try {
+    const handle = await open(fileInfo.path, 'r')
+    try {
+      const head = Buffer.alloc(Math.min(CONTENT_SAMPLE_BYTES, fileInfo.size))
+      const tail = Buffer.alloc(Math.min(CONTENT_SAMPLE_BYTES, Math.max(0, fileInfo.size - head.length)))
+      await handle.read(head, 0, head.length, 0)
+      await handle.read(tail, 0, tail.length, fileInfo.size - tail.length)
+      return `content:${createHash('sha256').update(String(fileInfo.size)).update(head).update(tail).digest('hex').slice(0, 32)}`
+    } finally {
+      await handle.close()
+    }
+  } catch {
+    return fileKeyOf(file, fileInfo)
+  }
+}
+
+function hashIdentity(identity: unknown): string {
+  return createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 24)
+}
+
+async function settledUnlessAborted(pending: Promise<void>, signal?: AbortSignal): Promise<void> {
+  if (!signal) return pending
+  signal.throwIfAborted()
+  await new Promise<void>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    void pending.finally(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    })
+  })
+}
+
+function readTranscript(
+  cached: unknown
+): { segments: MediaAudioSegment[]; warnings: MediaAnalysisWarningCode[] } | undefined {
+  if (!cached || typeof cached !== 'object') return undefined
+  const { segments, warnings } = cached as { segments?: unknown; warnings?: unknown }
+  return Array.isArray(segments) && Array.isArray(warnings)
+    ? { segments: segments as MediaAudioSegment[], warnings: warnings as MediaAnalysisWarningCode[] }
+    : undefined
+}
+
+function readFrameText(cached: unknown): Map<number, string> {
+  if (!cached || typeof cached !== 'object') return new Map()
+  return new Map(
+    Object.entries(cached).flatMap(
+      ([timestampMs, text]): Array<[number, string]> => (typeof text === 'string' ? [[Number(timestampMs), text]] : [])
+    )
+  )
+}
+
+/** One retry absorbs a transient system OCR error; `null` leaves the frame for the next run. */
+async function ocrFrameWithRetry(
+  frame: { path: string; timestampMs: number },
+  ocr: NonNullable<MediaExecutionConfig['ocr']>,
+  signal?: AbortSignal
+): Promise<string | null> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const text = await application
+        .get('FileProcessingService')
+        .ocrImage({ kind: 'path', path: AbsoluteFilePathSchema.parse(frame.path) }, signal, ocr.processor)
+      return text.trim()
+    } catch (error) {
+      signal?.throwIfAborted()
+      logger.warn('Frame OCR failed', { timestampMs: frame.timestampMs, attempt, error: errorMessage(error) })
+    }
+  }
+  return null
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
