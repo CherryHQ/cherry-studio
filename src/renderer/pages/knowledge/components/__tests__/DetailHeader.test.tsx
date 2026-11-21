@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -7,7 +7,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import DetailHeader from '../DetailHeader'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  Badge: ({ children, ...props }: { children: ReactNode } & ComponentProps<'span'>) => (
     <span {...props}>{children}</span>
   ),
   Button: ({
@@ -17,8 +17,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }: {
     children: ReactNode
     type?: 'button'
-    [key: string]: unknown
-  }) => (
+  } & ComponentProps<'button'>) => (
     <button type={type} {...props}>
       {children}
     </button>

@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import type { ModelSelectorSingleIdProps } from '@renderer/components/ModelSelector'
+import type LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import type { ApiPath, ResponseForPath } from '@shared/data/api/paths'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
@@ -26,8 +27,9 @@ const { localModel, mockModelSelectorProps, mockShowDownloadPopup, integration }
     status: 'not_downloaded',
     isStatusResolved: true
   },
-  mockModelSelectorProps: [] as Array<Record<string, any>>,
-  mockShowDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>()
+  // SAFETY: Only the typed selector mock below appends to this initially empty capture list.
+  mockModelSelectorProps: [] as ModelSelectorSingleIdProps[],
+  mockShowDownloadPopup: vi.fn<typeof LocalModelDownloadPopup.show>()
 }))
 
 vi.mock('@renderer/hooks/useLocalModel', () => ({
@@ -196,7 +198,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     const onChange = vi.fn()
     render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
 
-    expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
+    expect(mockModelSelectorProps.at(-1)?.filter?.(localEmbeddingModel)).toBe(false)
     await user.click(screen.getByRole('button', { name: 'select-local-model' }))
     expect(onChange).not.toHaveBeenCalled()
     expect(mockShowDownloadPopup).not.toHaveBeenCalled()

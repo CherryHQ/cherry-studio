@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeEntityNameDialog from '../KnowledgeEntityNameDialog'
@@ -14,8 +14,7 @@ vi.mock('@cherrystudio/ui', () => ({
     children: ReactNode
     loading?: boolean
     type?: 'button' | 'submit'
-    [key: string]: unknown
-  }) => (
+  } & ComponentProps<'button'>) => (
     <button type={type} {...props}>
       {loading ? 'loading' : children}
     </button>
@@ -30,8 +29,7 @@ vi.mock('@cherrystudio/ui', () => ({
     children: ReactNode
     closeOnOverlayClick?: boolean
     size?: string
-    [key: string]: unknown
-  }) => {
+  } & ComponentProps<'div'>) => {
     void closeOnOverlayClick
     return (
       <div role="dialog" data-size={size} {...props}>
@@ -39,22 +37,22 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  DialogFooter: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
     <div {...props}>{children}</div>
   ),
-  DialogHeader: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  DialogHeader: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
     <div {...props}>{children}</div>
   ),
-  DialogTitle: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  DialogTitle: ({ children, ...props }: { children: ReactNode } & ComponentProps<'h1'>) => (
     <h1 {...props}>{children}</h1>
   ),
-  FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  FieldError: ({ children, ...props }: { children: ReactNode } & ComponentProps<'div'>) => (
     <div role="alert" {...props}>
       {children}
     </div>
   ),
-  Input: (props: Record<string, unknown>) => <input {...props} />,
-  Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  Label: ({ children, ...props }: { children: ReactNode } & ComponentProps<'label'>) => (
     <label {...props}>{children}</label>
   )
 }))

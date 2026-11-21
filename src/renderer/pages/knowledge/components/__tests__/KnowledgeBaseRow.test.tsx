@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
@@ -37,8 +37,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }: {
     children: ReactNode
     type?: 'button' | 'submit' | 'reset'
-    [key: string]: unknown
-  }) => (
+  } & ComponentProps<'button'>) => (
     <button type={type} {...props}>
       {children}
     </button>
@@ -58,7 +57,7 @@ vi.mock('@cherrystudio/ui', () => ({
   DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
-  MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
+  MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string } & ComponentProps<'button'>) => (
     <button type="button" {...props}>
       {icon}
       {label}

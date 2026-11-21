@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -41,8 +41,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       children: ReactNode
       type?: 'button' | 'submit' | 'reset'
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type={type} {...props}>
         {children}
       </button>

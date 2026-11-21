@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps, HTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -128,14 +129,13 @@ vi.mock('@cherrystudio/ui', async () => {
       children: React.ReactNode
       loading?: boolean
       type?: 'button' | 'submit' | 'reset'
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'button'>) => (
       <button type={type} {...props}>
         {children}
       </button>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-    Label: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    Label: ({ children, ...props }: { children: React.ReactNode } & ComponentProps<'label'>) => (
       <label {...props}>{children}</label>
     ),
     SegmentedControl: ({
@@ -167,8 +167,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       checked?: boolean
       onCheckedChange?: (checked: boolean) => void
-      [key: string]: unknown
-    }) => (
+    } & ComponentProps<'input'>) => (
       <input
         type="checkbox"
         checked={Boolean(checked)}
@@ -192,8 +191,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       asChild?: boolean
       children: React.ReactElement<{ onClick?: (event: React.MouseEvent<HTMLElement>) => void }>
-      [key: string]: unknown
-    }) => {
+    } & HTMLAttributes<HTMLElement>) => {
       const { onOpenChange } = React.use(DialogContext)
 
       if (asChild) {
@@ -218,8 +216,8 @@ vi.mock('@cherrystudio/ui', async () => {
       children: React.ReactNode
       showCloseButton?: boolean
       size?: string
-      [key: string]: unknown
-    }) => {
+      closeOnOverlayClick?: boolean
+    } & ComponentProps<'div'>) => {
       const { open } = React.use(DialogContext)
       const dialogProps = { ...props }
       delete dialogProps.closeOnOverlayClick
@@ -231,16 +229,16 @@ vi.mock('@cherrystudio/ui', async () => {
         </div>
       ) : null
     },
-    DialogFooter: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    DialogFooter: ({ children, ...props }: { children: React.ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
-    DialogHeader: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    DialogHeader: ({ children, ...props }: { children: React.ReactNode } & ComponentProps<'div'>) => (
       <div {...props}>{children}</div>
     ),
-    DialogTitle: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    DialogTitle: ({ children, ...props }: { children: React.ReactNode } & ComponentProps<'h1'>) => (
       <h1 {...props}>{children}</h1>
     ),
-    DialogDescription: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    DialogDescription: ({ children, ...props }: { children: React.ReactNode } & ComponentProps<'p'>) => (
       <p {...props}>{children}</p>
     )
   }
