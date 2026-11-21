@@ -1224,9 +1224,6 @@ export function sanitizeCliConfigBlob(
   cliTool: string,
   configBlob: CliConfigWriteArgs['configBlob']
 ): NonNullable<CliConfigWriteArgs['configBlob']> {
-  if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
-    // SAFETY: The normalizer constructs a plain object with two validated strings; the common CLI API erases those keys.
-    return normalizeDeepSeekHarnessSettings(configBlob) as NonNullable<CliConfigWriteArgs['configBlob']>
-  }
+  if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
 }
