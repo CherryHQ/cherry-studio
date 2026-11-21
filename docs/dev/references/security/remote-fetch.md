@@ -59,13 +59,23 @@ rejected on every setup.
 
 Electron `net.fetch` uses Chromium's network stack and follows the app/session proxy configuration, but it does not expose a per-request DNS `lookup` hook. A preflight DNS check followed by `net.fetch(originalUrl)` is therefore still vulnerable to a DNS time-of-check/time-of-use gap.
 
-For direct untrusted fetches, Cherry Studio uses a Node HTTP(S) request path that pins the connection to a validated public DNS answer. This intentionally prioritizes SSRF protection over full Chromium session proxy compatibility for these direct-provider requests. Proxy-compatible fetching can be added later only if the connection guard remains enforced for the address that is actually used.
+For untrusted fetches, Cherry Studio uses a Node HTTP(S) request path that pins the connection to a validated DNS answer. Do not add a caller-specific `net.fetch` fallback, because that would reopen the DNS time-of-check/time-of-use gap.
 
-Callers migrating from `net.fetch` must treat this as a user-visible compatibility change: `fetchRemoteText` does not inherit Chromium session proxy settings. Do not add a caller-specific `net.fetch` fallback, because that would reopen the DNS time-of-check/time-of-use gap. Citation previews intentionally degrade to empty preview content on proxy-only networks while keeping the citation title and link usable.
+The default helper path does not opt into Chromium session proxy routing. Citation previews still degrade to empty preview content on proxy-only networks while keeping the citation title and link usable. Callers needing app-proxy routing may explicitly set `respectAppProxy: true`, as blacklist subscriptions do.
+
+## Bounded App-Proxy Fetches
+
+With `respectAppProxy: true`, `ProxyService.getRemoteFetchProxy()` waits for the applied app policy. Custom mode uses the existing ordered bypass matcher; system mode asks Chromium to resolve the URL, including PAC routes. Proxy configuration or route-resolution errors reject the fetch rather than falling back to a direct request.
+
+The helper validates and resolves the destination locally before opening any connection. HTTP(S) proxies receive a CONNECT request for that validated IP, including for plain HTTP destinations. SOCKS proxies also receive the IP, not the original hostname. The origin `Host`, TLS SNI and certificate identity remain tied to the original URL. A private address is rejected unless the existing private-network preference permits it. Every redirect repeats validation and route selection.
+
+The internal `REMOTE_FETCH_OWNS_ROUTE` symbol prevents the global Node proxy wrapper from replacing this per-request agent or an explicitly bypassed direct route. The timeout covers route lookup and proxy handshakes as well as the response. Each request owns and destroys its proxy agent.
+
+Compatibility limits are deliberate: the destination must resolve locally, HTTP proxies must allow CONNECT to the destination port, and only the first PAC candidate is used. A failed proxy never triggers an implicit direct fallback, even if PAC lists `DIRECT` later. Existing credentials are reused only for the matching configured proxy endpoint. Proxy authentication is sent on the tunnel handshake, not as an origin header.
 
 ## Which helper to use
 
-- `fetchRemoteText(url, options)` is the full direct-fetch boundary: URL validation, DNS resolution, address pinning, timeout, redirect policy, and response-size limit.
+- `fetchRemoteText(url, options)` is the full bounded-fetch boundary: URL validation, DNS resolution, address pinning, timeout, redirect policy, and response-size limit. `respectAppProxy: true` opts into the pinned app-proxy path above.
 - `sanitizeRemoteUrl(url, configuredApiHost?)` is only a literal URL guard. It is useful when no network request is opened at that point or when validating a user-configured provider origin, including an explicitly matching loopback/private provider endpoint. It does not close DNS rebinding by itself and must not be followed by an unpinned direct fetch of attacker-controlled input.
 
 ## Redirects

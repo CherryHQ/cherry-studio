@@ -5,9 +5,11 @@ import { request as httpsRequest, type RequestOptions } from 'node:https'
 import type { LookupFunction } from 'node:net'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { checkServerIdentity } from 'node:tls'
 
 import { application } from '@application'
 
+import { REMOTE_FETCH_OWNS_ROUTE } from './remoteFetchRoute'
 import { type ResolvedRemoteFetchUrl, resolveRemoteFetchUrl } from './remoteUrlSafety'
 
 export const DEFAULT_REMOTE_FETCH_TIMEOUT_MS = 30000
@@ -15,6 +17,8 @@ export const DEFAULT_REMOTE_FETCH_MAX_BYTES = 1024 * 1024
 
 export type FetchRemoteTextOptions = {
   readonly method?: 'GET' | 'HEAD'
+  /** Use the app's applied route without allowing the proxy to re-resolve the destination. */
+  readonly respectAppProxy?: boolean
   readonly allowPrivateNetwork?: boolean
   readonly headers?: HeadersInit
   readonly signal?: AbortSignal
@@ -103,6 +107,24 @@ function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
   return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 }
 
+async function readProxyRoute(url: string, signal: AbortSignal): Promise<string | undefined> {
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener('abort', abort)
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    void application
+      .get('ProxyService')
+      .getRemoteFetchProxy(url)
+      .then(resolve, reject)
+      .finally(() => {
+        signal.removeEventListener('abort', abort)
+      })
+  })
+}
+
 async function fetchRemoteResponse(
   url: string,
   options: ResolvedFetchRemoteTextOptions,
@@ -115,7 +137,58 @@ async function fetchRemoteResponse(
     allowPrivateNetwork:
       options.allowPrivateNetwork ?? application.get('PreferenceService').get('app.fetch.allow_private_network')
   })
-  const requestOptions = getRequestOptions(target, options, signal)
+  const requestOptions: RequestOptions & { [REMOTE_FETCH_OWNS_ROUTE]?: boolean } = getRequestOptions(
+    target,
+    options,
+    signal
+  )
+  if (options.respectAppProxy) {
+    const proxyUrl = await readProxyRoute(target.url, signal)
+    requestOptions[REMOTE_FETCH_OWNS_ROUTE] = true
+    if (proxyUrl) {
+      const proxyProtocol = new URL(proxyUrl).protocol
+      if (!['http:', 'https:', 'socks:', 'socks4:', 'socks5:'].includes(proxyProtocol)) {
+        throw new Error('Unsupported app proxy protocol')
+      }
+      // Proxy agents receive only the validated IP. Host and TLS servername keep
+      // the original origin; the proxy never gets an opportunity to rebind DNS.
+      requestOptions.hostname = target.address.address
+      const originHostname = getRequestHostname(new URL(target.url).hostname)
+      // tls.connect over an existing tunnel has no host for IP-literal URLs
+      // and otherwise defaults certificate identity to localhost.
+      requestOptions.checkServerIdentity = (_hostname, certificate) => checkServerIdentity(originHostname, certificate)
+      if (proxyProtocol.startsWith('socks')) {
+        const { SocksProxyAgent } = await import('socks-proxy-agent')
+        requestOptions.agent = new SocksProxyAgent(proxyUrl, {
+          timeout: options.timeoutMs ?? DEFAULT_REMOTE_FETCH_TIMEOUT_MS,
+          socketOptions: { signal }
+        })
+      } else {
+        const { HttpsProxyAgent } = await import('https-proxy-agent')
+        // CONNECT works for HTTP and HTTPS and avoids absolute-form HTTP proxy
+        // requests reconstructing the hostname from the original Host header.
+        requestOptions.agent = new HttpsProxyAgent(proxyUrl, { signal })
+      }
+    }
+  }
+  const proxyAgent =
+    options.respectAppProxy && typeof requestOptions.agent === 'object' ? requestOptions.agent : undefined
+  try {
+    signal.throwIfAborted()
+    return await sendRemoteRequest(target, options, signal, redirectsRemaining, requestOptions, destination)
+  } finally {
+    proxyAgent?.destroy()
+  }
+}
+
+async function sendRemoteRequest(
+  target: ResolvedRemoteFetchUrl,
+  options: ResolvedFetchRemoteTextOptions,
+  signal: AbortSignal,
+  redirectsRemaining: number,
+  requestOptions: RequestOptions,
+  destination?: string
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders; url: string }> {
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
   const maxBytes = options.maxBytes ?? DEFAULT_REMOTE_FETCH_MAX_BYTES
 
@@ -220,8 +293,8 @@ async function fetchRemoteResponse(
         const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
         const error = checkChunk(buffer)
         if (error) {
-          response.destroy()
           fail(error)
+          response.destroy()
           return
         }
         chunks.push(buffer)
@@ -250,8 +323,9 @@ async function fetchRemoteResponse(
 }
 
 /**
- * Fetch text through a direct main-process connection pinned to a prevalidated
- * DNS address. Redirects are opt-in and response bodies are bounded.
+ * Fetch text through a connection pinned to a prevalidated DNS address. Direct
+ * by default; respectAppProxy opts into the applied app route with the same pin.
+ * Redirects are opt-in and response bodies are bounded.
  */
 export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
   return (await fetchRemoteBytes(url, options)).body.toString('utf8')

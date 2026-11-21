@@ -1,3 +1,27 @@
+export function proxyUrlFromChromiumRoute(route: string, configuredUrl?: string): string | undefined {
+  // Choose the first PAC route only. Never silently fall back direct if its
+  // proxy fails, even when a later candidate is DIRECT.
+  const first = route.split(';')[0].trim()
+  if (first.toUpperCase() === 'DIRECT') return undefined
+  const match = /^(PROXY|HTTPS|SOCKS|SOCKS4|SOCKS5)\s+(\S+)$/i.exec(first)
+  if (!match) throw new Error('Unsupported app proxy route')
+  const schemes: Record<string, string> = {
+    PROXY: 'http',
+    HTTPS: 'https',
+    SOCKS: 'socks4',
+    SOCKS4: 'socks4',
+    SOCKS5: 'socks5'
+  }
+  const resolved = new URL(`${schemes[match[1].toUpperCase()]}://${match[2]}`)
+  normalizeProxyEndpoint(resolved.toString())
+  if (configuredUrl) {
+    const configured = new URL(configuredUrl)
+    const configuredProtocol = configured.protocol === 'socks:' ? 'socks5:' : configured.protocol
+    if (configuredProtocol === resolved.protocol && configured.host === resolved.host) return configured.toString()
+  }
+  return resolved.toString()
+}
+
 export type ProxyEndpoint =
   | {
       kind: 'http'

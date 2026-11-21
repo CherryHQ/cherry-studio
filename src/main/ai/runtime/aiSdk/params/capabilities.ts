@@ -11,6 +11,7 @@
 
 import { application } from '@application'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
+import { mergeWebSearchBlacklist } from '@main/services/webSearch/utils/blacklist'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -95,7 +96,10 @@ export function resolveCapabilities(
     const preferenceService = application.get('PreferenceService')
     const webSearchConfig = {
       maxResults: preferenceService.get('chat.web_search.max_results'),
-      excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
+      excludeDomains: mergeWebSearchBlacklist(
+        preferenceService.get('chat.web_search.exclude_domains'),
+        preferenceService.get('chat.web_search.blacklist_subscriptions')
+      )
     }
     const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {

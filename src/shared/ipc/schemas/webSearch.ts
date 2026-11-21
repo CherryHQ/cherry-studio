@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchBlacklistSubscription } from '@shared/data/preference/preferenceTypes'
 import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import type { WebSearchFetchUrlsRequest, WebSearchSearchKeywordsRequest } from '@shared/data/types/webSearch'
 
@@ -37,10 +38,44 @@ const fetchUrlsRequestSchema: z.ZodType<WebSearchFetchUrlsRequest> = z.object({
   urls: z.array(z.string())
 })
 
+const blacklistSubscriptionSchema: z.ZodType<WebSearchBlacklistSubscription> = z.object({
+  id: z.string(),
+  url: z.string(),
+  name: z.string().optional(),
+  rules: z.array(z.string()),
+  updatedAt: z.string().optional(),
+  lastError: z.string().optional()
+})
+
+const addBlacklistSubscriptionRequestSchema = z.object({
+  url: z.string(),
+  name: z.string().optional()
+})
+
+const refreshBlacklistSubscriptionRequestSchema = z.object({
+  id: z.string()
+})
+
+const removeBlacklistSubscriptionRequestSchema = z.object({
+  id: z.string()
+})
+
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const webSearchRequestSchemas = {
   'web_search.search_keywords': defineRoute({ input: searchKeywordsRequestSchema, output: z.void() }),
-  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: z.void() })
+  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: z.void() }),
+  'web_search.blacklist_subscriptions.add': defineRoute({
+    input: addBlacklistSubscriptionRequestSchema,
+    output: blacklistSubscriptionSchema
+  }),
+  'web_search.blacklist_subscriptions.refresh': defineRoute({
+    input: refreshBlacklistSubscriptionRequestSchema,
+    output: blacklistSubscriptionSchema
+  }),
+  'web_search.blacklist_subscriptions.remove': defineRoute({
+    input: removeBlacklistSubscriptionRequestSchema,
+    output: z.void()
+  })
 }
 
 export type WebSearchEventSchemas = {

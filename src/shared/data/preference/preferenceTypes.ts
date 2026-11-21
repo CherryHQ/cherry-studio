@@ -314,6 +314,19 @@ export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
 
 export type WebSearchCapability = SharedWebSearchCapability
 
+/**
+ * A uBlacklist-format subscription source for the web search blacklist.
+ * Cached `rules` are stored with the source so filtering keeps working offline.
+ */
+export type WebSearchBlacklistSubscription = {
+  id: string
+  url: string
+  name?: string
+  rules: string[]
+  updatedAt?: string
+  lastError?: string
+}
+
 export type WebSearchProviderCapabilityOverride = {
   apiHost?: string
 }

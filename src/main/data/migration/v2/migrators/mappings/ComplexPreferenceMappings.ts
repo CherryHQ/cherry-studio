@@ -25,6 +25,7 @@ import { markV1CustomCss } from '@shared/utils/customCssMigration'
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
   flattenCompressionConfig,
+  migrateWebSearchBlacklistSubscriptions,
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../transformers/PreferenceTransformers'
@@ -170,6 +171,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['chat.web_search.compression.method', 'chat.web_search.compression.cutoff_limit'],
     transform: flattenCompressionConfig
+  },
+
+  // WebSearch blacklist subscriptions (v1 subscribeSources)
+  {
+    id: 'websearch_blacklist_subscriptions_migrate',
+    description:
+      'Migrate v1 websearch subscribeSources entries with a url into blacklist subscriptions; entries without a URL are skipped',
+    sources: {
+      subscribeSources: { source: 'redux', category: 'websearch', key: 'subscribeSources' }
+    },
+    targetKeys: ['chat.web_search.blacklist_subscriptions'],
+    transform: migrateWebSearchBlacklistSubscriptions
   },
 
   {

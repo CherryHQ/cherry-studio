@@ -5,6 +5,7 @@ import {
   getNestedValue,
   isNonEmptyString,
   isValidNumber,
+  migrateWebSearchBlacklistSubscriptions,
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../PreferenceTransformers'
@@ -313,6 +314,40 @@ describe('PreferenceTransformers', () => {
       })
 
       expect(result['chat.web_search.provider_overrides']).toEqual({})
+    })
+  })
+
+  describe('migrateWebSearchBlacklistSubscriptions', () => {
+    it('migrates entries with a url, keeping cached rules and name', () => {
+      const result = migrateWebSearchBlacklistSubscriptions({
+        subscribeSources: [
+          { key: 'abc', url: 'https://lists.example/a.txt', name: 'List A', blacklist: ['*://*.a.example/*', ''] },
+          { key: 2, url: 'https://lists.example/b.txt' }
+        ]
+      })
+
+      expect(result['chat.web_search.blacklist_subscriptions']).toEqual([
+        { id: 'abc', url: 'https://lists.example/a.txt', name: 'List A', rules: ['*://*.a.example/*'] },
+        { id: '2', url: 'https://lists.example/b.txt', name: undefined, rules: [] }
+      ])
+    })
+
+    it('skips entries without a URL', () => {
+      const result = migrateWebSearchBlacklistSubscriptions({
+        subscribeSources: [{ key: 'abc', name: 'No URL' }, { url: '  ' }, { url: 'https://lists.example/c.txt' }]
+      })
+
+      expect(result['chat.web_search.blacklist_subscriptions']).toEqual([
+        { id: 'v1-subscription-2', url: 'https://lists.example/c.txt', name: undefined, rules: [] }
+      ])
+    })
+
+    it('returns {} when nothing migrates or the source is missing', () => {
+      expect(migrateWebSearchBlacklistSubscriptions({})).toEqual({})
+      expect(migrateWebSearchBlacklistSubscriptions({ subscribeSources: [] })).toEqual({})
+      expect(
+        migrateWebSearchBlacklistSubscriptions({ subscribeSources: [{ name: 'No URL' }] })
+      ).toEqual({})
     })
   })
 })

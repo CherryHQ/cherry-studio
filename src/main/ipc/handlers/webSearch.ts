@@ -34,5 +34,14 @@ export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> =
       }
       throw error
     }
+  },
+  'web_search.blacklist_subscriptions.add': async (request) => {
+    return application.get('BlacklistSubscriptionService').add(request.url, request.name)
+  },
+  'web_search.blacklist_subscriptions.refresh': async (request) => {
+    return application.get('BlacklistSubscriptionService').refresh(request.id)
+  },
+  'web_search.blacklist_subscriptions.remove': async (request) => {
+    await application.get('BlacklistSubscriptionService').remove(request.id)
   }
 }

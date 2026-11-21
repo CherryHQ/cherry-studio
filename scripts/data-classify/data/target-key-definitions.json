@@ -300,6 +300,13 @@
       "description": "Web search excluded domains (from complex migration)"
     },
     {
+      "targetKey": "chat.web_search.blacklist_subscriptions",
+      "type": "PreferenceTypes.WebSearchBlacklistSubscription[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "uBlacklist subscription sources for the web search blacklist (v2 new feature, no v1 source; v1 websearch.subscribeSources entries migrate through a dedicated migrator)"
+    },
+    {
       "targetKey": "chat.web_search.max_results",
       "type": "number",
       "defaultValue": 5,

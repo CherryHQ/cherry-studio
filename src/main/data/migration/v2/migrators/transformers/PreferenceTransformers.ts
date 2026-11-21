@@ -155,6 +155,7 @@
 
 import { loggerService } from '@logger'
 import type {
+  WebSearchBlacklistSubscription,
   WebSearchProviderId,
   WebSearchProviderOverride,
   WebSearchProviderOverrides
@@ -415,4 +416,50 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
   return {
     'chat.web_search.provider_overrides': overrides
   }
+}
+
+/**
+ * v1 websearch.subscribeSources entry. v1 stored the cached uBlacklist rules
+ * on the entry itself (`blacklist`); entries without a URL are unusable and
+ * are skipped instead of guessing one.
+ */
+type OldWebSearchSubscribeSource = {
+  key?: string | number
+  url?: string
+  name?: string
+  blacklist?: unknown
+}
+
+/**
+ * Migrate v1 websearch blacklist subscriptions into the v2 preference.
+ * Entries with a `url` migrate with their cached rules; entries without a URL
+ * are skipped. When nothing migrates (the common case after v1's reset of the
+ * field) the preference keeps its default.
+ */
+export function migrateWebSearchBlacklistSubscriptions(sources: {
+  subscribeSources?: OldWebSearchSubscribeSource[]
+}): TransformResult {
+  const subscribeSources = sources.subscribeSources
+  if (!Array.isArray(subscribeSources)) return {}
+
+  const subscriptions: WebSearchBlacklistSubscription[] = []
+  subscribeSources.forEach((source, index) => {
+    const url = typeof source?.url === 'string' ? source.url.trim() : ''
+    if (!url) return
+
+    const rules = Array.isArray(source.blacklist)
+      ? source.blacklist.filter((rule): rule is string => typeof rule === 'string' && rule.trim() !== '')
+      : []
+    const name = typeof source.name === 'string' && source.name.trim() !== '' ? source.name.trim() : undefined
+
+    subscriptions.push({
+      id: source.key != null ? String(source.key) : `v1-subscription-${index}`,
+      url,
+      name,
+      rules
+    })
+  })
+
+  if (subscriptions.length === 0) return {}
+  return { 'chat.web_search.blacklist_subscriptions': subscriptions }
 }

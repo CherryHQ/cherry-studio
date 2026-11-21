@@ -17,6 +17,7 @@ const getLlmProviderApiKeys = vi.mocked(providerService.getApiKeys)
 const preferenceValues: Record<string, unknown> = {
   'chat.web_search.max_results': 5,
   'chat.web_search.exclude_domains': ['example.com'],
+  'chat.web_search.blacklist_subscriptions': [],
   'chat.web_search.compression.method': 'none',
   'chat.web_search.compression.cutoff_limit': null,
   'chat.web_search.default_search_keywords_provider': 'tavily',

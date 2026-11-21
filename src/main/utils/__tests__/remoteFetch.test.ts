@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
@@ -75,6 +76,23 @@ describe('fetchRemoteText', () => {
     lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     MockMainPreferenceServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+  })
+
+  it('keeps proxy-route lookup within the same bounded timeout', async () => {
+    MockApplicationUtils.setService('ProxyService', { getRemoteFetchProxy: () => new Promise(() => {}) })
+    await expect(fetchRemoteText('https://example.com', { respectAppProxy: true, timeoutMs: 20 })).rejects.toThrow()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the origin Host and TLS name while handing the proxy only the validated IP', async () => {
+    MockApplicationUtils.setService('ProxyService', { getRemoteFetchProxy: async () => 'http://127.0.0.1:7890' })
+    mockHttpsResponse()
+    await expect(fetchRemoteText('https://example.com/article', { respectAppProxy: true })).resolves.toBe('ok')
+    const options = httpsRequestMock.mock.calls[0][0]
+    expect(options.hostname).toBe('93.184.216.34')
+    expect(options.servername).toBe('example.com')
+    expect(options.headers.host).toBe('example.com')
+    expect(options.agent.constructor.name).toBe('HttpsProxyAgent')
   })
 
   it('preserves arbitrary binary bytes and response metadata', async () => {

@@ -1,5 +1,6 @@
 import { filterResultsByUrlRules } from '@cherrystudio/web-search/tools/url-filter'
 import { loggerService } from '@logger'
+import type { WebSearchBlacklistSubscription } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { parseMatchPattern } from '@shared/utils/blacklistMatchPattern'
 
@@ -21,6 +22,29 @@ export function filterWebSearchResponseWithBlacklist(
     logger.warn(message, { [diagnostic.kind === 'url' ? 'url' : 'pattern']: diagnostic.value, error: diagnostic.error })
   }
   return { ...response, results }
+}
+
+/**
+ * Merges manual `exclude_domains` with the cached rules of every subscription,
+ * deduplicated. Manual rules come first and are never removed by a refresh;
+ * with no subscriptions the manual list is returned unchanged.
+ */
+export function mergeWebSearchBlacklist(
+  excludeDomains: readonly string[],
+  subscriptions: readonly WebSearchBlacklistSubscription[]
+): string[] {
+  if (!subscriptions.length) return [...excludeDomains]
+
+  const merged = [...excludeDomains]
+  const seen = new Set(excludeDomains)
+  for (const subscription of subscriptions) {
+    for (const rule of subscription.rules) {
+      if (seen.has(rule)) continue
+      seen.add(rule)
+      merged.push(rule)
+    }
+  }
+  return merged
 }
 
 /**

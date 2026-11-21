@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import type { WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 
-import { filterWebSearchResponseWithBlacklist } from '../blacklist'
+import type { WebSearchBlacklistSubscription } from '@shared/data/preference/preferenceTypes'
+
+import { filterWebSearchResponseWithBlacklist, mergeWebSearchBlacklist, toExcludedSiteDomains } from '../blacklist'
 
 function response(results: Array<Omit<WebSearchResult, 'sourceInput'> & { sourceInput?: string }>): WebSearchResponse {
   return {
@@ -121,5 +123,38 @@ describe('filterWebSearchResponseWithBlacklist', () => {
         sourceInput: 'hello'
       }
     ])
+  })
+})
+
+describe('mergeWebSearchBlacklist', () => {
+  function subscription(rules: string[]): WebSearchBlacklistSubscription {
+    return { id: 'sub-1', url: 'https://lists.example/list.txt', rules }
+  }
+
+  it('returns the manual list unchanged when no subscription exists', () => {
+    expect(mergeWebSearchBlacklist(['*://*.manual.example/*'], [])).toEqual(['*://*.manual.example/*'])
+  })
+
+  it('merges subscription rules after manual rules, deduplicated', () => {
+    const merged = mergeWebSearchBlacklist(
+      ['*://*.manual.example/*', '*://*.shared.example/*'],
+      [subscription(['*://*.sub.example/*', '*://*.shared.example/*'])]
+    )
+    expect(merged).toEqual(['*://*.manual.example/*', '*://*.shared.example/*', '*://*.sub.example/*'])
+  })
+
+  it('keeps manual rules applying when the subscription is removed', () => {
+    expect(mergeWebSearchBlacklist(['*://*.manual.example/*'], [])).toEqual(['*://*.manual.example/*'])
+  })
+})
+
+describe('toExcludedSiteDomains with merged rules', () => {
+  it('maps whole-domain subscription rules to provider site exclusion', () => {
+    const domains = toExcludedSiteDomains(
+      mergeWebSearchBlacklist(['*://*.manual.example/*'], [
+        { id: 'sub-1', url: 'https://lists.example/list.txt', rules: ['*://*.sub.example/*', '/regex/'] }
+      ])
+    )
+    expect(domains).toEqual(['manual.example', 'sub.example'])
   })
 })
