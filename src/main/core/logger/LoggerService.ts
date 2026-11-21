@@ -136,7 +136,8 @@ export class LoggerService {
   private logsDir: string = ''
 
   private module: string = ''
-  private context: Record<string, any> = {}
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Caller context may contain native values; sanitizeLogValue checks and redacts it before file output.
+  private context: Record<string, unknown> = {}
 
   constructor() {
     if (!isMainThread) {
@@ -230,7 +231,8 @@ export class LoggerService {
    * @param context - Additional context data
    * @returns A new logger instance with the specified context
    */
-  public withContext(module: string, context?: Record<string, any>): LoggerService {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Context fields stay opaque while contexts are composed; sanitizeLogValue owns their output conversion.
+  public withContext(module: string, context?: Record<string, unknown>): LoggerService {
     const newLogger = Object.create(this)
 
     // Copy all properties from the base logger
@@ -318,8 +320,8 @@ export class LoggerService {
       }
     }
 
-    // Winston merges only the first splat object into the logged line (no
-    // `format.splat()` configured), so collapse caller data + source into one meta.
+    // Winston merges only the first splat object; collapse caller data and source into one entry.
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This Winston envelope combines sanitized fields with raw positional values; observers validate the fields they consume.
     const entry: Record<string, unknown> = {}
     const rest: unknown[] = []
     let fileMessage = message
