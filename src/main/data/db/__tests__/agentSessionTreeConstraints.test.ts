@@ -6,28 +6,17 @@ import { describe, expect, it } from 'vitest'
 import { applyMigrations } from '@data/db/applyMigrations'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 
 function seedSessions(dbh: ReturnType<typeof setupTestDatabase>) {
-  dbh.db
-    .insert(agentWorkspaceTable)
-    .values({ id: 'work', name: 'Work', path: '/work', type: 'user', orderKey: 'a0' })
-    .run()
-  dbh.db
-    .insert(sessions)
-    .values(
-      ['flat', 'branched'].map((id) => ({
-        id,
-        name: id,
-        workspaceId: 'work',
-        orderKey: id,
-        createdAt: 10,
-        updatedAt: 20
-      }))
-    )
-    .run()
+  dbh.sqlite.exec(`
+    INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+    VALUES ('work', 'Work', '/work', 'user', 'a0', 10, 20);
+    INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at, last_activity_at)
+    VALUES ('flat', 'flat', 'work', 'flat', 10, 20, 10),
+           ('branched', 'branched', 'work', 'branched', 10, 20, 10);
+  `)
 }
 
 describe('Session tree storage constraints', () => {
@@ -95,7 +84,8 @@ describe('Session tree populated upgrade', () => {
         id: `archive-${i}`,
         data: { parts: [{ type: 'text', text: `content-${i}` }] },
         createdAt: i + 100,
-        updatedAt: i + 200
+        updatedAt: i + 200,
+        pos: i + 1
       })
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
     dbh.sqlite.exec(
@@ -132,7 +122,9 @@ describe('Session tree populated branch upgrade', () => {
     const before = dbh.sqlite
       .prepare<[], { id: string; session_id: string }>('SELECT * FROM agent_session_message ORDER BY id')
       .all()
-    const sessionBefore = dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()
+    const sessionBefore = dbh.sqlite
+      .prepare<[], Record<string, unknown>>("SELECT * FROM agent_session WHERE id = 'branched'")
+      .get()
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
     for (const row of before) {
@@ -140,7 +132,10 @@ describe('Session tree populated branch upgrade', () => {
         row.session_id === 'flat' ? { ...row, data: '{}', parent_id: expect.any(String) } : { ...row, data: '{}' }
       )
     }
-    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual(sessionBefore)
+    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual({
+      ...sessionBefore,
+      last_pos: 2
+    })
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'flat')).get()).toMatchObject({
       createdAt: 10,
       updatedAt: 20,

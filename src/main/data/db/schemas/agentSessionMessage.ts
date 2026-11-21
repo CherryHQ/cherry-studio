@@ -31,6 +31,7 @@ export const agentSessionMessageTable = sqliteTable(
     // On an input: the reply Main opened for it. Queued inputs are saved before their replies,
     // so row ancestry cannot say which reply answers which input. No FK, like deliveryTurnRef.
     replyId: text(),
+    pos: integer(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -91,7 +92,13 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
-/** One ordered body part of an agent-session message; `payload` is the unmodified AI SDK part. */
+export interface AgentSessionPartSource {
+  contextId: string
+  nativeMessageId: string
+  blockKey: string
+}
+
+/** A placed part may await its first body write. */
 export const agentSessionMessagePartTable = sqliteTable(
   'agent_session_message_part',
   {
@@ -104,12 +111,16 @@ export const agentSessionMessagePartTable = sqliteTable(
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
     seq: integer().notNull(),
     type: text().notNull(),
-    payload: text({ mode: 'json' }).$type<CherryMessagePart>().notNull(),
+    payload: text({ mode: 'json' }).$type<CherryMessagePart>(),
+    pos: integer(),
+    source: text({ mode: 'json' }).$type<AgentSessionPartSource>(),
     ...createUpdateTimestamps
   },
   (t) => [
     uniqueIndex('agent_session_message_part_message_seq_uniq').on(t.messageId, t.seq),
-    index('agent_session_message_part_session_idx').on(t.sessionId)
+    index('agent_session_message_part_session_idx').on(t.sessionId),
+    uniqueIndex('agent_session_message_part_source_uniq').on(t.sessionId, t.source),
+    uniqueIndex('agent_session_message_part_pos_uniq').on(t.sessionId, t.pos)
   ]
 )
 

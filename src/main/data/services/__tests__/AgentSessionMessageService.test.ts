@@ -230,6 +230,85 @@ describe('AgentSessionMessageService', () => {
         message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
       })
 
+    it('reuses a native placement before and after its body is saved, without exposing an empty part', () => {
+      pendingReply()
+      const { id: contextId } = prepareClaudeBranch(SESSION_ID, '/test/placement')
+      const source = { contextId, nativeMessageId: 'native-message', blockKey: 'text:0' }
+      const placement = agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')!
+      const toolPlacement = agentSessionMessageService.placeRunPart(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        { ...source, blockKey: 'call:1' },
+        'dynamic-tool'
+      )!
+      expect(toolPlacement.pos).toBeGreaterThan(placement.pos)
+      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
+        placement
+      )
+      expect(partRows().map((row) => row.id)).toEqual([placement.id, toolPlacement.id])
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
+        parts: [],
+        ids: []
+      })
+      const visible = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(visible.items.find((item) => item.id === ASSISTANT_MESSAGE_ID)?.data.parts).toEqual([])
+
+      const answer = { type: 'text' as const, text: 'First body', state: 'done' as const }
+      expect(
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          order: [placement.id, toolPlacement.id],
+          parts: new Map([[placement.id, answer]])
+        })
+      ).toBe(true)
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
+        parts: [answer],
+        ids: [placement.id]
+      })
+      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
+        placement
+      )
+      const corrected = { ...answer, text: 'Corrected body' }
+      agentSessionMessageService.replaceMessageParts(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        [corrected, toolPart],
+        undefined,
+        [placement.id, toolPlacement.id]
+      )
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
+        parts: [corrected, toolPart],
+        ids: [placement.id, toolPlacement.id]
+      })
+      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
+        placement
+      )
+      expect(searchableText()).toBe('Corrected body')
+    })
+
+    it('cannot move a reserved part or its body to another Run', () => {
+      pendingReply()
+      const { id: contextId } = prepareClaudeBranch(SESSION_ID, '/test/placement')
+      const source = { contextId, nativeMessageId: 'native-message', blockKey: 'text:0' }
+      const placement = agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')!
+      const another = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      expect(() => agentSessionMessageService.placeRunPart(SESSION_ID, another.id, source, 'text')).toThrow(
+        'different Run'
+      )
+      expect(() =>
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, another.id, {
+          order: [placement.id],
+          parts: new Map([[placement.id, { type: 'text', text: 'wrong owner' }]])
+        })
+      ).toThrow('different message')
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID).parts).toEqual([])
+      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
+        placement
+      )
+    })
+
     it('writes each completed part alone and settles the reply without rewriting them', () => {
       pendingReply()
       const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)

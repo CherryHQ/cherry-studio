@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 
-import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { describe, expect, it } from 'vitest'
 
@@ -89,7 +89,12 @@ describe('agent session message part migration (0042)', () => {
       runtimeAnchor: { checkpoint: { runtime: 'pi', boundary: 3 } },
       turnOptions: { fastMode: true }
     }
-    const rootId = seedSessionRoot(dbh.db, sessionId)
+    const rootId = uuid()
+    dbh.sqlite
+      .prepare(
+        "INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at) VALUES (?, ?, 'root', '{}', 'success', 1, 1)"
+      )
+      .run(rootId, sessionId)
     const insertMessage = dbh.sqlite.prepare(
       `INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at, parent_id)
        VALUES (?, ?, ?, ?, 'success', ?, ?, ?)`
@@ -148,5 +153,64 @@ describe('agent session message part migration (0042)', () => {
     })
     expect(ftsIds('alphaneedle')).toEqual([])
     expect(ftsIds('betaneedle')).toEqual([userId])
+  })
+})
+
+describe('agent session part placement migration', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0044_past_stephen_strange' })
+
+  it('keeps the saved part IDs and assigns positions in ancestry order', () => {
+    const workspaceId = uuid()
+    const sessionId = uuid()
+    const rootId = uuid()
+    const inputId = uuid()
+    const runId = uuid()
+    const siblingId = uuid()
+    const firstId = uuid()
+    const secondId = uuid()
+    const siblingPartId = uuid()
+    dbh.sqlite
+      .prepare(
+        "INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at) VALUES (?, 'Saved', '/saved', 'user', 'a0', 1, 1)"
+      )
+      .run(workspaceId)
+    dbh.sqlite
+      .prepare(
+        "INSERT INTO agent_session (id, workspace_id, name, order_key, last_activity_at, active_node_id, created_at, updated_at) VALUES (?, ?, 'Saved', 'a0', 1, ?, 1, 1)"
+      )
+      .run(sessionId, workspaceId, runId)
+    const insertMessage = dbh.sqlite.prepare(
+      "INSERT INTO agent_session_message (id, session_id, role, parent_id, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, '{}', 'success', ?, 1)"
+    )
+    insertMessage.run(rootId, sessionId, 'root', null, 90)
+    insertMessage.run(inputId, sessionId, 'user', rootId, 60)
+    insertMessage.run(runId, sessionId, 'assistant', inputId, 20)
+    insertMessage.run(siblingId, sessionId, 'assistant', inputId, 30)
+    const insertPart = dbh.sqlite.prepare(
+      "INSERT INTO agent_session_message_part (id, message_id, session_id, seq, type, payload, created_at, updated_at) VALUES (?, ?, ?, ?, 'text', ?, 1, 1)"
+    )
+    insertPart.run(secondId, runId, sessionId, 1, '{"type":"text","text":"Second"}')
+    insertPart.run(firstId, runId, sessionId, 0, '{"type":"text","text":"First"}')
+    insertPart.run(siblingPartId, siblingId, sessionId, 0, '{"type":"text","text":"Sibling"}')
+
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+
+    expect(dbh.sqlite.prepare('SELECT pos FROM agent_session_message WHERE id = ?').get(inputId)).toEqual({ pos: 1 })
+    expect(dbh.sqlite.prepare('SELECT id, pos, source FROM agent_session_message_part ORDER BY pos').all()).toEqual([
+      { id: firstId, pos: 2, source: null },
+      { id: secondId, pos: 3, source: null },
+      { id: siblingPartId, pos: 4, source: null }
+    ])
+    expect(
+      dbh.sqlite.prepare('SELECT last_pos, active_node_id FROM agent_session WHERE id = ?').get(sessionId)
+    ).toEqual({ last_pos: 4, active_node_id: runId })
+    expect(agentSessionMessageService.getSessionMessageBody(sessionId, runId)).toEqual({
+      parts: [
+        { type: 'text', text: 'First' },
+        { type: 'text', text: 'Second' }
+      ],
+      ids: [firstId, secondId]
+    })
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })
