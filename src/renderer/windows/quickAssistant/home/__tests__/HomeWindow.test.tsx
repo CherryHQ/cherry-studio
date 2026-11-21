@@ -20,6 +20,7 @@ type TestModel = {
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  saveAssistantId: vi.fn(),
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
@@ -86,7 +87,7 @@ vi.mock('@data/hooks/usePreference', () => ({
       'app.language': 'en-US',
       'ui.window_style': state.windowStyle
     }
-    return [values[key], vi.fn()]
+    return [values[key], key === 'feature.quick_assistant.assistant_id' ? state.saveAssistantId : vi.fn()]
   }
 }))
 
@@ -165,6 +166,16 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) =>
       key === 'quickAssistant.input.placeholder.empty' ? `Ask ${options?.model ?? ''}` : key
   })
+}))
+
+// Picker primitive behavior is covered with real UI in QuickAssistantPicker.test.
+// This boundary isolates HomeWindow's persistence and conversation-reset wiring.
+vi.mock('../components/QuickAssistantPicker', () => ({
+  default: ({ onSelect }: { onSelect: (id: string) => Promise<void> }) => (
+    <button type="button" onClick={() => void onSelect('assistant-2')}>
+      Switch assistant
+    </button>
+  )
 }))
 
 vi.mock('../components/InputBar', () => ({
@@ -292,6 +303,7 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.saveAssistantId.mockReset().mockResolvedValue(undefined)
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
@@ -300,7 +312,7 @@ describe('HomeWindow', () => {
       group: 'Anthropic'
     }
     state.sendMessage.mockClear()
-    state.stopChat.mockClear()
+    state.stopChat.mockReset().mockResolvedValue(undefined)
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
     state.clearExecutionMessages.mockClear()
@@ -325,6 +337,30 @@ describe('HomeWindow', () => {
     state.isMac = false
     state.theme = 'light'
     state.windowStyle = 'default'
+  })
+
+  it('saves inline selection and clears the previous conversation when the persisted assistant changes', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    const { rerender } = render(<HomeWindow />)
+    await user.click(screen.getByRole('button', { name: 'Chat route' }))
+    await user.type(screen.getByRole('textbox'), 'old draft')
+    state.stopChat.mockReset().mockResolvedValue(undefined)
+    state.setMessages.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Switch assistant' }))
+    expect(state.saveAssistantId).toHaveBeenCalledWith('assistant-2')
+    expect(screen.getByRole('textbox')).toHaveValue('old draft')
+    // PreferenceService supplies this update after the save (also covers Settings changes).
+    state.quickAssistantId = 'assistant-2'
+    rerender(<HomeWindow />)
+    expect(screen.getByRole('button', { name: 'Chat route' })).toBeInTheDocument()
+    expect(state.stopChat).toHaveBeenCalled()
+    expect(state.setMessages).toHaveBeenCalledWith([])
+    expect(state.clearExecutionMessages).toHaveBeenCalled()
+    state.saveAssistantId.mockClear()
+    state.stopChat.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Switch assistant' }))
+    expect(state.saveAssistantId).not.toHaveBeenCalled()
+    expect(state.stopChat).not.toHaveBeenCalled()
   })
 
   it('uses an opaque floating surface for the Windows dark-mode first render', () => {
