@@ -2,15 +2,15 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { QWEN_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
+import { type CliConfigWriteArgs, QWEN_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { getRecord, makeUpdateSectionField } from './configFieldUtils'
 
 export interface QwenConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 
@@ -37,7 +37,7 @@ export const QwenConfigFields: FC<QwenConfigFieldsProps> = ({ config, onChange, 
   const updateAutoModeField = useCallback(
     (key: string, value: boolean | undefined) => {
       const nextPermissions = { ...permissions }
-      const nextAutoMode: Record<string, unknown> = {}
+      const nextAutoMode: Record<string, boolean> = {}
       if (value !== undefined) nextAutoMode[key] = value
       if (Object.keys(nextAutoMode).length > 0) nextPermissions.autoMode = nextAutoMode
       else delete nextPermissions.autoMode

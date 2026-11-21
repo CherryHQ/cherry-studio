@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import {
+  type CliConfigWriteArgs,
   CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
@@ -90,8 +91,8 @@ const REASONING_EFFORT_LABEL_KEYS: Record<(typeof CLAUDE_REASONING_EFFORTS)[numb
 }
 
 export interface ClaudeConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
   providerId?: string
   modelFilter?: (model: Model) => boolean
@@ -99,25 +100,29 @@ export interface ClaudeConfigFieldsProps {
   gatewayModels?: Map<UniqueModelId, Model>
 }
 
-function getEnv(config: Record<string, unknown>): Record<string, string> {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Raw environment values are preserved during edits; only individual fields used by controls are checked.
+function getEnv(config: NonNullable<CliConfigWriteArgs['configBlob']>): Record<string, unknown> {
   if (!config || typeof config.env !== 'object' || config.env === null) {
     return {}
   }
-  return config.env as Record<string, string>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked above; no claim is made about the values it contains.
+  return config.env as Record<string, unknown>
 }
 
-function getPermissions(config: Record<string, unknown>): Record<string, string> {
+function getPermissions(config: NonNullable<CliConfigWriteArgs['configBlob']>): { defaultMode?: unknown } {
   if (!config || typeof config.permissions !== 'object' || config.permissions === null) {
     return {}
   }
-  return config.permissions as Record<string, string>
+  // SAFETY: The object container is checked above; the consumed optional field is still unknown.
+  return config.permissions as { defaultMode?: unknown }
 }
 
-function isAttributionHidden(config: Record<string, unknown>): boolean {
+function isAttributionHidden(config: NonNullable<CliConfigWriteArgs['configBlob']>): boolean {
   if (!config || typeof config.attribution !== 'object' || config.attribution === null) {
     return false
   }
-  const attr = config.attribution as { commit: string; pr: string }
+  // SAFETY: The object container is checked above; equality checks below validate both optional fields.
+  const attr = config.attribution as { commit?: unknown; pr?: unknown }
   return attr.commit === '' && attr.pr === ''
 }
 
@@ -230,7 +235,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             <ConfigSelectField
               label={t('code.adv.permission_mode')}
               className="max-w-none"
-              value={permissions.defaultMode}
+              value={typeof permissions.defaultMode === 'string' ? permissions.defaultMode : undefined}
               placeholder={t('code.adv.select_placeholder')}
               options={CLAUDE_PERMISSION_MODES.map((mode) => ({
                 value: mode,
@@ -288,7 +293,8 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
         <div className="space-y-2">
           {MODEL_ROLES.map((field) => {
             const envKey = field.model
-            const rawValue = env[envKey] ?? ''
+            const envValue = env[envKey]
+            const rawValue = typeof envValue === 'string' ? envValue : ''
             const roleModelId = stripClaudeOneMMarker(rawValue).trim()
             const uses1M = hasOneMMarker(rawValue)
             return (

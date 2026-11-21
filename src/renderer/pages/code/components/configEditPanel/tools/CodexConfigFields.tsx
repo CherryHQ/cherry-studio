@@ -2,15 +2,19 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CODEX_PERMISSION_MODES, CODEX_REASONING_EFFORTS } from '@renderer/pages/code/cliConfig'
+import {
+  type CliConfigWriteArgs,
+  CODEX_PERMISSION_MODES,
+  CODEX_REASONING_EFFORTS
+} from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { makeUpdateField } from './configFieldUtils'
 
 export interface CodexConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 

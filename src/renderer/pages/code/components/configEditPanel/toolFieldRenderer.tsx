@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import type { CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -13,8 +14,8 @@ import { QwenConfigFields } from './tools/QwenConfigFields'
 
 interface ToolFieldRenderOptions {
   cliTool: CodeCli
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section: 'basic' | 'advanced'
   providerId: string
   modelFilter: (model: Model) => boolean

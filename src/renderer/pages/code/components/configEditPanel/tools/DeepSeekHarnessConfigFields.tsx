@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { CliConfigWriteArgs } from '@renderer/pages/code/cliConfig'
 import {
   DEEPSEEK_HARNESS_AGENT_PRESETS,
   DEEPSEEK_HARNESS_PERMISSION_MODES,
@@ -15,8 +16,8 @@ import {
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 
 interface DeepSeekHarnessConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 

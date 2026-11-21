@@ -2,15 +2,15 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { OPEN_CODE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
+import { type CliConfigWriteArgs, OPEN_CODE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { makeUpdateField } from './configFieldUtils'
 
 export interface OpenCodeConfigFieldsProps {
-  config: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  config: NonNullable<CliConfigWriteArgs['configBlob']>
+  onChange: (next: NonNullable<CliConfigWriteArgs['configBlob']>) => void
   section?: 'all' | 'basic' | 'advanced'
 }
 
@@ -23,6 +23,7 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
   const { t } = useTranslation()
 
   const env = useMemo(
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the container is checked; toggles read one string flag and preserve every other raw environment value.
     () => (config.env && typeof config.env === 'object' ? (config.env as Record<string, unknown>) : {}),
     [config.env]
   )

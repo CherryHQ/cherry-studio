@@ -12,24 +12,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
-import { ClaudeConfigFields } from '../ClaudeConfigFields'
+import { ClaudeConfigFields, type ClaudeConfigFieldsProps } from '../ClaudeConfigFields'
 
 const settingsNavigateMock = vi.fn()
-
-type ReactTestRuntime = {
-  Children: {
-    map: <T>(children: ReactNode, fn: (child: ReactNode, index: number) => T) => T[] | null
-  }
-  cloneElement: (element: ReactElement<any>, props: Record<string, unknown>) => ReactElement
-  isValidElement: (value: unknown) => value is ReactElement
-}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const React = (await vi.importActual('react')) as ReactTestRuntime
+  const React = await vi.importActual<typeof import('react')>('react')
   return {
     Button: ({
       variant,
@@ -135,16 +127,7 @@ vi.mock('../../ModelSelectorTrigger', () => ({
   )
 }))
 
-function renderFields(
-  options: {
-    config?: Record<string, unknown>
-    onChange?: (next: Record<string, unknown>) => void
-    section?: 'all' | 'basic' | 'advanced'
-    onSettingsNavigate?: (navigate: () => void) => void
-    providerId?: string
-    gatewayModels?: Map<UniqueModelId, Model>
-  } = {}
-) {
+function renderFields(options: Partial<Omit<ClaudeConfigFieldsProps, 'modelFilter'>> = {}) {
   const onChange = options.onChange ?? vi.fn()
   render(
     <ClaudeConfigFields
@@ -226,6 +209,35 @@ describe('ClaudeConfigFields', () => {
     })
   })
 
+  it.each([
+    { invalidModel: 42 },
+    { invalidModel: false },
+    { invalidModel: { value: 'not-a-model' } },
+    { invalidModel: ['not-a-model'] }
+  ])('preserves a malformed role value while another role is edited ($invalidModel)', ({ invalidModel }) => {
+    const config = {
+      env: { ANTHROPIC_DEFAULT_OPUS_MODEL: invalidModel, CUSTOM_EXTENSION: { enabled: true } },
+      unrelated: { retained: true }
+    }
+    const { onChange } = renderFields({ config })
+
+    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
+    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...config,
+      env: {
+        ...config.env,
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
+      }
+    })
+    expect(config.env).toEqual({
+      ANTHROPIC_DEFAULT_OPUS_MODEL: invalidModel,
+      CUSTOM_EXTENSION: { enabled: true }
+    })
+  })
+
   it('writes only the selected detailed role model', () => {
     const { onChange } = renderFields()
 
@@ -258,22 +270,6 @@ describe('ClaudeConfigFields', () => {
         .slice(1)
         .map((selector) => selector.dataset.value)
     ).toEqual(['', '', '', ''])
-  })
-
-  it('writes a raw model id override when the user selects a different role model', () => {
-    const { onChange } = renderFields()
-
-    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
-    expect(fableRow).not.toBeNull()
-
-    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
-
-    expect(onChange).toHaveBeenCalledWith({
-      env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
-        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
-      }
-    })
   })
 
   it('round-trips detailed role models through gateway addresses', () => {
