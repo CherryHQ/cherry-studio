@@ -14,3 +14,4 @@ translate-docs
 find-simplifications
 cherry-regression-test
 product-guide
+cherry-miniapp

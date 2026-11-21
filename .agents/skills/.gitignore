@@ -8,6 +8,8 @@
 !agent-notes/**
 !cherry-electron-dev/
 !cherry-electron-dev/**
+!cherry-miniapp/
+!cherry-miniapp/**
 !cherry-regression-test/
 !cherry-regression-test/**
 !create-skill/

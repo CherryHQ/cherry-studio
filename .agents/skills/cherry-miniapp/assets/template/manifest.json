@@ -1,0 +1,12 @@
+{
+  "id": "com.example.miniapp",
+  "name": { "en": "Cherry Mini App", "zh": "Cherry 小程序" },
+  "description": {
+    "en": "A minimal Cherry Studio Mini App that saves and loads a note.",
+    "zh": "一个最小的 Cherry Studio 小程序，用于保存和读取一条笔记。"
+  },
+  "version": "1.0.0",
+  "entry": "index.html",
+  "icon": { "path": "icon.png", "sha256": "c1c85bd959bfcc032e9a74e8c08b570356a626f618dd00724d3fbb991d6a6858" },
+  "permissions": ["storage.*"]
+}
