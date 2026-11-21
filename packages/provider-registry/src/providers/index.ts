@@ -1,4 +1,5 @@
 import p_302ai from './302ai'
+import p_321ai from './321ai'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
@@ -82,6 +83,7 @@ export const PROVIDERS: Provider[] = [
   p_aionly,
   p_burncloud,
   p_302ai,
+  p_321ai,
   p_lanyun,
   p_ph8,
   p_sophnet,
