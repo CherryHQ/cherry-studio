@@ -10,6 +10,8 @@ At Cherry `ab83909a7c637c81c6d59221f76d1aad919d2add`, Home and Agent merge compl
 
 This proposal partially succeeds the renderer portion of [native steer](https://github.com/CherryHQ/cherry-studio/blob/ab83909a7c637c81c6d59221f76d1aad919d2add/.agents/notes/proposed/bug-fix/2026-11-09-agent-native-steer.md). Native priorities, admission, loop ownership and its AC1–AC11 remain there. The [stream replay handoff](../../implemented/bug-fix/2026-10-22-stream-replay-handoff.md), [scroll-area convergence](../simplification/2026-11-04-unified-scroll-area.md) and [code-block surfaces](2026-10-26-message-code-block-surfaces.md) retain their owners. The proposal is not implemented and does not claim Spec-head Approval or performance gains.
 
+The [Agent Run and Timeline specification](2026-11-19-agent-session-timeline-and-context-transfer.md) owns Agent execution, item placement, source identity, tool-result addressing and both recovery cursors. This note owns keyed renderer subscriptions and Home identity. Agent output does not use parallel message-level `partIds` on the live path.
+
 ## Proposal
 
 ### 1. Final shape and ownership
@@ -20,14 +22,14 @@ Provider / SDK events
   -> in-memory parts with stable IDs
        -> per-part subscribers
        -> part onDone: persist that part
-  -> message completion: terminal state and statistics
+  -> run or message completion: terminal state and statistics
 
-SQLite: message container + message_part + existing tool outputs
-History: message page -> batch-load ordered parts -> existing message API
+SQLite: Agent run + message_part + existing tool outputs
+History: scoped page -> batch-load ordered items -> existing message API where needed
 UI: stable part references -> derived timeline rows -> existing viewport
 ```
 
-A product message is a container, a part is the content/update/persistence unit, and a timeline row is a derived presentation. Native execution ownership does not change when presentation changes. Keep built-in text/reasoning/tool parts and the existing typed [DataUIPart map](../../../../src/shared/data/types/uiParts.ts); do not create a parallel TurnItem content model, timeline table or SDK-frame event archive.
+A Home message or an Agent run is a container, a part is the content/update/persistence unit, and a timeline row is a derived presentation. Native execution ownership does not change when presentation changes. Keep built-in text/reasoning/tool parts and the existing typed [DataUIPart map](../../../../src/shared/data/types/uiParts.ts); do not create a parallel TurnItem content model, timeline table or SDK-frame event archive.
 
 | Owner | Responsibility |
 | --- | --- |
@@ -61,50 +63,48 @@ The part ID lives beside the part, never inside it. `CherryMessagePart` stays th
 | Layer | Carrier |
 | --- | --- |
 | SQLite | Agent: `agent_session_message_part.id`. Home: `message.data.partIds` alongside its existing inline `parts`; both keep part payloads unmodified |
-| Data/projection contracts | `partIds: readonly string[]` parallel to `parts`: same length and order, unique within the message |
+| Data/projection contracts | Agent: keyed timeline items. Home: `partIds: readonly string[]` parallel to `parts`, with matching length/order and unique IDs |
 | Main source projection | Ordered part IDs plus `Map<partId, part>`; checkpoints record part IDs |
-| Transport patches | Address parts by `partId`, not array index; order changes carry the new `partIds` |
+| Transport patches | Address parts by `partId`. Agent operations insert by position and Home order changes carry the new `partIds` |
 | Renderer | `partId` is the part subscription key and React key |
 | Model input | Built from `parts` only; `partIds` never reach provider conversion |
 
-Main allocates a part ID (UUIDv7) once, when the source projection first creates the part, or during migration backfill. The renderer never allocates content part IDs. `toolCallId` remains the native/tool-output association, not the part key. A patch naming an unknown `partId`, or a `partIds`/`parts` length mismatch, requires a new baseline. Legacy offset/count checkpoints are resolved to part IDs through the ordered list at load time. When a native source message carries parts without IDs (Claude Code, Pi, Pi Durable), the allocation is keyed once by native source message ID and position within that source, or by `toolCallId`/data-part `id` where present, and the checkpoint records the resulting part IDs; this source mapping is never re-derived from the product `parts` array index.
+Agent source identity and replacement rules are owned by the timeline specification. Home allocates its product part IDs in Main and recovers a fresh baseline for an unknown ID or a length mismatch. Renderer uses the admitted IDs.
 
 For Home, `MessageService` owns the parallel `MessageData.partIds` carrier and writes it atomically with `parts`. An appended migration allocates UUIDv7 IDs once for existing inline parts in their stored order. New parts receive their IDs in Main before publication, and terminal saves preserve those IDs; updates and reorders carry the existing IDs, while inserted or fork-copied parts receive new IDs. IDs live until their owning parts are deleted. History reads, renderer reloads and reconnects reuse persisted IDs rather than allocating from content or array positions. Home model conversion continues to consume only `parts`.
 
 Phase 4 must migrate every Home writer, history/projection reader and fork path together before enabling keyed Home subscriptions. Verify populated-history migration, reload/reconnect stability, edits/reordering and fork isolation. Until that migration is delivered, Home retains its existing adapter and subscription behavior; Agent part storage alone is not evidence of Home identity recovery.
 
-Deltas update the current in-memory part and notify its subscribers. Persist that individual part at its own semantic `onDone`, not at the whole assistant reply's `onDone`. Reply completion waits for required saves, then updates container status/statistics; it does not rewrite saved parts. Stop/error saves received content and actual state of unfinished parts before settling the reply. User input acceptance remains an immediate write. There are no scheduled body checkpoints, per-token writes, historical part versions or generic part-replacement protocol. An abrupt Main crash may lose the current unfinished part; committed completed parts remain recoverable. Renderer reload with Main alive can reattach to newer in-memory content.
+Deltas update the current in-memory part and notify its subscribers. Persist that individual part at its own semantic `onDone`, not at the whole assistant reply's `onDone`. Reply completion waits for required saves, then updates container status/statistics; it does not rewrite saved parts. Stop/error saves received content and actual state of unfinished parts before settling the reply. User input acceptance remains an immediate write. There are no scheduled body checkpoints, per-token writes or historical part versions. Agent persists the placement metadata required for replay as specified by the timeline owner. An abrupt Main crash may lose the current unfinished part; committed completed parts remain recoverable. Renderer reload with Main alive can reattach to newer in-memory content.
 
 Related part/result/source-mapping changes use the existing synchronous SQLite transaction. Prepare async blob/native checkpoint work before it, and publish after successful commit. Reuse existing session/attempt guards for stale completion, deletion and fork; no separate batch scheduler is introduced. Part saves do not trigger reply auto-name/usage settlement. Search responds to relevant text/finalization, not tool/hidden-part updates; migrate the old JSON/FTS triggers with storage. Maintain file references only as needed and preserve files referenced by other parts. Measure large single-part serialization and completion writes; independent rows do not imply zero-copy persistence.
 
 Reuse [tool-result #23909](https://github.com/CherryHQ/cherry-studio/pull/23909) and [database #23873](https://github.com/CherryHQ/cherry-studio/pull/23873). The inspected implementation head is `f89b6762dae797db222e97ec75e9f53a08391308`; this Spec is stacked on that implementation. Its [owning note](https://github.com/CherryHQ/cherry-studio/blob/f89b6762dae797db222e97ec75e9f53a08391308/.agents/notes/implemented/architecture/2026-11-09-tool-result-projection-boundaries.md) retains accepted immutable snapshots, reused serialization, latest-output overwrite, targeted invalidation, bounded detail reads and cache lifetime. Do not add result revisions, content hashes, history-addressable outputs or duplicate stores. Preliminary/replacement results follow that existing latest-value contract; completion does not establish historical immutability.
 
-### 3. Stable identity and part-level steer
+### 3. Stable input, item and row identity
 
 | Identity | Rule |
 | --- | --- |
 | User message | Allocate a valid UUID before submission; optimistic and persisted message share it |
-| Product assistant | Main reserves its message ID once; it is not a continuation display key |
+| Product assistant | Agent keeps a run ID. Home keeps the product message ID |
 | Content/tool part | Use a stable persisted part ID and existing native source/tool-call association; append/state changes preserve it |
 | Boundary DataUIPart, if needed | Derive from accepted user ID and boundary kind; no random ID per render |
-| Continuation row | Derive from the boundary/input identity; successor arrival changes bindings, not its key |
+| Display row | Derive display groups from stable timeline items and their positions |
 | Transport revision/generation | Existing ordering/stale-event controls; never part of a content or React key |
 
 The renderer currently submits without a message ID; Main allocates `userMessageId` (`uuidv7()` in `AgentChatContextProvider`, or the existing delivery message ID). Allocate the user message ID once in the renderer before submission, carry it through the submit request and reuse the existing native `inputId = message.id` association. Validate UUIDs, target and authority at the boundary. Same-input repeats resolve to existing acceptance; conflicting IDs must not overwrite unrelated input or silently submit again. Unknown delivery is not permission to replay. Compare immutable submission facts, not mutable parts to which application metadata may have been added.
 
-Native identities are context-scoped. When native part identity is unavailable, allocate a product part ID once and save its source mapping. Append and tool preliminary/final updates update the same part; actual new blocks create new parts, and explicit removal removes the referenced part. Reuse existing update/alias facts instead of inventing text matching, hashes, index-based identity or a replacement protocol. Read old root checkpoint offset/count composition as legacy mapping, not character ranges.
+An Agent part keeps its placement when another input or part arrives. A new item takes its own position. Home maintains the existing message order and uses its own ID carrier. A product input ID is stable through admission, placement and display.
+
 
 ```text
-input U1 -> boundary B1 = boundary(U1) -> continuation(B1)
-ack U1: same IDs
-successor A2: add its source parts to continuation(B1), do not rename it
-tool T1: same stable part/tool identity from running to final result
-next input U2: distinct boundary B2 and continuation(B2)
+run R: input U1 at pos 1, streaming part P1 at pos 2
+steer U2 is placed into R at pos 3
+append to P1: same part and position
+new part P2: pos 4 in R
 ```
 
-Follow T3's item-level semantics: retain existing part identity, keep completed parts before steer, regroup ongoing tools as whole parts and place new subsequent parts after the input boundary. Existing same-part deltas update that item; do not split it at a send-instant character offset. No universal `from`, `textCuts`, UTF-16 offsets, `carry` lists or character-lineage machinery. Consecutive steer order comes from accepted inputs and source relations, with only a demonstrated missing association persisted.
-
-Use a DataUIPart only for a necessary presentation/lifecycle fact not already represented. A boundary stored on a user message is finalized at acceptance before native input binding and stays immutable; later successor associations use existing checkpoint/source records, preserving the input lock. Hidden presentation parts do not enter model input or create empty assistant headers. Existing content/hidden parts retain their consumers, and `data-retry` stays transient. Compaction updates its existing operation marker at the original source anchor; interrupt uses the compact-style centered separator and retains actual output. No waiting label or fabricated empty assistant reply.
+Use a DataUIPart for an existing presentation or lifecycle fact. Keep input facts immutable at binding; place timeline membership separately. Hidden parts stay out of model input and `data-retry` remains transient. Compaction updates its original anchor, and interrupt retains received output with the existing separator.
 
 Composer and timeline consume existing activity and input-disposition facts for local, queued and external deliveries. Busy alone is not a native-placement signal. Keep origin and durable input identity; do not add a parallel admission algorithm. Queue-to-steer promotion preserves input identity. The one-pending-steer policy remains in the native-steer owner. Rendering, observing or saving never interrupts/restarts the agent loop.
 
@@ -133,13 +133,13 @@ These are conceptual target signatures, not shipped APIs. A row descriptor holds
 
 One view hook acquires/releases the facade and registers history-page references. Providers/cards only subscribe; they do not acquire a second connection. Disposing the list drops its derived listeners/indexes; final consumer release detaches renderer observation without cancelling Main work. Preserve Activity hide/show, branch/topic owner guards and late-page rejection. Context carries stable store/action handles, not a complete changing message map. Services never import component-local row types.
 
-Keep compatible group/row/part component structure through acknowledgment, successor association and history handoff. Tools subscribe to their own stable part ID; detail consumers retain the existing bounded on-demand path and separate loading from execution state. A key alone cannot preserve DOM across a real parent change: verify any deliberate steer regrouping for disclosure, approval, focus and selection, using source-scoped UI state where needed. This is an implementation check, not a separate product choice or a mandate for portals.
+Preserve the keys of mounted parts through acknowledgment, source replacement and history handoff. Agent steer leaves existing parts in place. Tools subscribe by part ID and use bounded on-demand details with loading state independent of execution. Verify disclosure, approval, focus and selection when the user changes the view.
 
 Keep Virtua, Streamdown, stable renderer/plugin configuration and existing viewport hooks. Reuse completed Markdown blocks when semantics are unchanged; later delimiters may legitimately change the active parse region. Preserve the live edge in following mode and the semantic anchor/offset in reading mode. Local send emits one navigation intent; ack, saves and successor binding do not emit another. Measure natural content growth separately from remounts and unexpected anchor movement. Do not mandate global observers or `flushSync` without a reproduced gap.
 
 ### 5. Simple completion, cleanup and history reads
 
-Save succeeds before Main publishes successful completion. Renderer refreshes persisted history and releases only the corresponding settled live content after refresh success, retaining existing attempt/topic guards. If saving or refresh fails, keep readable live content and report the existing recoverable error; do not clear it in `finally` or re-execute tools. Preserve newer active parts and ignore stale callbacks. Reuse this lifecycle sequence; add no persistence-proof protocol, durable cursor, body-version counter or commit-receipt subsystem. Existing transport revision remains for duplicate/gap recovery and snapshot reattach.
+Main publishes successful completion after commit. Renderer incorporates the committed history through the scoped cursor, then releases the corresponding settled live content. Save or refresh failure retains readable live output and reports the existing recoverable error. Keep newer active parts and enforce attempt, topic and publication guards. Use the existing publish revision for live reattach, and the Agent timeline contract for persisted history recovery.
 
 Deletion/fork use the existing session operation and native checkpoint boundaries; completion guards prevent late writes from recreating deleted content. Partial storage is not automatic tool-resume authority. Do not introduce another lock/queue manager for hypothetical races; test actual affected interleavings.
 
@@ -171,6 +171,8 @@ Create private helpers only when actual size/cohesion warrants them; do not pre-
 | 4. Shared consumers | Home identity migration followed by multi-model/history and remaining list consumers; paging, source-aware actions and cold reads | Consumer audit, explicit affected tests, full-copy/capture/selection and no duplicate subscriptions |
 | 5. Real interaction | Existing viewport/Markdown/tool transitions; fix only measured gaps | Real Electron Claude/Pi/Pi Durable steer/queue/compact/Stop/external input and follow/read/focus geometry |
 
+Before the Agent cutover, retain preview URL lookup for addresses late in a deferred tool result, and verify that recovery/dispatch reads do not issue a per-message parts query. These are consumer acceptance checks for the same stack.
+
 Use explicit test files and `setupTestDatabase()` for SQLite. Synthetic replay proves data/notification contracts; real Electron proves integration and geometry. Compare the same fixtures/build/viewport, recording notification/render/mount counts separately from CPU/frame/layout and memory. Measure long history, stable large results plus text, metadata-only changes, media sizing, prepends and topic switches. No unsupported FPS, zero-remount or indefinite no-leak claim; native compliance and OS/package coverage are separate evidence.
 
 ### 8. Reference evidence and remaining limits
@@ -194,9 +196,9 @@ The [message-list rules](../../../../src/renderer/components/chat/messages/READM
 
 - AC1 — Text-only updates preserve row topology and unrelated part references; only the affected part subscriber is notified (verification: explicit projection/facade/list tests — renderer owner)
 - AC2 — Activity, approval, footer usage and terminal changes remain visible when body bytes are unchanged (verification: keyed status/component tests — renderer owner)
-- AC3 — Ack and native handoff preserve continuation identity and compatible tool subtrees without duplicates (verification: mount/focus assertions and real Electron — renderer owner)
-- AC4 — Whole-part regrouping/replacement/removal preserves provenance and never selects an unrelated array-index part (verification: source projection replay — projection owner)
-- AC5 — Accepted whole-part grouping reconstructs after reload/two-window observation; unknown/rejected input never auto-replays (verification: persisted-part and Electron reattach tests — Main/renderer owners)
+- AC3 — Ack and native handoff preserve input and part keys and compatible tool subtrees without duplicates (verification: mount/focus assertions and real Electron — renderer owner)
+- AC4 — Part replacement/removal preserves provenance and updates the item addressed by its ID (verification: source projection replay — projection owner)
+- AC5 — Committed item positions reconstruct after reload/two-window observation; unknown/rejected input never auto-replays (verification: persisted-part and Electron reattach tests — Main/renderer owners)
 - AC6 — Save/refresh failure retains readable output; successful save and refresh precede settled live cleanup (verification: failure-injection and history/overlay tests — Main/renderer owners)
 - AC7 — Copy/capture use selected part order, full export preserves content, deletes deduplicate source IDs and fork uses real checkpoints (verification: existing affected action/read tests — integration owner)
 - AC8 — Existing follow/read anchors survive prepend, disclosure, async media, resizing and competing navigation (verification: real browser/Electron geometry — viewport owner)
@@ -205,11 +207,11 @@ The [message-list rules](../../../../src/renderer/components/chat/messages/READM
 - AC11 — Home multi-model/branch and shared consumers preserve behavior; replaced aggregate/alias/index-ID paths have no callers (verification: import audit, scoped typechecks and affected tests — integration owner)
 - AC12 — Focus, selection and motion preferences survive supported transitions; profiles separate counts from CPU/layout/memory (verification: browser checks and same-fixture profiles — verification owner)
 - AC13 — Completed committed parts recover before whole-reply completion; crash may lose the active unfinished part and does not replay tools (verification: populated-DB/restart tests and runtime acceptance — Main owner)
-- AC14 — Necessary boundary facts are saved at acceptance, hidden from model/content and immutable after input binding; ordered legacy history remains readable (verification: SQLite/input-lock/model-filter tests — data/runtime owners)
+- AC14 — Input submission facts stay immutable after binding; placement is associated with the run separately and presentation facts stay out of model input; ordered legacy history remains readable (verification: SQLite/input-lock/model-filter tests — data/runtime owners)
 - AC15 — Local, queued, compact-time and external inputs use existing unified activity/disposition facts without fabricated waiting messages or loop interruption (verification: deterministic matrix and real native traces — runtime/renderer owners)
 - AC16 — Subscription callbacks observe complete installed source/binding snapshots, never intermediate row/body combinations (verification: notification-time consistency and refresh race tests — projection owner)
 - AC17 — Pure append retains completed Markdown DOM and stable tool/part keys; handoff does not add navigation or lose reading anchors (verification: explicit DOM/mount and Electron geometry tests — renderer/viewport owners)
-- AC18 — Stable user/part/tool/boundary/continuation identities survive ack, queue promotion, successor binding and reconnect; real new content gets new identity; part IDs exist only in the parallel `partIds`, never in part payloads or model input (verification: schema/key/source and Electron traces — shared/Main/renderer owners)
+- AC18 — Stable input/part/tool identities survive ack, queue promotion, source replacement and reconnect; new content gets a new ID. Part IDs live beside payloads in Agent timeline items or Home parallel `partIds` and stay out of model input (verification: schema/key/source and Electron traces — shared/Main/renderer owners)
 - AC19 — Migration leaves one ordered part body store, preserves branches/tool/file refs and API assembly; one-part writes do not rewrite other completed parts/results (verification: populated migration/transaction and consumer tests — data/Main owners)
 - AC20 — Deltas write no body rows; each part onDone persists independently, reply completion updates terminal/statistics, and Stop/error saves unfinished content without a periodic checkpoint (verification: explicit completion/Stop/error SQLite tests — runtime/data owners)
 
