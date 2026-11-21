@@ -73,6 +73,7 @@ icon: globe
 | **Zhipu（智谱）** | API | 搜索 | 智谱 GLM Web Search，联网搜索与实时信息 |
 | **Querit** | API | 搜索 | 面向 AI 应用的网页检索服务 |
 | **SearXNG** | API | 搜索 | 可自托管的免费元搜索引擎 |
+| **Webz.io News** | API | 搜索 | 新闻搜索，覆盖最近 30 天，返回标题、链接与摘要 |
 | **Firecrawl** | API | 搜索 | 网页抓取与搜索，可将结果转 Markdown |
 | **Jina** | API | 搜索 · URL 获取 | Jina Reader；也是 **默认的 URL 获取服务商** |
 | **Fetch** | API | URL 获取 | 内置 URL 获取，从指定网址抓正文 |
@@ -94,6 +95,7 @@ icon: globe
 * [免费联网模式](free-search.md) —— 不花钱也能用上搜索能力
 * [Tavily 联网登录注册教程](tavily.md) —— 换用 Tavily 时，如何注册并获取密钥
 * [SearXNG 本地部署与配置](searxng.md) —— 自托管、完全本地化
+* [Webz.io 新闻搜索配置](webz.md) —— 最近 30 天的新闻搜索
 * [网络搜索黑名单配置](blacklist.md) —— 屏蔽不想要的网站
 
 ## 工作机制
