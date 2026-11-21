@@ -17,6 +17,23 @@ const TEST_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(TEST_DIR, '../../../../../..')
 const TAILWIND_ENTRY = resolve(REPO_ROOT, 'src/renderer/assets/styles/tailwind.css')
 
+// The renderer entry imports the shared theme through the package export
+// `@cherrystudio/ui/styles/theme.css`, which maps to `./dist/styles/theme.css` — a build
+// artifact. CI runs this suite before the ui package is built, so resolving that specifier
+// throws "no valid target file was found". Point it at the tracked source instead: the
+// build script only copies `src/styles/` into `dist/styles/`, so the bytes are identical
+// and the compiled cascade is the same one production gets.
+const UI_THEME_IMPORT = "@import '@cherrystudio/ui/styles/theme.css';"
+const UI_THEME_SOURCE = resolve(REPO_ROOT, 'packages/ui/src/styles/theme.css')
+
+function tailwindEntryCss(): string {
+  const source = readFileSync(TAILWIND_ENTRY, 'utf8')
+  if (!source.includes(UI_THEME_IMPORT)) {
+    throw new Error(`${TAILWIND_ENTRY} no longer imports ${UI_THEME_IMPORT} — re-point the theme source here`)
+  }
+  return source.replace(UI_THEME_IMPORT, `@import '${UI_THEME_SOURCE}';`)
+}
+
 const FOCUS_FILES = [
   'packages/ui/src/components/primitives/checkbox.tsx',
   'packages/ui/src/components/primitives/radio-group.tsx',
@@ -104,7 +121,7 @@ describe('focus-visible inset indicator (compiled CSS)', () => {
   let unionRules: CssRule[]
 
   beforeAll(async () => {
-    compiler = await compile(readFileSync(TAILWIND_ENTRY, 'utf8'), {
+    compiler = await compile(tailwindEntryCss(), {
       base: TAILWIND_ENTRY,
       onDependency: () => {}
     })
