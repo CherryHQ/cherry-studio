@@ -228,16 +228,18 @@ function truncatePreview(text: string): string {
 function getStringField(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical part extensions are opaque; preview only the selected field after checking its value.
   const field = (value as Record<string, unknown>)[key]
   return typeof field === 'string' ? field : undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical message parts may lack extension data; check the container before projecting nested preview fields.
-function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
+function getObjectField(value: unknown, key: string): object | undefined {
   if (!value || typeof value !== 'object') return undefined
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical part extensions are opaque; check the selected container before reading nested preview fields.
   const field = (value as Record<string, unknown>)[key]
-  return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
+  return field && typeof field === 'object' ? field : undefined
 }
 
 function extractPreview(message: Message): string {
