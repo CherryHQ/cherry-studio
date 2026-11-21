@@ -441,11 +441,11 @@ export class AgentSessionService {
     )
   }
 
-  getById(id: string): AgentSessionEntity {
-    return this.readById(id)
+  getById(id: string, options?: { includeTaskReuse: boolean }) {
+    return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
-  private readById(id: string, scope?: SQL): AgentSessionEntity {
+  private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
@@ -455,7 +455,10 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return {
+      ...rowToSession(row),
+      ...(includeTaskReuse && row.session.isTaskReuseTarget && { isTaskReuseTarget: true })
+    }
   }
 
   /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */

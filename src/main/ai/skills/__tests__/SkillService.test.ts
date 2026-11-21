@@ -2737,6 +2737,36 @@ describe('SkillService', () => {
       expect(await fs.promises.readFile(path.join(firstDir, 'user-note.txt'), 'utf8')).toBe('keep')
     })
 
+    it('installs, exports, and uninstalls marketplace collection members with equal-length Chinese folder names', async () => {
+      servePackage({
+        'repo/剪口播/SKILL.md': '---\nname: 剪口播\n---\n# 剪口播',
+        'repo/自进化/SKILL.md': '---\nname: 自进化\n---\n# 自进化',
+        'repo/口播成片/SKILL.md': '---\nname: 口播成片\n---\n# 口播成片',
+        'repo/ian-xiaohei-svg-motion/SKILL.md': '---\nname: ian-xiaohei-svg-motion\n---\n# Motion'
+      })
+      const service = new SkillService()
+      const result = await service.installMarketplace(itemId)
+      expect(result.failed).toEqual([])
+      expect(result.installed.map((skill) => skill.folderName).sort()).toEqual([
+        'ian-xiaohei-svg-motion',
+        '剪口播',
+        '口播成片',
+        '自进化'
+      ])
+      expect(
+        await fs.promises.readFile(path.join(root, 'feature.agents.skills', '剪口播', 'SKILL.md'), 'utf8')
+      ).toContain('# 剪口播')
+      expect(
+        await fs.promises.readFile(path.join(root, 'feature.agents.skills', '自进化', 'SKILL.md'), 'utf8')
+      ).toContain('# 自进化')
+      const chineseSkill = result.installed.find((skill) => skill.folderName === '剪口播')!
+      const exported = await service.exportArchive(chineseSkill.id)
+      expect(exported.byteLength).toBeGreaterThan(0)
+      await service.uninstall(chineseSkill.id)
+      expect(fs.existsSync(path.join(root, 'feature.agents.skills', '剪口播'))).toBe(false)
+      expect(fs.existsSync(path.join(root, 'feature.agents.skills', '自进化'))).toBe(true)
+    })
+
     it.each<Record<string, string>>([
       { 'one/SKILL.md': '# One', 'ONE/extra.md': '# Conflict', 'two/SKILL.md': '# Two' },
       { 'README.md': '# No skills' }
