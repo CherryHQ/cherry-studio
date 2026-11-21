@@ -113,8 +113,7 @@ function getPermissions(config: NonNullable<CliConfigWriteArgs['configBlob']>): 
   if (!config || typeof config.permissions !== 'object' || config.permissions === null) {
     return {}
   }
-  // SAFETY: The object container is checked above; the consumed optional field is still unknown.
-  return config.permissions as { defaultMode?: unknown }
+  return config.permissions
 }
 
 function isAttributionHidden(config: NonNullable<CliConfigWriteArgs['configBlob']>): boolean {
