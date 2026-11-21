@@ -16,10 +16,15 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import {
+  getBackupErrorTitleKey,
+  getLocalizedBackupErrorMessage,
+  isBackupMigrationMismatch
+} from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import type { S3Config } from '@shared/types/backup'
 
@@ -218,7 +223,15 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       toast.success(t('settings.data.s3.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
+      if (isBackupMigrationMismatch(error)) {
+        void popup.error({
+          title: i18n.t(getBackupErrorTitleKey(error)),
+          content: getLocalizedBackupErrorMessage(error, 'message.restore.failed'),
+          centered: true
+        })
+      } else {
+        toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
+      }
     } finally {
       setRestoring(false)
     }
