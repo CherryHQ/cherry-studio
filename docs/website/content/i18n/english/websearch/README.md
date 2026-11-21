@@ -73,6 +73,7 @@ The following services are built in, in two types — **API** and **MCP**:
 | **Zhipu** | API | Search | Zhipu GLM Web Search, for web search and real-time information |
 | **Querit** | API | Search | Web retrieval service for AI applications |
 | **SearXNG** | API | Search | Free, self-hostable metasearch engine |
+| **Webz.io News** | API | Search | News search covering the last 30 days, returning titles, links and excerpts |
 | **Firecrawl** | API | Search | Web scraping and search; can convert results to Markdown |
 | **Jina** | API | Search · URL fetch | Jina Reader; also the **default URL fetch provider** |
 | **Fetch** | API | URL fetch | Built-in URL fetching that extracts the main text from a given URL |
@@ -93,6 +94,7 @@ The default Exa MCP works without a key. To switch to another service or configu
 
 * [Free Web Search Mode](mian-fei-lian-wang-mo-shi.md) — use search without paying
 * [SearXNG Local Deployment and Configuration](searxng.md) — self-hosted and fully local
+* [Webz.io News Search Configuration](webz.md) — news from the last 30 days
 * [Web Search Blacklist Configuration](blacklist.md) — block websites you don't want
 
 ## How It Works

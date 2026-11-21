@@ -59,6 +59,7 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     searchapi: provider('searchapi', 'SearchApi', [
       capability('searchKeywords', 'required', 'https://www.searchapi.io')
     ]),
+    webz: provider('webz', 'Webz.io News', [capability('searchKeywords', 'required', 'https://api.webz.io')]),
     serpkite: provider('serpkite', 'SerpKite', [capability('searchKeywords', 'required', 'https://api.serpkite.com')])
   }
 )

@@ -6068,6 +6068,7 @@
   "settings.tool.websearch.provider_description.serply": "Serply 検索 API。Google の検索結果を構造化された JSON で返し、AI アプリに適しています。",
   "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.tavily": "LLM向けに最適化された検索エンジン。",
+  "settings.tool.websearch.provider_description.webz": "News search over the last 30 days via the Webz.io News API, returning titles, links, and excerpts.",
   "settings.tool.websearch.provider_description.yuanbao": "Tencent Yuanbao 検索 API。サービス API キーが必要です。結果件数は上限であり、サービスが返す件数はそれより少ない場合があります。",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Searchは、ライブなWeb検索と最新情報の取得を可能にします。",
   "settings.tool.websearch.search_max_result.label": "検索結果の数",

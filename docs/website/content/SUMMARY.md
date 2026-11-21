@@ -123,6 +123,7 @@
         * [火山引擎接入联网](pre-basic/websearch/volcengine.md)
         * [Tavily 联网登录注册教程](pre-basic/websearch/tavily.md)
         * [SearXNG 本地部署与配置](pre-basic/websearch/searxng.md)
+        * [Webz.io 新闻搜索配置](pre-basic/websearch/webz.md)
       * [文档处理](pre-basic/settings/doc-process.md)
       * [OCR](pre-basic/settings/ocr.md)
     * **外观与效率**

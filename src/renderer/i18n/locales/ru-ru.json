@@ -6068,6 +6068,7 @@
   "settings.tool.websearch.provider_description.serply": "Поисковый API Serply, возвращающий результаты Google в виде структурированного JSON для ИИ-приложений.",
   "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.tavily": "Поисковая система, оптимизированная для больших языковых моделей.",
+  "settings.tool.websearch.provider_description.webz": "News search over the last 30 days via the Webz.io News API, returning titles, links, and excerpts.",
   "settings.tool.websearch.provider_description.yuanbao": "API поиска Tencent Yuanbao. Требуется ключ API сервиса. Количество результатов — верхний предел; сервис может вернуть меньше.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Веб-поиск для получения актуальной информации из интернета в реальном времени.",
   "settings.tool.websearch.search_max_result.label": "Количество результатов поиска",

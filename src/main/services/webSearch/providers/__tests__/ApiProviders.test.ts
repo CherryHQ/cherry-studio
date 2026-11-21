@@ -58,6 +58,7 @@ import { SearxngProvider } from '../api/SearxngProvider'
 import { SerpKiteProvider } from '../api/SerpKiteProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
+import { WebzProvider } from '../api/WebzProvider'
 import { YuanbaoProvider } from '../api/YuanbaoProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
@@ -789,6 +790,41 @@ describe('main web search API providers', () => {
         url: 'https://desearch.example/result'
       },
       { content: '', sourceInput: 'latest web research', title: '', url: 'https://desearch.example/second' }
+    ])
+  })
+
+  it('matches the Webz news search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('webz-response.json')))
+
+    const provider = createProviderDriver(
+      WebzProvider,
+      createProvider({
+        id: 'webz',
+        name: 'Webz.io News',
+        apiKeys: ['webz-key'],
+        apiHost: 'https://api.webz.io'
+      })
+    )
+
+    const result = await provider.searchKeywords('latest tech news', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'latest tech news', k: 4 },
+      headers: {
+        authorization: 'Bearer webz-key',
+        'content-type': 'application/json'
+      },
+      method: 'POST',
+      url: 'https://api.webz.io/api/news/context'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Webz excerpt',
+        sourceInput: 'latest tech news',
+        title: 'Webz Title',
+        url: 'https://webz.example/news/story'
+      },
+      { content: '', sourceInput: 'latest tech news', title: '', url: 'https://webz.example/news/second' }
     ])
   })
 

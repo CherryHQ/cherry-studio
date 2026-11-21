@@ -18,6 +18,7 @@ import { SerpKiteProvider } from './api/SerpKiteProvider'
 import { SerplyProvider } from './api/SerplyProvider'
 import { StepfunProvider } from './api/StepfunProvider'
 import { TavilyProvider } from './api/TavilyProvider'
+import { WebzProvider } from './api/WebzProvider'
 import { YuanbaoProvider } from './api/YuanbaoProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
 import type { WebSearchProviderDriver } from './factory'
@@ -48,5 +49,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   desearch: DesearchProvider,
   searchapi: SearchApiProvider,
   serpkite: SerpKiteProvider,
+  webz: WebzProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

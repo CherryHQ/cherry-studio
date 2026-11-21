@@ -112,6 +112,7 @@
         * [Free Internet Mode](pre-basic/websearch/free-search.md)
         * [Web Search Blacklist Configuration](pre-basic/websearch/blacklist.md)
         * [SearXNG Local Deployment and Configuration](pre-basic/websearch/searxng.md)
+        * [Webz.io News Search Configuration](pre-basic/websearch/webz.md)
       * [Document Processing](pre-basic/settings/doc-process.md)
       * [OCR](pre-basic/settings/ocr.md)
     * **Appearance & Productivity**

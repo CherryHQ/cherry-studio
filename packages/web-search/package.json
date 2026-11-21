@@ -304,6 +304,21 @@
       },
       "default": "./dist/providers/desearch.mjs"
     },
+    "./providers/webz": {
+      "react-native": {
+        "types": "./dist/providers/webz.d.mts",
+        "default": "./dist/providers/webz.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/webz.d.mts",
+        "default": "./dist/providers/webz.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/webz.d.cts",
+        "default": "./dist/providers/webz.cjs"
+      },
+      "default": "./dist/providers/webz.mjs"
+    },
     "./providers/serpkite": {
       "react-native": {
         "types": "./dist/providers/serpkite.d.mts",
