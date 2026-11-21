@@ -655,3 +655,13 @@
 .code-block-wrapper:focus-within .code-block-header {
   opacity: 1;
 }
+
+/*
+ * RichEditor (Notes) root direction may be RTL. Keep code surfaces LTR with
+ * an isolate boundary so trailing punctuation stays after the code.
+ */
+.rich-editor-content .tiptap code,
+.rich-editor-content .tiptap pre {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

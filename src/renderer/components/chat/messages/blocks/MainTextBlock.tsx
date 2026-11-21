@@ -20,6 +20,7 @@ import {
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
+import { textDirection } from '@renderer/utils/textDirection'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -499,7 +500,7 @@ const MainTextBlock: React.FC<Props> = ({
               trustedCitations={trustedCitations}
             />
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
-            <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+            <p className="markdown" style={{ whiteSpace: 'pre-wrap' }} dir={textDirection(userDisplayContent)}>
               {shouldRenderComposerTokens
                 ? renderComposerMessageContent(
                     userDisplayContent,

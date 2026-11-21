@@ -48,6 +48,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { textDirection } from '@renderer/utils/textDirection'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
@@ -1608,7 +1609,7 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
-        dir: 'auto',
+        dir: textDirection(text),
         // Keep the input focusable while a send temporarily makes it read-only.
         tabindex: '0',
         class:
@@ -1846,7 +1847,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [scheduleCompositionEndInputNotify, submitDraft]
+    [scheduleCompositionEndInputNotify, submitDraft, text]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -2052,6 +2053,11 @@ export default function ComposerSurfaceRuntime({
       )
     )
   }, [draftTokens, editor, markdownLivePreview, text, tokens])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.view.dom.setAttribute('dir', textDirection(text))
+  }, [editor, text])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) return
