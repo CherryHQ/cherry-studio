@@ -27,6 +27,8 @@ import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { getAppLanguage } from '@main/i18n'
+import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -48,8 +50,10 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -395,6 +399,13 @@ export class AgentSessionService {
     ensureAgentSessionRootTx(tx, id)
   }
 
+  finishHistoryImportTx(tx: DbOrTx, sessionId: string, updatedAt: number): void {
+    tx.update(sessionsTable)
+      .set({ isNameManuallyEdited: true, updatedAt, lastActivityAt: updatedAt })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
+  }
+
   /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
@@ -431,11 +442,11 @@ export class AgentSessionService {
     )
   }
 
-  getById(id: string): AgentSessionEntity {
-    return this.readById(id)
+  getById(id: string, options?: { includeTaskReuse: boolean }) {
+    return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
-  private readById(id: string, scope?: SQL): AgentSessionEntity {
+  private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
@@ -445,7 +456,10 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return {
+      ...rowToSession(row),
+      ...(includeTaskReuse && row.session.isTaskReuseTarget && { isTaskReuseTarget: true })
+    }
   }
 
   /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */
@@ -795,11 +809,10 @@ export class AgentSessionService {
   /**
    * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
    * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
+   * by the selected sort key and `id ASC` (default: manual `orderKey ASC`). A partial
    * pin page spills into the unpinned section to fill `limit`. Pins float a
    * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * one pagination contract; sorting is applied before reading each page.
    */
   listByCursor(
     query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
@@ -807,6 +820,19 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
+    const sortBy = query.sortBy ?? 'orderKey'
+    const direction = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const ordering = keysetOrdering(sessionsTable[sortBy], sessionsTable.id, { major: direction, tie: 'asc' })
+    const boundary =
+      cursor.section === 'entity' && cursor.orderKey !== null
+        ? sortBy === 'orderKey'
+          ? { key: cursor.orderKey, id: cursor.id }
+          : decodeListCursor(
+              `${cursor.orderKey}:${cursor.id}`,
+              (key) => parseJsonSortKey(key, sortBy === 'name' ? 'string' : 'number'),
+              'agent-session'
+            )
+        : null
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
@@ -873,19 +899,37 @@ export class AgentSessionService {
       }
     }
 
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
+    // The id tiebreak keeps equal sort keys distinct across pages.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
 
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
+    const sessionFilter = and(
+      conversationFilter,
+      taskFilter,
+      taskIdFilter,
+      agentFilter,
+      workspaceFilter,
+      idFilter,
+      activeAgentFilter,
+      inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
+      notInArray(sessionsTable.id, pinnedSubquery)
+    )
+    const compareNames =
+      sortBy === 'name' ? createNameComparator(query.sortLocale ?? getAppLanguage(), direction) : undefined
+    const namePage = compareNames
+      ? selectNamePage({
+          names: db
+            .select({ id: sessionsTable.id, name: sessionsTable.name })
+            .from(sessionsTable)
+            .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+            .where(sessionFilter)
+            .all(),
+          after: boundary && typeof boundary.key === 'string' ? { name: boundary.key, id: boundary.id } : undefined,
+          compare: compareNames,
+          limit: remaining + 1
+        })
+      : undefined
     const sessionRows = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -893,21 +937,22 @@ export class AgentSessionService {
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
-          conversationFilter,
-          taskFilter,
-          taskIdFilter,
-          agentFilter,
-          workspaceFilter,
-          idFilter,
-          activeAgentFilter,
-          inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
-          notInArray(sessionsTable.id, pinnedSubquery),
-          sessionAfter
+          sessionFilter,
+          namePage
+            ? inArray(
+                sessionsTable.id,
+                namePage.map((row) => row.id)
+              )
+            : boundary
+              ? ordering.where(boundary)
+              : undefined
         )
       )
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(remaining + 1)
       .all()
+
+    if (compareNames) sessionRows.sort((a, b) => compareNames(a.session, b.session))
 
     const hasMoreInSession = sessionRows.length > remaining
     for (const row of sessionRows.slice(0, remaining)) {
@@ -917,7 +962,10 @@ export class AgentSessionService {
     let nextCursor: string | undefined
     if (hasMoreInSession) {
       const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+      nextCursor = encodeEntityCursor(
+        sortBy === 'orderKey' ? last.session.orderKey : encodeURIComponent(JSON.stringify(last.session[sortBy])),
+        last.session.id
+      )
     }
 
     return { items: items.map((i) => i.session), nextCursor }
