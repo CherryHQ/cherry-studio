@@ -9,6 +9,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { JSONValue } from '@ai-sdk/provider'
+
 import { loggerService } from '@logger'
 import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
@@ -250,7 +252,7 @@ export class BootConfigService {
       const content = fs.readFileSync(this.filePath, 'utf-8')
 
       try {
-        const parsed = JSON.parse(content)
+        const parsed: JSONValue = JSON.parse(content)
         const { config, invalidKeys, invalidRoot } = this.mergeDefaults(parsed)
         if (invalidRoot || invalidKeys.length > 0) {
           const message = invalidRoot
@@ -320,10 +322,10 @@ export class BootConfigService {
    * auto-save swallow and log.
    */
   private writeToDisk(): void {
-    const diff: Record<string, unknown> = {}
+    const diff: Partial<BootConfigSchema> = {}
     for (const key of Object.keys(this.config) as BootConfigKey[]) {
       if (this.config[key] !== DefaultBootConfig[key]) {
-        diff[key] = this.config[key]
+        Object.assign(diff, { [key]: this.config[key] })
       }
     }
 
@@ -366,8 +368,7 @@ export class BootConfigService {
    * surface a validation_error instead of silently adopting corrupt data.
    * No deep merge needed — flat key-value map with direct assignment.
    */
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical config.json may have a malformed root or individual values; validate each known key before merging defaults.
-  private mergeDefaults(loaded: unknown): {
+  private mergeDefaults(loaded: JSONValue): {
     config: BootConfigSchema
     invalidKeys: BootConfigKey[]
     invalidRoot: boolean
@@ -378,13 +379,12 @@ export class BootConfigService {
 
     const config = { ...DefaultBootConfig }
     const invalidKeys: BootConfigKey[] = []
-    const loadedRecord = loaded as Record<string, unknown>
 
     for (const key of Object.keys(config) as BootConfigKey[]) {
-      if (!(key in loadedRecord)) continue
-      const parsed = bootConfigSchema.shape[key].safeParse(loadedRecord[key])
+      if (!(key in loaded)) continue
+      const parsed = bootConfigSchema.shape[key].safeParse(loaded[key])
       if (parsed.success) {
-        ;(config as Record<string, unknown>)[key] = parsed.data
+        Object.assign(config, { [key]: parsed.data })
       } else {
         invalidKeys.push(key)
       }
