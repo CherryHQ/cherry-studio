@@ -60,6 +60,7 @@ import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { t } from '@main/i18n'
+import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   KB_READ_TOOL_NAME,
@@ -334,9 +335,17 @@ export async function buildClaudeCodeSessionSettings(
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
-  // declare no usable context window. An explicit agent `env_vars` entry still wins.
-  if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
-    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT)
+  // declare no usable context window. An explicit agent `env_vars` entry still wins. An
+  // inherited login-shell export does NOT: the editor saves and shows the in-app value, so a
+  // shell export must not silently override it - guard on the agent's own env_vars, not the
+  // merged environment.
+  if (agentConfig?.env_vars?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
+    // An agent-level trigger config wins; otherwise the task/session compaction percent applies.
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(
+      agentConfig?.auto_compact_pct !== undefined
+        ? normalizeAutoCompactTriggerPct(agentConfig.auto_compact_pct)
+        : (options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT)
+    )
   }
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.
