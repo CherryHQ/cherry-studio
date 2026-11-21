@@ -36,8 +36,10 @@ function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): b
 }
 
 type SamplingParams = {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Saved custom sampler values are unvalidated; capability filtering must preserve them until SDK validation.
   standardParams: Record<string, unknown>
   providerOptions: ProviderOptions
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Raw custom body values can include undefined and toJSON objects; serialization owns their wire values.
   bodyParams: Record<string, unknown>
 }
 
