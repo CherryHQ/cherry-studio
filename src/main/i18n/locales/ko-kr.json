@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "축소",
   "backup.restore.failed": "복원 실패",
   "backup.restore.retry": "백업을 복원하지 못했습니다. 기존 데이터는 보존되었습니다. 다시 복원해 보세요.",
+  "chat.cherryai.sign_in_required": "이 모델을 사용하려면 Cherry AI에 로그인하세요",
   "chat.conversation.new": "새 채팅",
   "command_approval.builtin-destructive-command": "이 내장 에이전트는 파괴적인 작업을 수행할 수 없습니다. 확인된 파일 삭제에는 휴지통 도구를 사용하세요. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "명령 정책을 불러올 수 없어 실행이 차단되었습니다.",

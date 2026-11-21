@@ -16,6 +16,7 @@ import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionCo
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
@@ -64,6 +65,7 @@ export class ChildThreadProjection {
   private source?: object
   private contextVersion = 0
   private attaching?: Promise<void>
+  private retryStatus?: Extract<RetryPartData, { state: 'retrying' }>
   private view: AgentChildView
   private readonly productIds = new Map<string, string>()
   private readonly committedLiveIds = new Set<string>()
@@ -99,7 +101,9 @@ export class ChildThreadProjection {
     private readonly decorate?: MessageDecorator,
     private readonly onResponse?: (responseId: string, messageId: string) => void
   ) {
-    this.projection = new ThreadMessageProjection(handle.thread, decorate)
+    this.projection = new ThreadMessageProjection(handle.thread, (message, source, unchangedParts) =>
+      this.decorateMessage(message, source, unchangedParts)
+    )
     this.removed = new Set(context.checkpointMapping?.child?.removed)
     this.nativeIds = { ...context.checkpointMapping?.child?.sources }
     this.composition = { ...context.checkpointMapping?.child?.composition }
@@ -290,7 +294,10 @@ export class ChildThreadProjection {
     let next = new Map(this.saved)
     const committed = new Set<string>()
     if (archive) {
-      const recovered = (this.committed ??= new ThreadMessageProjection(this.handle.thread, this.decorate))
+      const recovered = (this.committed ??= new ThreadMessageProjection(
+        this.handle.thread,
+        (message, source, unchangedParts) => this.decorateMessage(message, source, unchangedParts)
+      ))
       const refresh = this.committedRefresh
       this.committedRefresh = new Set()
       try {
@@ -446,6 +453,26 @@ export class ChildThreadProjection {
     return this.canonicalIds.get(id) ?? id
   }
 
+  private decorateMessage(
+    message: CherryUIMessage,
+    source: RuntimeMessage,
+    unchangedParts?: ReadonlySet<number>
+  ): CherryUIMessage {
+    const error = source.metadata?.error
+    if (error)
+      message = {
+        ...message,
+        parts: [
+          ...message.parts,
+          {
+            type: 'data-error',
+            data: { name: 'AgentRuntimeError', message: error.message, stack: null, reason: error.code }
+          }
+        ]
+      }
+    return this.decorate?.(message, source, unchangedParts) ?? message
+  }
+
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
     const nativeId = this.canonical(message.id)
     const accepted = this.materialized.get(nativeId)
@@ -500,7 +527,14 @@ export class ChildThreadProjection {
     Object.assign(this.composition, groups)
   }
 
+  retry(event: RetryPartData): void {
+    if (this.stopped) return
+    this.retryStatus = event.state === 'retrying' ? event : undefined
+    this.publish(this.view)
+  }
+
   private publish(next: AgentChildView): void {
+    this.view = next
     const topicId = buildAgentSessionTopicId(this.context.sessionId)
     const changedResults: DeferredToolResultRef[] = []
     const rendered = new Map<string, { source: CherryUIMessage; view: CherryUIMessage }>()
@@ -541,13 +575,26 @@ export class ChildThreadProjection {
           if (part.type === 'dynamic-tool' && part.state === 'output-available')
             changedResults.push({ topicId, messageId: id, toolCallId: part.toolCallId })
     this.rendered = rendered
+    if (this.retryStatus) {
+      const last = compact.at(-1)
+      const reply: CherryUIMessage =
+        last?.role === 'assistant'
+          ? last
+          : { id: `retry:${this.context.id}`, role: 'assistant', parts: [], metadata: { status: 'pending' } }
+      const updated: CherryUIMessage = {
+        ...reply,
+        parts: [...reply.parts, { type: 'data-retry', id: 'retry', data: this.retryStatus }]
+      }
+      if (last === reply) compact[compact.length - 1] = updated
+      else compact.push(updated)
+    }
     this.delivery.updateAccepted({ ...next, messages: compact }, this.delivery.observed, changedResults)
-    this.view = this.delivery.snapshot()
   }
 
   async stop(): Promise<void> {
     await this.attaching
     await this.observation?.drain()
+    this.retryStatus = undefined
     this.stopped = true
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId))
     this.source = undefined

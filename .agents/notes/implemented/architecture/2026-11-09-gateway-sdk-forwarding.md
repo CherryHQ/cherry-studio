@@ -10,7 +10,7 @@ The gateway must preserve harness context while retaining SDK provider compatibi
 
 ## Decision
 
-All generation requests convert the inbound dialect to SDK messages, tools, and provider options, then use one caller-owned SDK invocation. The SDK provider adapter owns the outgoing protocol and transport. The gateway does not add an Agent loop, tool execution, AI repair, generation retry, or fallback. Ordinary application chat retains its existing loop.
+All generation requests convert the inbound dialect to SDK messages, tools, and provider options, then use one caller-owned SDK invocation. The SDK provider adapter owns the outgoing protocol and transport. The gateway does not add an Agent loop, tool execution, AI repair, or model fallback. HTTP requests keep generation retry disabled; internal object calls use the shared model wrapper under the [subagent retry decision](../bug-fix/2026-11-19-subagent-retry-error-projection.md). Ordinary application chat retains its existing loop.
 
 Keep existing provider resolution, messageRules, compatibility middleware, tracing, and usage capture. Preserve supported caller semantics through the inbound converter: use SDK JSON schemas directly, retain tool-result error state, map tool choice, and carry explicit cache hints through provider metadata/options. Explicit caller cache settings take precedence over automatic cache placement. Supported Anthropic internal callers continue to prefer a configured Anthropic endpoint; other endpoint admission and fallback rules remain unchanged.
 

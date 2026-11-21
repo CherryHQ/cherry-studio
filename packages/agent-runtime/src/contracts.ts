@@ -66,6 +66,7 @@ export type Completeness = 'partial' | 'complete' | 'unknown'
 export type RuntimeMessage = UIMessage<{
   completeness: Completeness
   inputId?: InputId
+  error?: RuntimeError
 }>
 export interface Subagent {
   /** Stable within the parent's observed relationships, across child inputs and runs. */
