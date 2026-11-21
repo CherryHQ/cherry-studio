@@ -6,6 +6,7 @@ import type {
 } from '@shared/data/types/model'
 
 import type { BaseConfigItem, CustomSizeConfigItem, OptionItem, SliderConfigItem } from '../form/baseConfigItem'
+import type { PaintingParams } from '../model/types/paintingData'
 
 /**
  * Canonical key → i18n labels. Exhaustive over `CanonicalParamKey`: every
@@ -234,7 +235,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
           minHeight: spec.minSide,
           maxHeight: spec.maxSide
         },
-        condition: pairedKey ? (painting: Record<string, unknown>) => painting[pairedKey] === 'custom' : undefined
+        condition: pairedKey ? (painting: PaintingParams) => painting[pairedKey] === 'custom' : undefined
       }
       return item
     }

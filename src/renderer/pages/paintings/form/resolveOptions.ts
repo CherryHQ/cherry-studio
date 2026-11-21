@@ -1,3 +1,4 @@
+import type { PaintingParams } from '../model/types/paintingData'
 import type { OptionItem, OptionsConfigItem } from './baseConfigItem'
 import { catalogValueOr, controlValue } from './fieldValue'
 
@@ -9,7 +10,7 @@ import { catalogValueOr, controlValue } from './fieldValue'
  */
 export function resolveOptions(
   item: OptionsConfigItem,
-  painting: Record<string, unknown>,
+  painting: PaintingParams,
   translate: (key: string) => string
 ): OptionItem[] {
   const rawOptions = typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
@@ -24,7 +25,7 @@ export function resolveOptionValue(
   item: OptionsConfigItem,
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted painting drafts contain dynamic fields; the catalog validates this value before matching a typed control option.
   value: unknown,
-  painting: Record<string, unknown>,
+  painting: PaintingParams,
   translate: (key: string) => string
 ): string | number | undefined {
   const candidate = catalogValueOr(item.key, value, item.initialValue)

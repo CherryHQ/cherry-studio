@@ -4,9 +4,7 @@
  * renderer receives only the constraints and initial value shape it supports.
  */
 
-import type { PaintingData } from '../model/types/paintingData'
-
-type PaintingParams = NonNullable<PaintingData['params']>
+import type { PaintingParams } from '../model/types/paintingData'
 
 export type OptionItem = {
   label?: string

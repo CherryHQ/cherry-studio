@@ -57,3 +57,5 @@ export interface PaintingData {
    */
   requestTimeoutMs?: number
 }
+
+export type PaintingParams = NonNullable<PaintingData['params']>

@@ -5,9 +5,9 @@ import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/t
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
-import { generatePainting } from './generatePainting'
+import { generatePainting, type GeneratePaintingOptions } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
-import type { PaintingData } from './types/paintingData'
+import type { PaintingData, PaintingParams } from './types/paintingData'
 
 /** Encode raw image bytes as a `data:` URL for the main-process image IPC. */
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
@@ -102,12 +102,12 @@ export async function canonicalGenerate<T extends PaintingData>(
     delete rawParams.frameDurationMs
   }
   const validated = buildParamsSchema(options.support, mode).safeParse(rawParams)
-  const source: Record<string, unknown> = validated.success ? validated.data : rawParams
+  const source: PaintingParams = validated.success ? validated.data : rawParams
 
   // 2. Build the canonical `paramValues` bag: drop blanks (mirrors main's
   //    `splitParamValues` guard — the byte-identical-wire invariant) and the
   //    UI-only `customSize_width`/`customSize_height` companions.
-  const paramValues: Record<string, unknown> = {}
+  const paramValues: GeneratePaintingOptions['paramValues'] = {}
   for (const [key, value] of Object.entries(source)) {
     if (key === 'customSize_width' || key === 'customSize_height') continue
     if (value === undefined || value === '' || value === null) continue
