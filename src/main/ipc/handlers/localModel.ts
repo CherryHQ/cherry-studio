@@ -16,5 +16,7 @@ export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas>
       .download(id, async () => ((await regionService.isInChina()) ? 'china-first' : 'global-first'))
   }),
   'local_model.cancel': async ({ id }) => application.get('LocalModelService').cancel(id),
-  'local_model.remove': async ({ id }) => application.get('LocalModelService').remove(id)
+  'local_model.remove': async ({ id }) => application.get('LocalModelService').remove(id),
+  'local_model.import_runtime': async ({ id, sourcePath }) =>
+    application.get('LocalModelService').importRuntime(id, sourcePath)
 }

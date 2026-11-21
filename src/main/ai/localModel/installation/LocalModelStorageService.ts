@@ -9,6 +9,7 @@ import {
   artifactEntryPath,
   type ArtifactRegistryId,
   artifactStagingDir,
+  importArtifactFromDir,
   installArtifact,
   isArtifactInstalled,
   isArtifactSupported,
@@ -256,6 +257,15 @@ export class LocalModelStorageService {
           return this.awaitArtifactInstall(admission.install, signal, onProgress)
       }
     }
+  }
+
+  /** Copies a user-supplied artifact in, serialized against removal and installs of the same id. */
+  async importArtifact(id: SharedArtifactId, sourceDir: string): Promise<void> {
+    await this.artifactLifecycleGate.runExclusive(id, async () => {
+      if (this.artifactRemovals.has(id)) throw new Error(`${id} is being removed; retry shortly`)
+      if (this.artifactInstalls.has(id)) throw new Error(`${id} is downloading; cancel the download first`)
+      await importArtifactFromDir(getSharedArtifact(id), sourceDir)
+    })
   }
 
   async reserveArtifacts(ids: readonly SharedArtifactId[], signal: AbortSignal): Promise<() => void> {
