@@ -3184,8 +3184,9 @@ export class AgentSessionRuntimeService extends BaseService {
           input: request.input,
           dynamic: true,
           providerExecuted: true,
-          ...(['edit', 'write', 'multiedit'].includes(request.toolName.toLowerCase()) ||
-          request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
+          ...(['edit', 'write', 'multiedit'].includes(request.toolName.toLowerCase()) || request.providerMetadata
+            ? { providerMetadata: request.providerMetadata }
+            : {})
         })
       const contextId = this.currentConnection(entry)?.contextId
       if (turn) {
