@@ -11,8 +11,13 @@ import type * as Lark from '@larksuiteoapi/node-sdk'
  * both of which Electron's net.fetch rejects.
  */
 export function createFeishuHttpInstance(): Lark.HttpInstance {
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The Lark HTTP adapter encodes endpoint-specific JSON, strings and multipart Buffers; each SDK endpoint owns its request shape.
-  async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
+  async function doRequest(
+    method: string,
+    url: string,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The Lark HTTP adapter encodes endpoint-specific JSON, strings and multipart Buffers; each SDK endpoint owns its request shape.
+    data?: unknown,
+    opts?: Parameters<Lark.HttpInstance['request']>[0]
+  ): Promise<any> {
     const headers: Record<string, string> = { ...opts?.headers }
     let body: string | FormData | undefined
 
@@ -29,6 +34,7 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
         // the form (axios does this; native fetch does not). Build it ourselves and drop the
         // SDK's Content-Type so fetch can set one with a boundary.
         const form = new FormData()
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK upload endpoints own dynamic form fields and native Buffer values; this transport checks each entry before byte-preserving upload or string coercion.
         for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
           if (value === undefined || value === null) continue
           if (Buffer.isBuffer(value)) {

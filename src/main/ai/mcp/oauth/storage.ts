@@ -80,7 +80,7 @@ export class JsonFileStorage implements IOAuthStorage {
   }
 
   /** Removes an issuer's entry and the unstamped one it may have been served from. */
-  private forgetForIssuer(byIssuer: Record<string, unknown>, issuer: string): void {
+  private forgetForIssuer<T>(byIssuer: Record<string, T>, issuer: string): void {
     delete byIssuer[issuer]
     delete byIssuer[LEGACY_ISSUER]
   }
