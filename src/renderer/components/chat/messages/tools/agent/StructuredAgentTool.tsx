@@ -6,7 +6,7 @@ import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
 type StructuredAgentToolProps = {
   toolName: AgentToolsType
-  input?: ToolInput | Record<string, unknown> | string
+  input?: ToolInput | string
   output?: ToolOutput | unknown
 }
 
@@ -17,6 +17,7 @@ function getPrimaryParam(value: StructuredAgentToolProps['input']): ReactNode {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 
   for (const key of PRIMARY_PARAM_KEYS) {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical tool inputs retain unvalidated fields; only checked strings from the primary-key list become labels.
     const fieldValue = (value as Record<string, unknown>)[key]
     if (typeof fieldValue === 'string' && fieldValue.length > 0) return fieldValue
   }
