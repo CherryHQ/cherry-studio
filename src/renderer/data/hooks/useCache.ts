@@ -448,6 +448,7 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   if (keysA.length !== keysB.length) return false
   return keysA.every(
     (key) =>
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Both containers are verified plain objects; selector-owned field values remain opaque for identity comparison.
       Object.hasOwn(b, key) && Object.is((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
   )
 }
