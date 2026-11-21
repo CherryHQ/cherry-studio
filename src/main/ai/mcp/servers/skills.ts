@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { skillRelativePath, skillRoot, verifyMcpSkillFile } from '@main/ai/skills/mcpSkillContent'
 import { skillService } from '@main/ai/skills/SkillService'
 import { t } from '@main/i18n'
+import { resolveMcpSourceSkillAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
@@ -135,7 +136,7 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
       skill_uri: z.string().min(1).describe('The exact SKILL.md URI, scoped to that server.')
     }
     const fileInput = z.object({ ...identity, resource_uri: z.string().min(1) })
-    const selectedServer = (serverId: string) => {
+    const selectedServer = (serverId: string, skillUri?: string) => {
       const server = mcpServerService.findByIdOrName(serverId)
       if (
         !server?.isActive ||
@@ -143,19 +144,21 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
         !(agentService.getAgent(agentId)?.mcps ?? []).some((id) => mcpServerService.findByIdOrName(id)?.id === serverId)
       )
         throw new Error('MCP server is not selected for this agent')
+      if (skillUri && !resolveMcpSourceSkillAccess(server, skillUri).enabled)
+        throw new Error('This MCP skill is disabled in its server settings')
     }
     const readSkill = async (
       { server_id: serverId, skill_uri: skillUri, resource_uri: uri }: z.infer<typeof fileInput>,
       signal: AbortSignal
     ) => {
       signal.throwIfAborted()
-      selectedServer(serverId)
+      selectedServer(serverId, skillUri)
       const runtime = application.get('McpRuntimeService')
       const entry = await runtime.getSkill(serverId, skillUri, signal)
       if (entry.resources === 'dynamic') throw new Error(t('mcp.skills.dynamic'))
       skillRelativePath(skillRoot(entry.uri), uri)
       if (!entry.resources.some((file) => file.uri === uri)) throw new Error('File is not in the skill manifest')
-      selectedServer(serverId)
+      selectedServer(serverId, skillUri)
       signal.throwIfAborted()
       const { contents } = await runtime.getResource({
         serverId,
@@ -165,7 +168,7 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
         interactionContext: { sessionId }
       })
       signal.throwIfAborted()
-      selectedServer(serverId)
+      selectedServer(serverId, skillUri)
       if (contents.length !== 1 || contents[0].uri !== uri)
         throw new Error('Skill read must return exactly the requested resource')
       const file = contents[0]

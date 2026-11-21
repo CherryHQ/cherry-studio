@@ -8,13 +8,18 @@ const logger = loggerService.withContext('useMcpSkills')
 const EMPTY: readonly SkillCatalogResult[] = []
 type SkillCatalogResult = { serverId: string; skills: McpSkillEntry[]; error?: string }
 
-/** Discovery is scoped to the visible picker; closing it cancels outstanding requests. */
-export function useMcpSkills(serverIds: readonly string[], enabled: boolean): readonly SkillCatalogResult[] {
-  const key = JSON.stringify([...new Set(serverIds)].sort())
+/** Discovery is scoped to its visible consumer; unmounting cancels outstanding requests. */
+export function useMcpSkills(
+  serverIds: readonly string[],
+  enabled: boolean,
+  includeDisabled = false
+): readonly SkillCatalogResult[] {
+  const key = JSON.stringify({ serverIds: [...new Set(serverIds)].sort(), includeDisabled })
   const [result, setResult] = useState<{ key: string; catalogs: SkillCatalogResult[] }>()
   useEffect(() => {
     if (!enabled) return
-    const ids: string[] = JSON.parse(key)
+    const query: { serverIds: string[]; includeDisabled: boolean } = JSON.parse(key)
+    const ids = query.serverIds
     const requests = ids.map((serverId) => ({ serverId, requestId: crypto.randomUUID() }))
     const catalogs = new Map<string, SkillCatalogResult>()
     let cancelled = false
@@ -22,7 +27,14 @@ export function useMcpSkills(serverIds: readonly string[], enabled: boolean): re
       void (async () => {
         let catalog: SkillCatalogResult
         try {
-          catalog = { serverId, skills: await ipcApi.request('mcp.server.list_skills', { serverId, requestId }) }
+          catalog = {
+            serverId,
+            skills: await ipcApi.request('mcp.server.list_skills', {
+              serverId,
+              requestId,
+              ...(query.includeDisabled ? { includeDisabled: true } : {})
+            })
+          }
         } catch (error) {
           catalog = { serverId, skills: [], error: error instanceof Error ? error.message : String(error) }
         }

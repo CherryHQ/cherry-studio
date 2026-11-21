@@ -57,9 +57,10 @@ stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
 question nothing can receive.
 
-MCP skill loading uses the normal required-tool approval policy, with automatic pass in
-Full Access. Reading a skill adds no session activation or additional approval rules for
-later tools; see [MCP Skills Client](./mcp-skills-client.md).
+MCP skill loading and file reads follow each Skill’s server-owned reading permission
+through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
+prompts, and explicit disablement remains effective. Reading a skill adds no session
+activation or additional approval rules for later tools; see [MCP Skills Client](./mcp-skills-client.md).
 
 The composer identifies the requesting Agent or subagent. Child requests carry the
 spawning tool-call ID in provider metadata; the card uses that identity to show the

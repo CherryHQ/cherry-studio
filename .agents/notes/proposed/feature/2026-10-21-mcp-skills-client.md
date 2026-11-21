@@ -30,9 +30,13 @@ Expose `list_mcp_skills`, `load_mcp_skill`, and `read_mcp_skill_file`. The initi
 
 Fetch every file through its originating MCP connection, never through direct HTTP or filesystem access. Validate containment and manifest membership before requesting bytes. Require exactly the requested resource, matching byte length and SHA-256; entry-file YAML must equal all advertised frontmatter fields. Each call verifies against the manifest obtained by that call. No generic-resource interception or cross-call invalidation is needed.
 
-Use the existing tool policies and approval cards. Loading retains its required-tool policy, including automatic pass in Full Access. Listing and file reads retain read-only policy. Remote frontmatter cannot install hooks or grant permissions. Loading instructions does not change subsequent execution, cron, delegation, local-skill or cross-origin resource policies. Nested `SKILL.md` files are ordinary Markdown. No Skill-specific approvals or invalidation listeners are added to Claude Code or Pi.
+Use the existing tool policies and approval cards. Listing retains read-only policy. Loading and file reads use the server-owned reading permission, defaulting to required approval with automatic pass in Full Access. Remote frontmatter cannot install hooks or grant permissions. Loading instructions does not change subsequent execution, cron, delegation, local-skill or cross-origin resource policies. Nested `SKILL.md` files are ordinary Markdown. No post-load approval rules or invalidation listeners are added to Claude Code or Pi.
 
 This deliberately omits the extension's acting-window activation and special execution/cross-origin approval model. It provides dynamic, verified text and attachment retrieval through normal tools rather than full host-policy compliance. Historical tool results remain ordinary conversation history; a fresh read does not rewrite earlier model context. Concurrent calls can return different valid versions, and changes discovered by one call do not revoke another call's results or approvals.
+
+### Server-owned reading permissions
+
+MCP Server settings expose a permission level for each Skill URI: `auto`, `prompt`, or `disabled`. Missing entries default to `prompt`. Both loading and supporting-file reads follow that level through the existing runtime approval paths. Full Access skips prompts; explicit disablement remains effective. Disabled entries are omitted from normal discovery but remain manageable in the server settings catalog. Store only this user configuration on the MCP server, with no activation state or changes to later execution permissions.
 
 ### Delivery and verification
 
@@ -59,6 +63,7 @@ The user explicitly authorized removing the activation model and waived the Spec
 - AC9 — Existing local skills and MCP tools/resources remain functional, and an unavailable origin is reported separately from a successful empty catalog. (verification: Electron)
 - AC10 — The bilingual proposal and affected references describe the chosen request-scoped behavior and its limitations, with verification boundaries recorded accurately. (verification: docs gate)
 - AC11 — No Skill-specific session lifecycle, cached activation, execution-tool classification, approval receipt or generic-resource interceptor remains in the host or runtime adapters. (verification: unit)
+- AC12 — A Skill permission saved in MCP Server settings survives reload, independently controls that URI in Claude Code and Pi, filters disabled entries from normal discovery, and never changes another Skill or later execution policy. Full Access skips prompts while respecting explicit disablement. (verification: unit | renderer | Electron)
 
 ## Risks
 

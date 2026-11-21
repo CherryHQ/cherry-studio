@@ -4,8 +4,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { createMcpSkillsFixture } from '@test-helpers/mcpSkills'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
+import {
+  callKeyOf,
+  createFakeHarness,
+  createScriptedHost,
+  install,
+  type GateHandlers
+} from '@cherrystudio/agent-behavior'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { agentService } from '@data/services/AgentService'
@@ -14,7 +22,14 @@ import { ClientMcpConnection } from '@main/ai/mcp/connections/ClientMcpConnectio
 import type { McpConnection } from '@main/ai/mcp/connections/McpConnection'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import { CLAUDE_TOOL_GUARD_RULES } from '@main/ai/runtime/claudeCode/guardRules'
+import { createPiInteractionPorts } from '@main/ai/runtime/pi/piBehaviorHost'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { BaseService } from '@main/core/lifecycle'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { McpSkillPermission } from '@shared/data/types/mcpServer'
 
 import { createSkillsServer } from '../skills'
 
@@ -101,6 +116,123 @@ describe('remote skills MCP tools', () => {
     if (block.type !== 'text') throw new Error('Expected a text tool result')
     return JSON.parse(block.text)
   }
+
+  async function piRead(mode: AgentPermissionMode, toolName: string) {
+    let gate!: GateHandlers
+    let prompts = 0
+    const host = createScriptedHost({
+      settings: {
+        permissionMode: mode,
+        attendance: 'stream',
+        goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        maxBackground: 4,
+        offloadThreshold: 20000
+      }
+    })
+    const interactions = createPiInteractionPorts({
+      input: { sessionId, agentId, modelId: 'test::model' },
+      approval: {
+        sessionId,
+        workspacePath: '/tmp',
+        agentDataPath: '/tmp/agent',
+        additionalReadOnlyRoots: [],
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+        isDisabled: () => false,
+        autoApprovedTools: new Set(listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName)),
+        approvalRequiredTools: new Set(listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)),
+        nonBypassableApprovalTools: new Set(),
+        delegationTools: new Set()
+      },
+      toolCallIdentity: async () => ({ toolCallId: 'read' }),
+      emit: (event) => {
+        if (event.type !== 'tool-approval-request') return
+        prompts++
+        toolApprovalRegistry.dispatch(event.request.approvalId, { approved: true })
+      }
+    })
+    const harness = createFakeHarness({
+      install: (ports) =>
+        install(
+          {
+            ...ports,
+            lifecycle: { register: () => {} },
+            toolGate: {
+              register: (handlers) => {
+                gate = handlers
+              }
+            }
+          },
+          { ...host, ...interactions }
+        )
+    })
+    const thread = await harness.createThread()
+    const result = await harness.withCall(thread, (ports) =>
+      gate.before(
+        {
+          thread,
+          key: callKeyOf('read'),
+          tool: toolName,
+          args: z.json().parse({ server_id: serverId, skill_uri: fixture.uri, resource_uri: factsUri }),
+          nested: false,
+          signal: new AbortController().signal
+        },
+        { goalRound: false, callWindow: [], plan: undefined },
+        ports
+      )
+    )
+    return { result, prompts }
+  }
+
+  it.each(['auto', 'prompt', 'disabled'] satisfies McpSkillPermission[])(
+    'applies persisted %s permission to both runtimes for loading and file reads',
+    async (permission) => {
+      mcpServerService.update(serverId, { skillPermissions: { [fixture.uri]: permission } })
+      expect(mcpServerService.getById(serverId).skillPermissions).toEqual({ [fixture.uri]: permission })
+      for (const mode of ['default', 'auto', 'bypassPermissions'] as const) {
+        for (const name of ['mcp__skills__load_mcp_skill', 'mcp__skills__read_mcp_skill_file']) {
+          const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+            toolName: name,
+            input: { server_id: serverId, skill_uri: fixture.uri },
+            permissionMode: mode,
+            builtinRole: undefined,
+            mountedServers: new Set(['skills']),
+            pluginDirectories: new Map(),
+            cwd: '/tmp',
+            agentDataPath: '/tmp/agent',
+            isDisabled: () => false,
+            interaction: { currentTurn: 'interactive', userResponse: 'stream' }
+          })
+          expect(decision?.effect).toBe(
+            permission === 'disabled'
+              ? 'deny'
+              : permission === 'prompt' && mode !== 'bypassPermissions'
+                ? 'ask'
+                : undefined
+          )
+          const pi = await piRead(mode, name)
+          expect(Boolean(pi.result.block)).toBe(permission === 'disabled')
+          expect(pi.prompts).toBe(permission === 'prompt' && mode !== 'bypassPermissions' ? 1 : 0)
+        }
+      }
+    }
+  )
+
+  it('hides disabled Skills from discovery, keeps them manageable, and blocks direct reads', async () => {
+    mcpServerService.update(serverId, { skillPermissions: { [fixture.uri]: 'disabled' } })
+    expect(payload(await client.callTool({ name: 'list_mcp_skills', arguments: {} }))).toEqual([
+      { serverId, skills: [] }
+    ])
+    expect(await application.get('McpCatalogService').listSkills(serverId, undefined, true)).toMatchObject([
+      { uri: fixture.uri }
+    ])
+    expect((await load()).isError).toBe(true)
+    expect((await read()).isError).toBe(true)
+    expect(reads()).toEqual([])
+    mcpServerService.update(serverId, { skillPermissions: { [fixture.uri]: 'auto' } })
+    expect(payload(await read())).toMatchObject({ content: { text: 'Report code: CHERRY-2640\n' } })
+  })
 
   it('discovers metadata and loads only the entry file with its complete manifest', async () => {
     expect(payload(await client.callTool({ name: 'list_mcp_skills', arguments: {} }))).toMatchObject([

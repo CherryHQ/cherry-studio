@@ -49,6 +49,7 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
+  resolveMcpSkillToolAccess,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -542,6 +543,8 @@ async function buildToolPermissions(
     }
 
     const permissionMode = snapshot.getPermissionMode()
+    const skillAccess = resolveMcpSkillToolAccess(toolName, input)
+    if (skillAccess?.enabled === false) return { behavior: 'deny', message: 'This MCP skill is disabled.' }
     const dialect = shellToolDialect(toolName)
     const checkShell = (command: string, mode: typeof permissionMode) =>
       checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
@@ -575,7 +578,7 @@ async function buildToolPermissions(
       : undefined
     if (shellGuard?.effect === 'deny') return { behavior: 'deny', message: shellGuard.reason }
     const commandRequiresApproval = shellGuard?.effect === 'ask'
-    const policy = findBuiltinToolPolicy(toolName, mountedServers)
+    const policy = findBuiltinToolPolicy(toolName, mountedServers, input)
     const delegationApproval =
       policy?.approval === 'delegation'
         ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
@@ -599,7 +602,10 @@ async function buildToolPermissions(
       }
     }
 
-    const access = snapshot.resolve(toolName)
+    const access =
+      skillAccess && permissionMode === 'bypassPermissions'
+        ? { approval: 'auto' }
+        : (skillAccess ?? snapshot.resolve(toolName))
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.

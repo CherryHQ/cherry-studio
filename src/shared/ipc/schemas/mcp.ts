@@ -45,7 +45,7 @@ export const mcpRequestSchemas = {
   'mcp.server.cancel_authorization': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.refresh_tools': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.list_skills': defineRoute({
-    input: serverIdNonEmpty.extend({ requestId: z.uuid() }),
+    input: serverIdNonEmpty.extend({ requestId: z.uuid(), includeDisabled: z.boolean().optional() }),
     output: McpSkillEntrySchema.array()
   }),
   'mcp.server.list_prompts': defineRoute({ input: serverIdNonEmpty, output: McpPromptSchema.array() }),

@@ -1535,6 +1535,61 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
+  it.each(['auto', 'prompt', 'disabled'] as const)(
+    'uses the selected MCP Skill permission %s in canUseTool',
+    async (permission) => {
+      let mode = 'default'
+      mocks.findByIdOrName.mockImplementation((id) =>
+        id === 'origin'
+          ? {
+              id: 'origin',
+              name: 'Origin',
+              isActive: true,
+              skillPermissions: { 'skill://reports/SKILL.md': permission }
+            }
+          : undefined
+      )
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode,
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      settings.approvalEmitter!.emit = vi.fn()
+      for (mode of ['default', 'auto', 'bypassPermissions']) {
+        for (const name of ['mcp__skills__load_mcp_skill', 'mcp__skills__read_mcp_skill_file']) {
+          mocks.approvalRegister.mockClear()
+          const input = { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+          const pending = settings.canUseTool!(name, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'skill-read',
+            requestId: 'skill-read'
+          })
+          if (permission === 'disabled') await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          else if (permission === 'auto' || mode === 'bypassPermissions') {
+            await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: input })
+          } else {
+            await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls).toHaveLength(1))
+            mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+            await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          }
+          expect(mocks.approvalRegister.mock.calls).toHaveLength(
+            permission === 'prompt' && mode !== 'bypassPermissions' ? 1 : 0
+          )
+        }
+      }
+    }
+  )
+
   describe('global install approvals without SDK matchedAskRule', () => {
     async function installSettings(
       permissionMode: string,

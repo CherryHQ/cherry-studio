@@ -165,11 +165,17 @@ export default async function mcpSkillsScenario(context: ScenarioContext) {
           await expect(approval).toBeVisible({ timeout: 120_000 })
           expect(server.fixture.requests.filter((request) => request.startsWith('read:'))).toHaveLength(before)
           await expect(approval.getByText('skill://reports/SKILL.md', { exact: true })).toBeVisible()
-          if (execution) {
+          if (approve || execution) {
             await approval.getByRole('button', { name: /^Allow/ }).click()
-            await expect(approval.getByText('printf MCP_SKILL_EXECUTED', { exact: true })).toBeVisible({
+            await expect(approval.getByText('skill://reports/references/facts.txt', { exact: true })).toBeVisible({
               timeout: 120_000
             })
+            if (execution) {
+              await approval.getByRole('button', { name: /^Allow/ }).click()
+              await expect(approval.getByText('printf MCP_SKILL_EXECUTED', { exact: true })).toBeVisible({
+                timeout: 120_000
+              })
+            }
           }
           await context.screenshot(`${type}-${scenario}-approval`)
           await approval.getByRole('button', { name: approve ? /^Allow/ : /^Deny/ }).click()
