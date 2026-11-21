@@ -39,6 +39,18 @@ const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) 
 /** The editor caps a single write well below the 1 MB viewer slice (UTF-8 bytes can exceed char count). */
 export const AGENT_MEMORY_MAX_WRITE_CHARS = 1_000_000
 
+/**
+ * Renderer-facing view of a Cherry-owned MCP tool's approval policy. The policy itself lives
+ * main-side (`builtinToolPolicyRegistry`); this is only the display contract the agent edit
+ * dialog needs to render honest Auto Approve switches.
+ */
+export interface BuiltinToolPolicyInfo {
+  /** Claude-style MCP runtime name, e.g. `mcp__cherry-tools__generate_image`. */
+  runtimeName: string
+  /** 'auto' is always auto-approved; 'required' always prompts; 'delegation' is never auto-approvable. */
+  approval: 'auto' | 'required' | 'delegation'
+}
+
 export const agentRequestSchemas = {
   'agent.set_avatar': defineRoute({
     input: z.strictObject({
@@ -67,5 +79,9 @@ export const agentRequestSchemas = {
   'agent.memory.open_folder': defineRoute({
     input: AgentIdInputSchema,
     output: z.void()
+  }),
+  'agent.list_builtin_tool_policies': defineRoute({
+    input: z.void(),
+    output: z.custom<BuiltinToolPolicyInfo[]>()
   })
 }

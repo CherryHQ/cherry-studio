@@ -187,8 +187,10 @@ disabled tools, install and role-specific guards can independently tighten the o
 exposes an `autoApprove` action **only for MCP tools** — when an `mcpTool`
 descriptor is passed. It persists the opt-out by PATCHing the server's
 `disabledAutoApproveTools`, so the MCP settings page reflects it and
-subsequent calls of that tool skip the approval card. There is no generic
-per-tool default for non-MCP agent-runtime tools.
+subsequent calls of that tool skip the approval card. That chat approval
+action remains MCP-only, but Agent settings provide a separate persisted
+per-tool auto-approval policy for agent-runtime tools (see the SDK
+`allowedTools` list below).
 
 For what a single approval authorizes, see [External MCP per-call approval guarantees](#external-mcp-per-call-approval-guarantees).
 
@@ -313,10 +315,11 @@ suggestions (`permission_suggestions` / `permissionSuggestions`) are unused.
 The MCP portion of the pre-approved tool list contains built-in tool policies
 only; user-defined MCP tools are excluded (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:507`,
 `src/main/ai/runtime/claudeCode/settingsBuilder.ts:715`, `src/main/ai/toolApproval/builtinToolPolicy.ts:40`).
-The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
-`TaskUpdate`, and `TaskList`, filtered by `disallowedTools`
-(`src/main/ai/runtime/claudeCode/settingsBuilder.ts:288`,
-`src/main/ai/runtime/claudeCode/settingsBuilder.ts:356`).
+The SDK `allowedTools` list includes the Agent's persisted per-tool auto-approval
+entries, the eligible built-in MCP policies, and `TaskCreate`, `TaskGet`,
+`TaskUpdate`, and `TaskList`. Entries matched by `disallowedTools` are omitted
+(`src/main/ai/runtime/claudeCode/settingsBuilder.ts:287`,
+`src/main/ai/runtime/claudeCode/settingsBuilder.ts:358`).
 
 ### Boundaries
 

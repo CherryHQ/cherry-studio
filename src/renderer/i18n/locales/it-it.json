@@ -5174,6 +5174,8 @@
   "settings.mcp.timeoutTooltip": "Tempo di attesa in secondi per le richieste a questo server, predefinito: 60 secondi",
   "settings.mcp.title": "Server MCP",
   "settings.mcp.tools.autoApprove.label": "Approvazione automatica",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "Questo strumento chiede sempre l'approvazione prima dell'esecuzione",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "Questo strumento integrato viene sempre eseguito senza chiedere conferma",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Lo strumento richiederà l'approvazione manuale prima dell'esecuzione",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Lo strumento verrà eseguito automaticamente senza conferma",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Attiva prima lo strumento per usare l'approvazione automatica",

@@ -38,6 +38,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
+import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -70,6 +71,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { BuiltinToolPolicyInfo } from '@shared/ipc/schemas/agent'
 import type { InstalledSkill } from '@shared/types/skill'
 
 import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
@@ -112,6 +114,7 @@ type AgentEditFormValues = {
   mcps: string[]
   knowledgeBaseIds: string[]
   skillIds: string[]
+  allowedTools: string[]
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
@@ -170,6 +173,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     mcps: [...form.mcps],
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     skillIds: [...form.skillIds],
+    allowedTools: [...form.allowedTools],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
@@ -203,6 +207,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     mcps: [...values.mcps],
     knowledgeBaseIds: [...values.knowledgeBaseIds],
     skillIds: [...values.skillIds],
+    allowedTools: [...values.allowedTools],
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
@@ -235,6 +240,7 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
   if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+  if (hasOwn(payload, 'allowedTools')) next.allowedTools = [...submitted.allowedTools]
   if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 
   const configuration = payload.configuration
@@ -262,6 +268,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
+  form.setValue('allowedTools', next.allowedTools, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
@@ -1148,6 +1155,7 @@ function AgentToolsFields({
   caps: AgentRuntimeCapabilities
 }) {
   const { t } = useTranslation()
+  const allowedTools = form.watch('allowedTools')
   const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
   const knowledgeBaseIds = form.watch('knowledgeBaseIds')
@@ -1157,14 +1165,37 @@ function AgentToolsFields({
   const [computerUseEnabled] = usePreference('app.computer_use.agent_control.enabled')
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
-  // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
-  // (empty = all enabled); approval is governed solely by the permission-mode cards.
+  // Enable writes the opt-out `disabledTools` set (empty = all enabled); Claude Code's
+  // per-tool Auto Approve control writes `allowedTools` independently.
   // The kb_* tools are only injected once a knowledge base is bound (runtime gating),
   // so hide their toggles here when the agent has none — they would otherwise read as
   // "on" while doing nothing.
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
+
+  // Effective approval policy for Cherry-owned MCP tools. The main process pre-approves 'auto'
+  // tools and always prompts for 'required'/'delegation' tools regardless of the persisted
+  // allowedTools list, so the Auto Approve switch must display (and lock to) that truth instead
+  // of offering a preference that cannot take effect. Tools without a policy entry keep the
+  // editable, user-controlled switch.
+  const [toolPolicies, setToolPolicies] = useState<ReadonlyMap<string, BuiltinToolPolicyInfo['approval']>>(new Map())
+  useEffect(() => {
+    let cancelled = false
+    ipcApi
+      .request('agent.list_builtin_tool_policies')
+      .then((policies) => {
+        if (cancelled) return
+        setToolPolicies(new Map(policies.map((policy) => [policy.runtimeName, policy.approval])))
+      })
+      .catch(() => {
+        // Without the policy the switches fall back to the persisted preference, as before.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const builtinSections = useMemo(() => {
     const tools = caps
       .builtinTools(platform)
@@ -1174,22 +1205,50 @@ function AgentToolsFields({
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
       items: tools
         .filter((tool) => tool.category === category)
-        .map<CatalogItem>((tool) => ({
-          id: tool.id,
-          name: t(tool.labelKey, tool.labelFallback ?? tool.id),
-          description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
-        }))
+        .map<CatalogItem>((tool) => {
+          const approval = toolPolicies.get(tool.id)
+          return {
+            id: tool.id,
+            name: t(tool.labelKey, tool.labelFallback ?? tool.id),
+            description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
+            icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />,
+            autoApproveEffective: approval === undefined ? undefined : approval === 'auto',
+            autoApproveLockedReason:
+              approval === undefined
+                ? undefined
+                : approval === 'auto'
+                  ? t('settings.mcp.tools.autoApprove.tooltip.alwaysAuto')
+                  : t('settings.mcp.tools.autoApprove.tooltip.alwaysAsk')
+          }
+        })
     })).filter((section) => section.items.length > 0)
-  }, [caps, t, hasKnowledgeScope])
+  }, [caps, t, hasKnowledgeScope, toolPolicies])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]
   )
-  const setToolEnabled = (name: string, enabled: boolean) =>
+  const autoApproveIds = useMemo(
+    () => new Set(allowedTools.filter((name) => enabledToolIds.has(name))),
+    [allowedTools, enabledToolIds]
+  )
+  const setToolEnabled = (name: string, enabled: boolean) => {
     form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
       shouldDirty: true
     })
+    if (!enabled) {
+      form.setValue(
+        'allowedTools',
+        allowedTools.filter((n) => n !== name),
+        { shouldDirty: true }
+      )
+    }
+  }
+  const setToolAutoApproved = (name: string, enabled: boolean) => {
+    if (!enabledToolIds.has(name)) return
+    form.setValue('allowedTools', enabled ? [...allowedTools, name] : allowedTools.filter((n) => n !== name), {
+      shouldDirty: true
+    })
+  }
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })
@@ -1263,6 +1322,8 @@ function AgentToolsFields({
                 items={section.items}
                 enabledIds={enabledToolIds}
                 onToggle={setToolEnabled}
+                autoApproveIds={agent.type === 'claude-code' ? autoApproveIds : undefined}
+                onAutoApproveToggle={agent.type === 'claude-code' ? setToolAutoApproved : undefined}
                 emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
                 portalContainer={portalContainer}
               />

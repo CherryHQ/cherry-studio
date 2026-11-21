@@ -558,6 +558,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.mcp.tools.autoApprove.label': 'Auto Approve',
           'settings.prompts.add': 'Add prompt',
           'settings.prompts.binding.bind': 'Bind prompt',
           'settings.prompts.binding.noLinked': 'No prompts linked',
@@ -683,6 +684,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
+  // Agent tool-policy lookup: default to no policy entries (editable Auto Approve switches).
+  ipcRequestMock.mockReset().mockResolvedValue([])
   installedSkillsState.current = {
     skills: [
       {
@@ -2178,6 +2181,73 @@ describe('edit dialogs', () => {
         permission_mode: 'plan'
       })
     )
+  })
+
+  it('shows agent tool categories directly in the left tab list', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.queryByText('No built-in tools enabled')).not.toBeInTheDocument()
+
+    selectTab('Built-in tools')
+    expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Read')).toBeInTheDocument()
+
+    selectTab('MCP')
+    expect(screen.getByText('MCP One')).toBeInTheDocument()
+
+    selectTab('技能')
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('keeps auto-approval independent and disables it when a tool is unavailable', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...AGENT, allowedTools: [] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+
+    const enableSwitch = screen.getByRole('switch', { name: 'Enable Bash' })
+    const autoApproveSwitch = screen.getByRole('switch', { name: 'Auto Approve Bash' })
+    expect(enableSwitch).toBeChecked()
+    expect(autoApproveSwitch).not.toBeChecked()
+
+    await user.click(autoApproveSwitch)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ allowedTools: ['Bash'] })
+      })
+    )
+
+    await user.click(enableSwitch)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ disabledTools: ['Bash'], allowedTools: [] })
+      })
+    )
+    expect(screen.getByRole('switch', { name: 'Auto Approve Bash' })).toBeDisabled()
+  })
+
+  it('locks Auto Approve switches to the effective built-in tool policy', async () => {
+    ipcRequestMock.mockResolvedValue([
+      { runtimeName: 'mcp__cherry-tools__cron', approval: 'auto' },
+      { runtimeName: 'mcp__cherry-tools__generate_image', approval: 'required' }
+    ])
+    render(<AgentEditDialog open resource={{ ...AGENT, allowedTools: [] }} onOpenChange={vi.fn()} />)
+    selectTab('Built-in tools')
+
+    // Policy-controlled tools ignore the persisted preference: 'auto' is locked on,
+    // 'required' is locked off; SDK tools without a policy entry stay editable.
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('agent.list_builtin_tool_policies'))
+    const schedulerSwitch = await screen.findByRole('switch', { name: 'Auto Approve Scheduler' })
+    await waitFor(() => expect(schedulerSwitch).toBeDisabled())
+    expect(schedulerSwitch).toBeChecked()
+
+    const generateImageSwitch = screen.getByRole('switch', { name: 'Auto Approve Generate Image' })
+    expect(generateImageSwitch).toBeDisabled()
+    expect(generateImageSwitch).not.toBeChecked()
+
+    expect(screen.getByRole('switch', { name: 'Auto Approve Bash' })).toBeEnabled()
   })
 
   it('projects pi capabilities without exposing Claude-only fields', async () => {
