@@ -1,8 +1,9 @@
-import { stringify as stringifyToml } from 'smol-toml'
+import { stringify as stringifyToml, type TomlTable } from 'smol-toml'
 import { type Document, isMap, isScalar } from 'yaml'
 
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
+import type { Serializable } from '@shared/types/serializable'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
@@ -101,6 +102,7 @@ import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
   CliConfigTarget,
+  CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from './types'
 import {
@@ -131,7 +133,7 @@ export interface CliConfigAdapter {
   /** Candidate provider base URLs a stored connection may legitimately match. */
   providerBaseUrls(provider: Provider): string[]
   /** Strip a user-edited config blob down to the tool params this CLI persists. */
-  sanitize(configBlob: Record<string, unknown> | undefined): Record<string, any>
+  sanitize(configBlob: CliConfigWriteArgs['configBlob']): NonNullable<CliConfigWriteArgs['configBlob']>
   /** Build the managed config file draft(s) from resolved credentials + tool params. */
   buildDraft(args: CliConfigDraftBuildArgs, context: ResolvedCliConfigContext): Promise<CliConfigFileDraft[]>
   /** Throw if the resolved context is missing a credential this CLI requires to write. */
@@ -140,12 +142,12 @@ export interface CliConfigAdapter {
    * Build the "own login" tool-param file draft (no credentials/model). Absent for
    * tools that expose no own-login config panel (OpenCode); the dispatcher throws.
    */
-  buildOwnLoginDraft?(configBlob: Record<string, any>): Promise<CliConfigFileDraft[]>
+  buildOwnLoginDraft?(configBlob: NonNullable<CliConfigWriteArgs['configBlob']>): Promise<CliConfigFileDraft[]>
   /** Re-render the draft files for an edited tool-param blob, keeping the existing connection. */
   updateDraftConfig(
     files: CliConfigFileDraft[],
     connection: CliConfigConnection,
-    configBlob: Record<string, any>
+    configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
   ): CliConfigFileDraft[]
   /**
    * Build the rewrites that strip every Cherry-managed key from the on-disk
@@ -156,7 +158,7 @@ export interface CliConfigAdapter {
   /** Read the connection (baseUrl/apiKey/model) back out of the draft files. */
   extractConnection(files: CliConfigFileDraft[]): CliConfigConnection | null
   /** Read the persisted tool params back out of the draft files. */
-  extractConfig(files: CliConfigFileDraft[]): Record<string, unknown> | null
+  extractConfig(files: CliConfigFileDraft[]): NonNullable<CliConfigWriteArgs['configBlob']> | null
 }
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
@@ -186,7 +188,7 @@ function providerNameFromKey(providerKey: string | undefined, label: string): st
   return key.slice(CHERRY_PROVIDER_PREFIX.length)
 }
 
-function cherryProviderKeyFrom(providers: Record<string, any>): string {
+function cherryProviderKeyFrom<T>(providers: Record<string, T>): string {
   return requireDraftValue(findCherryProviderKey(providers), 'OpenCode provider')
 }
 
@@ -346,16 +348,18 @@ const claudeAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('claude-settings', read, 'Claude Code settings')
     if (!existing) return []
-    const next: Record<string, any> = { ...existing }
+    const next: Record<string, Serializable> = { ...existing }
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     if (next.permissions && typeof next.permissions === 'object') {
-      const permissions = { ...(next.permissions as Record<string, any>) }
+      // SAFETY: The JSONC parser owns these values and the object container is checked above.
+      const permissions = { ...(next.permissions as Record<string, Serializable>) }
       for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) delete permissions[key]
       if (Object.keys(permissions).length > 0) next.permissions = permissions
       else delete next.permissions
     }
     if (next.env && typeof next.env === 'object') {
-      const env = { ...(next.env as Record<string, any>) }
+      // SAFETY: The JSONC parser owns these values and the object container is checked above.
+      const env = { ...(next.env as Record<string, Serializable>) }
       for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
       next.env = env
     }
@@ -372,7 +376,7 @@ const claudeAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
-    const out: Record<string, any> = {}
+    const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
       if (key === 'effortLevel') {
         if (isClaudeReasoningEffort(settings[key])) out[key] = settings[key]
@@ -461,14 +465,15 @@ const codexAdapter: CliConfigAdapter = {
     const existingAuth = readValidatedJsonOrNull('codex-auth', read, 'Codex auth')
     const files: CliConfigWriteFile[] = []
     if (existing) {
-      const next: Record<string, any> = {}
+      const next: TomlTable = {}
       for (const [key, value] of Object.entries(existing)) {
         if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
           next[key] = value
         }
       }
       if (next.model_providers && typeof next.model_providers === 'object') {
-        next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+        // SAFETY: This checked container retains native values from the TOML parser.
+        next.model_providers = omitKeysByPrefix(next.model_providers as TomlTable, CHERRY_PROVIDER_PREFIX)
       }
       dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
@@ -494,7 +499,7 @@ const codexAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const config = parseTomlOrThrow(getDraftFile(files, 'codex-config')?.content ?? '')
-    const out: Record<string, any> = {}
+    const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
     if (asRecord(config.features).goals === true) out.goalMode = true
     if (config.disable_response_storage === true) out.disableResponseStorage = true
     const permissionMode = codexConfigToPermissionMode(config)
@@ -594,9 +599,10 @@ const openCodeAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('opencode-config', read, 'OpenCode config')
     if (!existing) return []
-    const next: Record<string, any> = { ...existing }
+    const next: Record<string, Serializable> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
-    const compaction = { ...asRecord(next.compaction) }
+    // SAFETY: The container helper retains the JSONC parser's value domain.
+    const compaction = { ...(asRecord(next.compaction) as Record<string, Serializable>) }
     delete compaction.auto
     if (Object.keys(compaction).length > 0) next.compaction = compaction
     else delete next.compaction
@@ -607,7 +613,8 @@ const openCodeAdapter: CliConfigAdapter = {
       delete next.model
     }
     if (next.provider && typeof next.provider === 'object') {
-      next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+      // SAFETY: The JSONC parser owns these values and the object container is checked above.
+      next.provider = omitKeysByPrefix(next.provider as Record<string, Serializable>, CHERRY_PROVIDER_PREFIX)
     }
     return [{ target: 'opencode-config', content: renderJsonFile(next) }]
   },
@@ -628,7 +635,7 @@ const openCodeAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const out: Record<string, any> = {}
+    const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
     if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
@@ -795,13 +802,16 @@ const qwenAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('qwen-settings', read, 'Qwen Code config')
     if (!existing) return []
-    const next: Record<string, any> = { ...existing }
+    const next: Record<string, Serializable> = { ...existing }
     if (next.env && typeof next.env === 'object') {
-      next.env = omitKeysByPrefix(next.env as Record<string, any>, 'CHERRY_')
+      // SAFETY: The JSONC parser owns these values and the object container is checked above.
+      next.env = omitKeysByPrefix(next.env as Record<string, Serializable>, 'CHERRY_')
     }
-    if (Array.isArray(next.modelProviders?.openai)) {
-      const filtered = next.modelProviders.openai.filter((model: any) => !isCherryManagedModel(model))
-      next.modelProviders = { ...next.modelProviders, openai: filtered }
+    // SAFETY: The container helper retains the JSONC parser's value domain.
+    const modelProviders = asRecord(next.modelProviders) as Record<string, Serializable>
+    if (Array.isArray(modelProviders.openai)) {
+      const filtered = modelProviders.openai.filter((model) => !isCherryManagedModel(model))
+      next.modelProviders = { ...modelProviders, openai: filtered }
     }
     applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(next)
@@ -893,10 +903,11 @@ const kimiAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedTomlOrNull('kimi-config', read, 'Kimi Code config')
     if (!existing) return []
-    const next: Record<string, any> = { ...existing }
+    const next: TomlTable = { ...existing }
     for (const table of ['providers', 'models'] as const) {
       if (next[table] && typeof next[table] === 'object') {
-        next[table] = omitKeysByPrefix(next[table] as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+        // SAFETY: This checked container retains native values from the TOML parser.
+        next[table] = omitKeysByPrefix(next[table] as TomlTable, CHERRY_PROVIDER_PREFIX)
       }
     }
     applyManagedTomlSettings(next, {})
@@ -1211,8 +1222,11 @@ export function getAdapter(cliTool: string): CliConfigAdapter | undefined {
 /** Strip a user-edited config blob to the tool params `cliTool` persists (no-op passthrough for unknown tools). */
 export function sanitizeCliConfigBlob(
   cliTool: string,
-  configBlob: Record<string, unknown> | undefined
-): Record<string, any> {
-  if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
+    // SAFETY: The normalizer constructs a plain object with two validated strings; the common CLI API erases those keys.
+    return normalizeDeepSeekHarnessSettings(configBlob) as NonNullable<CliConfigWriteArgs['configBlob']>
+  }
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
 }

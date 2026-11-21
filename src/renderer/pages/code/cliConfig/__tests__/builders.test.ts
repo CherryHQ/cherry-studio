@@ -136,7 +136,7 @@ describe('buildQwenConfig', () => {
 
     expect(result.security).toEqual({ auth: { selectedType: 'openai' } })
     expect(Array.isArray(result.modelProviders)).toBe(false)
-    expect(result.modelProviders.openai).toEqual([
+    expect(result).toHaveProperty('modelProviders.openai', [
       { id: 'qwen-max', name: 'Qwen Max', baseUrl: 'https://example.com', envKey: 'CHERRY_QWEN_API_KEY' }
     ])
   })

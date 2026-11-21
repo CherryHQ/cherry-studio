@@ -1,7 +1,7 @@
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { parseJsonOrThrow, renderJsonFile } from './file'
 import { extractConnectionFromCliConfigDraft } from './parser'
-import type { CliConfigFileDraft } from './types'
+import type { CliConfigFileDraft, CliConfigWriteArgs } from './types'
 import { asRecord } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
@@ -12,7 +12,7 @@ export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFil
 export function updateCliConfigDraftConfig(
   cliTool: string,
   files: CliConfigFileDraft[],
-  configBlob: Record<string, unknown>
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
 ): CliConfigFileDraft[] {
   const connection = extractConnectionFromCliConfigDraft(cliTool, files)
   const blob = sanitizeCliConfigBlob(cliTool, asRecord(configBlob))

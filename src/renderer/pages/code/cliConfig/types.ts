@@ -34,7 +34,8 @@ export interface CliConfigWriteArgs {
   cliTool: string
   /** Unique model id ("providerId::modelId"). */
   modelId: UniqueModelId
-  /** User-edited config blob (claude-code / codex / opencode consume it). */
+  /** User-edited CLI tool parameters; managed-key filtering does not validate every retained value. */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Tool-specific fields remain unvalidated until their field checks or target serializer; the blob is not a parsed file DTO.
   configBlob?: Record<string, unknown>
   /** Claude Code only: whether to write env.ANTHROPIC_MODEL. */
   writePrimaryModel?: boolean
@@ -60,5 +61,5 @@ export interface ResolvedCliConfigContext {
    */
   modelLabel?: string
   modelRecord: Model | null
-  configBlob: Record<string, any>
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
 }

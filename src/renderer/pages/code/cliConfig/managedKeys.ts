@@ -1,3 +1,4 @@
+import type { CliConfigWriteArgs } from './types'
 import { asRecord } from './values'
 
 export const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution', 'effortLevel'] as const
@@ -118,8 +119,9 @@ export function mergeManagedSettingsKeys(...groups: ManagedSettingsKeys[]): Mana
 }
 
 export function applyManagedJsonSettings(
-  target: Record<string, any>,
-  source: Record<string, any>,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Existing file values can be native TOML or foreign JSON fields; this helper copies and removes keys without parsing them.
+  target: Record<string, unknown>,
+  source: NonNullable<CliConfigWriteArgs['configBlob']>,
   managedKeys: ManagedSettingsKeys,
   topLevelKeys: readonly string[] = []
 ): void {
@@ -143,11 +145,19 @@ export function applyManagedJsonSettings(
 }
 
 /** Kimi's TOML config adds managed top-level keys on top of the section merge. */
-export function applyManagedTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
+export function applyManagedTomlSettings(
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native TOML and raw edited values are preserved here; target-format serialization performs the final validation.
+  target: Record<string, unknown>,
+  source: NonNullable<CliConfigWriteArgs['configBlob']>
+): void {
   applyManagedJsonSettings(target, source, KIMI_MANAGED_SECTION_KEYS, KIMI_MANAGED_TOP_LEVEL_KEYS)
 }
 
 /** Kimi's TOML config build path: only clears/restores the WRITABLE subset (unlike clear.ts's full wipe). */
-export function applyWritableTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
+export function applyWritableTomlSettings(
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native TOML and raw edited values are preserved here; target-format serialization performs the final validation.
+  target: Record<string, unknown>,
+  source: NonNullable<CliConfigWriteArgs['configBlob']>
+): void {
   applyManagedJsonSettings(target, source, KIMI_WRITABLE_SECTION_KEYS, KIMI_WRITABLE_TOP_LEVEL_KEYS)
 }

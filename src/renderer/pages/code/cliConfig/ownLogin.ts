@@ -1,5 +1,7 @@
 import type { TomlTable } from 'smol-toml'
 
+import type { Serializable } from '@shared/types/serializable'
+
 import type { CodexConfigOptions } from './builders'
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 import {
@@ -10,6 +12,7 @@ import {
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
 import { codexPermissionModeToConfig, isCodexPermissionMode, isCodexReasoningEffort } from './permissionModes'
+import type { CliConfigWriteArgs } from './types'
 import {
   asRecord,
   dropFeatureGoalsIfEmpty,
@@ -47,7 +50,8 @@ export function buildCodexOwnLoginConfig(existingToml: TomlTable, blob: CodexCon
   }
   if (isCodexReasoningEffort(blob.reasoningEffort)) next.model_reasoning_effort = blob.reasoningEffort
   if (blob.goalMode === true) {
-    const features = asRecord(next.features)
+    // SAFETY: Existing feature fields are parsed TOML values; the container helper retains their native values.
+    const features = asRecord(next.features) as TomlTable
     features.goals = true
     next.features = features
   } else {
@@ -57,27 +61,34 @@ export function buildCodexOwnLoginConfig(existingToml: TomlTable, blob: CodexCon
 }
 
 export function buildGeminiOwnLoginSettings(
-  settings: Record<string, any>,
-  blob: Record<string, any>
-): Record<string, any> {
-  const next = { ...settings }
+  settings: Record<string, Serializable>,
+  blob: NonNullable<CliConfigWriteArgs['configBlob']>
+) {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The managed settings merge retains unvalidated edited fields until JSON rendering.
+  const next: Record<string, unknown> = { ...settings }
   applyManagedJsonSettings(next, blob, GEMINI_MANAGED_SETTINGS_KEYS)
   dropSecurityAuthSelectedTypeIfEmpty(next)
   if (next.model && typeof next.model === 'object') {
-    delete next.model.name
-    if (Object.keys(next.model as Record<string, any>).length === 0) delete next.model
+    const model = asRecord(next.model)
+    delete model.name
+    if (Object.keys(model).length === 0) delete next.model
   }
   return next
 }
 
-export function buildQwenOwnLoginConfig(existing: Record<string, any>, blob: Record<string, any>): Record<string, any> {
-  const next: Record<string, any> = { ...existing }
+export function buildQwenOwnLoginConfig(
+  existing: Record<string, Serializable>,
+  blob: NonNullable<CliConfigWriteArgs['configBlob']>
+) {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Own-login settings preserve foreign JSON values and raw edited tool parameters until rendering.
+  const next: Record<string, unknown> = { ...existing }
   if (next.env && typeof next.env === 'object') {
-    next.env = omitKeysByPrefix(next.env as Record<string, any>, 'CHERRY_')
+    next.env = omitKeysByPrefix(asRecord(next.env), 'CHERRY_')
   }
-  if (Array.isArray(next.modelProviders?.openai)) {
-    const filtered = next.modelProviders.openai.filter((model: any) => !isCherryManagedModel(model))
-    next.modelProviders = { ...next.modelProviders, openai: filtered }
+  const modelProviders = asRecord(next.modelProviders)
+  if (Array.isArray(modelProviders.openai)) {
+    const filtered = modelProviders.openai.filter((model) => !isCherryManagedModel(model))
+    next.modelProviders = { ...modelProviders, openai: filtered }
   }
   applyManagedJsonSettings(next, blob, QWEN_MANAGED_SETTINGS_KEYS)
   dropSecurityAuthSelectedTypeIfEmpty(next)
@@ -85,11 +96,12 @@ export function buildQwenOwnLoginConfig(existing: Record<string, any>, blob: Rec
   return next
 }
 
-export function buildKimiOwnLoginConfig(existing: Record<string, any>, blob: Record<string, any>): Record<string, any> {
-  const next: Record<string, any> = { ...existing }
+export function buildKimiOwnLoginConfig(existing: TomlTable, blob: NonNullable<CliConfigWriteArgs['configBlob']>) {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native TOML fields and raw edited tool parameters remain unvalidated until TOML rendering.
+  const next: Record<string, unknown> = { ...existing }
   for (const table of ['providers', 'models'] as const) {
     if (next[table] && typeof next[table] === 'object') {
-      next[table] = omitKeysByPrefix(next[table] as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+      next[table] = omitKeysByPrefix(asRecord(next[table]), CHERRY_PROVIDER_PREFIX)
     }
   }
   applyManagedTomlSettings(next, blob)

@@ -16,21 +16,25 @@ import {
   isOpenCodePermissionMode,
   isQwenApprovalMode
 } from './permissionModes'
+import type { CliConfigWriteArgs } from './types'
 import { asRecord } from './values'
 
-function pickTopLevel(source: Record<string, any>, keys: readonly string[]): Record<string, any> {
-  const next: Record<string, any> = {}
+function pickTopLevel<T>(source: Record<string, T>, keys: readonly string[]): Record<string, T> {
+  const next: Record<string, T> = {}
   for (const key of keys) {
     if (source[key] !== undefined) next[key] = source[key]
   }
   return next
 }
 
-function pickSectionFields(source: Record<string, any>, managedKeys: ManagedSettingsKeys): Record<string, any> {
-  const next: Record<string, any> = {}
+function pickSectionFields(
+  source: NonNullable<CliConfigWriteArgs['configBlob']>,
+  managedKeys: ManagedSettingsKeys
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  const next: NonNullable<CliConfigWriteArgs['configBlob']> = {}
   for (const [section, keys] of Object.entries(managedKeys)) {
     const sourceSection = asRecord(source[section])
-    const nextSection: Record<string, any> = {}
+    const nextSection: NonNullable<CliConfigWriteArgs['configBlob']> = {}
     for (const key of keys) {
       if (sourceSection[key] !== undefined) nextSection[key] = sourceSection[key]
     }
@@ -39,9 +43,11 @@ function pickSectionFields(source: Record<string, any>, managedKeys: ManagedSett
   return next
 }
 
-export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = asRecord(configBlob)
-  const next = { ...blob }
+export function sanitizeClaudeConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  const blob: NonNullable<CliConfigWriteArgs['configBlob']> = asRecord(configBlob)
+  const next: NonNullable<CliConfigWriteArgs['configBlob']> = { ...blob }
   const defaultMode = asRecord(blob.permissions).defaultMode
   if (isClaudePermissionMode(defaultMode)) next.permissions = { defaultMode }
   else delete next.permissions
@@ -49,16 +55,20 @@ export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | u
   return next
 }
 
-export function sanitizeCodexConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = asRecord(configBlob)
+export function sanitizeCodexConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  const blob: NonNullable<CliConfigWriteArgs['configBlob']> = asRecord(configBlob)
   const next = pickTopLevel(blob, ['goalMode', 'remoteCompaction', 'disableResponseStorage'])
   if (isCodexPermissionMode(blob.permissionMode)) next.permissionMode = blob.permissionMode
   if (isCodexReasoningEffort(blob.reasoningEffort)) next.reasoningEffort = blob.reasoningEffort
   return next
 }
 
-export function sanitizeOpenCodeConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = asRecord(configBlob)
+export function sanitizeOpenCodeConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  const blob: NonNullable<CliConfigWriteArgs['configBlob']> = asRecord(configBlob)
   const next = pickTopLevel(blob, OPEN_CODE_WRITABLE_TOP_LEVEL_KEYS)
   if (!isOpenCodePermissionMode(next.permissionMode)) delete next.permissionMode
   const env = asRecord(blob.env)
@@ -66,7 +76,9 @@ export function sanitizeOpenCodeConfigBlob(configBlob: Record<string, unknown> |
   return next
 }
 
-export function sanitizeGeminiConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
+export function sanitizeGeminiConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
   const next = pickSectionFields(asRecord(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
   const general = asRecord(next.general)
   if (general.defaultApprovalMode !== undefined && !isGeminiApprovalMode(general.defaultApprovalMode)) {
@@ -77,7 +89,9 @@ export function sanitizeGeminiConfigBlob(configBlob: Record<string, unknown> | u
   return next
 }
 
-export function sanitizeQwenConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
+export function sanitizeQwenConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
   const next = pickSectionFields(asRecord(configBlob), QWEN_WRITABLE_SETTINGS_KEYS)
   const tools = asRecord(next.tools)
   if (tools.approvalMode !== undefined && !isQwenApprovalMode(tools.approvalMode)) {
@@ -94,8 +108,10 @@ export function sanitizeQwenConfigBlob(configBlob: Record<string, unknown> | und
   return next
 }
 
-export function sanitizeKimiConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = asRecord(configBlob)
+export function sanitizeKimiConfigBlob(
+  configBlob: CliConfigWriteArgs['configBlob']
+): NonNullable<CliConfigWriteArgs['configBlob']> {
+  const blob: NonNullable<CliConfigWriteArgs['configBlob']> = asRecord(configBlob)
   const next = {
     ...pickTopLevel(blob, KIMI_WRITABLE_TOP_LEVEL_KEYS),
     ...pickSectionFields(blob, KIMI_WRITABLE_SECTION_KEYS)
