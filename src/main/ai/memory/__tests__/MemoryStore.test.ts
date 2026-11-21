@@ -143,6 +143,33 @@ describe('structured memory disk protection', () => {
   }
   const encode = (value: MemoryEntry) => serializeMemoryEntries([value])
 
+  it('recognizes a recovered file with preserved forgotten metadata after a lost acknowledgement', async () => {
+    const target = '.memories/protected.md'
+    const before = Buffer.from('')
+    const current = Buffer.from(
+      serializeMemoryEntries([entry, { ...entry, id: 'unrelated', status: 'active', text: 'New fact', sources: [] }])
+    )
+    await writeFile(path.join(root, target), current)
+    const original = await createMemoryBackup(backups, [{ path: target, before, after: current }], 'controlled')
+    const preview = (await store.previewRecovery(caller))!
+    const write = memoryFiles.writeMemoryBytes
+    const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (
+        args[0] === backups &&
+        args[1].endsWith(original.id + '.json') &&
+        JSON.parse(args[2]!.toString()).status === 'completed'
+      )
+        throw new Error('Lost acknowledgement')
+      return write(...args)
+    })
+    expect((await store.recover(caller, preview.token, approve)).error).toBe('Lost acknowledgement')
+    fail.mockRestore()
+    const restored = await readFile(path.join(root, target), 'utf8')
+    expect(entriesIn(parseMemoryEntries(restored))).toEqual([entry])
+    await new MemoryStore(root, backups).initialize()
+    expect((await memoryBackups.latestMemoryBackup(backups, original.id))?.status).toBe('completed')
+  })
+
   it('refuses malformed metadata on read and leaves the original bytes intact', async () => {
     const broken = encode(entry).replace(':v1', ':v9')
     await writeFile(path.join(root, 'MEMORY.md'), broken)
@@ -776,6 +803,13 @@ describe('limits, access, and recovery', () => {
     await writeFile(path.join(root, 'MEMORY.md'), 'Conflict')
     await recover()
     await writeFile(path.join(root, 'MEMORY.md'), 'New anchor')
+    const write = memoryFiles.writeMemoryBytes
+    const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === root && args[1] === '.memories/busy.md') throw new Error('busy')
+      return write(...args)
+    })
+    for (let i = 0; i < 5; i++) expect((await save('.memories/busy.md', 'Unwritten')).error).toBe('busy')
+    fail.mockRestore()
     await recover()
     expect((await store.read(caller, title)).content).toBe('Old title')
     expect((await store.read(caller, 'MEMORY.md')).content).toBe('Old anchor')
@@ -801,8 +835,62 @@ describe('limits, access, and recovery', () => {
     await writeFile(path.join(root, target), 'External change')
     const redo = (await store.previewRecovery(caller))!
     expect(redo.files.find((file) => file.path === source)?.conflict).toBe(true)
-    await store.recover(caller, redo.token, approve)
+    await writeFile(path.join(root, target), 'Already includes Full source')
+    await expect(store.recover(caller, redo.token, approve)).rejects.toMatchObject({ code: 'conflict' })
     expect((await store.read(caller, source)).content).toBe('Full source')
+  })
+
+  it('keeps an independent recovery step available when a manual step lacks its predecessor', async () => {
+    const paths = ['.memories/a.md', '.memories/b.md', '.memories/c.md']
+    for (const path of paths) await save(path, 'Original')
+    const reads = await Promise.all(paths.map((path) => store.read(caller, path)))
+    const { batchId } = await store.commit(
+      caller,
+      reads.map((r) => ({ kind: 'write', receipt: r.receipt, content: 'Updated' })),
+      'controlled',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await recover()
+    for (const name of paths.slice(1)) await writeFile(path.join(root, name), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, paths[1]), 'Updated')
+    await writeFile(path.join(root, paths[2]), 'Original')
+    const predecessor = (await readdir(backups)).find((name) => name.endsWith(batchId + '.json'))!
+    await unlink(path.join(backups, predecessor))
+    const preview = (await store.previewRecovery(caller))!
+    expect(preview.files.map(({ path, conflict }) => [path, conflict])).toEqual([
+      [paths[1], true],
+      [paths[2], false]
+    ])
+    await store.recover(caller, preview.token, approve)
+    expect((await store.read(caller, paths[2])).content).toBe('Updated')
+  })
+
+  it('redoes independent files after the user edits one already recovered', async () => {
+    const paths = ['.memories/a.md', '.memories/c.md']
+    for (const name of paths) await save(name, 'Original')
+    const reads = await Promise.all(paths.map((name) => store.read(caller, name)))
+    await store.commit(
+      caller,
+      reads.map((read) => ({ kind: 'write', receipt: read.receipt, content: 'Updated' })),
+      'controlled',
+      approve
+    )
+    const recover = async () => store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await writeFile(path.join(root, paths[1]), 'Conflict')
+    await recover()
+    await writeFile(path.join(root, paths[0]), 'User edit')
+    await writeFile(path.join(root, paths[1]), 'Updated')
+    await recover()
+    const redo = (await store.previewRecovery(caller))!
+    expect(redo.files.map(({ path, conflict }) => [path, conflict])).toEqual([
+      [paths[0], true],
+      [paths[1], false]
+    ])
+    await store.recover(caller, redo.token, approve)
+    expect((await store.read(caller, paths[0])).content).toBe('User edit')
+    expect((await store.read(caller, paths[1])).content).toBe('Updated')
   })
 
   it('extends the same reverse backup after an external conflict clears', async () => {
