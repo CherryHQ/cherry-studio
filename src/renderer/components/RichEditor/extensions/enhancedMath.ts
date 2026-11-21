@@ -19,7 +19,7 @@ const mathSourceAttributes = {
   delimiter: {
     default: null,
     parseHTML: (element: HTMLElement) => element.getAttribute('data-math-delimiter'),
-    renderHTML: (attrs: Record<string, unknown>) => (attrs.delimiter ? { 'data-math-delimiter': attrs.delimiter } : {})
+    renderHTML: (attrs: { delimiter?: unknown }) => (attrs.delimiter ? { 'data-math-delimiter': attrs.delimiter } : {})
   },
   markdownSource: {
     default: null,
@@ -31,8 +31,8 @@ const mathSourceAttributes = {
         latex: element.getAttribute('data-math-source-latex') ?? element.getAttribute('data-latex') ?? ''
       }
     },
-    renderHTML: (attrs: Record<string, unknown>) => {
-      const source = attrs.markdownSource as { raw: string; latex: string } | null
+    renderHTML: (attrs: { markdownSource?: { raw?: unknown; latex?: unknown } | null }) => {
+      const source = attrs.markdownSource
       return source ? { 'data-math-source': source.raw, 'data-math-source-latex': source.latex } : {}
     }
   }
