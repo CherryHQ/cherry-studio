@@ -279,7 +279,9 @@ const ASSISTANTS_RESPONSE = {
   page: 1
 } as const
 
-beforeAll(() => {
+beforeAll(async () => {
+  // Load the real lazy dialog before timing the open and autosave interactions.
+  await import('@renderer/components/resourceCatalog/dialogs/edit')
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -295,7 +297,7 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-})
+}, 30_000)
 
 beforeEach(() => {
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
