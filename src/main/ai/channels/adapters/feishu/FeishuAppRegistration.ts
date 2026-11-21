@@ -1,5 +1,6 @@
 import { net } from 'electron'
 import { delay } from 'es-toolkit'
+import * as z from 'zod'
 
 /**
  * Feishu App Registration via Device Flow.
@@ -32,9 +33,18 @@ export type RegistrationResult = {
   openId?: string
 }
 
-type PollStatus = 'authorization_pending' | 'slow_down' | 'access_denied' | 'expired_token'
+const RegistrationResponseSchema = z.looseObject({
+  device_code: z.string().nullish(),
+  verification_uri_complete: z.string().nullish(),
+  interval: z.number().nullish(),
+  expires_in: z.number().nullish(),
+  client_id: z.string().nullish(),
+  client_secret: z.string().nullish(),
+  user_info: z.looseObject({ open_id: z.string().nullish() }).nullish(),
+  error: z.string().nullish()
+})
 
-async function postRegistration(baseUrl: string, params: Record<string, string>): Promise<Record<string, unknown>> {
+async function postRegistration(baseUrl: string, params: Record<string, string>) {
   const url = `${baseUrl}/oauth/v1/app/registration`
   // The Feishu registration API requires application/x-www-form-urlencoded,
   // matching the format used by @larksuiteoapi/openclaw-lark-tools.
@@ -46,11 +56,16 @@ async function postRegistration(baseUrl: string, params: Record<string, string>)
   })
 
   const text = await res.text()
+  let value: unknown
   try {
-    return JSON.parse(text) as Record<string, unknown>
+    value = JSON.parse(text)
   } catch {
     throw new Error(`Invalid JSON from Feishu registration API: ${text.slice(0, 200)}`)
   }
+  const parsed = RegistrationResponseSchema.safeParse(value)
+  if (!parsed.success) throw new Error('Invalid Feishu registration API response')
+  // SAFETY: The schema only checks fields without transforming them; keep original extension keys in diagnostic logs.
+  return value as z.output<typeof RegistrationResponseSchema>
 }
 
 export async function registrationBegin(domain: FeishuDomain): Promise<RegistrationBeginResult> {
@@ -68,8 +83,8 @@ export async function registrationBegin(domain: FeishuDomain): Promise<Registrat
     request_user_info: 'open_id'
   })
 
-  const deviceCode = res.device_code as string | undefined
-  const verificationUri = res.verification_uri_complete as string | undefined
+  const deviceCode = res.device_code
+  const verificationUri = res.verification_uri_complete
 
   if (!deviceCode || !verificationUri) {
     throw new Error(`Feishu registration begin failed: ${JSON.stringify(res)}`)
@@ -78,8 +93,8 @@ export async function registrationBegin(domain: FeishuDomain): Promise<Registrat
   return {
     deviceCode,
     verificationUri,
-    interval: (res.interval as number) ?? 5,
-    expiresIn: (res.expires_in as number) ?? 600
+    interval: res.interval ?? 5,
+    expiresIn: res.expires_in ?? 600
   }
 }
 
@@ -106,18 +121,18 @@ export async function registrationPoll(
 
     // Success: got credentials
     if (res.client_id && res.client_secret) {
-      const userInfo = res.user_info as Record<string, string> | undefined
+      const userInfo = res.user_info
       logger.info('Feishu app registration succeeded')
       return {
-        appId: res.client_id as string,
-        appSecret: res.client_secret as string,
-        openId: userInfo?.open_id
+        appId: res.client_id,
+        appSecret: res.client_secret,
+        openId: userInfo?.open_id ?? undefined
       }
     }
 
     // Handle error states
-    const error = (res.error as string) ?? ''
-    switch (error as PollStatus) {
+    const error = res.error ?? ''
+    switch (error) {
       case 'authorization_pending':
         continue
       case 'slow_down':
