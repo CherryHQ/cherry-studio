@@ -16,6 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { markExitForced, noteExitReason, recordExit } from '@main/core/preboot/exitRecord'
 import { bootConfigService } from '@main/data/bootConfig'
 
 import type { ServiceRegistry } from './serviceRegistry'
@@ -287,6 +288,7 @@ export class Application {
     }
 
     // Close logger LAST — after this point, no more logging
+    recordExit('shutdown')
     loggerService.finish()
   }
 
@@ -400,6 +402,8 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
+    noteExitReason('relaunch')
+    recordExit()
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       if (app.isReady()) {
@@ -447,10 +451,12 @@ export class Application {
     // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
+      markExitForced()
       process.exit(1)
     }
 
     process.on('SIGINT', async () => {
+      noteExitReason('signal:SIGINT')
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -463,6 +469,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
+      noteExitReason('signal:SIGTERM')
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -529,6 +536,7 @@ export class Application {
       // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
+        markExitForced()
         process.exit(1)
       }, SHUTDOWN_TIMEOUT_MS)
 
@@ -634,6 +642,7 @@ export class Application {
    * Used by autoUpdater.quitAndInstall() which has its own quit flow.
    */
   public markQuitting(): void {
+    noteExitReason('update-restart')
     this._isQuitting = true
   }
 
@@ -675,6 +684,7 @@ export class Application {
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
   public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown' || !this._isQuitting) noteExitReason(reason === 'user' ? 'quit' : reason)
     if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
@@ -693,6 +703,9 @@ export class Application {
    * For fatal/unrecoverable errors (service init failure, repeated renderer crash).
    */
   public forceExit(code: number): void {
+    noteExitReason('force-exit')
+    markExitForced()
+    recordExit()
     this._isQuitting = true
     logger.warn(`Force exiting application with code ${code}`)
     app.exit(code)

@@ -7,6 +7,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { RECORD_FILE } from '@main/core/preboot/exitRecord'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { isPathInside } from '@main/utils/file'
@@ -286,10 +287,16 @@ async function executeRelocation(
       filter: async (source) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
-        // The reset marker is bound to the source profile.
+        // The reset marker is bound to the source profile. The live exit
+        // record is process-local: copying it mid-heartbeat would leave a
+        // marker-less record at the destination, which the relocated
+        // profile's first launch would misreport as a kill.
         if (
           isSourceRootEntry &&
-          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === dataResetMarkerBasename)
+          (name.startsWith('Singleton') ||
+            name === RELOCATION_OWNER_MARKER ||
+            name === dataResetMarkerBasename ||
+            name === RECORD_FILE)
         ) {
           return false
         }

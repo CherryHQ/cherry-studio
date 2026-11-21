@@ -21,6 +21,7 @@ import { serviceList } from '@main/core/application/serviceRegistry'
 import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
+import { trackProcessExit } from '@main/core/preboot/exitRecord'
 import { runLegacyUpgradeGate } from '@main/core/preboot/legacyUpgradeGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
@@ -38,11 +39,13 @@ import { versionService } from './services/VersionService'
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
+// Freeze the path registry — bootstrap() asserts this completed. Early enough
+// that preboot recorders can consume centrally resolved paths.
+application.initPathRegistry()
+trackProcessExit(application.getPath('app.userdata'))
 configureChromiumFlags()
 configureRemoteDebugging()
 initCrashTelemetry()
-// Freeze the path registry — bootstrap() asserts this completed.
-application.initPathRegistry()
 const isolatedRestoreSession = prepareBackupRestoreSession()
 initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
