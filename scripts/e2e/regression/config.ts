@@ -29,5 +29,9 @@ export function loadTestConfig(runDirectory = process.env.CHERRY_TEST_RUN_DIR): 
 }
 
 export function getSensitiveConfigValues(): string[] {
-  return ['mock-key-not-checked']
+  return [
+    'mock-key-not-checked',
+    process.env.CHERRY_TEST_CHERRYIN_ACCOUNT,
+    process.env.CHERRY_TEST_CHERRYIN_PASSWORD
+  ].filter((value): value is string => Boolean(value))
 }

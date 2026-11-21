@@ -108,7 +108,7 @@ function IconList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="shell-navigation-item relative flex h-9 w-9 items-center justify-center rounded-full border-[0.5px] border-transparent aria-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4.5">
+                className="shell-navigation-item relative flex h-9 w-9 items-center justify-center rounded-full border-[0.5px] border-transparent [--app-nav-state-transition:none] aria-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4.5">
                 <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
               </Button>
             </EntryContextMenu>
@@ -151,7 +151,7 @@ function FullList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
                   onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                   onMouseDown={preventMiddleClickAutoscroll}
                   onAuxClick={createAuxClickHandler(entry, guardClick)}
-                  className="shell-navigation-item rounded-full border-[0.5px] aria-disabled:cursor-not-allowed"
+                  className="shell-navigation-item rounded-full border-[0.5px] [--app-nav-state-transition:none] aria-disabled:cursor-not-allowed"
                 />
               </EntryContextMenu>
             </Tooltip>
