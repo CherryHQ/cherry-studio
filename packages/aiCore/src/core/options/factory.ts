@@ -1,13 +1,15 @@
-import type { JSONObject, JSONValue } from '@ai-sdk/provider'
-
 import type { TypedProviderOptions } from './types'
 
-const isPlainObject = (value: JSONValue | undefined): value is JSONObject => {
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK-specific options include opaque fields such as Anthropic fallback thinking/output_config; merging preserves their values without recursively validating them as JSON.
+type ProviderOptionObject = Record<string, unknown>
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested SDK option values can be opaque; only distinguish mergeable objects from scalars and arrays here.
+const isPlainObject = (value: unknown): value is ProviderOptionObject => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function deepMergeObjects(target: JSONObject, source: JSONObject): JSONObject {
-  const result: JSONObject = { ...target }
+function deepMergeObjects(target: ProviderOptionObject, source: ProviderOptionObject): ProviderOptionObject {
+  const result: ProviderOptionObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
     const merged =
       Object.hasOwn(result, key) && isPlainObject(value) && isPlainObject(result[key])
