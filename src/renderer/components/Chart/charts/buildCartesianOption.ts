@@ -3,6 +3,7 @@ import type { EChartsCoreOption } from 'echarts/core'
 import type { CartesianChartOptionExtension } from '../types'
 import type { ChartTheme } from '../useChartTheme'
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Nested ECharts options retain arbitrary native fields and formatter callbacks; toOptionObject checks each container before mergeAxis reads or spreads it.
 type OptionObject = Record<string, unknown>
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested chart options may be absent or nonrecord values; merge only nonarray objects and preserve formatter callbacks.

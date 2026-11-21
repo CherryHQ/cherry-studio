@@ -454,11 +454,11 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
   editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertComposerLines(content).run()
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Serialized composer tokens have extension-owned payloads; file reconciliation reads only a verified nonarray object.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- File-token reconciliation preserves opaque extension fields; only the object container and path are checked here.
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
-  return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
-    ? (payload as Record<string, unknown>)
-    : null
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The container guard leaves extension-owned values unknown until their consumers validate them.
+  return payload as Record<string, unknown>
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted file-token payloads can drift; reconcile only an actual string path from the checked object.
