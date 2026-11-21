@@ -1156,7 +1156,7 @@ describe('AiService', () => {
       await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).resolves.toEqual({
         latency: expect.any(Number)
       })
-      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key')
+      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key', undefined)
       expect(submit).toHaveBeenCalledWith(expect.objectContaining({ modelId, n: 1, providerParams: {} }))
     })
 
