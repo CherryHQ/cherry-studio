@@ -1,0 +1,39 @@
+{
+  "imageVersion": "pyodide-0.28.0-openpyxl-3.1.5-v1",
+  "pyodideVersion": "0.28.0",
+  "pythonVersion": "3.13.2",
+  "packages": {
+    "openpyxl": "3.1.5",
+    "et-xmlfile": "2.0.0"
+  },
+  "files": {
+    "pyodide.mjs": {
+      "sha256": "e056e624b55134dd4723130594c4cb0f6cb7ed8d331a5653929a00fe0784469c",
+      "bytes": 15828
+    },
+    "pyodide.asm.js": {
+      "sha256": "da195d86c80caece821124dcd4f049e6465a7a73797f1b2b4147283e445d02a2",
+      "bytes": 1072130
+    },
+    "pyodide.asm.wasm": {
+      "sha256": "4ee3dc1deab639b454fdc6683651b4cf6c86fc587072e4f7b6c8eaed777d9db6",
+      "bytes": 8645010
+    },
+    "python_stdlib.zip": {
+      "sha256": "1cc90fccf52e5145bd1bd3ef3540f5e1dd8bf17c5fc66c3e037802ef06ea62af",
+      "bytes": 2416414
+    },
+    "openpyxl-3.1.5-py2.py3-none-any.whl": {
+      "sha256": "5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2",
+      "bytes": 250910
+    },
+    "et_xmlfile-2.0.0-py3-none-any.whl": {
+      "sha256": "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa",
+      "bytes": 18059
+    },
+    "pyodide-lock.json": {
+      "sha256": "56ede5ae26b02e284fb3895a2961d0b680afe03f7d428d6ef6344be3912b0a8e",
+      "bytes": 124907
+    }
+  }
+}

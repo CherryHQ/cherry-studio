@@ -695,6 +695,7 @@ export default defineConfig([
       '.conductor/**',
       'scripts/cloudflare-worker.js',
       'src/main/services/nutstore/sso/lib/**',
+      'src/renderer/public/pyodide/**',
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',

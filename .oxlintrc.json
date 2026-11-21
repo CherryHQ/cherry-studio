@@ -17,6 +17,7 @@
     ".gitignore",
     "scripts/cloudflare-worker.js",
     "src/main/services/nutstore/sso/lib/**",
+    "src/renderer/public/pyodide/**",
     "src/renderer/ui/**",
     "packages/**/dist",
     "native/system-speech/dist",
