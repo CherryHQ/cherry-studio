@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+import type { SkillReadiness } from '@shared/types/skillReadiness'
+
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 export const agentGlobalSkillTable = sqliteTable(
@@ -20,6 +22,7 @@ export const agentGlobalSkillTable = sqliteTable(
       .notNull()
       .default(sql`'[]'`),
     contentHash: text().notNull(),
+    readiness: text({ mode: 'json' }).$type<SkillReadiness>(),
     isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
     mirrorEnabled: integer({ mode: 'boolean' }).notNull().default(true),
     ...createUpdateTimestamps

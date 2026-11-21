@@ -6,6 +6,8 @@
 
 import * as z from 'zod'
 
+import { SkillReadinessSchema } from '@shared/types/skillReadiness'
+
 // ============================================================================
 // Search source registries
 // ============================================================================
@@ -150,6 +152,7 @@ export const InstalledSkillSchema = z.object({
   version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
+  readiness: SkillReadinessSchema.optional(),
   isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   /** Whether the skill is projected into ~/.agents/skills for external agents. */

@@ -33,6 +33,8 @@ export interface SkillEnvironmentSnapshot {
   skillContentHash: string
   binaries: Record<string, ResolvedExecutable | null>
   python: ResolvedExecutable | null
+  /** Exact declared pip requirement to its verified app-owned installed identity. */
+  packages?: Record<string, ResolvedExecutable | null>
 }
 
 export interface SkillReadinessEvaluation {
@@ -47,13 +49,21 @@ export interface SkillReadinessEvaluation {
  * the resolved identity (path + version) of every declared prerequisite. Any upgrade, skill
  * update, or environment change flips the fingerprint and forces revalidation.
  */
-export function computeSkillFingerprint(requires: SkillRequires | undefined, snapshot: SkillEnvironmentSnapshot): string {
+export function computeSkillFingerprint(
+  requires: SkillRequires | undefined,
+  snapshot: SkillEnvironmentSnapshot
+): string {
   const identity: Record<string, unknown> = {
     platform: snapshot.platform,
     appVersion: snapshot.appVersion,
     skillContentHash: snapshot.skillContentHash,
     binaries: {} as Record<string, ResolvedExecutable | null>,
-    python: snapshot.python
+    python: snapshot.python,
+    packages: Object.fromEntries(
+      [...(requires?.packages?.pip ?? [])]
+        .sort()
+        .map((requirement) => [requirement, snapshot.packages?.[requirement] ?? null])
+    )
   }
   const binaries = identity.binaries as Record<string, ResolvedExecutable | null>
   for (const bin of [...(requires?.bins ?? [])].sort()) {
@@ -95,6 +105,10 @@ export function evaluateSkillReadiness(
         missing.push(`python ${snapshot.python.version} does not satisfy ${requires.python}`)
       }
     }
+  }
+
+  for (const requirement of requires.packages?.pip ?? []) {
+    if (!snapshot.packages?.[requirement]) missing.push(`pip ${requirement}`)
   }
 
   return { state: missing.length > 0 ? 'setup_required' : 'ready', missing }

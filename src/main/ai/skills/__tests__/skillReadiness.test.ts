@@ -79,6 +79,14 @@ describe('skillReadiness', () => {
     })
   })
 
+  it('requires verified installed package identities, and includes their versions in the fingerprint', () => {
+    const requires = { packages: { pip: ['pypdf==5.1.0'] } }
+    expect(evaluateSkillReadiness(requires, baseSnapshot).missing).toEqual(['pip pypdf==5.1.0'])
+    const ready = { ...baseSnapshot, packages: { 'pypdf==5.1.0': { path: '/app/env/python', version: '5.1.0' } } }
+    expect(evaluateSkillReadiness(requires, ready).state).toBe('ready')
+    expect(computeSkillFingerprint(requires, ready)).not.toBe(computeSkillFingerprint(requires, baseSnapshot))
+  })
+
   describe('computeSkillFingerprint', () => {
     it('is stable for identical inputs', () => {
       const requires = { bins: ['pandoc'], python: '>=3.10' }

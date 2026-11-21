@@ -473,6 +473,15 @@ export async function parseSkillMetadata(
   const author = toString(data.author)
 
   const requires = parseSkillRequires(data.requires, skillMdPath)
+  const requirementWarnings: string[] = []
+  if (data.requires && typeof data.requires === 'object' && !Array.isArray(data.requires)) {
+    for (const key of Object.keys(data.requires))
+      if (!SKILL_REQUIRES_FIELDS.has(key)) requirementWarnings.push(`Unrecognized prerequisite field ignored: ${key}`)
+    const packages = (data.requires as Record<string, unknown>).packages
+    if (packages && typeof packages === 'object')
+      for (const key of Object.keys(packages))
+        if (key !== 'pip') requirementWarnings.push(`Unrecognized package manager ignored: ${key}`)
+  }
 
   logger.debug('Successfully parsed skill metadata', {
     skillFolderPath,
@@ -496,6 +505,7 @@ export async function parseSkillMetadata(
     version,
     author,
     requires,
+    requirementWarnings,
     size: folderSize,
     contentHash // Hash of SKILL.md content only
   }

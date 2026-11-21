@@ -4,6 +4,8 @@
 
 import * as z from 'zod'
 
+import { SkillReadinessSchema } from '@shared/types/skillReadiness'
+
 export const InstalledSkillSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
@@ -17,6 +19,7 @@ export const InstalledSkillSchema = z.strictObject({
   /** Skill metadata tags from SKILL.md. */
   sourceTags: z.array(z.string()),
   contentHash: z.string(),
+  readiness: SkillReadinessSchema.optional(),
   /** Whether the installed skill is available to any agent. */
   isGlobalEnabled: z.boolean(),
   /** Effective per-agent state. False when no agentId is requested. */

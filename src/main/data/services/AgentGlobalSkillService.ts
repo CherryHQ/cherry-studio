@@ -338,6 +338,7 @@ export class AgentGlobalSkillService {
       version: row.version,
       sourceTags: row.tags,
       contentHash: row.contentHash,
+      ...(row.readiness ? { readiness: row.readiness } : {}),
       isGlobalEnabled: row.isEnabled,
       mirrorEnabled: row.mirrorEnabled,
       isEnabled: false,

@@ -246,6 +246,7 @@ export function buildPathRegistry() {
     'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
+    'feature.agents.skills.setup': path.join(appUserDataData, 'SkillEnvironments'),
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
@@ -441,6 +442,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.skills.setup',
   'feature.agents.pi.sessions',
   'feature.agents.durable.stores',
   // Namespace prefixes
