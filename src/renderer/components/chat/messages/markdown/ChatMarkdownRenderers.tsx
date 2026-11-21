@@ -1,4 +1,4 @@
-import type { ComponentProps, JSX } from 'react'
+import type { JSX } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
@@ -41,12 +41,7 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   if (path) return <ClickableFilePath path={path} />
 
   return (
-    <CodeBlock
-      {...(props as ComponentProps<typeof CodeBlock>)}
-      blockId={blockId}
-      inlineHtmlPreviewMode={inlineHtmlPreviewMode}
-      isStreaming={isStreaming}
-    />
+    <CodeBlock {...props} blockId={blockId} inlineHtmlPreviewMode={inlineHtmlPreviewMode} isStreaming={isStreaming} />
   )
 }
 

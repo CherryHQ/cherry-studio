@@ -39,7 +39,7 @@ interface MessageLeafCapabilitiesParams {
   streamingLayers?: MessageStreamingLayers
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is { metadata?: unknown; type?: unknown; cherry?: unknown; tool?: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

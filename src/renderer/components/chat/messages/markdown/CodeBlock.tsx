@@ -21,10 +21,9 @@ interface Props {
   className?: string
   sourceFormat?: 'hast' | 'raw'
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
-  node?: Omit<Node, 'type'>
+  node?: Pick<Node, 'position'>
   blockId: string // Message block id
   isStreaming?: boolean
-  [key: string]: any
 }
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')

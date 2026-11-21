@@ -122,6 +122,7 @@ function getPartWithoutParentMetadata(part: CherryMessagePart): CherryMessagePar
   return stripped
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Live and persisted tool fields stay raw until their text, task and artifact readers validate the values they consume.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -136,6 +137,7 @@ function getToolPartState(part: CherryMessagePart): string | undefined {
   return typeof state === 'string' ? state : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native task envelopes can contain opaque extension values; isTaskRecord and task-specific readers own their validation.
 function getTaskToolResult(part: AgentToolPart): string | Record<string, unknown> | undefined {
   const output = part.output
   const result = isRecord(output) && 'content' in output ? output.content : output
