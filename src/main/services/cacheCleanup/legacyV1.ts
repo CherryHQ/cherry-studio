@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import Database from 'better-sqlite3'
 
 import { application } from '@application'
@@ -58,7 +59,7 @@ interface JsonMutation {
 }
 
 type LegacyHomeConfigUpdate =
-  | { state: 'ready'; nextValue: Record<string, unknown> | null }
+  | { state: 'ready'; nextValue: JSONObject | null }
   | { state: 'not_applicable' | 'unsafe' | 'invalid' }
 
 interface LegacyCleanupPlan {
@@ -88,13 +89,12 @@ function getCleanupPaths() {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: JSONValue): value is JSONObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function getLegacyHomeConfigUpdate(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical home JSON is untrusted; verify the exact executable and migrated paths before allowing destructive cleanup.
-  value: unknown,
+  value: JSONValue,
   executablePath: string,
   migratedPath: string
 ): LegacyHomeConfigUpdate {
@@ -105,7 +105,7 @@ function getLegacyHomeConfigUpdate(
   if (!Array.isArray(appDataPath)) return { state: 'invalid' }
 
   const matchingEntries = appDataPath.filter(
-    (entry): entry is Record<string, unknown> => isRecord(entry) && entry.executablePath === executablePath
+    (entry): entry is JSONObject => isRecord(entry) && entry.executablePath === executablePath
   )
   if (
     matchingEntries.length === 0 ||
@@ -340,7 +340,7 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
   }
 
   let raw: string
-  let value: unknown
+  let value: JSONValue
   try {
     raw = await fs.readFile(targetPath, 'utf8')
     value = JSON.parse(raw)
@@ -495,7 +495,7 @@ async function withLegacyHomeConfigLock<T>(targetPath: string, callback: () => P
   }
 }
 
-async function replaceLegacyHomeConfig(targetPath: string, nextValue: Record<string, unknown>): Promise<void> {
+async function replaceLegacyHomeConfig(targetPath: string, nextValue: JSONObject): Promise<void> {
   await atomicWriteFile(AbsoluteFilePathSchema.parse(targetPath), `${JSON.stringify(nextValue, null, 2)}\n`, {
     mode: 0o600
   })
@@ -514,7 +514,7 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
       if (lockedFileStatus === 'missing') return { state: 'not_found' }
       if (lockedFileStatus === 'invalid') return { state: 'skipped' }
 
-      let value: unknown
+      let value: JSONValue
       try {
         value = JSON.parse(await fs.readFile(mutation.path, 'utf8'))
       } catch (error) {
