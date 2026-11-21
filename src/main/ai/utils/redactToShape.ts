@@ -128,6 +128,7 @@ export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): Seria
         break
       }
       keys += 1
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The container is checked; each raw value, including native objects and cycles, enters the same bounded redaction walker.
       const entry = (val as Record<string, unknown>)[key]
       const candidatePath = path ? `${path}.${key}` : key
       const knownKey = !/[.[\]]/.test(key) && keepKey(candidatePath, kind)
