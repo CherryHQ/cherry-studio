@@ -1,3 +1,14 @@
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ParameterSupport,
+  ReasoningConfig,
+  RuntimeModelPricing
+} from '@shared/data/types/model'
 /**
  * User Model table schema
  *
@@ -11,17 +22,7 @@
  *
  * Type definitions are sourced from @shared/data/types/model
  */
-import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-
-import type {
-  EndpointType,
-  Modality,
-  ModelCapability,
-  ParameterSupport,
-  ReasoningConfig,
-  RuntimeModelPricing
-} from '@shared/data/types/model'
+import type { ModelMetadataSources, ProviderModelMetadata } from '@shared/data/types/modelMetadata'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
 import { userProviderTable } from './userProvider'
@@ -71,6 +72,11 @@ export const userModelTable = sqliteTable(
 
     /** Endpoint types (optional, override Provider default) */
     endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
+
+    /** Last explicit provider metadata, retained for opt-in per-field resets. */
+    providerMetadata: text({ mode: 'json' }).$type<ProviderModelMetadata>(),
+    /** Field provenance. Null historical rows are conservatively derived at read time. */
+    metadataSources: text({ mode: 'json' }).$type<ModelMetadataSources>(),
 
     /** Context window size */
     contextWindow: integer(),

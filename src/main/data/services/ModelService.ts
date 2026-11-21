@@ -13,6 +13,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -51,7 +52,14 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import {
+  MODEL_METADATA_FIELDS,
+  type ProviderModelMetadata,
+  type ModelMetadataField
+} from '@shared/data/types/modelMetadata'
 import { projectModelParameterSupport } from '@shared/utils/model'
+
+import { getModelMetadataSources, providerMetadataPatch } from './modelMetadata'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -521,6 +529,22 @@ class ModelService {
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+    const values = this.buildCreateBaseValues(dto, registryData)
+    const sources = getModelMetadataSources({ ...values, metadataSources: null } as UserModelRow)
+    if (dto.capabilities === undefined) sources.capabilities = values.presetModelId ? 'registry' : 'unknown'
+    for (const field of MODEL_METADATA_FIELDS) {
+      const value = dto.providerMetadata?.[field]
+      if (value === undefined) continue
+      if (dto[field] !== undefined && !isEqual(dto[field], value)) continue
+      ;(values as Record<string, unknown>)[field] = value
+      sources[field] = 'provider'
+    }
+    values.providerMetadata = dto.providerMetadata
+    values.metadataSources = sources
+    return values
+  }
+
+  private buildCreateBaseValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
       return {
         ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
@@ -613,6 +637,12 @@ class ModelService {
       }
     }
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+    const editedMetadata = MODEL_METADATA_FIELDS.filter((field) => dto[field] !== undefined)
+    if (editedMetadata.length) {
+      const sources = getModelMetadataSources(existing, this.enrichRowsFromRegistryTx(tx, [existing])[0])
+      for (const field of editedMetadata) sources[field] = 'user'
+      updates.metadataSources = sources
+    }
     return updates
   }
 
@@ -744,6 +774,18 @@ class ModelService {
    * enrichment plus missing limits and pricing. Nothing is written back.
    */
   private enrichRowsFromRegistryTx(tx: Pick<DbType, 'select'>, rows: UserModelRow[]): Model[] {
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    return this.resolveRowsFromRegistryTx(tx, rows).map((model) => {
+      const row = byId.get(model.id)!
+      return {
+        ...model,
+        providerMetadata: row.providerMetadata ?? undefined,
+        metadataSources: getModelMetadataSources(row, model)
+      }
+    })
+  }
+
+  private resolveRowsFromRegistryTx(tx: Pick<DbType, 'select'>, rows: UserModelRow[]): Model[] {
     const providerContexts = providerService.getReasoningContextsByProviderIdsTx(
       tx,
       rows.map((row) => row.providerId)
@@ -1026,6 +1068,42 @@ class ModelService {
     }
 
     return this.enrichRowsFromRegistryTx(db, rows)
+  }
+
+  /** Explicit opt-in refresh or single-field reset. Listing never calls this. */
+  applyProviderMetadata(
+    providerId: string,
+    modelId: string,
+    incoming: ProviderModelMetadata,
+    resetField?: ModelMetadataField
+  ): Model {
+    providerService.assertAvailable(providerId)
+    assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, 'refresh model metadata')
+    const db = application.get('DbService').getDb()
+    const result = db.transaction((tx) => {
+      const [existing] = tx
+        .select()
+        .from(userModelTable)
+        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+        .limit(1)
+        .all()
+      if (!existing) throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+      if (resetField && existing.providerMetadata?.[resetField] === undefined) {
+        throw DataApiErrorFactory.invalidOperation(
+          'reset provider metadata',
+          'No provider value is available for this field'
+        )
+      }
+      const resolved = this.enrichRowsFromRegistryTx(tx, [existing])[0]
+      const updates = providerMetadataPatch(existing, resetField ? {} : incoming, resolved, resetField)
+      const [row] = tx.update(userModelTable).set(updates).where(eq(userModelTable.id, existing.id)).returning().all()
+      return this.enrichRowsFromRegistryTx(tx, [row])[0]
+    })
+    notifyDataApiDataChange([
+      { endpoint: '/models', kind: 'projection' },
+      { endpoint: '/models/:uniqueModelId*', routeParams: { uniqueModelId: result.id } }
+    ])
+    return result
   }
 
   /**

@@ -27,6 +27,34 @@ beforeEach(() => {
 })
 
 describe('fetchResolvedProviderModels', () => {
+  it('keeps provider limits through registry enrichment and the create DTO', async () => {
+    const model = {
+      id: 'custom::example',
+      providerId: 'custom',
+      apiModelId: 'example',
+      name: 'example',
+      capabilities: [],
+      contextWindow: 64000,
+      maxOutputTokens: 4096,
+      providerMetadata: { contextWindow: 64000, maxOutputTokens: 4096, capabilities: [] },
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
+    listModelsMock.mockResolvedValueOnce({ models: [model] })
+    dataApiGetMock.mockResolvedValueOnce([{ ...model, contextWindow: 128000, maxOutputTokens: 8192 }])
+
+    const { models } = await fetchResolvedProviderModels('custom')
+
+    expect(models[0]).toMatchObject({ contextWindow: 64000, maxOutputTokens: 4096 })
+    expect(toCreateModelDto('custom', models[0])).toMatchObject({
+      contextWindow: 64000,
+      maxOutputTokens: 4096,
+      providerMetadata: model.providerMetadata
+    })
+    expect(listModelsMock).toHaveBeenCalledExactlyOnceWith({ providerId: 'custom', throwOnError: true })
+  })
+
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})

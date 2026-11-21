@@ -263,6 +263,122 @@ describe('listModels — malformed OpenAI-compatible rows', () => {
   )
 })
 
+describe('listModels — custom-channel model metadata (#20523)', () => {
+  function makeCustomChannelProvider() {
+    return makeProvider({
+      id: 'custom-openai-compatible',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://models.example.com/v1' }
+      }
+    })
+  }
+
+  it('maps context_length and max_tokens to contextWindow and maxOutputTokens (AC1)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'custom-model', context_length: 128000, max_tokens: 8192 }] }
+    })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'custom-model', contextWindow: 128000, maxOutputTokens: 8192 })
+  })
+
+  it('accepts the max_context_window and max_context_length aliases', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'm1', max_context_window: 64000 },
+          { id: 'm2', max_context_length: 32000 }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models[0]).toMatchObject({ apiModelId: 'm1', contextWindow: 64000 })
+    expect(models[1]).toMatchObject({ apiModelId: 'm2', contextWindow: 32000 })
+  })
+
+  it('lists a model with no limit fields and no failure (AC2)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'plain-model' }] } })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'plain-model' })
+    expect(models[0].contextWindow).toBeUndefined()
+    expect(models[0].maxOutputTokens).toBeUndefined()
+  })
+
+  it.each([
+    ['a string', 'not-a-number'],
+    ['zero', 0],
+    ['a negative number', -100]
+  ])('ignores %s as a limit, still lists the model, and warns (AC3)', async (_case, contextLength) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'bad-limit-model', context_length: contextLength, max_tokens: contextLength }] }
+    })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].contextWindow).toBeUndefined()
+    expect(models[0].maxOutputTokens).toBeUndefined()
+    expect(
+      mockMainLoggerService.warn.mock.calls.filter(([message]) =>
+        String(message).startsWith('Ignoring malformed model')
+      )
+    ).toHaveLength(2)
+  })
+
+  it('leaves the window unset and warns when context keys contradict (AC3)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'contradictory-model', context_length: 128000, max_context_length: 64000 }] }
+    })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].contextWindow).toBeUndefined()
+    expect(
+      mockMainLoggerService.warn.mock.calls.some(
+        ([message]) => message === 'Ignoring contradictory model context limits from provider'
+      )
+    ).toBe(true)
+  })
+
+  it('accepts only explicitly advertised canonical capabilities (AC4)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'plain-model', capabilities: ['function-call', 'image-recognition', 'function-call'] },
+          { id: 'bad-model', capabilities: ['invented-capability'] }
+        ]
+      }
+    })
+    const { models } = await listModels(makeCustomChannelProvider())
+    expect(models[0].capabilities).toEqual(['function-call', 'image-recognition'])
+    expect(models[1].capabilities).toEqual([])
+    expect(
+      mockMainLoggerService.warn.mock.calls.some(
+        ([message]) => message === 'Ignoring malformed model capabilities from provider'
+      )
+    ).toBe(true)
+  })
+
+  it('keeps capabilities empty for a vision-named model without explicit metadata (AC4)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'super-vision-4o-image-tool', context_length: 128000 }] }
+    })
+
+    const { models } = await listModels(makeCustomChannelProvider())
+
+    expect(models[0]).toMatchObject({ apiModelId: 'super-vision-4o-image-tool', capabilities: [] })
+  })
+})
+
 describe('listModels — TokenDance protocol routing', () => {
   function makeTokenDanceProvider(id = 'tokendance') {
     return makeProvider({

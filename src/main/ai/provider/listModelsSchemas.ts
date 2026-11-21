@@ -14,7 +14,14 @@ const OpenAIModelSchema = z.looseObject({
   name: z.string().optional(),
   object: z.string().optional().default('model'),
   created: z.number().optional(),
-  owned_by: z.string().optional()
+  owned_by: z.string().optional(),
+  // Provider-advertised token limits, declared as unknown so malformed values reach the
+  // validator in listModels.ts instead of failing the whole listing (#20523).
+  context_length: z.unknown().optional(),
+  max_context_window: z.unknown().optional(),
+  max_context_length: z.unknown().optional(),
+  max_tokens: z.unknown().optional(),
+  capabilities: z.unknown().optional()
 })
 
 const OpenAIModelItemSchema = z.unknown().transform((model) => {
