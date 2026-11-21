@@ -159,6 +159,16 @@ export interface ChatContextUsageSource {
   modelId: UniqueModelId
 }
 
+export interface ChatComposerSendOptions {
+  mentionedModels?: UniqueModelId[]
+  userMessageParts?: CherryMessagePart[]
+  reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
+  fastMode?: boolean
+  chatTarget?: ComposerChatTarget
+  onQueuedTurnAccepted?: (target: ComposerChatTarget) => void
+}
+
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
@@ -169,17 +179,7 @@ export interface ChatComposerProps {
   resolvedProviders?: Provider[]
   externalContextControls?: boolean
   onConversationControlsChange?: ChatConversationControlsChangeHandler
-  onSend: (
-    text: string,
-    options?: {
-      mentionedModels?: UniqueModelId[]
-      userMessageParts?: CherryMessagePart[]
-      reasoningEffort?: ReasoningEffortOption
-      serviceTier?: ServiceTierSelection
-      fastMode?: boolean
-      chatTarget?: ComposerChatTarget
-    }
-  ) => boolean | void | Promise<boolean | void>
+  onSend: (text: string, options?: ChatComposerSendOptions) => boolean | void | Promise<boolean | void>
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
@@ -1438,23 +1438,38 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, fromQueue = false) => {
       setIsSending(true)
 
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
+        const currentTarget = payload.chatTarget
+        let nextTarget: ComposerChatTarget | undefined
+        const onQueuedTurnAccepted =
+          fromQueue && currentTarget?.mode === 'active-path'
+            ? (target: ComposerChatTarget) => {
+                nextTarget = target
+              }
+            : undefined
         const sent = await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
           serviceTier: payload.serviceTier,
           ...(payload.fastMode ? { fastMode: true } : {}),
-          chatTarget: payload.chatTarget
+          chatTarget: payload.chatTarget,
+          ...(onQueuedTurnAccepted && { onQueuedTurnAccepted })
         })
         if (sent === false) return false
         saveHistory(getComposerHistoryText(payload.userMessageParts))
-        return true
+        const acceptedTarget = nextTarget
+        if (!acceptedTarget) return true
+        return (pending: ComposerQueuedMessagePayload): ComposerQueuedMessagePayload =>
+          pending.chatTarget?.mode === 'active-path' &&
+          pending.chatTarget.parentAnchorId === currentTarget?.parentAnchorId
+            ? { ...pending, chatTarget: acceptedTarget }
+            : pending
       } catch (error) {
         logger.warn('send failed', { error })
         toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
@@ -1497,7 +1512,7 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: (payload) => sendQueuedPayload(payload, true)
   })
   releaseFollowupEditRef.current = releaseEdit
 

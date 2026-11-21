@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
 const { useFollowupQueue } = await import('../useFollowupQueue')
 
@@ -78,6 +79,61 @@ describe('useFollowupQueue', () => {
 
     expect(onDrain).toHaveBeenCalledWith(headPayload)
     expect(result.current.items).toEqual([])
+  })
+
+  it('continues the accepted queued turn through pause and editing while keeping distinct branch targets', async () => {
+    const originalTarget = { mode: 'active-path', parentAnchorId: 'first-reply' } as const
+    const explicitBranch = { mode: 'reserved-branch', parentAnchorId: 'reserved-user' } as const
+    const rebasedTarget = {
+      mode: 'active-path',
+      parentAnchorId: 'B-reply',
+      fallbackParentAnchorId: 'B-question'
+    } as const
+    const moveFollowers = (pending: ComposerQueuedMessagePayload) =>
+      pending.chatTarget?.mode === 'active-path' ? { ...pending, chatTarget: rebasedTarget } : pending
+    const onDrain = vi.fn(async (message: { text: string }) => (message.text === 'B' ? moveFollowers : true))
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: 100, onDrain })
+    )
+
+    act(() => {
+      result.current.setPaused(true)
+      result.current.enqueue(draft('B'), { ...payload('B'), chatTarget: originalTarget })
+      result.current.enqueue(draft('C'), { ...payload('C'), chatTarget: originalTarget })
+      result.current.enqueue(draft('other branch'), { ...payload('other branch'), chatTarget: explicitBranch })
+    })
+    const [b, c, other] = result.current.items
+    act(() => {
+      result.current.takeForEdit(c.id, () => null)
+    })
+    await act(async () => {
+      await result.current.sendId(b.id)
+    })
+    act(() => {
+      result.current.editItem(other.id, {
+        editingMessage: false,
+        getDraft: () => draft('C edited'),
+        buildPayload: () => ({ ...payload('C edited'), chatTarget: explicitBranch }),
+        hasFiles: false,
+        restore: vi.fn()
+      })
+    })
+
+    expect(result.current.items.map(({ draft, payload }) => [draft.text, payload.chatTarget])).toEqual([
+      ['C edited', rebasedTarget]
+    ])
+    act(() => {
+      result.current.editItem(c.id, {
+        editingMessage: false,
+        getDraft: () => draft('other branch'),
+        buildPayload: () => payload('other branch'),
+        hasFiles: false,
+        restore: vi.fn()
+      })
+    })
+    expect(result.current.items.map(({ draft, payload }) => [draft.text, payload.chatTarget])).toEqual([
+      ['other branch', explicitBranch]
+    ])
   })
 
   it('keeps the head queued and reports failure when auto-drain fails', async () => {

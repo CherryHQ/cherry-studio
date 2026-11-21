@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
@@ -444,6 +445,7 @@ export class AiStreamManager extends BaseService {
     string,
     Array<{
       userMessageId: string
+      assistantMessageId: string
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode: boolean
@@ -1239,7 +1241,7 @@ export class AiStreamManager extends BaseService {
     reasoningEffort?: ReasoningEffortOption,
     serviceTier?: ServiceTierSelection,
     fastMode?: boolean
-  ): void {
+  ): string | undefined {
     // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
     // hold the dispatch lock), so no hook would fire to chain this steer. Decide from the single
     // authority — the resolved `status` on the still-in-grace stream — not a separate shadow flag:
@@ -1250,10 +1252,7 @@ export class AiStreamManager extends BaseService {
     //                         drains it once that turn completes.
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
-    if (status && isLiveStatus(status)) {
-      this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
-      return
-    }
+
     if (status === 'aborted' || status === 'error') {
       logger.warn('Steer landed after a non-clean terminal — dropping (row stays resendable)', {
         topicId,
@@ -1262,21 +1261,13 @@ export class AiStreamManager extends BaseService {
       })
       return
     }
-    this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
-    if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
-  }
-
-  private appendPendingSteer(
-    topicId: string,
-    userMessageId: string,
-    reasoningEffort?: ReasoningEffortOption,
-    serviceTier?: ServiceTierSelection,
-    fastMode?: boolean
-  ): void {
+    const assistantMessageId = uuidv7()
     const queue = this.pendingSteers.get(topicId)
-    const item = { userMessageId, reasoningEffort, serviceTier, fastMode: fastMode === true }
+    const item = { userMessageId, assistantMessageId, reasoningEffort, serviceTier, fastMode: fastMode === true }
     if (queue) queue.push(item)
     else this.pendingSteers.set(topicId, [item])
+    if (status !== 'awaiting-approval' && !(status && isLiveStatus(status))) this.scheduleNextChatTurn(topicId)
+    return assistantMessageId
   }
 
   // ── Public: listener management ───────────────────────────────────
@@ -1932,14 +1923,10 @@ export class AiStreamManager extends BaseService {
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
     const req: MainDispatchRequest = {
       trigger: 'steer-continuation',
       topicId,
-      userMessageId,
-      reasoningEffort,
-      serviceTier,
-      fastMode
+      ...pending
     }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
@@ -1949,7 +1936,7 @@ export class AiStreamManager extends BaseService {
       // prior stream, so the topic would otherwise stay `streaming` forever (Stop becomes a no-op,
       // every window spins). Surface the failure and write a terminal status. Don't re-queue — a
       // retry just re-fails, mirroring the agent runtime's `startNextTurn` failure path.
-      logger.error('Chat steer continuation failed to launch', { topicId, userMessageId, error })
+      logger.error('Chat steer continuation failed to launch', { topicId, userMessageId: pending.userMessageId, error })
       if (previous) this.failChatContinuation(previous, carried, serializeError(error))
       return
     }

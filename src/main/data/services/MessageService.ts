@@ -82,7 +82,7 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
   userMessage:
-    | { mode: 'create'; dto: CreateMessageDto }
+    | { mode: 'create'; dto: CreateMessageDto; fallbackParentId?: string }
     | { mode: 'existing'; id: string }
     | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: UniqueModelId }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
@@ -96,6 +96,8 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+  /** The branch node selected by this transaction, if it activated the reservation. */
+  activeNodeId?: string
 }
 
 export interface LiveMessageRangeMetadata {
@@ -1014,7 +1016,7 @@ export class MessageService {
    * - Message insertion
    * - Topic activeNodeId update
    */
-  create(topicId: string, dto: CreateMessageDto): Message {
+  create(topicId: string, dto: CreateMessageDto, { fallbackParentId }: { fallbackParentId?: string } = {}): Message {
     const message = application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
@@ -1039,11 +1041,7 @@ export class MessageService {
         // Explicit parent ID: verify existence and topic membership. Each
         // topic's message tree is self-contained — cross-topic parent refs
         // aren't a supported shape.
-        const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
-        if (parent.topicId !== topicId) {
-          throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
-        }
-        resolvedParentId = dto.parentId
+        resolvedParentId = this.resolveCreateParentIdTx(tx, topicId, dto.parentId, fallbackParentId)
       }
 
       // Step 3: Insert the message using the resolved parentId.
@@ -1151,9 +1149,10 @@ export class MessageService {
    * written as one unit to avoid orphaned user messages or pending placeholders.
    *
    * User message handling:
-   * - `mode: 'create'`: caller supplies a CreateMessageDto; parentId must be null
-   *   (for root) or an existing message id in this topic. Auto-resolve is not
-   *   supported here — this API is for chat reservation, not general inserts.
+   * - `mode: 'create'`: caller supplies a CreateMessageDto with a root (`null`)
+   *   or an explicit parent in this topic. If that explicit parent no longer
+   *   exists, `fallbackParentId` may identify a valid question in the same topic.
+   *   The reservation does not infer a parent from the topic's active node.
    * - `mode: 'existing'`: caller supplies the id of an already-persisted user
    *   message (regenerate scenario).
    * - `mode: 'fill-reserved'`: caller supplies a persisted blank user leaf plus
@@ -1183,11 +1182,12 @@ export class MessageService {
           // First-turn message: hang it off the topic's virtual root (created if absent).
           resolvedParentId = this.getRootMessageIdTx(tx, input.topicId)
         } else {
-          const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
-          if (parent.topicId !== input.topicId) {
-            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
-          }
-          resolvedParentId = dto.parentId
+          resolvedParentId = this.resolveCreateParentIdTx(
+            tx,
+            input.topicId,
+            dto.parentId,
+            input.userMessage.fallbackParentId
+          )
         }
 
         const createdAt = Date.now()
@@ -1288,9 +1288,9 @@ export class MessageService {
       // 4. Point activeNodeId at the new turn unless this is an explicitly non-activating
       // live-group append. Streaming work must not move the user's selected branch.
       const topicService = getDataService('TopicService')
-      if (!input.preserveActiveNode) {
-        const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
-        topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      const activeNodeId = input.preserveActiveNode ? undefined : (placeholders.at(-1)?.id ?? userMessage.id)
+      if (activeNodeId) {
+        topicService.setActiveNodeTx(tx, input.topicId, activeNodeId, { assumeValid: true })
       }
       if (latestActivityAt !== null) {
         topicService.advanceLastActivityAtTx(tx, input.topicId, latestActivityAt)
@@ -1305,7 +1305,7 @@ export class MessageService {
         preserveActiveNode: input.preserveActiveNode === true
       })
 
-      return { userMessage, placeholders }
+      return { userMessage, placeholders, activeNodeId }
     })
     const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
     notifyDataApiDataChange([
@@ -1325,6 +1325,25 @@ export class MessageService {
     ])
     if (activityChanged) getDataService('TopicService').notifyReadModelChange([input.topicId], 'projection')
     return result
+  }
+
+  private resolveCreateParentIdTx(tx: DbOrTx, topicId: string, parentId: string, fallbackParentId?: string): string {
+    let parent = this.findAddressableMessageRowTx(tx, parentId)
+    if (!parent && fallbackParentId) {
+      const question = this.findAddressableMessageRowTx(tx, fallbackParentId)
+      if (
+        question?.topicId === topicId &&
+        question.role === 'user' &&
+        !this.isAwaitingInputLeafTx(tx, rowToMessage(question))
+      ) {
+        parent = question
+      }
+    }
+    if (!parent) throw DataApiErrorFactory.notFound('Message', parentId)
+    if (parent.topicId !== topicId) {
+      throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+    }
+    return parent.id
   }
 
   private isAwaitingInputLeafTx(tx: DbOrTx, message: Message): boolean {

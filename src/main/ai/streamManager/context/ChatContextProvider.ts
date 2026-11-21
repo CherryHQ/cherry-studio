@@ -53,6 +53,8 @@ export interface PreparedDispatch {
   pendingSteerFastMode?: boolean
   /** Persisted user/assistant skeletons created for this dispatch. */
   reservedMessages?: CherryUIMessage[]
+  /** The reply selected by a persistent chat submission. */
+  submittedAssistantAnchorId?: string
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
   /** Change one execution in the current live reply group. */
