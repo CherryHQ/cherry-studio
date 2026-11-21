@@ -149,5 +149,5 @@ function narrowSubtreeJobPayload(
 
 function narrowJobInputObject(rawInput: JobSnapshot['input']): JobInputObject | null {
   if (!rawInput || typeof rawInput !== 'object') return null
-  return rawInput as JobInputObject
+  return rawInput
 }
