@@ -7,8 +7,8 @@ import { imageTokensFor, mediaTokensFor } from '../../tokens/profiles'
 
 /**
  * Lightweight row view for compaction. Built from a raw cherry `Message`
- * (id, role, data.parts, compactionSummary). Kept separate from `CherryUIMessage`
- * so the helpers are pure and trivially testable.
+ * (id, role, data.parts, compactionSummary, createdAt). Kept separate from
+ * `CherryUIMessage` so the helpers are pure and trivially testable.
  */
 export interface CompactionRow {
   id: string
@@ -18,6 +18,12 @@ export interface CompactionRow {
   compactionSummary?: string
   /** Real end-of-turn context size persisted on this row (last-step totalTokens), if any. */
   contextTokens?: number
+  /**
+   * Creation timestamp (ISO) of the source row, restored onto the served message's
+   * metadata so model-facing shaping that reads `metadata.createdAt` (the optional
+   * send-time prefix) works on projected history. Absent on synthetic summary rows.
+   */
+  createdAt?: string
 }
 
 /** Synthetic id for an injected summary message — never collides with a real UUID. */

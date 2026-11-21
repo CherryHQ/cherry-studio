@@ -87,6 +87,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [userMessageDefaultExpanded, setUserMessageDefaultExpanded] = usePreference(
     'chat.message.user_content.default_expanded'
   )
+  const [timestampContext, setTimestampContext] = usePreference('chat.message.timestamp_context.enabled')
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
@@ -381,6 +382,14 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
+          <SettingRow id="setting-appearance-timestamp-context" className="scroll-mt-6">
+            <SettingSwitch
+              checked={timestampContext}
+              onCheckedChange={setTimestampContext}
+              label={t('settings.messages.timestamp_context.label')}
+              hint={t('settings.messages.timestamp_context.hint')}
+            />
+          </SettingRow>
           <SettingRow id="setting-appearance-scroll-to-bottom-on-send" className="scroll-mt-6">
             <SettingSwitch
               checked={scrollToBottomOnSend}

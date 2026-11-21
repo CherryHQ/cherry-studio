@@ -19,7 +19,7 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
-import { toModelMessages } from '../../messages/messageRules'
+import { prefixUserMessageTimestamps, toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
 import { classifyAiSdkFailure } from './failureFacts'
@@ -373,7 +373,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // Shape only the conversion input — keep `messages` (originalMessages for the
       // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
       const modelMessages = await toModelMessages(
-        initialMessages,
+        params.messageTimestamps ? prefixUserMessageTimestamps(initialMessages) : initialMessages,
         params.mediaCapabilities,
         params.tools,
         params.toolResultMediaCapabilities
