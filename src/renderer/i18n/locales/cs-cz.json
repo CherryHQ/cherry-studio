@@ -1431,6 +1431,7 @@
   "common.search": "Hledat",
   "common.select": "Vybrat",
   "common.select_all": "Vybrat vše",
+  "common.select_all_filtered": "Vybrat všechny filtrované výsledky",
   "common.selected": "Vybráno",
   "common.selectedItems": "Vybráno položek: {{count}}",
   "common.selectedMessages": "Vybráno zpráv: {{count}}",

@@ -68,6 +68,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'common.cancel': 'Cancel',
+        'common.select': 'Select',
         'common.archive': 'Archive',
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?'
@@ -129,6 +130,35 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
+  it('selects from the checkbox without opening the session', async () => {
+    const user = userEvent.setup()
+    const onPress = vi.fn()
+    const onToggleSelection = vi.fn()
+    const Provider = ResourceList.Provider<AgentSessionEntity>
+
+    render(
+      <Provider items={[session]} selectedId={session.id}>
+        <SessionHoverPreviewGroup>
+          <SessionItem
+            session={session}
+            sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode
+            onDelete={vi.fn()}
+            onOpenRenameDialog={vi.fn()}
+            onPress={onPress}
+            onToggleSelection={onToggleSelection}
+          />
+        </SessionHoverPreviewGroup>
+      </Provider>
+    )
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select: Session A' }))
+
+    expect(onToggleSelection).toHaveBeenCalledWith('session-a', true)
+    expect(onPress).not.toHaveBeenCalled()
+  })
+
   it('shows the number shortcut in place of the stream status until the hint clears', () => {
     using statusSpy = vi.spyOn(topicStreamStatus, 'useTopicStreamStatus')
     statusSpy.mockReturnValue({
@@ -147,6 +177,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             shortcutHint={shortcutHint}
             onDelete={vi.fn()}
             onOpenRenameDialog={vi.fn()}
@@ -179,6 +212,9 @@ describe('SessionItem', () => {
             pinned={pinned}
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             onDelete={onDelete}
             onOpenRenameDialog={vi.fn()}
             onPress={vi.fn()}
@@ -206,6 +242,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}
             permanentDeleteShortcut="Ctrl+Backspace"
@@ -238,6 +277,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             pinned
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}
@@ -258,6 +300,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             isDeleting
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}
