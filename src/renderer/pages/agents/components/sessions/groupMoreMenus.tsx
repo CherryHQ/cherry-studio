@@ -21,6 +21,7 @@ export function AgentGroupMoreMenu({
   pinDisabled,
   pinned,
   onArchiveSessions,
+  onConnectIm,
   onDeleteAgent,
   onEdit,
   onPermanentDeleteAgent,
@@ -40,6 +41,7 @@ export function AgentGroupMoreMenu({
   onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onConnectIm: (agentId: string) => void
   onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
@@ -53,6 +55,7 @@ export function AgentGroupMoreMenu({
     deleteAgentDisabled,
     deleteSessionsOnly,
     onArchiveSessions,
+    onConnectIm,
     onDeleteAgent,
     onEdit,
     onPermanentDeleteAgent,

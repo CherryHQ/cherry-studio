@@ -24,7 +24,7 @@ vi.mock('@main/ai/channels', () => ({
 
 import { channelHandlers } from '../channel'
 
-const channelManager = { getChannelLogs: vi.fn() }
+const channelManager = { getChannelLogs: vi.fn(), getAdapter: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -88,6 +88,24 @@ describe('channelHandlers', () => {
   it('wechat.has_credentials returns { exists: false } on any read/parse failure', async () => {
     readFileMock.mockRejectedValue(new Error('nope'))
     expect(await channelHandlers['channel.wechat.has_credentials']('c1', ctx)).toEqual({ exists: false })
+  })
+
+  it('returns only the current Feishu adapter pending registration', async () => {
+    const pending = { url: 'https://accounts.feishu.cn/device/qr', expiresAt: Date.now() + 60_000 }
+    const read = vi.fn(() => pending)
+    channelManager.getAdapter.mockReturnValue({ channelType: 'feishu', getPendingQrLogin: read })
+    expect(await channelHandlers['channel.feishu.pending_qr']('c1', ctx)).toEqual(pending)
+    expect(channelManager.getAdapter).toHaveBeenCalledWith('c1')
+    expect(read).toHaveBeenCalledOnce()
+  })
+
+  it('does not query pending registration from another adapter type or a missing runtime', async () => {
+    const read = vi.fn()
+    channelManager.getAdapter.mockReturnValue({ channelType: 'wechat', getPendingQrLogin: read })
+    expect(await channelHandlers['channel.feishu.pending_qr']('c1', ctx)).toBeNull()
+    expect(read).not.toHaveBeenCalled()
+    channelManager.getAdapter.mockReturnValue(undefined)
+    expect(await channelHandlers['channel.feishu.pending_qr']('c1', ctx)).toBeNull()
   })
 
   it('get_logs delegates to ChannelManager', async () => {

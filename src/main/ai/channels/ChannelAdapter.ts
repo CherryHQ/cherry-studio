@@ -228,6 +228,10 @@ export abstract class ChannelAdapter extends EventEmitter {
    */
   protected abstract performDisconnect(): Promise<void>
 
+  getPendingQrLogin(): { url: string; expiresAt: number } | null {
+    return null
+  }
+
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
   abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
