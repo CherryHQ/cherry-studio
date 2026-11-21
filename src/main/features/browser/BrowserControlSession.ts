@@ -11,7 +11,7 @@ export class BrowserControlSession {
 
   async execute(
     name: string,
-    args: Record<string, unknown>,
+    args: Parameters<typeof executeBrowserOperation>[2],
     tabId: string | undefined,
     callSignal: AbortSignal
   ): Promise<BrowserAutomationResult> {

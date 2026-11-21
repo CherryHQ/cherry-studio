@@ -136,7 +136,12 @@ export class WebMcpTools {
     }
   }
 
-  async call(toolId: string, args: Record<string, unknown>, options: CommandOptions = {}) {
+  async call(
+    toolId: string,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Website registrations own argument schemas; keep raw fields until the selected tool's existing validator accepts them.
+    args: Record<string, unknown>,
+    options: CommandOptions = {}
+  ) {
     if (this.capability === 'unsupported') throw new BrowserSessionError('webmcp_unsupported')
     const entry = [...this.tools.values()].find(({ tool }) => tool.toolId === toolId)
     if (!entry || !this.session.isAvailable()) throw new BrowserSessionError('stale_web_tool')
