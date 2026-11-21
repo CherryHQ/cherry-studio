@@ -122,6 +122,11 @@ interface AssistantHistoryRecordsProps {
   onClose: () => void
   onRecordSelect?: (topic: RendererTopic) => void
   onActiveRecordChange?: (topic: RendererTopic | null) => void
+  getArchiveSelectionVersion?: () => number
+  isAssistantListComplete?: boolean
+  onActiveTopicArchived?: (topic: RendererTopic, token?: symbol) => void
+  onLocalArchiveRecordSelected?: (archived: RendererTopic, replacement: RendererTopic, token?: symbol) => void
+  onLocalArchivePendingChange?: (topicId: string, pending: boolean, token?: symbol) => void
   /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
   onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
@@ -132,6 +137,11 @@ const AssistantHistoryRecords = ({
   onClose,
   onRecordSelect,
   onActiveRecordChange: onActiveTopicChange,
+  getArchiveSelectionVersion,
+  isAssistantListComplete = false,
+  onActiveTopicArchived,
+  onLocalArchiveRecordSelected,
+  onLocalArchivePendingChange,
   onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
@@ -272,38 +282,78 @@ const AssistantHistoryRecords = ({
     async (topic: RendererTopic) => {
       if (topic.pinned) return
 
+      const ownerStatus = !topic.assistantId
+        ? 'unlinked'
+        : assistants.some((assistant) => assistant.id === topic.assistantId)
+          ? 'owned'
+          : isAssistantListComplete
+            ? 'orphan'
+            : 'unknown'
+      const keepAssistantScope = ownerStatus === 'owned' || ownerStatus === 'unknown'
+      const wasActiveAtStart = activeRecordIdRef.current === topic.id
+      const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
+        keepAssistantScope
+          ? timeSortedTopics.filter((candidate) => candidate.assistantId === topic.assistantId)
+          : timeSortedTopics,
+        [topic.id],
+        topic.id,
+        (candidate) => candidate.id
+      )
+      const selectionVersion = getArchiveSelectionVersion?.()
+      const token = Symbol()
+      onLocalArchivePendingChange?.(topic.id, true, token)
       try {
-        await deleteTopicById(topic.id)
-      } catch (err) {
-        logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
-        if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
-        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
-        return
-      }
+        try {
+          const result = await deleteTopicById(topic.id)
+          if (result && !result.deletedIds.includes(topic.id)) return
+        } catch (err) {
+          logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
+          if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+          else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+          else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
+          return
+        }
 
-      if (topic.id === activeRecordId) {
-        const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
-          timeSortedTopics,
-          [topic.id],
-          topic.id,
-          (candidate) => candidate.id
-        )
-        onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
-      }
+        if (
+          selectionVersion === getArchiveSelectionVersion?.() &&
+          (activeRecordIdRef.current === topic.id || (!activeRecordIdRef.current && wasActiveAtStart))
+        ) {
+          if (nextTopic) {
+            if (onLocalArchiveRecordSelected) onLocalArchiveRecordSelected(topic, getRendererTopic(nextTopic), token)
+            else onActiveTopicChange?.(getRendererTopic(nextTopic))
+          } else if (keepAssistantScope) onActiveTopicArchived?.(topic, token)
+          else onActiveTopicChange?.(null)
+        }
 
-      showRecycleBinUndo({
-        itemName: topic.name || t('chat.default.topic.name'),
-        onUndo: () =>
-          restoreRecycleBinItem({
-            id: topic.id,
-            restore: restoreTopic,
-            getActive: (id) => dataApiService.get(`/topics/${id}`),
-            refresh: refetch
-          })
-      })
+        showRecycleBinUndo({
+          itemName: topic.name || t('chat.default.topic.name'),
+          onUndo: () =>
+            restoreRecycleBinItem({
+              id: topic.id,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refetch
+            })
+        })
+      } finally {
+        onLocalArchivePendingChange?.(topic.id, false, token)
+      }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, refetch, restoreTopic, t, timeSortedTopics]
+    [
+      assistants,
+      isAssistantListComplete,
+      getArchiveSelectionVersion,
+      onActiveTopicArchived,
+      onLocalArchiveRecordSelected,
+      onLocalArchivePendingChange,
+      deleteTopicById,
+      getRendererTopic,
+      onActiveTopicChange,
+      refetch,
+      restoreTopic,
+      t,
+      timeSortedTopics
+    ]
   )
 
   const handlePermanentDeleteTopic = useCallback(

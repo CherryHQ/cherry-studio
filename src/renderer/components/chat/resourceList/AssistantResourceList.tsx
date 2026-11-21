@@ -34,6 +34,7 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import {
@@ -67,6 +68,7 @@ const ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'assistant-entity.toggle-sideb
 const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
 type AssistantResourceListProps = {
+  activeAssistant?: Assistant
   activeAssistantId?: string | null
   activeTopicId?: string | null
   dataEnabled?: boolean
@@ -89,6 +91,7 @@ type AssistantResourceListProps = {
 }
 
 export function AssistantResourceList({
+  activeAssistant,
   activeAssistantId,
   activeTopicId,
   dataEnabled = true,
@@ -114,12 +117,19 @@ export function AssistantResourceList({
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
   const {
-    assistants,
+    assistants: loadedAssistants,
     hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
+  const assistants = useMemo(
+    () =>
+      activeAssistant && !loadedAssistants.some((assistant) => assistant.id === activeAssistant.id)
+        ? [...loadedAssistants, activeAssistant]
+        : loadedAssistants,
+    [activeAssistant, loadedAssistants]
+  )
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
@@ -287,8 +297,13 @@ export function AssistantResourceList({
   )
   const entityIdsWithTopics = useMemo(() => new Set(topics.map(getTopicAssistantId)), [getTopicAssistantId, topics])
   const visibleEntities = useMemo(
-    () => entities.filter((entity) => entityIdsWithTopics.has(entity.id)),
-    [entities, entityIdsWithTopics]
+    () =>
+      entities.filter(
+        (entity) =>
+          entityIdsWithTopics.has(entity.id) ||
+          (entity.id === activeAssistantId && entity.id !== UNLINKED_ASSISTANT_ENTITY_ID)
+      ),
+    [activeAssistantId, entities, entityIdsWithTopics]
   )
   const loadLatestTopicForAssistant = useCallback(
     async (assistantId: string) => {
@@ -297,7 +312,7 @@ export function AssistantResourceList({
     },
     [loadLatestTopic]
   )
-  const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
+  const activeAssistantEntityId = activeAssistantId ? activeAssistantId : getAssistantEntityId(activeAssistantId)
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
@@ -630,7 +645,10 @@ export function AssistantResourceList({
           label: t('assistants.clear.menu_title'),
           icon: <BrushCleaning size={14} />,
           order: 25,
-          availability: { visible: true, enabled: !clearingTopicsAssistantId && !deletingAssistantId }
+          availability: {
+            visible: entityIdsWithTopics.has(item.id),
+            enabled: !clearingTopicsAssistantId && !deletingAssistantId
+          }
         }),
         buildResolvedIconTypeMenuAction(
           ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
@@ -671,6 +689,7 @@ export function AssistantResourceList({
       assistantPinnedIdSet,
       clearingTopicsAssistantId,
       deletingAssistantId,
+      entityIdsWithTopics,
       isAssistantPinActionDisabled,
       isGroupGrouping,
       permanentDeleteShortcut,
