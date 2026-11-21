@@ -17,7 +17,14 @@ const EMPTY_DRAFT_CACHE: ChatComposerDraftCache = {
   modelMultiSelectMode: false
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  text?: unknown
+  tokens?: unknown
+  files?: unknown
+  knowledgeBaseIds?: unknown
+  mentionedModelIds?: unknown
+  modelMultiSelectMode?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

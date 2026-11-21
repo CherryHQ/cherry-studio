@@ -25,7 +25,11 @@ const EMPTY_DRAFT: AskUserQuestionDraftCache = {
   currentIndex: 0
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  selectedAnswers?: unknown
+  customAnswers?: unknown
+  currentIndex?: unknown
+} {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
