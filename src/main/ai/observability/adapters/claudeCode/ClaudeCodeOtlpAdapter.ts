@@ -314,9 +314,7 @@ function anyValueToAttributeValue(value: OtlpAnyValue | undefined): AttributeVal
   if (value.bytesValue !== undefined) return value.bytesValue
 
   if (value.arrayValue) {
-    return (value.arrayValue.values ?? [])
-      .map(anyValueToAttributeValue)
-      .filter((item): item is Exclude<AttributeValue, undefined> => item !== undefined) as AttributeValue
+    return (value.arrayValue.values ?? []).map(anyValueToAttributeValue).filter((item) => item !== undefined)
   }
 
   if (value.kvlistValue) {
@@ -342,10 +340,7 @@ function attributeValueToOtelAttributeValue(value: AttributeValue | undefined): 
   if (value === undefined) return undefined
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
   if (Array.isArray(value)) {
-    const items = value.filter(
-      (item): item is string | number | boolean | { [key: string]: string | number | boolean } =>
-        item !== undefined && item !== null
-    )
+    const items = value.filter((item) => item !== undefined && item !== null)
     if (items.every((item): item is string => typeof item === 'string')) return items
     if (items.every((item): item is number => typeof item === 'number')) return items
     if (items.every((item): item is boolean => typeof item === 'boolean')) return items

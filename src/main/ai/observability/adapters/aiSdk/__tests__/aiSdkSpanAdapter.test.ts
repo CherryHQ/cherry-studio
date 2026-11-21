@@ -90,3 +90,40 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)'
     expect(usage({ 'ai.toolCall.name': 'x' })).toBeUndefined()
   })
 })
+
+describe('AiSdkSpanAdapter.convertToSpanEntity — decoded payloads', () => {
+  it('retains nested provider inputs and tool-call outputs for trace display', () => {
+    const messages = [{ role: 'user', content: [{ type: 'text', text: 'Find the item' }] }]
+    const tools = [{ name: 'lookup', parameters: { type: 'object', properties: { id: { type: 'number' } } } }]
+    const toolCalls = [{ toolCallId: 't1', toolName: 'lookup', input: { filters: [null, true, { id: 7 }] } }]
+    const entity = AiSdkSpanAdapter.convertToSpanEntity({
+      span: fakeSpan({
+        _attributes: {
+          'ai.operationId': 'ai.streamText.doStream',
+          'ai.prompt.messages': JSON.stringify(messages),
+          'ai.prompt.tools': JSON.stringify(tools),
+          'ai.prompt.toolChoice': 'not JSON',
+          'ai.response.text': 'An answer',
+          'ai.response.toolCalls': JSON.stringify(toolCalls)
+        }
+      })
+    })
+
+    expect(entity.attributes?.inputs).toEqual({ messages, tools, toolChoice: 'not JSON' })
+    expect(entity.attributes?.outputs).toEqual({ text: 'An answer', toolCalls })
+  })
+
+  it.each([
+    { raw: 'null', expected: null },
+    { raw: '[1,true,null,{"nested":["x"]}]', expected: [1, true, null, { nested: ['x'] }] },
+    { raw: '7', expected: 7 },
+    { raw: 'ordinary text', expected: 'ordinary text' }
+  ])('retains generic JSON values or the original non-JSON text: $raw', ({ raw, expected }) => {
+    const entity = AiSdkSpanAdapter.convertToSpanEntity({
+      span: fakeSpan({ _attributes: { inputs: raw, outputs: raw } })
+    })
+
+    expect(entity.attributes?.inputs).toEqual(expected)
+    expect(entity.attributes?.outputs).toEqual(expected)
+  })
+})
