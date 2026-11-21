@@ -102,7 +102,10 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Subclasses should use `this.log.*` instead of a module-level `logger.*` so that
    * gateway-level details are visible in the channel log modal.
    */
-  protected readonly log: Record<ChannelLogLevel, (message: string, meta?: Record<string, unknown>) => void>
+  protected readonly log: Record<
+    ChannelLogLevel,
+    (message: string, meta?: Parameters<typeof loggerService.withContext>[1]) => void
+  >
 
   constructor(protected readonly config: ChannelAdapterConfig) {
     super()
@@ -115,7 +118,7 @@ export abstract class ChannelAdapter extends EventEmitter {
 
     this.log = (['debug', 'info', 'warn', 'error'] as const).reduce(
       (acc, level) => {
-        acc[level] = (message: string, meta?: Record<string, unknown>) => {
+        acc[level] = (message, meta) => {
           fileLogger[level](message, { ...baseMeta, ...meta })
           // Append error detail from meta so the UI log shows the reason
           const errorDetail = meta?.error ? `: ${typeof meta.error === 'string' ? meta.error : String(meta.error)}` : ''
@@ -123,7 +126,7 @@ export abstract class ChannelAdapter extends EventEmitter {
         }
         return acc
       },
-      {} as Record<ChannelLogLevel, (message: string, meta?: Record<string, unknown>) => void>
+      {} as ChannelAdapter['log']
     )
   }
 
