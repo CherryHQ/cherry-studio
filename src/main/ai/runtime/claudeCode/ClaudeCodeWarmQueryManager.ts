@@ -35,6 +35,12 @@ type WarmQueryEntry = {
 export interface WarmQueryRequest {
   key: string
   options: Options
+  /**
+   * Stored argument vector of the Agent's custom Code CLI executable (issue
+   * #19966), prepended at spawn. Part of the warm signature: a change must not
+   * consume a process parked with different arguments.
+   */
+  customCliArgs?: readonly string[]
   initializeTimeoutMs?: number
   /** Spawn-frozen connection identity used to reject stale warm processes. */
   connectionRebuildSignature?: string
@@ -145,7 +151,8 @@ export function createClaudeCodeWarmQuerySignature(
   credentialsFingerprint?: string,
   knowledgeBaseIds: readonly string[] = [],
   notificationContext?: AgentNotificationContext,
-  connectionRebuildSignature?: string
+  connectionRebuildSignature?: string,
+  customCliArgs?: readonly string[]
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -156,7 +163,8 @@ export function createClaudeCodeWarmQuerySignature(
     credentials: credentialsFingerprint ?? null,
     knowledgeBaseIds: [...knowledgeBaseIds].sort(),
     notificationContext: notificationContext ?? null,
-    connectionRebuildSignature: connectionRebuildSignature ?? null
+    connectionRebuildSignature: connectionRebuildSignature ?? null,
+    customCliArgs: customCliArgs ?? null
   })
 }
 
@@ -251,7 +259,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
       request.notificationContext,
-      request.connectionRebuildSignature
+      request.connectionRebuildSignature,
+      request.customCliArgs
     )
     const existing = this.entries.get(request.key)
 
@@ -266,7 +275,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics, request.customCliArgs) },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {
@@ -288,7 +297,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
       request.notificationContext,
-      request.connectionRebuildSignature
+      request.connectionRebuildSignature,
+      request.customCliArgs
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined

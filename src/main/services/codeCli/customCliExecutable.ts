@@ -94,3 +94,12 @@ export function requireValidCustomCli(
   if (!result.ok) throw new CustomCliValidationError(result.code, customCli.executable)
   return { resolvedPath: result.resolvedPath, args: customCli.args }
 }
+
+/**
+ * Prepend a stored custom argument vector to a CLI spawn's arguments (AC3):
+ * the child receives each stored string exactly, with the SDK's own arguments
+ * following. No shell is involved, so quoting is never reparsed.
+ */
+export function prependCustomCliArgs<T extends { args: string[] }>(options: T, customCliArgs?: readonly string[]): T {
+  return customCliArgs?.length ? { ...options, args: [...customCliArgs, ...options.args] } : options
+}

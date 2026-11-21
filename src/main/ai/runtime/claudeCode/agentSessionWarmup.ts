@@ -957,6 +957,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   return {
     key: request.key,
     options: request.options,
+    customCliArgs: request.settings.customCliArgs,
     initializeTimeoutMs: request.initializeTimeoutMs,
     connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,

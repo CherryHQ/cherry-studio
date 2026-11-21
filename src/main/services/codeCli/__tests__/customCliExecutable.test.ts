@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   CustomCliValidationError,
+  prependCustomCliArgs,
   requireValidCustomCli,
   validateCustomCliExecutable,
   validateCustomCliPathForm
@@ -116,5 +117,23 @@ describe('requireValidCustomCli', () => {
       expect((error as CustomCliValidationError).code).toBe('missing')
       expect((error as CustomCliValidationError).executable).toContain('gone')
     }
+  })
+})
+
+describe('prependCustomCliArgs', () => {
+  it('prepends the stored vector, preserving exact strings (AC3)', () => {
+    const args = ['--system prompt "quoted"', 'C:\\Program Files\\pi', 'plain']
+    const spawn = { command: '/usr/local/bin/oh-my-pi', args: ['--sdk-flag', 'value'], cwd: '/tmp' }
+    expect(prependCustomCliArgs(spawn, args)).toEqual({
+      command: '/usr/local/bin/oh-my-pi',
+      args: ['--system prompt "quoted"', 'C:\\Program Files\\pi', 'plain', '--sdk-flag', 'value'],
+      cwd: '/tmp'
+    })
+  })
+
+  it('returns the options unchanged when no custom args are stored', () => {
+    const spawn = { command: '/usr/bin/claude', args: ['--print'] }
+    expect(prependCustomCliArgs(spawn, undefined)).toBe(spawn)
+    expect(prependCustomCliArgs(spawn, [])).toBe(spawn)
   })
 })
