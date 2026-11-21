@@ -2,7 +2,9 @@ import { expect } from '@playwright/test'
 
 import { prepareAuthenticatedProfile } from '../../../../scripts/e2e/ondemand/profile'
 import type { ScenarioContext } from '../../../../scripts/e2e/ondemand/steps'
+import { startEmbeddingMock } from '../../../../scripts/e2e/regression/embeddingMock'
 import { FollowupQueueScopeQuerySchema } from '../../../../src/shared/data/api/schemas/followupQueues'
+import { parseUniqueModelId, type UniqueModelId } from '../../../../src/shared/data/types/model'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { createAgent } from '../../regression/helpers/agents'
 import { selectSidebarApp } from '../../regression/navigation'
@@ -16,12 +18,20 @@ import { selectSidebarApp } from '../../regression/navigation'
 export default async function queueLoopback(context: ScenarioContext): Promise<void> {
   const { page } = context
   const server = await startMockChatServer()
+  const embeddingMock = await startEmbeddingMock()
   try {
-    const providerId = await prepareAuthenticatedProfile(page, {
-      baseUrl: server.baseUrl,
-      apiKey: 'local-fixture-not-a-secret',
-      model: server.modelId
-    })
+    await prepareAuthenticatedProfile(
+      page,
+      {
+        baseUrl: server.baseUrl,
+        apiKey: 'local-fixture-not-a-secret',
+        model: server.modelId
+      },
+      embeddingMock
+    )
+    // The profile helper generates the provider id and stores it in the default chat model preference.
+    const defaultModelId = await page.evaluate(() => window.api.preference.get('chat.default_model_id'))
+    const { providerId } = parseUniqueModelId(defaultModelId as UniqueModelId)
     await page.evaluate(() =>
       window.api.preference.setMultiple({
         'app.language': 'en-US',
@@ -127,6 +137,7 @@ export default async function queueLoopback(context: ScenarioContext): Promise<v
     ])
   } finally {
     await server.close()
+    await embeddingMock.close()
     await context.ensureChinese()
   }
 }
