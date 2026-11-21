@@ -1,12 +1,20 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity, type ComponentProps, type HTMLAttributes, type ReactNode } from 'react'
+import type { TOptions } from 'i18next'
+import {
+  Activity,
+  type ComponentProps,
+  type ComponentPropsWithoutRef,
+  type HTMLAttributes,
+  type ReactNode
+} from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as SessionHooks from '@renderer/hooks/agent/useSession'
 import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -18,6 +26,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/ap
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { InputFor } from '@shared/ipc/types'
 
 const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
@@ -38,9 +47,12 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = await importOriginal<typeof CherryStudioUi>()
   const ContextMenuContext = React.createContext<{ onOpenChange?: (open: boolean) => void }>({})
-  const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
+  const itemHandler = (
+    onSelect: ComponentPropsWithoutRef<typeof actual.ContextMenuItem>['onSelect'],
+    props: Omit<ComponentPropsWithoutRef<typeof actual.ContextMenuItem>, 'children' | 'onSelect'>
+  ) => ({
     ...props,
-    disabled: props.disabled as boolean | undefined,
+    disabled: props.disabled,
     onClick: (event: Event) => onSelect?.(event),
     role: 'menuitem',
     type: 'button'
@@ -65,7 +77,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {shortcut ? <span>{shortcut}</span> : null}
       </span>
     ),
-    ContextMenuItem: ({ children, onSelect, ...props }: any) =>
+    ContextMenuItem: ({ children, onSelect, ...props }: ComponentPropsWithoutRef<typeof actual.ContextMenuItem>) =>
       React.createElement('button', itemHandler(onSelect, props), children),
     ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
     ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -335,7 +347,7 @@ const stableAgents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
 
 // The real hooks keep these references stable; row memo assertions depend on that.
 const stableReferences = vi.hoisted(() => ({
-  preferences: new Map<string, Record<string, unknown>>(),
+  preferences: new Map<string, object>(),
   setters: new Map<string, (value: unknown) => Promise<void>>(),
   once: <T,>(create: () => T) => {
     let value: T | undefined
@@ -622,7 +634,7 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: stableReferences.once(() => ({
-    t: (key: string, options?: Record<string, unknown>) => {
+    t: (key: string, options?: TOptions) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add task',
         'agent.add.title': 'Add Agent',
@@ -898,7 +910,7 @@ function readSessionListItems() {
   return sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) }))
 }
 
-function setupSessions(overrides: Record<string, unknown> = {}) {
+function setupSessions(overrides: Partial<ReturnType<typeof SessionHooks.useSessions>> = {}) {
   const source = {
     sessions: [
       createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
@@ -996,27 +1008,46 @@ describe('Sessions', () => {
     sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'succeeded' })
     ;(cacheService as unknown as { _resetMockState: () => void })._resetMockState()
     dataApiMocks.invalidate.mockResolvedValue(undefined)
-    dataApiMocks.ipcRequest.mockImplementation((route: string, input: Record<string, unknown>) => {
-      if (route === 'ai.agent.delete') {
-        return dataApiMocks.deleteAgent({
-          params: { agentId: input.agentId },
-          query: { deleteSessions: input.deleteSessions }
-        })
+    // The mock loses the facade's route/input correlation; matching branches restore the schema-owned view.
+    dataApiMocks.ipcRequest.mockImplementation(
+      (
+        route: string,
+        input: InputFor<
+          | 'ai.agent.delete'
+          | 'ai.agent.delete_permanently'
+          | 'ai.agent.sessions.delete'
+          | 'ai.agent.workspace.delete'
+          | 'ai.agent.workspace.register'
+        >
+      ) => {
+        if (route === 'ai.agent.delete') {
+          const args = input as InputFor<'ai.agent.delete'>
+          return dataApiMocks.deleteAgent({
+            params: { agentId: args.agentId },
+            query: { deleteSessions: args.deleteSessions }
+          })
+        }
+        if (route === 'ai.agent.delete_permanently') {
+          return deleteAgentPermanentlyMock(input)
+        }
+        if (route === 'ai.agent.sessions.delete') {
+          return dataApiMocks.deleteAgentSessions({
+            params: { agentId: (input as InputFor<'ai.agent.sessions.delete'>).agentId }
+          })
+        }
+        if (route === 'ai.agent.workspace.delete') {
+          return dataApiMocks.deleteWorkspace({
+            params: { workspaceId: (input as InputFor<'ai.agent.workspace.delete'>).workspaceId }
+          })
+        }
+        if (route === 'ai.agent.workspace.register') {
+          return dataApiMocks.findOrCreateWorkspace({
+            body: { path: (input as InputFor<'ai.agent.workspace.register'>).path }
+          })
+        }
+        return Promise.resolve(undefined)
       }
-      if (route === 'ai.agent.delete_permanently') {
-        return deleteAgentPermanentlyMock(input)
-      }
-      if (route === 'ai.agent.sessions.delete') {
-        return dataApiMocks.deleteAgentSessions({ params: { agentId: input.agentId } })
-      }
-      if (route === 'ai.agent.workspace.delete') {
-        return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
-      }
-      if (route === 'ai.agent.workspace.register') {
-        return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
-      }
-      return Promise.resolve(undefined)
-    })
+    )
     archiveSessionsPopupMocks.show.mockReset()
     archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
       await action()
