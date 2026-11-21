@@ -1,4 +1,5 @@
 import { awaitWithContext, type Context } from '@earendil-works/chord/context'
+import { copyJson, type JsonRepresentation } from '@earendil-works/chord/json'
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
   createRegistry,
@@ -15,6 +16,7 @@ import {
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
+import { createScriptedHost, encodeEntry } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'
@@ -551,4 +553,77 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
     expect(events).toHaveLength(count)
   }
   expect(errors).toEqual([])
+})
+
+// Catches relation reads that scan a child's whole history for evidence its creation commit wrote first.
+it('reads child creation evidence without scanning the child history after it', async () => {
+  const storage = new MemoryStorage()
+  const childReads = new Set<number>()
+  let child: ConversationRecord | undefined
+  const registry = createRegistry()
+  registry.install(defineExtension({ name: 'owners', tasks: [owner] }))
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('origins'),
+      openStorage: async () =>
+        new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<Storage['scanEntries']>) => {
+                const page = await target.scanEntries(...args)
+                if (args[0].conversationId === child?.id) for (const entry of page.items) childReads.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        }),
+      harness: { models: createModels(), registry },
+      behavior: {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'default',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({ model: { provider: 'faux', modelId: 'faux-1' } })
+      }
+    })
+  )
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  let last: EntryRecord | undefined
+  const root = confirmed(
+    await runtime.create({
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } },
+      async init(tx, id) {
+        const taskId = await tx.createTask(owner, null, { conversationId: id, ownership: { kind: 'conversation' } })
+        child = await tx.createConversation({ ownership: { kind: 'task', taskId } })
+        const origin = { parentToolCallId: 'spawn', fork: false, description: 'Child', modelKey: 'original' }
+        await tx.appendEntry(
+          child.id,
+          copyJson(encodeEntry({ type: 'subagent-origin', value: origin }, 'origin')) as JsonRepresentation<
+            ReturnType<typeof encodeEntry>
+          >
+        )
+        for (let index = 0; index < 100; index++)
+          last = await tx.appendEntry(child.id, {
+            kind: 'pi.user',
+            model: [{ role: 'user', content: `child-${index}`, timestamp: index }]
+          })
+      }
+    })
+  )
+  const { events } = await observe(root)
+  expect(events[0]).toMatchObject({
+    subagents: [{ parent: root.thread, child: { ...root.thread, id: String(child!.id) } }]
+  })
+  expect(childReads.size).toBeGreaterThan(0)
+  expect(childReads.has(last!.id)).toBe(false)
 })

@@ -272,7 +272,15 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
-  const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
+  const empty = useMemo(
+    () =>
+      emptyFallback ?? (
+        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
+          {t(variant === 'agent' ? 'selector.agent.empty_text' : 'selector.assistant.empty_text')}
+        </div>
+      ),
+    [emptyFallback, t, variant]
+  )
   const providerItems = useMemo(
     () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
     [groupByGroup, items]

@@ -8,6 +8,7 @@ import {
 
 import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  immutable,
   projectNestedTool,
   runtimeId,
   ThreadFeed,
@@ -149,12 +150,12 @@ export class PiProjection {
   }
 
   results(result: OperationResult<SubagentResults>): void {
-    // oxlint-disable-next-line no-restricted-globals -- Capture one completed tool result before asynchronous projection can outlive native mutation.
-    const captured = structuredClone(result)
+    // Capture one completed tool result before asynchronous projection can outlive native mutation.
+    const captured = immutable(result)
     this.pending = this.pending
       .then(() => {
         this.backgroundResults = captured
-        const current = this.feed.current
+        const current = this.feed.snapshot
         this.feed.publish({
           ...current,
           messages: current.messages.map((message) => ({ ...message, parts: message.parts.slice() }))
@@ -196,8 +197,8 @@ export class PiProjection {
       .buildSessionProjection()
       .entries.filter(({ sourceEntry }) => !own || own.has(sourceEntry.id))
       .flatMap(({ sourceEntry, messages }) =>
-        // oxlint-disable-next-line no-restricted-globals -- Capture selected context entries at compaction/edit boundaries, outside token updates.
-        messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
+        // Capture selected context entries at compaction/edit boundaries; strings such as image data are shared.
+        messages.map((message) => ({ message: immutable(message), id: sourceEntry.id }))
       )
   }
 
@@ -274,16 +275,16 @@ export class PiProjection {
                   type: part.type,
                   id: part.id,
                   name: part.name,
-                  // oxlint-disable-next-line no-restricted-globals -- Capture only completed tool arguments; partial text updates never copy the native message graph.
-                  arguments: event.type === 'toolcall_end' ? structuredClone(part.arguments) : {}
+                  // Capture only completed tool arguments; partial text updates never copy the native message graph.
+                  arguments: event.type === 'toolcall_end' ? immutable(part.arguments) : {}
                 }
               : part && { ...part }
         }
         this.enqueue(() => this.delta(captured, id))
         return
       }
-      // oxlint-disable-next-line no-restricted-globals -- Capture non-delta native facts before queueing; token updates use the current block above.
-      const event = structuredClone(native)
+      // Capture non-delta native facts before queueing without copying image data; published parts reuse the frozen values.
+      const event = immutable(native)
       if ('message' in native && 'message' in event) {
         const message = native.message
         const slot = message.role === 'toolResult' ? `tool:${message.toolCallId}` : message.role

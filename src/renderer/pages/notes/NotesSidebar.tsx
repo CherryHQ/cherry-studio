@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,8 +34,6 @@ interface NotesSidebarProps {
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
-
-const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
 
 const COLLAPSED_MATCH_COUNT = 3
 
@@ -198,6 +196,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     }
     return notesTree.map((n) => toFileTreeNode(n, false))
   }, [isShowSearch, hasSearchKeyword, searchResults, isShowStarred, notesTree])
+  // Search stays quiet until a keyword has been searched; the other views always explain an empty tree.
+  const emptyTreeText = isShowSearch
+    ? hasSearchKeyword && !isSearching
+      ? t('common.no_results')
+      : null
+    : t(isShowStarred ? 'notes.favorites_empty' : 'notes.empty')
 
   const expandedIds = useMemo<ReadonlySet<string>>(() => {
     if (isShowSearch || isShowStarred) return new Set<string>()
@@ -439,12 +443,18 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 selectedId={selectedId}
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
-                fileIcon={renderNoteFileIcon}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}
                 renderRowDetail={renderRowDetail}
                 getMenuItems={getTreeNodeMenuItems}
+                emptyState={
+                  emptyTreeText && (
+                    <div className="text-muted-foreground flex h-full items-center justify-center px-5 py-10 text-center text-xs break-words">
+                      {emptyTreeText}
+                    </div>
+                  )
+                }
               />
             </div>
           </CommandContextMenu>

@@ -124,7 +124,10 @@ export class ThreadMessageProjection {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
     const captured = ('type' in event ? [event] : event).map((item): ObservationPayload => {
       if (item.type === 'snapshot') {
-        const messages = item.messages.map((message) => snapshotRuntimeMessage(message))
+        const messages = item.messages.map((message) => {
+          const previous = this.admitted.get(message.id)
+          return previous && isDeepStrictEqual(previous, message) ? previous : snapshotRuntimeMessage(message)
+        })
         this.admitted = new Map(messages.map((message) => [message.id, message]))
         return { ...cloneObservationValue({ ...item, messages: [] }), messages }
       }
@@ -289,16 +292,20 @@ export class ThreadMessageProjection {
       if (source && !candidates.has(id) && event?.type !== 'snapshot') candidates.set(id, source)
     }
     // Decorators may throw; commit only after every affected message has been projected.
-    const projected = [...candidates.values()].map((source) => ({
-      source,
-      view: this.project(
+    const projected = [...candidates.values()].map((source) => {
+      const previous = this.entries.get(source.id)
+      if (previous?.source === source && !refresh.has(source.id)) return previous
+      return {
         source,
-        refresh.has(source.id),
-        event?.type === 'snapshot' ||
-          (event?.type === 'message.upsert' && event.changedParts === undefined) ||
-          refresh.has(source.id)
-      )
-    }))
+        view: this.project(
+          source,
+          refresh.has(source.id),
+          event?.type === 'snapshot' ||
+            (event?.type === 'message.upsert' && event.changedParts === undefined) ||
+            refresh.has(source.id)
+        )
+      }
+    })
     const changed: CherryUIMessage[] = []
     for (const entry of projected) if (entry.view !== this.entries.get(entry.view.id)?.view) changed.push(entry.view)
     for (const id of removed) this.entries.delete(id)

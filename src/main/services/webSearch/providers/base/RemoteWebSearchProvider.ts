@@ -3,6 +3,8 @@ import {
   isWebSearchError,
   type WebSearchClient,
   type WebSearchCredentials,
+  type WebSearchFetchUrlsCall,
+  type WebSearchKeywordsCall,
   type WebSearchProviderModule,
   type WebSearchResultSet
 } from '@cherrystudio/web-search'
@@ -63,6 +65,10 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     } = {}
   ): Promise<WebSearchResponse> {
     if (capability === 'fetchUrls') input = input.trim()
+    if (capability === 'searchImages') {
+      // Image search is configurable in settings but is not wired into the desktop runtime dispatch.
+      throw new WebSearchConfigError('capability_unsupported', 'Image search is not supported by this provider')
+    }
     const apiHost = overrides.apiHost ?? resolveProviderApiHost(this.provider, capability)
     const common = {
       providerId: this.protocol.metadata.id,
@@ -73,7 +79,8 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     }
     let response: WebSearchResultSet
     try {
-      response = await this.client.execute(
+      // searchImages is rejected above, so the result set always carries keyword/fetch results here.
+      response = await this.client.execute<WebSearchFetchUrlsCall | WebSearchKeywordsCall>(
         capability === 'searchKeywords'
           ? {
               ...common,

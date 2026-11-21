@@ -516,6 +516,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'ZOOM-01',
+    title: 'Ctrl-wheel interface zoom and persistence',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
     id: 'MP-107',
     title: 'Message and input settings',
     tasks: ['settings'],
