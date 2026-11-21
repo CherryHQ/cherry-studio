@@ -1,5 +1,5 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import type { UIMessageChunk } from 'ai'
+import type { ProviderMetadata, UIMessageChunk } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { pipeStreamLoop } from '../pipeStreamLoop'
@@ -29,10 +29,9 @@ async function collect(stream: ReadableStream<UIMessageChunk>): Promise<UIMessag
   return chunks
 }
 
-function cherryMeta(chunk: UIMessageChunk): Record<string, unknown> | undefined {
-  const metadata =
-    'providerMetadata' in chunk ? (chunk.providerMetadata as Record<string, unknown> | undefined) : undefined
-  return metadata?.cherry as Record<string, unknown> | undefined
+function cherryMeta(chunk: UIMessageChunk): ProviderMetadata[string] | undefined {
+  const metadata = 'providerMetadata' in chunk ? chunk.providerMetadata : undefined
+  return metadata?.cherry
 }
 
 describe('withReasoningTimingMetadata', () => {
@@ -81,11 +80,9 @@ describe('withReasoningTimingMetadata', () => {
       )
     )
 
-    const reasoningEnd = chunks[1] as UIMessageChunk & {
-      providerMetadata: { openai: Record<string, unknown>; cherry: Record<string, unknown> }
-    }
-    expect(reasoningEnd.providerMetadata.openai).toEqual({ itemId: 'provider-item' })
-    expect(reasoningEnd.providerMetadata.cherry).toEqual({
+    const reasoningEnd = chunks.find((chunk) => chunk.type === 'reasoning-end')
+    expect(reasoningEnd?.providerMetadata?.openai).toEqual({ itemId: 'provider-item' })
+    expect(reasoningEnd?.providerMetadata?.cherry).toEqual({
       existing: true,
       thinkingMs: 25,
       startedAt: expect.any(Number)
@@ -118,16 +115,10 @@ describe('withReasoningTimingMetadata', () => {
       )
     )
 
-    const reasoningEnd = chunks[1] as UIMessageChunk & {
-      providerMetadata: {
-        'claude-code': Record<string, unknown>
-        openai: Record<string, unknown>
-        cherry: Record<string, unknown>
-      }
-    }
-    expect(reasoningEnd.providerMetadata['claude-code']).toEqual({ parentToolCallId: 'parent-tool' })
-    expect(reasoningEnd.providerMetadata.openai).toEqual({ itemId: 'provider-item' })
-    expect(reasoningEnd.providerMetadata.cherry).toEqual({
+    const reasoningEnd = chunks.find((chunk) => chunk.type === 'reasoning-end')
+    expect(reasoningEnd?.providerMetadata?.['claude-code']).toEqual({ parentToolCallId: 'parent-tool' })
+    expect(reasoningEnd?.providerMetadata?.openai).toEqual({ itemId: 'provider-item' })
+    expect(reasoningEnd?.providerMetadata?.cherry).toEqual({
       transport: 'claude-agent',
       existing: true,
       thinkingMs: 25,
@@ -154,11 +145,9 @@ describe('withReasoningTimingMetadata', () => {
       )
     )
 
-    const reasoningEnd = chunks[3] as UIMessageChunk & {
-      providerMetadata: { anthropic: Record<string, unknown>; cherry: Record<string, unknown> }
-    }
-    expect(reasoningEnd.providerMetadata.anthropic).toEqual({ signature: 'sig-abc' })
-    expect(reasoningEnd.providerMetadata.cherry).toEqual({ thinkingMs: 25, startedAt: expect.any(Number) })
+    const reasoningEnd = chunks.find((chunk) => chunk.type === 'reasoning-end')
+    expect(reasoningEnd?.providerMetadata?.anthropic).toEqual({ signature: 'sig-abc' })
+    expect(reasoningEnd?.providerMetadata?.cherry).toEqual({ thinkingMs: 25, startedAt: expect.any(Number) })
   })
 
   it('preserves the anthropic signature in the accumulated final message', async () => {
@@ -184,9 +173,7 @@ describe('withReasoningTimingMetadata', () => {
       { onChunk: () => {} }
     )
 
-    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
-      | { text?: string; providerMetadata?: Record<string, unknown> }
-      | undefined
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning')
 
     expect(finalReasoningPart?.text).toBe('steady thought')
     expect(finalReasoningPart?.providerMetadata?.anthropic).toEqual({ signature: 'sig-abc' })
@@ -242,9 +229,7 @@ describe('withReasoningTimingMetadata', () => {
     )
 
     const broadcastReasoningEnd = broadcastChunks.find((chunk) => chunk.type === 'reasoning-end')
-    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
-      | { providerMetadata?: { cherry?: { thinkingMs?: number } } }
-      | undefined
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning')
 
     expect(cherryMeta(broadcastReasoningEnd!)?.thinkingMs).toBe(350)
     expect(finalReasoningPart?.providerMetadata?.cherry?.thinkingMs).toBe(350)
@@ -275,9 +260,7 @@ describe('withReasoningTimingMetadata', () => {
       { onChunk: () => {} }
     )
 
-    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
-      | { providerMetadata?: Record<string, unknown> }
-      | undefined
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning')
 
     expect(finalReasoningPart?.providerMetadata?.['claude-code']).toEqual({ parentToolCallId: 'parent-tool' })
     expect(finalReasoningPart?.providerMetadata?.cherry).toEqual({
@@ -335,9 +318,7 @@ describe('withReasoningTimingMetadata', () => {
       { onChunk: () => {} }
     )
 
-    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
-      | { providerMetadata?: Record<string, unknown> }
-      | undefined
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning')
 
     expect(finalReasoningPart?.providerMetadata?.cherry).toEqual({
       startedAt: baseTime,

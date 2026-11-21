@@ -123,6 +123,6 @@ function toProviderMetadata(value: ProviderMetadata | undefined): ProviderMetada
   return isRecord(value) ? value : undefined
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord<T extends object>(value: T | undefined): value is T {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
