@@ -57,6 +57,12 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   warmQueryInitializeTimeoutMs?: number
   /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /**
+   * Argument vector prepended to every CLI spawn for a user-registered custom
+   * executable (Agent configuration.custom_cli, issue #19966). Cherry-internal;
+   * consumed by the spawn seam, never forwarded to the SDK as an option.
+   */
+  customCliArgs?: readonly string[]
 }
 
 export type ToolApprovalEmitterHolder = {

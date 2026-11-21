@@ -61,6 +61,9 @@ function getDefaultValues(
     prompt: '',
     knowledgeBaseIds: [],
     skillIds: [],
+    customCliEnabled: false,
+    customCliExecutable: '',
+    customCliArgsText: '',
     ...initialValues
   }
 }
@@ -299,17 +302,28 @@ export function ResourceCreateWizard({
     if (!values.modelId) return
     form.clearErrors('root')
     try {
+      // A custom executable registration runs on the claude-code runtime, the
+      // only one that owns a spawned CLI child process (issue #19966).
+      const customCliExecutable = values.customCliEnabled ? values.customCliExecutable.trim() : ''
       await onSubmit({
         avatar: values.avatar,
         ...(kind === 'agent' && values.avatarImage ? { avatarImage: values.avatarImage } : {}),
-        agentType: values.agentType,
+        agentType: customCliExecutable ? 'claude-code' : values.agentType,
         permissionMode: values.permissionMode,
         name: values.name.trim(),
         modelId: values.modelId,
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
-        skillIds: values.skillIds
+        skillIds: values.skillIds,
+        ...(customCliExecutable
+          ? {
+              customCli: {
+                executable: customCliExecutable,
+                args: values.customCliArgsText.split(/\r?\n/).filter((line) => line.length > 0)
+              }
+            }
+          : {})
       })
     } catch (error) {
       const message =

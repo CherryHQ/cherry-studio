@@ -25,6 +25,8 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
+  /** Set when the creator registered a custom Code CLI executable (issue #19966). */
+  customCli?: { executable: string; args: string[] }
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'

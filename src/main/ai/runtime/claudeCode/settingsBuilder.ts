@@ -18,6 +18,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { requireValidCustomCli } from '@main/services/codeCli/customCliExecutable'
 import {
   resolveAgentCapabilities,
   resolveAutomationAccess,
@@ -335,11 +336,19 @@ export async function buildClaudeCodeSessionSettings(
   // every other value (including an unreadable preference), so nothing changes unless asked.
   const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
 
+  // A user-registered custom Code CLI executable replaces the managed binary
+  // (issue #19966). Re-validated on every launch, so a moved or deleted
+  // executable fails here with a typed error before any process is spawned,
+  // and never falls back to another binary. Built-in resolution is untouched
+  // when no custom entry is registered.
+  const customCliLaunch = agentConfig?.custom_cli ? requireValidCustomCli(agentConfig.custom_cli) : undefined
+
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
     env,
-    pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
+    pathToClaudeCodeExecutable: customCliLaunch?.resolvedPath ?? resolveClaudeExecutablePath(),
+    ...(customCliLaunch && customCliLaunch.args.length > 0 ? { customCliArgs: customCliLaunch.args } : {}),
     systemPrompt,
     // Sealed agents exclude filesystem settings and native workspace instructions.
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),

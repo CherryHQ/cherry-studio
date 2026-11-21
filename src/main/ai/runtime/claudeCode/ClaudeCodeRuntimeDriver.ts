@@ -209,7 +209,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
+      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics, request.settings.customCliArgs)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -232,7 +232,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
     this.spawnOptions = consumedWarmQuery
-      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
+      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics, request.settings.customCliArgs) }
       : options
     const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
     const { resume, cwd, ...nativeOptions } = options

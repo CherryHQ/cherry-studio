@@ -274,6 +274,54 @@ describe('diffAgentUpdate', () => {
   })
 })
 
+describe('custom_cli registration (issue #19966)', () => {
+  it('loads the stored executable and one argument per line', () => {
+    const agent = createAgent({
+      configuration: { custom_cli: { executable: '/usr/local/bin/oh-my-pi', args: ['--profile', 'a b'] } }
+    })
+    const state = buildInitialAgentFormState(agent)
+    expect(state.customCliExecutable).toBe('/usr/local/bin/oh-my-pi')
+    expect(state.customCliArgsText).toBe('--profile\na b')
+  })
+
+  it('patches custom_cli with arguments kept as exact strings (AC3)', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = {
+      ...baseline,
+      customCliExecutable: ' /opt/oh-my-pi ',
+      customCliArgsText: '--system prompt "quoted"\nC:\\Program Files\\pi\n\nplain'
+    }
+
+    const result = diffAgentUpdate(baseline, next)
+    expect(result?.dto.configuration?.custom_cli).toEqual({
+      executable: '/opt/oh-my-pi',
+      args: ['--system prompt "quoted"', 'C:\\Program Files\\pi', 'plain']
+    })
+  })
+
+  it('clears the registration when the executable is emptied', () => {
+    const agent = createAgent({
+      configuration: { custom_cli: { executable: '/usr/local/bin/oh-my-pi', args: [] } }
+    })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, customCliExecutable: '' }
+
+    const result = diffAgentUpdate(baseline, next)
+    expect(result?.dto.configuration).toEqual({ custom_cli: undefined })
+  })
+
+  it('emits no custom_cli patch when the registration is untouched', () => {
+    const agent = createAgent({
+      configuration: { custom_cli: { executable: '/usr/local/bin/oh-my-pi', args: ['--x'] } }
+    })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, name: 'Renamed' }
+
+    const result = diffAgentUpdate(baseline, next)
+    expect(result?.dto.configuration).toBeUndefined()
+  })
+})
+
 describe('agent reply language tri-state', () => {
   it('maps persisted language values onto mode + draft', () => {
     expect(buildInitialAgentFormState(createAgent())).toMatchObject({ languageMode: 'inherit', languageCustom: '' })

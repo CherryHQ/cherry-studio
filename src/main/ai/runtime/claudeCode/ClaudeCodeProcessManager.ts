@@ -8,6 +8,7 @@ import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { prependCustomCliArgs } from '@main/services/codeCli/customCliExecutable'
 import { killProcessTree } from '@main/utils/processRunner'
 
 import {
@@ -275,6 +276,6 @@ export const spawnClaudeCodeProcess = (options: SpawnOptions): SpawnedProcess =>
 export { createClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 export const createSpawnClaudeCodeProcess =
-  (diagnostics: ClaudeCodeProcessDiagnostics) =>
+  (diagnostics: ClaudeCodeProcessDiagnostics, customCliArgs?: readonly string[]) =>
   (options: SpawnOptions): SpawnedProcess =>
-    application.get('ClaudeCodeProcessManager').spawn(options, diagnostics)
+    application.get('ClaudeCodeProcessManager').spawn(prependCustomCliArgs(options, customCliArgs), diagnostics)

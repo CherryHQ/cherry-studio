@@ -3,6 +3,8 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 
+import { prependCustomCliArgs } from '@main/services/codeCli/customCliExecutable'
+
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeSettings } from './types'
 
@@ -40,6 +42,7 @@ export function createClaudeCodeQueryOptions({
     warmQueryInitializeTimeoutMs: _warmQueryInitializeTimeoutMs,
     // oxlint-disable-next-line no-unused-vars
     mcpToolMetadata: _mcpToolMetadata,
+    customCliArgs,
     ...settingsRest
   } = settings
 
@@ -47,7 +50,10 @@ export function createClaudeCodeQueryOptions({
     ...settingsRest,
     // The SDK requires this launch flag for a confirmed mid-turn switch to Full Access.
     allowDangerouslySkipPermissions: true,
-    spawnClaudeCodeProcess,
+    // A registered custom CLI's stored argument vector precedes the SDK's own
+    // arguments on every spawn; the driver/warm layers apply the same prepend
+    // when they wrap this spawn with process diagnostics.
+    spawnClaudeCodeProcess: (options) => spawnClaudeCodeProcess(prependCustomCliArgs(options, customCliArgs)),
     model: modelId,
     ...(abortController ? { abortController } : {}),
     resume: effectiveResume ?? settings.resume

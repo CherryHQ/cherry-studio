@@ -146,3 +146,12 @@ export interface TerminalConfig {
 export interface TerminalConfigWithCommand extends TerminalConfig {
   command: (directory: string, fullCommand: string) => { command: string; args: string[] }
 }
+
+/**
+ * Validation failure codes for a user-registered custom Code CLI executable
+ * (Agent `configuration.custom_cli`). The renderer maps each code to a
+ * translated, actionable message; keep in sync with the locale keys under
+ * `library.config.agent.field.custom_cli.validation.*`.
+ */
+export const CUSTOM_CLI_ERROR_CODES = ['missing', 'not_file', 'not_executable', 'unsupported_extension'] as const
+export type CustomCliErrorCode = (typeof CUSTOM_CLI_ERROR_CODES)[number]

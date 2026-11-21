@@ -1,5 +1,8 @@
 import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { resolve } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -23,6 +26,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { CustomCliValidationError } from '@main/services/codeCli/customCliExecutable'
+
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -764,6 +769,92 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
+  })
+
+  describe('custom_cli configuration (issue #19966)', () => {
+    let tempDir: string
+    let executablePath: string
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-custom-cli-'))
+      executablePath = path.join(tempDir, 'oh-my-pi')
+      fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n')
+      fs.chmodSync(executablePath, 0o755)
+    })
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('stores and restores the executable and argument array unchanged (AC1)', () => {
+      const args = ['--profile', 'a value with spaces', 'back\\slash']
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Custom CLI',
+        model: TEST_MODEL_ID,
+        configuration: { custom_cli: { executable: executablePath, args } }
+      })
+
+      const persisted = agentService.getAgent(created.id)
+      expect(persisted?.configuration?.custom_cli).toEqual({ executable: executablePath, args })
+    })
+
+    it('blocks create with a missing executable (AC2)', () => {
+      expect(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Missing CLI',
+          model: TEST_MODEL_ID,
+          configuration: { custom_cli: { executable: path.join(tempDir, 'gone'), args: [] } }
+        })
+      ).toThrowError(CustomCliValidationError)
+    })
+
+    it('blocks create with a directory as not_file (AC2)', () => {
+      expect(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Directory CLI',
+          model: TEST_MODEL_ID,
+          configuration: { custom_cli: { executable: tempDir, args: [] } }
+        })
+      ).toThrowError(CustomCliValidationError)
+    })
+
+    it('blocks create with a non-executable file as not_executable (AC2)', () => {
+      const plainPath = path.join(tempDir, 'plain')
+      fs.writeFileSync(plainPath, 'echo hi')
+      fs.chmodSync(plainPath, 0o644)
+      expect(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Plain CLI',
+          model: TEST_MODEL_ID,
+          configuration: { custom_cli: { executable: plainPath, args: [] } }
+        })
+      ).toThrowError(CustomCliValidationError)
+    })
+
+    it('blocks an update that would register an invalid executable (AC2)', () => {
+      const created = createAgentForTest({ type: 'claude-code', name: 'Editable', model: TEST_MODEL_ID })
+      expect(() =>
+        agentService.updateAgent(created.id, {
+          configuration: { custom_cli: { executable: path.join(tempDir, 'gone'), args: [] } }
+        })
+      ).toThrowError(CustomCliValidationError)
+      expect(agentService.getAgent(created.id)?.configuration?.custom_cli).toBeUndefined()
+    })
+
+    it('removes the registration when the patch sets custom_cli to undefined', () => {
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Removable',
+        model: TEST_MODEL_ID,
+        configuration: { custom_cli: { executable: executablePath, args: ['--x'] } }
+      })
+      const updated = agentService.updateAgent(created.id, { configuration: { custom_cli: undefined } })
+      expect(updated?.configuration?.custom_cli).toBeUndefined()
     })
   })
 

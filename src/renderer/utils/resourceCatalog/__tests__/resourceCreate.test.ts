@@ -55,6 +55,15 @@ describe('resource create DTO mapping', () => {
   })
 
   it('uses pi runtime defaults and omits unsupported model tiers', () => {
+    expect(buildCreateAgentCommand({ ...values, customCli: { executable: '/opt/oh-my-pi', args: ['--profile', 'a b'] } })
+      .configuration?.custom_cli).toEqual({ executable: '/opt/oh-my-pi', args: ['--profile', 'a b'] })
+  })
+
+  it('omits custom_cli when no custom executable was registered', () => {
+    expect(buildCreateAgentCommand(values).configuration).not.toHaveProperty('custom_cli')
+  })
+
+  it('carries a registered custom CLI executable into configuration (issue #19966)', () => {
     expect(buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'acceptEdits' })).toEqual({
       type: 'pi',
       name: 'Researcher',
