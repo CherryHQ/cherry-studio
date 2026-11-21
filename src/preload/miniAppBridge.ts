@@ -108,6 +108,7 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   // Coerced once and measured on the forwarded string — see `gateChat`.
   const url = str(params.url)
   assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Guest JavaScript can supply native or stateful header values; coerce each once and bound the forwarded string before IPC.
   const headers = (params.headers ?? {}) as Record<string, unknown>
   if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
     throw guestRefusal(`Mini app request exceeds the ${MINI_APP_GUEST_LIMITS.fetchHeaderCount} header limit`)

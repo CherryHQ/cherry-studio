@@ -30,6 +30,7 @@ const nativePopupMenuLocations = new Set([
   'topic.context'
 ])
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Renderer menu items and coordinates are unparsed IPC objects; the recursive field guards below validate them before Electron consumes them.
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const isCommandId = (value: unknown): value is CommandId =>

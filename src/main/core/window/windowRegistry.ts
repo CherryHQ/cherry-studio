@@ -791,7 +791,7 @@ export function mergeWindowOptions(
   }
 
   // Strip platformOverrides from the returned object so it never leaks to `new BrowserWindow(...)`.
-  const rest: Record<string, unknown> = { ...merged }
+  const rest = { ...merged }
   delete rest.platformOverrides
   return rest
 }
