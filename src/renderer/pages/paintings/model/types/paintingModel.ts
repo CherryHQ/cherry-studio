@@ -4,6 +4,4 @@ export type ModelOption<TRaw = unknown> = {
   group?: string
   isEnabled?: boolean
   raw?: TRaw
-  /** Provider-specific extra data. Keep declared fields strictly typed; put anything else here. */
-  meta?: Record<string, unknown>
 }
