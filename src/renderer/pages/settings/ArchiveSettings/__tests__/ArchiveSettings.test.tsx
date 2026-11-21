@@ -435,7 +435,8 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
   it('chunks 501 selected file ids into 500 and 1 before enabling confirmation', async () => {
     const user = userEvent.setup()
     mocks.fileItems = fileItems(501)
-    vi.mocked(dataApiService.get).mockImplementation(async (path, options) => {
+    const getRefCounts = vi.mocked(dataApiService.get<'/files/entries/ref-counts'>)
+    getRefCounts.mockImplementation(async (path, options) => {
       if (path !== '/files/entries/ref-counts') throw new Error(`Unexpected detail read: ${path}`)
       return (options?.query?.entryIds ?? []).map((entryId) => ({ entryId, refCount: 0 }))
     })
@@ -446,8 +447,8 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Permanently delete 501 items?')
     await waitFor(() => expect(dataApiService.get).toHaveBeenCalledTimes(2))
-    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query?.entryIds).toHaveLength(500)
-    expect(vi.mocked(dataApiService.get).mock.calls[1][1]?.query?.entryIds).toHaveLength(1)
+    expect(getRefCounts.mock.calls[0][1]?.query?.entryIds).toHaveLength(500)
+    expect(getRefCounts.mock.calls[1][1]?.query?.entryIds).toHaveLength(1)
     const confirm = screen.getByRole('button', { name: 'Delete Permanently' })
     await waitFor(() => expect(confirm).toBeEnabled())
     await user.click(confirm)

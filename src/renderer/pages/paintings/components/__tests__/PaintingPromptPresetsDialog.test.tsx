@@ -61,7 +61,7 @@ const prompt = (index: number, visibility: Prompt['visibility'] = 'global'): Pro
 const seeds = [prompt(1), prompt(2), prompt(3), prompt(4, 'restricted')]
 const globalPrompts = seeds.slice(0, 3)
 let cache: Map<string, { data?: unknown }>
-const get = vi.mocked(dataApiService.get)
+const get = vi.mocked(dataApiService.get<'/prompts'>)
 const post = vi.mocked(dataApiService.post)
 const patch = vi.mocked(dataApiService.patch)
 const remove = vi.mocked(dataApiService.delete)
@@ -93,12 +93,11 @@ async function openEditor(user: ReturnType<typeof userEvent.setup>, edit = false
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
-  get
-    .mockReset()
-    .mockImplementation(
-      async (_path, options) =>
-        seeds.filter((item) => !options?.query?.visibility || item.visibility === options.query.visibility) as never
-    )
+  get.mockReset().mockImplementation(async (_path, options) => {
+    const query = options?.query
+    const visibility = query && 'visibility' in query ? query.visibility : undefined
+    return seeds.filter((item) => !visibility || item.visibility === visibility)
+  })
   post.mockReset().mockResolvedValue(prompt(5))
   patch.mockReset().mockResolvedValue(prompt(1))
   remove.mockReset().mockResolvedValue(undefined)

@@ -12,6 +12,7 @@ import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
 import en from '@renderer/i18n/locales/en-us.json'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
+import type { ApiQuery } from '@shared/data/api/types'
 
 import type AgentChat from '../AgentChat'
 import ScheduledTasksPage from '../ScheduledTasksPage'
@@ -72,10 +73,8 @@ async function openPage(
   }
   const tasks = Array.from({ length: 51 }, (_, index) => statuses.map((status) => task(status, index))).flat()
   vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
-    const query = options?.query as
-      | { status?: string | string[]; page?: number; limit?: number; ids?: string[] }
-      | undefined
     if (path === '/agent-tasks') {
+      const query: ApiQuery<'/agent-tasks', 'GET'> | undefined = options?.query
       const items = tasks.filter((item) =>
         Array.isArray(query?.status) ? query.status.includes(item.status) : item.status === query?.status
       )
@@ -83,8 +82,10 @@ async function openPage(
       return { items: items.slice((page - 1) * 50, page * 50), total: items.length, page, limit: 50 } as never
     }
     if (path.startsWith('/agent-tasks/')) return tasks.find((item) => path.endsWith('/' + item.id)) as never
-    if (path === '/agents')
+    if (path === '/agents') {
+      const query: ApiQuery<'/agents', 'GET'> | undefined = options?.query
       return { items: query?.ids?.slice(0, query.limit).map((id) => ({ id, name: `Owner ${id}` })) ?? [] } as never
+    }
     if (path.includes('/tasks/') && path.endsWith('/logs')) {
       const id = path.split('/').at(-2)!
       return {
