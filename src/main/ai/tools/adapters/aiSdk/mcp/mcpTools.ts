@@ -1,3 +1,4 @@
+import type { InferSchema } from '@ai-sdk/provider-utils'
 import type { CallToolResult } from '@modelcontextprotocol/client'
 import { type JSONSchema7, type Tool } from 'ai'
 
@@ -58,7 +59,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     metadata: { cherry: { tool: metadata } },
     inputSchema: createMcpInputSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
-    execute: async (args: Record<string, unknown>, options) => {
+    execute: async (args: InferSchema<ReturnType<typeof createMcpInputSchema>>, options) => {
       const { toolCallId, abortSignal } = options
       const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {

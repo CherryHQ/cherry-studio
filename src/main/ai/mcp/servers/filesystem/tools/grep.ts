@@ -26,7 +26,15 @@ export const grepToolDefinition = {
   inputSchema: GrepToolSchema
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  type?: unknown
+  data?: unknown
+  line_number?: unknown
+  path?: unknown
+  lines?: unknown
+  text?: unknown
+  bytes?: unknown
+} {
   return typeof value === 'object' && value !== null
 }
 
