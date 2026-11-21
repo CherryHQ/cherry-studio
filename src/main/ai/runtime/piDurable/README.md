@@ -10,6 +10,9 @@ shell configuration and tool rendering. Each native provider call passes protoco
 gateway in process, which owns upstream credentials and billing without an internal HTTP/JSON/SSE round trip. Root and child bindings share
 the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
+The desktop Harness disables native provider retries for roots and children. The shared
+[gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
+A final failure retains its upstream error; later user input can start a new run.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through

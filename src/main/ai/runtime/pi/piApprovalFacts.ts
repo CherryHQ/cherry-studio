@@ -8,6 +8,7 @@ import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { memorySearchTarget, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { resolveMcpSkillToolAccess } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -69,7 +70,9 @@ export async function readPiApprovalFacts(
     : undefined
   const memorySearchBlocked =
     ['grep', 'find', 'ls'].includes(name) && (!searchPath || (await memorySearchTarget(searchPath)))
-  const disabled = ctx.isDisabled(name) || browser === 'deny' || Boolean(memorySearchBlocked)
+  const skillAccess = resolveMcpSkillToolAccess(name, input)
+  const disabled =
+    ctx.isDisabled(name) || browser === 'deny' || skillAccess?.enabled === false || Boolean(memorySearchBlocked)
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
@@ -112,8 +115,14 @@ export async function readPiApprovalFacts(
   return {
     category,
     disabled,
-    autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name) || Boolean(controlledEdit),
-    approvalRequired: ctx.approvalRequiredTools.has(name) || policyAsk || guard?.effect === 'ask',
+    autoApproved:
+      browser === 'allow' ||
+      (skillAccess ? skillAccess.approval === 'auto' : ctx.autoApprovedTools.has(name)) ||
+      Boolean(controlledEdit),
+    approvalRequired:
+      (skillAccess ? skillAccess.approval === 'prompt' : ctx.approvalRequiredTools.has(name)) ||
+      policyAsk ||
+      guard?.effect === 'ask',
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&
