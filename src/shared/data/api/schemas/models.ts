@@ -70,6 +70,8 @@ export const CreateModelSchema = z.strictObject({
   reasoning: z
     .strictObject({ defaultEffort: ReasoningConfigSchema.shape.defaultEffort.unwrap().nullable().optional() })
     .optional(),
+  /** Provider-declared intrinsic descriptor, carried when the registry has no match to author one. */
+  providerReasoning: ReasoningConfigSchema.optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
@@ -94,7 +96,9 @@ export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
-  presetModelId: true
+  presetModelId: true,
+  // Create-time provider metadata; a PATCH must not silently accept and drop it.
+  providerReasoning: true
 })
   .partial()
   .extend({

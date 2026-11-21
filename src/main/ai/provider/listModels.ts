@@ -55,6 +55,7 @@ import {
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
 import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
+import { openRouterReasoningFromMetadata } from './listModels/openRouterReasoning'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -756,9 +757,14 @@ const openRouterFetcher: ModelFetcher = {
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
+        // OpenRouter is the one OpenAI-compatible catalog that declares a model's
+        // effort vocabulary inline; keep it so a registry miss can still persist
+        // a descriptor instead of leaving `user_model.reasoning` NULL.
+        const reasoning = openRouterReasoningFromMetadata(m)
         const model = toModel(m.id, provider, {
           name: imageModel?.name ?? m.name,
           ownedBy: m.owned_by,
+          ...(reasoning ? { reasoning } : {}),
           ...(imageModel
             ? {
                 capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
