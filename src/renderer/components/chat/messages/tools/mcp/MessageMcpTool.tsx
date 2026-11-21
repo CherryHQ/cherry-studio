@@ -271,7 +271,7 @@ const formatArgPreviewValue = (value: unknown, depth = 0): string => {
   }
 
   if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
+    const entries = Object.entries(value)
     const visibleEntries = entries.slice(0, MAX_ARG_OBJECT_KEYS).map(([key, item]) => {
       return `${JSON.stringify(key)}: ${formatArgPreviewValue(item, depth + 1)}`
     })
@@ -284,7 +284,7 @@ const formatArgPreviewValue = (value: unknown, depth = 0): string => {
 
 const ToolResponseContent: FC<{
   isExpanded: boolean
-  args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
+  args: McpToolResponse['arguments']
   isStreaming: boolean
   response?: unknown
 }> = ({ isExpanded, args, isStreaming, response }) => {
@@ -307,7 +307,7 @@ const ToolResponseContent: FC<{
 
 // Unified tool response content component
 const ExpandedToolResponseContent: FC<{
-  args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
+  args: McpToolResponse['arguments']
   isStreaming: boolean
   response?: unknown
 }> = ({ args, isStreaming, response }) => {

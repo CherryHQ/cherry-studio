@@ -18,6 +18,7 @@ export interface ToolApprovalOutcome {
 interface BaseToolResponse {
   id: string // unique id
   tool: BaseTool | McpTool
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native and MCP argument fields remain unvalidated until tool-specific readers; retain their raw values and streaming text.
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: McpToolResponseStatus
   response?: any

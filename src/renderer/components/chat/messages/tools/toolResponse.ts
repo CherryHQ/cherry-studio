@@ -50,6 +50,7 @@ export interface ToolRenderItem {
   toolResponse: ToolResponseLike
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime tool metadata and arguments are opaque containers; callers check each field before interpreting it.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -215,7 +216,10 @@ function normalizeErrorOutput(part: ToolResponsePart): z.infer<typeof CallToolRe
   return normalizeToolErrorResponse(part.errorText)
 }
 
-function normalizePiFileInput(name: string, input: Record<string, unknown>): Record<string, unknown> {
+function normalizePiFileInput(
+  name: string,
+  input: Exclude<NormalToolResponse['arguments'], string | unknown[] | undefined>
+) {
   if (name !== 'read' && name !== 'write' && name !== 'edit') return input
   if (name === 'edit' && Array.isArray(input.edits)) {
     return {
