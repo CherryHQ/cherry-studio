@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { clampImageForModel, cropPng, transcodeToEntityWebp } from '../image'
+import { clampImageForModel, cropPng, isDecodableImage, transcodeToEntityWebp } from '../image'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
@@ -33,8 +33,30 @@ describe('transcodeToEntityWebp', () => {
     expect(meta.format).toBe('webp')
   })
 
+  it('respects a caller-owned maximum edge while validating decode', async () => {
+    const image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const resized = await clampImageForModel(image, 100)
+    expect(resized).not.toBeNull()
+    expect(await sharp(resized!).metadata()).toMatchObject({ width: 100, height: 50 })
+    await expect(clampImageForModel(image, 500)).resolves.toBeNull()
+  })
+
   it('throws on undecodable input', async () => {
     await expect(transcodeToEntityWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
+  })
+})
+
+describe('isDecodableImage', () => {
+  it('accepts a valid PNG and rejects truncated pixel data that still exposes IHDR', async () => {
+    const valid = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const truncated = valid.subarray(0, Math.floor(valid.length / 2))
+
+    await expect(isDecodableImage(new Uint8Array(PNG_1X1))).resolves.toBe(true)
+    await expect(isDecodableImage(truncated)).resolves.toBe(false)
   })
 })
 
@@ -56,6 +78,24 @@ describe('clampImageForModel', () => {
 
   it('returns null for an image that already fits, so callers can skip re-encoding', async () => {
     await expect(clampImageForModel(new Uint8Array(PNG_1X1))).resolves.toBeNull()
+  })
+
+  it('rejects a small truncated PNG that still exposes IHDR in metadata', async () => {
+    const valid = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const truncated = valid.subarray(0, Math.floor(valid.length / 2))
+
+    await expect(clampImageForModel(truncated)).rejects.toThrow('could not decode image')
+  })
+
+  it('still rejects oversized truncated PNGs on the model path', async () => {
+    const valid = await sharp({ create: { width: 10001, height: 10, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    await expect(clampImageForModel(valid.subarray(0, Math.floor(valid.length / 2)))).rejects.toThrow(
+      'could not decode image'
+    )
   })
 
   it('throws on undecodable input', async () => {

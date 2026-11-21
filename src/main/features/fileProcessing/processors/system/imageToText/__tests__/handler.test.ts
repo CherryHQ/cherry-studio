@@ -123,6 +123,49 @@ describe('systemImageToTextHandler', () => {
     }
   })
 
+  it('lets the native OCR decoder try a truncated PNG when strict model decoding fails', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
+    try {
+      const imagePath = path.join(tempDir, 'scan.png')
+      const valid = await sharp({ create: { width: 120, height: 50, channels: 3, background: 'red' } })
+        .png()
+        .toBuffer()
+      const bytes = valid.subarray(0, Math.floor(valid.length / 2))
+      await fs.writeFile(imagePath, bytes)
+      vi.mocked(recognize).mockResolvedValue({ text: 'native decoder result', confidence: 1, lines: [] })
+      const result = await runHandler(FileInfoSchema.parse({ ...imageFile, path: imagePath, size: bytes.length }))
+      expect(result).toEqual({ kind: 'text', text: 'native decoder result' })
+      expect(Buffer.from(vi.mocked(recognize).mock.calls[0][0] as Uint8Array)).toEqual(bytes)
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it.each([false, true])('bounds oversized PNGs before OCR, including truncated input: %s', async (truncated) => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
+    try {
+      const imagePath = path.join(tempDir, 'scan.png')
+      const valid = await sharp({ create: { width: 10001, height: 10, channels: 3, background: 'red' } })
+        .png()
+        .toBuffer()
+      const bytes = truncated ? valid.subarray(0, Math.floor(valid.length / 2)) : valid
+      await fs.writeFile(imagePath, bytes)
+      vi.mocked(recognize).mockImplementation(async (image) => {
+        expect(typeof image).not.toBe('string')
+        expect(await sharp(image as Uint8Array).metadata()).toMatchObject({ format: 'png', width: 8000, height: 8 })
+        await sharp(image as Uint8Array, { failOn: 'error' }).stats()
+        return { text: 'bounded OCR input', confidence: 1, lines: [] }
+      })
+      expect(await runHandler(FileInfoSchema.parse({ ...imageFile, path: imagePath, size: bytes.length }))).toEqual({
+        kind: 'text',
+        text: 'bounded OCR input'
+      })
+      expect(recognize).toHaveBeenCalledTimes(1)
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   it('sends a PNG on Windows untouched instead of re-encoding it', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
     try {

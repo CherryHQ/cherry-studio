@@ -669,15 +669,16 @@ it('binds repeated native resets after Main captures a prewarm branch head, reta
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 60000)
 
-it.each(['managed', 'external', 'failure', 'history'])(
+it.each(['managed', 'external', 'failure', 'history', 'truncated'])(
   'dispatches real %s image bytes through the native owner',
   async (kind) => {
     const test = await desktop()
     // Keep the injected encoder failure from reusing a previously cached success.
     const background = kind === 'failure' ? '#654321' : '#123456'
-    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background } })
+    let bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background } })
       .png()
       .toBuffer()
+    if (kind === 'truncated') bytes = bytes.subarray(0, Math.floor(bytes.length / 2))
     MockApplicationUtils.setService('FileManager', {
       getPhysicalPath: vi.fn().mockResolvedValue(undefined),
       getById: vi.fn().mockResolvedValue({ ext: 'png' }),
@@ -732,6 +733,14 @@ it.each(['managed', 'external', 'failure', 'history'])(
     const image = request.body.messages
       .flatMap((message) => (Array.isArray(message.content) ? message.content : []))
       .find((part) => part.type === 'image')
+    if (kind === 'truncated') {
+      expect(image).toBeUndefined()
+      expect(JSON.stringify(request.body.messages)).toContain('Unavailable attachments: strip.png')
+      request.reply.block({ type: 'text', text: 'Please resend the image' })
+      request.reply.finish()
+      await test.wait('turn-complete')
+      return
+    }
     expect(image?.source.type).toBe('base64')
     if (!image || image.source.type !== 'base64') throw new Error('Missing inline image')
     expect(image.source.media_type).toBe('image/png')
