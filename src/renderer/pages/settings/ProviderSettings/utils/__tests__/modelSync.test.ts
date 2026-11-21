@@ -36,6 +36,7 @@ describe('fetchResolvedProviderModels', () => {
       capabilities: [],
       contextWindow: 64000,
       maxOutputTokens: 4096,
+      providerMetadata: { contextWindow: 64000, maxOutputTokens: 4096, capabilities: [] },
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
@@ -46,7 +47,12 @@ describe('fetchResolvedProviderModels', () => {
     const { models } = await fetchResolvedProviderModels('custom')
 
     expect(models[0]).toMatchObject({ contextWindow: 64000, maxOutputTokens: 4096 })
-    expect(toCreateModelDto('custom', models[0])).toMatchObject({ contextWindow: 64000, maxOutputTokens: 4096 })
+    expect(toCreateModelDto('custom', models[0])).toMatchObject({
+      contextWindow: 64000,
+      maxOutputTokens: 4096,
+      providerMetadata: model.providerMetadata
+    })
+    expect(listModelsMock).toHaveBeenCalledExactlyOnceWith({ providerId: 'custom', throwOnError: true })
   })
 
   it('throws when upstream model listing fails instead of returning an empty list', async () => {

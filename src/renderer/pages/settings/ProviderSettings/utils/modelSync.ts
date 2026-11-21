@@ -63,6 +63,7 @@ export function toCreateModelDto(
   return {
     providerId,
     modelId,
+    ...(model.providerMetadata ? { providerMetadata: model.providerMetadata } : {}),
     name: model.name,
     group: model.group,
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
@@ -140,7 +141,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
-      if ((field === 'contextWindow' || field === 'maxOutputTokens') && base[field] !== undefined) {
+      if (
+        ((field === 'contextWindow' || field === 'maxOutputTokens') && base[field] !== undefined) ||
+        (field === 'capabilities' && base.providerMetadata?.capabilities !== undefined)
+      ) {
         continue
       }
       if (field === 'name' && keepFetchedName) {
