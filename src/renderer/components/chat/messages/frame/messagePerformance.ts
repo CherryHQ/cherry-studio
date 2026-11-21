@@ -215,13 +215,25 @@ export function buildMessagePerformanceViewModel(
   return stats.runtimeTiming ? buildRuntimeViewModel(stats, records, now) : buildLegacyViewModel(stats)
 }
 
-export function getMessageModelTokensPerSecond(stats: MessageStats): number | undefined {
+export function getMessageGenerationSample(
+  stats: MessageStats
+): { outputTokens: number; durationMs: number } | undefined {
   if (stats.runtimeTiming) {
     const outputTokens = stats.providerPerformance?.measuredOutputTokens
     const durationMs = stats.providerPerformance?.generationDurationMs
     return outputTokens !== undefined && outputTokens > 0 && durationMs !== undefined && durationMs > 0
-      ? outputTokens / (durationMs / 1000)
+      ? { outputTokens, durationMs }
       : undefined
   }
-  return buildLegacyViewModel(stats).modelTokensPerSecond
+  const completion = stats.timeCompletionMs
+  if (completion === undefined || completion <= 0) return undefined
+  const firstToken = Math.min(Math.max(stats.timeFirstTokenMs ?? 0, 0), completion)
+  const durationMs = completion - firstToken
+  const outputTokens = stats.outputTokens
+  return outputTokens !== undefined && outputTokens > 0 && durationMs > 0 ? { outputTokens, durationMs } : undefined
+}
+
+export function getMessageModelTokensPerSecond(stats: MessageStats): number | undefined {
+  const sample = getMessageGenerationSample(stats)
+  return sample ? sample.outputTokens / (sample.durationMs / 1000) : undefined
 }
