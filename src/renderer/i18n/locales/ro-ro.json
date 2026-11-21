@@ -3495,6 +3495,7 @@
   "provider.modelscope": "ModelScope",
   "provider.moonshot": "Moonshot",
   "provider.moonshot-global": "Moonshot AI",
+  "provider.morse": "Morse",
   "provider.new-api": "New API",
   "provider.nvidia": "Nvidia",
   "provider.o3": "O3",

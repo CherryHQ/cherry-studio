@@ -113,6 +113,7 @@ export const PROVIDER_ICON_LOADERS = {
   modelscope: () => import('./modelscope').then(({ ModelscopeIcon }) => ModelscopeIcon),
   monica: () => import('./monica').then(({ MonicaIcon }) => MonicaIcon),
   moonshot: () => import('./moonshot').then(({ MoonshotIcon }) => MoonshotIcon),
+  morse: () => import('./morse').then(({ MorseIcon }) => MorseIcon),
   n8n: () => import('./n8n').then(({ N8nIcon }) => N8nIcon),
   'nami-ai': () => import('./nami-ai').then(({ NamiAiIcon }) => NamiAiIcon),
   napkin: () => import('./napkin/napkin').then(({ NapkinIcon }) => NapkinIcon),

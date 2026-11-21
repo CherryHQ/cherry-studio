@@ -20170,6 +20170,34 @@
       "providerId": "moonshot-global"
     },
     {
+      "apiModelId": "openai/gpt-oss-120b",
+      "modelId": "gpt-oss-120b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.21
+        }
+      },
+      "providerId": "morse"
+    },
+    {
+      "apiModelId": "mistralai/mistral-nemo",
+      "capabilities": {
+        "remove": ["function-call", "image-recognition"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "mistral-nemo",
+      "providerId": "morse"
+    },
+    {
       "apiModelId": "nvidia/active-speaker-detection",
       "modelId": "active-speaker-detection",
       "pricing": {
@@ -45324,5 +45352,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "4610ad89a9f9685d"
+  "version": "37ee9be4c31a358b"
 }
