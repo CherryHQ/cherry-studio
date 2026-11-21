@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
+import type { PaintingParams } from '../model/types/paintingData'
 import SelectField from './fields/SelectField'
 import SizeChipsField from './fields/SizeChipsField'
 import SizeField from './fields/SizeField'
@@ -8,9 +9,9 @@ import SizeField from './fields/SizeField'
 export interface PaintingFieldComponentProps<TType extends BaseConfigItem['type'] = BaseConfigItem['type']> {
   item: Extract<BaseConfigItem, { type: TType }>
   fieldKey: string
-  painting: Record<string, unknown>
+  painting: PaintingParams
   translate: (key: string) => string
-  onChange: (updates: Record<string, unknown>) => void
+  onChange: (updates: PaintingParams) => void
   onGenerateRandomSeed?: (key: string) => void
   currentValue: unknown
   disabled?: boolean

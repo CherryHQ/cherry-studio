@@ -8,12 +8,12 @@ import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
-import type { PaintingData } from '../model/types/paintingData'
+import type { PaintingData, PaintingParams } from '../model/types/paintingData'
 import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
-function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
+function resolveItemOptions(item: BaseConfigItem, painting: PaintingParams) {
   if (!isOptionsConfigItem(item)) return []
   return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
 }
@@ -22,7 +22,7 @@ function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unkno
 const REQUEST_TIMEOUT_MIN_SECONDS = 10
 const REQUEST_TIMEOUT_MAX_SECONDS = 30 * 60
 
-function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, unknown>) {
+function shouldRenderConfigItem(item: BaseConfigItem, painting: PaintingParams) {
   if (item.condition && !item.condition(painting)) {
     return false
   }

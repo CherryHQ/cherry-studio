@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Input, InputNumber, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
+import type { PaintingParams } from '../model/types/paintingData'
 import { fieldRegistry } from './fieldRegistry'
 import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
 import { resolveOptions, resolveOptionValue } from './resolveOptions'
@@ -12,8 +13,8 @@ export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
 export interface PaintingFieldRendererProps {
   item: BaseConfigItem
-  painting: Record<string, unknown>
-  onChange: (updates: Record<string, unknown>) => void
+  painting: PaintingParams
+  onChange: (updates: PaintingParams) => void
   onGenerateRandomSeed?: (key: string) => void
 }
 
