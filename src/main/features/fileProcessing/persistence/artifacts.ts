@@ -20,8 +20,9 @@ export async function createFileProcessingJobOutput(
 
 /**
  * Project a capability output into a persistable artifact. Text outputs become
- * inline artifacts; markdown / zip outputs are written to the caller-provided
- * path output target.
+ * inline artifacts unless a path target was requested; a path target stores recognized text as
+ * Markdown so callers can index the artifact without ever reading the source image as text.
+ * Markdown / zip outputs require a caller-provided path output target.
  */
 async function createFileProcessingArtifact(
   jobId: string,
@@ -31,6 +32,18 @@ async function createFileProcessingArtifact(
 ): Promise<FileProcessingArtifact> {
   switch (output.kind) {
     case 'text':
+      if (input.output?.kind === 'path') {
+        return {
+          kind: 'file',
+          format: 'markdown',
+          path: await markdownResultStore.persistResultToPath({
+            jobId,
+            result: { kind: 'markdown', markdownContent: output.text },
+            path: input.output.path,
+            signal
+          })
+        }
+      }
       return {
         kind: 'text',
         format: 'plain',

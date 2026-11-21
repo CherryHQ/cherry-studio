@@ -212,6 +212,29 @@ describe('backgroundJobHandler.execute', () => {
     expect(persistResultMock).not.toHaveBeenCalled()
   })
 
+  it.each(['recognized text', ''])('persists OCR text to a requested Markdown path (%j)', async (text) => {
+    preparedExecuteMock.mockResolvedValue({ kind: 'text', text })
+    persistResultMock.mockResolvedValue('/tmp/out.md')
+    setupCapability({ mode: 'background', execute: preparedExecuteMock })
+    const result = await backgroundJobHandler.execute(
+      createCtx({
+        input: {
+          feature: 'image_to_text',
+          file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+          output: { kind: 'path', path: '/tmp/out.md' as AbsoluteFilePath },
+          processorId: 'tesseract'
+        }
+      })
+    )
+    expect(persistResultMock).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      result: { kind: 'markdown', markdownContent: text },
+      path: '/tmp/out.md',
+      signal: expect.any(AbortSignal)
+    })
+    expect(result).toEqual({ artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' } })
+  })
+
   it('persists markdown output to the path output target and returns file artifact', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
     persistResultMock.mockResolvedValue('/tmp/out.md')

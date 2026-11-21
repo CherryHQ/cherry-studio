@@ -133,6 +133,21 @@ describe('expandDirectoryOwnerToTree', () => {
     }
   })
 
+  it('imports all supported image formats from directories', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'images')
+    realFs.mkdirSync(rootDir)
+    for (const ext of ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp']) {
+      realFs.writeFileSync(path.join(rootDir, `photo.${ext}`), 'fake image bytes')
+    }
+    const owner = createDirectoryOwner(rootDir)
+    const result = await expandDirectoryOwnerToTree(owner, 'kb-1', 'images', createSignal(), ignoreCopyProgress)
+    expect(JSON.stringify(result)).toContain('photo.png')
+    for (const ext of ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp']) {
+      expect(JSON.stringify(result)).toContain(`photo.${ext}`)
+    }
+  })
+
   it('expands a directory owner into a tree while preserving hierarchy', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'anna')

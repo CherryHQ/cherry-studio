@@ -176,6 +176,17 @@ describe('pathStorage relative-path safety', () => {
   })
 
   describe('needsProcessedArtifactReservation', () => {
+    it.each(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'PNG'])(
+      'reserves an OCR Markdown sibling for .%s even without a document processor',
+      (ext) => {
+        const reserve = needsProcessedArtifactReservation(null, `image.${ext}`)
+        expect(reserve).toBe(true)
+        const reserved = new Set(['image.md'])
+        expect(reserveImportedFileRelativePath(`image.${ext}`, reserve, reserved)).toBe(`image_1.${ext}`)
+        expect(reserved.has('image_1.md')).toBe(true)
+      }
+    )
+
     it('returns false without a file processor regardless of extension', () => {
       expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(false)
       expect(needsProcessedArtifactReservation(undefined, 'report.xls')).toBe(false)

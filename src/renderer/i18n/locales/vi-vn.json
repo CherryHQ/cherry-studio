@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "Tệp",
   "knowledge.data_source.filters.note": "Ghi chú",
   "knowledge.data_source.filters.url": "URL",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Không còn mục nào nữa",
   "knowledge.data_source.list.loading_more": "Đang tải thêm…",
   "knowledge.data_source.preview.failed": "Không thể xem trước nguồn",

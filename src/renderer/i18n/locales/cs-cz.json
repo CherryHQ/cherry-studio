@@ -1973,6 +1973,7 @@
   "knowledge.data_source.filters.file": "Soubory",
   "knowledge.data_source.filters.note": "Poznámky",
   "knowledge.data_source.filters.url": "URL",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Nic dalšího není",
   "knowledge.data_source.list.loading_more": "Načítání dalších…",
   "knowledge.data_source.preview.failed": "Původní text se nepodařilo zobrazit",

@@ -401,8 +401,40 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
+    it.each(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])(
+      'accepts .%s image picks and exposes the extension in the picker',
+      async (ext) => {
+        mockFileSelect.mockResolvedValueOnce([createSelectedFile(`photo.${ext}`)])
+        render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+        await waitFor(() =>
+          expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+            [{ type: 'file', data: { source: `/picked/photo.${ext}`, path: `/picked/photo.${ext}` } }],
+            'detect'
+          )
+        )
+        expect(mockFileSelect).toHaveBeenCalledWith(
+          expect.objectContaining({
+            filters: [{ name: 'Knowledge', extensions: expect.arrayContaining([ext]) }]
+          })
+        )
+        expect(toast.warning).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])('accepts dropped .%s images', async (ext) => {
+      setPendingAddFiles([createMockFile(`photo.${ext}`, 1024)])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() =>
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: `/external/photo.${ext}`, path: `/external/photo.${ext}` } }],
+          'detect'
+        )
+      )
+      expect(toast.warning).not.toHaveBeenCalled()
+    })
+
     it('drops unsupported picks and warns about the skipped count', async () => {
-      mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf'), createSelectedFile('photo.png')])
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf'), createSelectedFile('malware.exe')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       await waitFor(() => {

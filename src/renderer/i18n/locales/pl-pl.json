@@ -1994,6 +1994,7 @@
   "knowledge.data_source.filters.file": "Pliki",
   "knowledge.data_source.filters.note": "Notatki",
   "knowledge.data_source.filters.url": "Adresy URL",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "Koniec listy",
   "knowledge.data_source.list.loading_more": "Ładowanie więcej…",
   "knowledge.data_source.preview.failed": "Nie udało się wyświetlić podglądu źródła",

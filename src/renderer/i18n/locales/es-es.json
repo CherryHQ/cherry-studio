@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "Archivos",
   "knowledge.data_source.filters.note": "Notas",
   "knowledge.data_source.filters.url": "URLs",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "No más artículos",
   "knowledge.data_source.list.loading_more": "Cargando más…",
   "knowledge.data_source.preview.failed": "Error al previsualizar la fuente",

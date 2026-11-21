@@ -1972,6 +1972,7 @@
   "knowledge.data_source.filters.file": "파일",
   "knowledge.data_source.filters.note": "노트",
   "knowledge.data_source.filters.url": "URL",
+  "knowledge.data_source.image_ocr_hint": "Supported images: {{formats}}. Images are indexed using OCR.",
   "knowledge.data_source.list.end_reached": "더 이상 항목이 없습니다",
   "knowledge.data_source.list.loading_more": "더 불러오는 중…",
   "knowledge.data_source.preview.failed": "원본을 미리 보지 못했습니다",
