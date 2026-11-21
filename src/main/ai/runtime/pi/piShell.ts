@@ -25,6 +25,7 @@ export function buildPiLoginPathPrefix(
 function readPiShellPathSetting(): string | undefined {
   try {
     const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native settings have unknown extension fields; only the shellPath string is selected and checked here.
     const shellPath = (settings as Record<string, unknown> | null)?.shellPath
     return typeof shellPath === 'string' && shellPath.trim() ? shellPath.trim() : undefined
   } catch {

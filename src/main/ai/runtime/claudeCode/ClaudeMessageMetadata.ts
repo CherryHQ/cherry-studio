@@ -238,6 +238,7 @@ export class ClaudeMessageMetadata {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native and archived tool blocks are opaque until MCP recognition or selected legacy-field checks; this guard verifies only their container.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

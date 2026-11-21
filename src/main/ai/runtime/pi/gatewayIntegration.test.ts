@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
+import type { JSONObject } from '@ai-sdk/provider'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { GoogleGenAI } from '@google/genai'
@@ -126,8 +127,8 @@ describe('native Pi through the production gateway', () => {
   let holdResponse = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
-  const requests: Array<Record<string, unknown>> = []
-  let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
+  const requests: JSONObject[] = []
+  let call: (body: JSONObject) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
     | (() =>
         | { message: string; code: string; status?: number; type?: string; param?: string; retryAfter?: string }

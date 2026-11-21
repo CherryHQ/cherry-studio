@@ -112,6 +112,7 @@ export interface AgentRuntimeToolApprovalRequest {
   approvalId: string
   toolCallId: string
   toolName: string
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Approval transports tool-specific raw input; selected guards and the chosen tool own its field checks.
   input: Record<string, unknown>
   presentation: 'stream' | 'message'
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']

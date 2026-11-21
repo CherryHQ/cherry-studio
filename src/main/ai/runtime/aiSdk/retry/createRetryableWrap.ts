@@ -28,6 +28,7 @@ import {
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import { loggerService } from '@logger'
+import type { AiStreamRequest } from '@main/ai/types'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
@@ -68,7 +69,9 @@ export interface CreateRetryableWrapOptions {
   fallbacks: FallbackResolver[]
   retryPolicy: RetryPolicy
   /** Stable request identifiers attached to retry diagnostics. */
-  diagnosticContext?: Readonly<Record<string, unknown>>
+  diagnosticContext?: Readonly<
+    Pick<AiStreamRequest, 'messageId' | 'assistantId'> & { chatId?: AiStreamRequest['conversation']['topicId'] }
+  >
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */

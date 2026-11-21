@@ -9,7 +9,7 @@ import {
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { McpForwardMethod } from '@main/ai/mcp/connections/McpConnection'
+import type { McpConnection, McpForwardMethod } from '@main/ai/mcp/connections/McpConnection'
 import { stripCatalogFields } from '@main/ai/mcp/createMcpBridgeServer'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -76,7 +76,7 @@ export class ModernMcpProxy {
     }))
     const forward = <M extends McpForwardMethod>(
       method: M,
-      params: Record<string, unknown>,
+      params: Parameters<McpConnection['forwardRequest']>[1],
       context: ServerContext
     ): Promise<ResultTypeMap[M] | InputRequiredResult> => {
       const progressToken = context.mcpReq._meta?.progressToken
