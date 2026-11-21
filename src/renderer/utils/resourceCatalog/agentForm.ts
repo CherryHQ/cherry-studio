@@ -43,6 +43,10 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
+  /** Draft of `configuration.custom_cli.executable`; empty = no custom runtime registered. */
+  customCliExecutable: string
+  /** One argument per line, passed to the process verbatim (no shell reparse). */
+  customCliArgsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -96,6 +100,15 @@ function envVarsFromText(text: string): Record<string, string> {
   return Object.fromEntries(entries)
 }
 
+/**
+ * Split the one-per-line argument draft into the stored argument vector. Lines
+ * keep their exact content (spaces, quotes, backslashes all survive — no shell
+ * ever reparses them); only empty lines drop.
+ */
+function customCliArgsFromText(text: string): string[] {
+  return text.split(/\r?\n/).filter((line) => line.length > 0)
+}
+
 export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
   return {
@@ -114,6 +127,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
+    customCliExecutable: asString(cfg.custom_cli?.executable),
+    customCliArgsText: (cfg.custom_cli?.args ?? []).join('\n'),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
@@ -213,6 +228,14 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
+    cfgDirty = true
+  }
+  if (baseline.customCliExecutable !== next.customCliExecutable || baseline.customCliArgsText !== next.customCliArgsText) {
+    const executable = next.customCliExecutable.trim()
+    // undefined removes the registration; Main's configuration patch deletes the key.
+    cfgPatch.custom_cli = executable
+      ? { executable, args: customCliArgsFromText(next.customCliArgsText) }
+      : undefined
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {

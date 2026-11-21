@@ -26,6 +26,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
+import { AgentCustomCliSection } from '@renderer/components/resourceCatalog/dialogs/components/AgentCustomCliSection'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
@@ -115,6 +116,8 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
+  customCliExecutable: string
+  customCliArgsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -173,6 +176,8 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    customCliExecutable: form.customCliExecutable,
+    customCliArgsText: form.customCliArgsText,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
@@ -206,6 +211,8 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    customCliExecutable: values.customCliExecutable,
+    customCliArgsText: values.customCliArgsText,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -242,6 +249,10 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'custom_cli')) {
+      next.customCliExecutable = submitted.customCliExecutable
+      next.customCliArgsText = submitted.customCliArgsText
+    }
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
     if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
@@ -706,6 +717,9 @@ function AgentBasicFields({
         layout="row"
       />
       <RuntimeField agentType={agentType} />
+      {agentType === 'claude-code' || form.formState.defaultValues?.customCliExecutable ? (
+        <CustomCliField form={form} />
+      ) : null}
       <CompactModelField
         form={form}
         name="modelId"
@@ -876,6 +890,32 @@ function RuntimeField({ agentType }: { agentType: AgentType }) {
       <span className="col-start-2 text-muted-foreground text-xs">
         {t('library.config.agent.field.runtime.immutable_hint')}
       </span>
+    </div>
+  )
+}
+
+/**
+ * Custom Code CLI executable registration (issue #19966). Only the claude-code
+ * runtime spawns a CLI child process it owns, so the section is offered for
+ * claude-code Agents (or any Agent that already carries a registration).
+ */
+function CustomCliField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
+  const { t } = useTranslation()
+  const executable = useWatch({ control: form.control, name: 'customCliExecutable' })
+  const argsText = useWatch({ control: form.control, name: 'customCliArgsText' })
+
+  return (
+    <div className={editDialogFormRowClassName}>
+      <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.custom_cli.label')}</span>
+      <div className="flex flex-col gap-2">
+        <AgentCustomCliSection
+          executable={executable ?? ''}
+          argsText={argsText ?? ''}
+          onExecutableChange={(value) => form.setValue('customCliExecutable', value, { shouldDirty: true })}
+          onArgsTextChange={(value) => form.setValue('customCliArgsText', value, { shouldDirty: true })}
+        />
+        <span className="text-muted-foreground text-xs">{t('library.config.agent.field.custom_cli.help')}</span>
+      </div>
     </div>
   )
 }
