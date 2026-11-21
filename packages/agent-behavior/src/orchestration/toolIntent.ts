@@ -34,9 +34,10 @@ export interface IntentTool<Prepared = never> {
 }
 
 type PreparedTool<T, Prepared> = Omit<T, 'prepareArguments'> & {
-  readonly prepareArguments: <Args>(args: Args) => Prepared | Args | Record<string, unknown>
+  readonly prepareArguments: <Args>(args: Args) => Prepared | ReturnType<typeof withoutToolIntent<Args>>
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native schema objects can carry library extensions; only their type and properties containers are inspected here.
 type Schema = Record<string, unknown>
 
 const isRecord = (value: unknown): value is Schema =>
@@ -53,6 +54,7 @@ function intentFreeProperties(parameters: unknown): Schema | undefined {
 }
 
 /** `args` without `intent`; the same object when it has none, and never a mutation of the caller's object. */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unvalidated tool arguments retain opaque own values; each native tool validates them after intent removal.
 export function withoutToolIntent<Args>(args: Args): Args | Record<string, unknown> {
   if (!isRecord(args) || !(TOOL_INTENT_ARG in args)) return args
   const rest = { ...args }
@@ -94,7 +96,7 @@ export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = 
           properties: { ...properties, [TOOL_INTENT_ARG]: INTENT_PROPERTY }
         }
       }),
-      prepareArguments: <Args>(args: Args): Prepared | Args | Record<string, unknown> => {
+      prepareArguments: <Args>(args: Args): Prepared | ReturnType<typeof withoutToolIntent<Args>> => {
         const stripped = withoutToolIntent(args)
         return prepare ? prepare(stripped) : stripped
       }
