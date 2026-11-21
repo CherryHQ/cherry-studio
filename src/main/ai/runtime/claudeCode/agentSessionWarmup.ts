@@ -309,6 +309,7 @@ export async function deriveConnectionConfig(
   fastMode = false,
   selectedKnowledgeBaseIds: readonly string[] = [],
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  channelContext?: string,
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
   headless = false
@@ -335,6 +336,7 @@ export async function deriveConnectionConfig(
         selectedKnowledgeBaseIds,
         undefined,
         serviceTier,
+        channelContext,
         connectionModelId,
         headless
       )
@@ -376,6 +378,7 @@ async function deriveConnectionConfigFromSnapshot(
   selectedKnowledgeBaseIds: readonly string[] = [],
   materialized?: ConnectionMaterializationFacts,
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  channelContext?: string,
   connectionModelId?: UniqueModelId,
   headless = false
 ): Promise<ConnectionConfig> {
@@ -449,6 +452,9 @@ async function deriveConnectionConfigFromSnapshot(
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+    // Baked into the system prompt at spawn: a changed or newly-present source chat identity must
+    // rebuild the subprocess, never ride a warm one missing it.
+    channelContext: channelContext ?? null,
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext
   }
@@ -516,6 +522,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = [],
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  channelContext?: string,
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
   headless = false
@@ -588,6 +595,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         linkedChannelSnapshot,
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        channelContext,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions:
           route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
@@ -627,6 +635,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       promptModelName
     },
     serviceTier,
+    channelContext,
     connectionModelId,
     headless
   )
@@ -959,6 +968,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     false,
     [],
     'standard',
+    undefined,
     false
   )
   if (!request) return undefined

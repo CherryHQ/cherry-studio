@@ -186,6 +186,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
+      this.input.channelContext,
       this.input.headless === true
     )
     if (!request) {
@@ -371,6 +372,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
+    channelContext?: string
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
     headless?: boolean
@@ -390,6 +392,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
+    channelContext?: string
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
     headless?: boolean
@@ -402,6 +405,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.fastMode === true,
       input.knowledgeBaseIds,
       input.serviceTier,
+      input.channelContext,
       input.headless === true
     )
     if (!derived.ok) return 'invalid'

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { ChannelContextPartDataSchema, readCherryMeta } from '@shared/data/types/uiParts'
 
 export async function validateEditedInput(parts: CherryMessagePart[]): Promise<void> {
   if (!parts.some((part) => part.type === 'file' || (part.type === 'text' && part.text.trim())))
@@ -16,6 +16,14 @@ export async function validateEditedInput(parts: CherryMessagePart[]): Promise<v
       continue
     }
     if (part.type === 'data-knowledge-scope') continue
+    // Stored hidden metadata must survive the edit-target read. Schema validity is checked here,
+    // but schema-valid is not authority: renderer-submitted parts are stripped of this type before
+    // they ever reach dispatch, and only stored parts are restored.
+    if (part.type === 'data-channel-context') {
+      if (!ChannelContextPartDataSchema.safeParse(part.data).success)
+        throw new AgentSessionEditError('input_unsupported')
+      continue
+    }
     if (part.type !== 'file' || !part.url) throw new AgentSessionEditError('input_unsupported')
     try {
       const id = readCherryMeta(part)?.fileEntryId

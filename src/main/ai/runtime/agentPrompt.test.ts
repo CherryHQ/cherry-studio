@@ -78,6 +78,25 @@ describe('Agent prompt onboarding', () => {
     expect(append).not.toContain('**Discover the role**')
   })
 
+  it('surfaces the source-chat identity in the append prompt only when provided', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(root, id)
+    agentService.createAgentWithId(id, { type: 'claude-code', name: 'Channel Agent', model })
+    const agent = agentService.getAgent(id)!
+
+    const without = await buildAgentRuntimePrompt({ workspacePath, agentDataPath, agent })
+    expect(without.append).not.toContain('## Source chat')
+
+    const withContext = await buildAgentRuntimePrompt({
+      workspacePath,
+      agentDataPath,
+      agent,
+      channelContext: 'channel=feishu chat_id=oc_123 chat_type=group'
+    })
+    expect(withContext.append).toContain('## Source chat')
+    expect(withContext.append).toContain('channel=feishu chat_id=oc_123 chat_type=group')
+  })
+
   it('loads an established identity from Agent storage without restarting onboarding', async () => {
     const id = randomUUID()
     const agentDataPath = await createAgentDataDirectory(root, id)

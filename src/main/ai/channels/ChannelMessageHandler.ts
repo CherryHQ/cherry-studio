@@ -21,7 +21,7 @@ import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionS
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
-import { withCherryMeta } from '@shared/data/types/uiParts'
+import { createChannelContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -359,6 +359,8 @@ export class ChannelMessageHandler {
     return {
       chatId: first.chatId,
       ...(first.conversationId ? { conversationId: first.conversationId } : {}),
+      // A batch always comes from one chat, so the kind is consistent across messages.
+      ...(first.chatType ? { chatType: first.chatType } : {}),
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
@@ -410,7 +412,27 @@ export class ChannelMessageHandler {
         await prepareAgentSessionWorkspaceDirectory(session)
       }
 
-      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      const userParts: CherryMessagePart[] = []
+      if (message.text) {
+        userParts.push({ type: 'text', text: message.text })
+      }
+      // Attach the source chat identity as a HIDDEN data part so the agent can pick a reply style
+      // per chat kind (Feishu p2p vs group) from metadata alone, without guessing from message
+      // text or chat-id prefixes. It must stay out of the text parts: downstream joins them in
+      // order and position-sensitive consumers gate on the joined text's exact content (pinned pi
+      // 1.0.0 expands `/skill:` only when the joined text starts with the command and parses the
+      // name as slice(7, first space), so a context line anywhere in the text breaks bare
+      // commands). The runtime reads the part host-side and surfaces the identity via the system
+      // prompt instead. Channels that do not expose a chat kind keep their payload unchanged.
+      if (message.chatType) {
+        userParts.push(
+          createChannelContextPart({
+            channel: adapter.channelType,
+            chatId: message.chatId,
+            chatType: message.chatType
+          })
+        )
+      }
       if (message.images?.length && workDir) {
         userParts.push(...(await this.persistImages(message.images)))
       }
