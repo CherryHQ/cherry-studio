@@ -16,6 +16,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const {
+  mockNotifyScheduledTaskStarted,
   mockAbort,
   mockRemoveListener,
   mockGetAdapter,
@@ -30,6 +31,7 @@ const {
 } = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
   return {
+    mockNotifyScheduledTaskStarted: vi.fn(),
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
@@ -53,6 +55,7 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
+    NotificationService: { notifyScheduledTaskStarted: mockNotifyScheduledTaskStarted },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: {
       releaseOverflowedTaskSession: mockReleaseOverflowed,
@@ -251,6 +254,7 @@ describe('runAgentTask', () => {
     vi.mocked(readHeartbeat).mockReset()
     mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
+    mockNotifyScheduledTaskStarted.mockClear()
     mockStartRun.mockClear()
     mockAbort.mockClear()
     mockRemoveListener.mockClear()
@@ -313,6 +317,7 @@ describe('runAgentTask', () => {
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
     captured.listeners[0].onDone({ status: 'completed' })
     await promise
+    expect(mockNotifyScheduledTaskStarted).not.toHaveBeenCalled()
 
     expect(mockStartRun).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -399,6 +404,9 @@ describe('runAgentTask', () => {
 
       await runToCompletion({})
 
+      expect(mockNotifyScheduledTaskStarted).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ sessionId: 'sess-new' })
+      )
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-new' }))
       expect(agentSessionService.getByTaskScheduleId).not.toHaveBeenCalled()
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
@@ -522,6 +530,7 @@ describe('runAgentTask', () => {
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()
       expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockNotifyScheduledTaskStarted).not.toHaveBeenCalled()
     })
 
     // Skipping must not look like a failure: agentTaskJobHandler.onSettled pauses

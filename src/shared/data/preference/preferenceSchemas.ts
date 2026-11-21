@@ -88,6 +88,8 @@ export interface PreferenceSchemas {
     'app.launch_on_boot': boolean
     // target-key-definitions/complex/complex
     'app.logs.retention_days': number
+    // target-key-definitions/complex/complex
+    'app.notification.approval.enabled': boolean
     // redux/settings/notification.assistant
     'app.notification.assistant.enabled': boolean
     // redux/settings/notification.backup
@@ -108,6 +110,10 @@ export interface PreferenceSchemas {
     'app.notification.knowledge.enabled': boolean
     // target-key-definitions/complex/complex
     'app.notification.mini_app.enabled': boolean
+    // target-key-definitions/complex/complex
+    'app.notification.priming_banner.dismissed': boolean
+    // target-key-definitions/complex/complex
+    'app.notification.scheduled_task.enabled': boolean
     // target-key-definitions/complex/complex
     'app.notification.update.enabled': boolean
     // target-key-definitions/complex/complex
@@ -760,6 +766,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.language': null,
     'app.launch_on_boot': false,
     'app.logs.retention_days': 30,
+    'app.notification.approval.enabled': false,
     'app.notification.assistant.enabled': false,
     'app.notification.backup.enabled': false,
     'app.notification.center.official.enabled': true,
@@ -770,6 +777,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.notification.daily_budget.tokens': 0,
     'app.notification.knowledge.enabled': false,
     'app.notification.mini_app.enabled': true,
+    'app.notification.priming_banner.dismissed': false,
+    'app.notification.scheduled_task.enabled': false,
     'app.notification.update.enabled': false,
     'app.notification.usage.os.enabled': false,
     'app.onboarding.provider_setup.status': 'pending',
