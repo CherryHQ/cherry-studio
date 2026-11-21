@@ -78,6 +78,7 @@ export interface ResolvedAction<TContext = unknown> {
   children: ResolvedAction<TContext>[]
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Action context carries provider-owned metadata unchanged; concrete Meta arguments supply its field contract.
 export interface MessageActionContext<Meta extends Record<string, unknown> = Record<string, unknown>> {
   message: MessageListItem
   selectedMessageIds?: readonly string[]
@@ -85,6 +86,7 @@ export interface MessageActionContext<Meta extends Record<string, unknown> = Rec
   meta?: Meta
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Action references retain provider-owned metadata; consumers must supply a concrete Meta or check individual values.
 export interface MessageActionReference<Meta extends Record<string, unknown> = Record<string, unknown>> {
   id: string
   label?: ReactNode
@@ -94,6 +96,7 @@ export interface MessageActionReference<Meta extends Record<string, unknown> = R
   meta?: Meta
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Providers choose their metadata contract; the framework does not interpret the default opaque fields.
 export interface MessageActionProvider<Meta extends Record<string, unknown> = Record<string, unknown>> {
   id: string
   resolve: (context: MessageActionContext<Meta>) => readonly MessageActionReference[]
