@@ -49,7 +49,10 @@ describe('buildHostEndpointPreviews — Azure apiVersion', () => {
   })
 })
 
-const buildCustomParams = (apiHost: string, pathMode?: 'host' | 'complete'): Parameters<typeof buildHostEndpointPreviews>[0] => ({
+const buildCustomParams = (
+  apiHost: string,
+  pathMode?: 'host' | 'complete'
+): Parameters<typeof buildHostEndpointPreviews>[0] => ({
   provider: {
     id: 'custom-1',
     name: 'Custom',
@@ -82,6 +85,14 @@ describe('buildHostEndpointPreviews — complete path mode (#18972)', () => {
     )
 
     expect(hostPreview).toBe('https://gateway.example.com/custom/chat/completions')
+  })
+
+  it.each([
+    'https://gateway.example.com/router/answer/',
+    'https://gateway.example.com/',
+    'https://gateway.example.com/router/%2Fanswer?version=2&mode=literal'
+  ])('preserves route details in exact preview %s', (url) => {
+    expect(buildHostEndpointPreviews(buildCustomParams(url, 'complete')).hostPreview).toBe(url)
   })
 
   it('keeps the default construction in host mode', () => {

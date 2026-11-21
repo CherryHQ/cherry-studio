@@ -1,6 +1,10 @@
+import { createServer } from 'node:http'
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { generateText } from 'ai'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2483,7 +2487,7 @@ describe('complete path mode (endpoint config pathMode: complete, #18972)', () =
     expect(settings.fetch).not.toBe(customFetch)
   })
 
-  it('appends no API version to a bare host in complete mode and needs no rewrite', async () => {
+  it('pins a bare host in complete mode to the root rather than the SDK default endpoint', async () => {
     const provider = makeProvider({
       id: 'custom-3',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -2500,8 +2504,61 @@ describe('complete path mode (endpoint config pathMode: complete, #18972)', () =
     const settings = config.providerSettings as Record<string, unknown>
 
     expect(settings.baseURL).toBe('https://gateway.example.com')
-    expect(settings.fetch).toBe(customFetch)
+    expect(settings.fetch).not.toBe(customFetch)
   })
+
+  it.each(['/router/answer/', '/', '/router/%2Fanswer?version=2&mode=literal', '/custom/chat/completions#'])(
+    'sends complete path %s through a real SDK-to-gateway request',
+    async (path) => {
+      const received: Array<{ url: string; method: string; auth?: string; body: string }> = []
+      const server = createServer((request, response) => {
+        let body = ''
+        request.on('data', (chunk) => {
+          body += chunk
+        })
+        request.on('end', () => {
+          received.push({ url: request.url!, method: request.method!, auth: request.headers.authorization, body })
+          response.writeHead(200, { 'Content-Type': 'application/json' })
+          response.end(
+            JSON.stringify({
+              id: 'fixture',
+              object: 'chat.completion',
+              created: 1,
+              model: 'fixture-model',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+            })
+          )
+        })
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}${path}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-roundtrip',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url, pathMode: 'complete' } }
+        })
+        const model = makeModel({ providerId: provider.id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Parameters<typeof createOpenAICompatible>[0]
+        const sdk = createOpenAICompatible({ ...settings, name: 'fixture' })
+        const result = await generateText({ model: sdk.chatModel('fixture-model'), prompt: 'hello', maxRetries: 0 })
+        expect(result.text).toBe('OK')
+        expect(received).toHaveLength(1)
+        expect(received[0]).toMatchObject({ url: path.replace(/#$/, ''), method: 'POST', auth: 'Bearer sk-test-key' })
+        expect(JSON.parse(received[0].body)).toMatchObject({
+          model: 'fixture-model',
+          messages: [{ role: 'user', content: 'hello' }]
+        })
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
 
   it('still appends the default API version in host mode', async () => {
     const provider = makeProvider({

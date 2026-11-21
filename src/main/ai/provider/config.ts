@@ -106,7 +106,7 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   // the legacy trailing-# convention, which only covers known endpoint
   // suffixes).
   if (getEndpointPathMode(provider, endpointType) === 'complete') {
-    return formatApiHost(baseURL, false)
+    return withoutTrailingSharp(baseURL.trim())
   }
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
@@ -233,27 +233,19 @@ export async function resolveProviderAiSdkConfig(
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
-  const routed = routeToEndpoint(formattedBaseUrl)
+  const isExactPath = getEndpointPathMode(provider, endpointType) === 'complete'
+  const routed = isExactPath ? { baseURL: formattedBaseUrl, endpoint: undefined } : routeToEndpoint(formattedBaseUrl)
   let { baseURL } = routed
   const { endpoint } = routed
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
 
-  // Complete-path mode: when the stored path doesn't end in an endpoint suffix
-  // the SDK recognises, routeToEndpoint can't split it, so the SDK would append
-  // its default protocol path and break the declared URL. Pin the SDK base URL
-  // to the origin and rewrite the request path at fetch time instead.
+  // Exact mode always pins the whole URL, including root and trailing slash.
+  // routeToEndpoint and adapter suffix detection must not choose its path.
   let exactRequestUrl: string | undefined
-  if (getEndpointPathMode(provider, endpointType) === 'complete' && !endpoint) {
-    const exactUrl = withoutTrailingSlash(withoutTrailingSharp(formattedBaseUrl)) ?? formattedBaseUrl
-    try {
-      const parsed = new URL(exactUrl)
-      if (parsed.pathname !== '/' || parsed.search) {
-        exactRequestUrl = exactUrl
-        baseURL = parsed.origin
-      }
-    } catch {
-      // Unparseable URL: leave the routed base URL untouched.
-    }
+  if (isExactPath) {
+    const parsed = new URL(formattedBaseUrl)
+    exactRequestUrl = parsed.toString()
+    baseURL = parsed.origin
   }
 
   const ctx: BuilderContext = {
@@ -453,8 +445,8 @@ export async function resolveProviderAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
-  // Complete-path mode with a custom route: every SDK request targets the
-  // exact stored URL, regardless of the endpoint path the SDK appended.
+  // Complete-path mode pins every SDK request to the declared URL, including
+  // bare-origin paths and paths ending in a known endpoint suffix.
   if (exactRequestUrl) {
     config.providerSettings.fetch = createExactPathFetch(exactRequestUrl, config.providerSettings.fetch)
   }

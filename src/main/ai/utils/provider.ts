@@ -16,12 +16,6 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
 ]
 
 /**
- * Resolve base URL from provider endpoint configs.
- *
- * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
- * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
- */
-/**
  * Resolve the endpoint config that supplies the effective base URL.
  *
  * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
