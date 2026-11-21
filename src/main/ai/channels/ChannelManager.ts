@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 
@@ -240,7 +239,7 @@ export class ChannelManager extends BaseService {
     try {
       const channel = channelService.getChannel(channelId)
       if (!channel || channel.agentId !== agentId) return
-      const config = channel.config as ChannelConfig & Record<string, unknown>
+      const config = channel.config
       channelService.updateChannel(channelId, {
         config: { ...config, app_id: credentials.appId, app_secret: credentials.appSecret }
       })

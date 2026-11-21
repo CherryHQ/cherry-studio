@@ -17,6 +17,14 @@ import { splitMessage } from '../../utils'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
+
+type QqMessageBody = {
+  markdown: { content: string }
+  msg_type: 2
+  msg_id?: string
+  msg_seq?: number
+}
+
 /**
  * QQ passive-reply window per chat type (ms): the inbound msg_id is rejected once it lapses.
  * Passive reply (against a recent msg_id) is the default delivery path and needs no opt-in.
@@ -202,7 +210,7 @@ class QqAdapter extends ChannelAdapter {
 
   private async apiRequest(
     endpoint: string,
-    options?: { method?: string; body?: Record<string, unknown> },
+    options?: { method?: string; body?: QqMessageBody },
     signal?: AbortSignal
   ): Promise<Response> {
     const token = await this.getAccessToken(signal)
@@ -687,7 +695,10 @@ class QqAdapter extends ChannelAdapter {
     const [type, id] = chatId.split(':')
 
     let endpoint: string
-    const body: Record<string, unknown> = { markdown: { content: text }, msg_type: 2 }
+    const body: QqMessageBody = {
+      markdown: { content: text },
+      msg_type: 2
+    }
 
     switch (type) {
       case 'c2c':

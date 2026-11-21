@@ -87,7 +87,7 @@ class SlackStreamingController {
   constructor(
     private readonly channelId: string,
     private readonly apiRequest: SlackAdapter['apiRequest'],
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
+    private readonly log: { warn(message: string, meta: { error: string }): void }
   ) {
     this.flush = new FlushController(() => this.performFlush())
   }
@@ -659,7 +659,7 @@ class SlackAdapter extends ChannelAdapter {
   private async apiRequest<TSchema extends z.ZodType>(
     schema: TSchema,
     method: string,
-    body: Record<string, unknown>,
+    body: Record<string, string>,
     signal?: AbortSignal
   ): Promise<z.output<TSchema>> {
     const response = await net.fetch(`${SLACK_API_BASE}/${method}`, {

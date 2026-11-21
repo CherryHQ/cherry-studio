@@ -14,6 +14,14 @@ const API = 'https://api.dingtalk.com'
 export const DINGTALK_FILE_BYTES = 20 * 1024 * 1024
 export type DingTalkWebhook = { url: string; expiresAt: number }
 
+type DingTalkResponse = {
+  errcode?: unknown
+  processQueryKey?: unknown
+  downloadUrl?: unknown
+  media_id?: unknown
+  result?: unknown
+}
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DingTalk response JSON has endpoint-specific nested results; inspect failure flags recursively before each endpoint validates its own response fields.
 function failedResult(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
@@ -31,7 +39,7 @@ export class DingTalkApi {
   ) {}
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This transport serializes endpoint-owned payloads, including optional config fields, or sends upload FormData without changing its bytes.
-  private async request(url: string, body: unknown, token?: string, method = 'POST'): Promise<Record<string, unknown>> {
+  private async request(url: string, body: unknown, token?: string, method = 'POST'): Promise<DingTalkResponse> {
     this.signal.throwIfAborted()
     try {
       const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
