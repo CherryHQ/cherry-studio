@@ -5174,6 +5174,8 @@
   "settings.mcp.timeoutTooltip": "이 서버 요청의 제한 시간(초)입니다. 기본값은 60초입니다",
   "settings.mcp.title": "MCP 서버",
   "settings.mcp.tools.autoApprove.label": "자동 승인",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "이 도구는 실행 전에 항상 승인을 요청합니다",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "이 내장 도구는 항상 확인 없이 실행됩니다",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "도구 실행 전에 수동 승인이 필요합니다",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "도구가 확인 없이 자동으로 실행됩니다",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "자동 승인을 사용하려면 먼저 도구를 활성화하세요",
