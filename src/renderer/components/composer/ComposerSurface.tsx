@@ -412,7 +412,15 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                     event.stopPropagation()
                     return
                   }
-                  if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                  if (
+                    (event.key === 'Tab' ||
+                      event.key ===
+                        (getComputedStyle(event.currentTarget).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
+                    !event.shiftKey &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
+                    !event.altKey
+                  ) {
                     event.preventDefault()
                     event.stopPropagation()
                     if (!event.repeat) props.onTextChange(props.promptSuggestion)

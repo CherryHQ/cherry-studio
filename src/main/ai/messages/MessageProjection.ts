@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import { omit } from 'es-toolkit'
 
+import { cloneHistoryData } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
 import type {
   MessageProjectionPatch,
@@ -31,8 +32,7 @@ function captureMessage(message: CherryUIMessage, before?: CherryUIMessage): Che
         // oxlint-disable-next-line no-restricted-globals -- Capture changed text metadata without copying its growing immutable text string.
         return { ...structuredClone(metadata), text }
       }
-      // oxlint-disable-next-line no-restricted-globals -- Capture only changed mutable parts; unchanged isolated parts retain their references.
-      return structuredClone(part)
+      return cloneHistoryData(part)
     })
   }
 }

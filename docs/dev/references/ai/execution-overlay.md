@@ -60,6 +60,8 @@ A root terminal is published in the notification phase, after terminal persisten
 
 ## Attachment and recovery
 
+When Durable reopens during an unfinished placed input, its unique logical user-input boundary identifies committed output for the existing reply, including a tool-wait interval with no generation preview. Earlier answers and queued or ambiguous input boundaries remain historical. Recovery does not resend the input.
+
 `ai.projection.attach` accepts a topic or child target and a window-owned subscription ID. Main resolves the owner, registers delivery and captures a baseline without an asynchronous gap between registration and snapshot. A cancelled or replaced asynchronous attachment cannot install a listener. Window destruction removes its delivery leases.
 
 The renderer listens before attaching and buffers up to 100 early updates. It installs the baseline, ignores covered revisions and applies only the next consecutive revision. A gap, invalid patch or buffer overflow starts a new attachment with a new subscription ID. Late responses and events from old subscriptions are ignored. This recovers the current view; it is not a durable event journal or a TCP-style retransmission protocol.

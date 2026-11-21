@@ -111,7 +111,7 @@ describe('FileList', () => {
 
     rerender(<FileList {...fileListProps(file.id)} />)
 
-    const input = screen.getByDisplayValue(file.name) as HTMLInputElement
+    const input = screen.getByDisplayValue<HTMLInputElement>(file.name)
 
     act(() => {
       vi.runOnlyPendingTimers()

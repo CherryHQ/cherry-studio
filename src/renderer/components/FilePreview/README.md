@@ -73,7 +73,7 @@ with `..` can resolve outside that root; this provider does not enforce workspac
 access policy. Without this capability, previews retain Streamdown's default safe link treatment.
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
-stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
+stay in rendered preview mode unless a source location is requested, and omit their preview/source switch. Without a location, HTML uses the interactive artifact sandbox
 so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
 transforms.
 
@@ -192,7 +192,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 ## Composition Rules
 
 Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
-optional `onSelectionReference` and `onLineComment`. Follow these boundaries when adding formats or capabilities:
+optional `onSelectionReference`, `onLineComment`, and `onLoadStateChange`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -210,6 +210,8 @@ optional `onSelectionReference` and `onLineComment`. Follow these boundaries whe
   centered in its own row for Tab and standalone previews.
 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
+
+`onLoadStateChange` reports host metadata/plugin-resolution progress together with the caller's `refreshKey`; format-specific content loading remains inside the plugin. A failed refresh uses the existing explicit read-error state. The host rejects selection callbacks belonging to obsolete metadata while a refreshed request is pending.
 
 ## Selection References
 
@@ -268,7 +270,27 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   No code on either side performs that check, so the renderer's job is only to stamp references accurately —
   if an in-app consumer ever needs the comparison, it belongs with that consumer.
 
+## Source locations
+
+The optional `location` prop carries one-based `line`, optional inclusive `endLine`, and optional `column`.
+Text previews reveal and highlight the requested lines after loading. Markdown and HTML open their source view
+for a located navigation; artifact HTML does not execute in the browser for that request. Columns are retained
+but this version navigates and highlights whole lines. Binary previews ignore source locations.
+
+Chat inline paths and local Markdown links accept `path:42`, `path:42:5`, `path#L42`, and `path#L42-L48`.
+Markdown targets parse coordinates before percent-decoding, so `./report%3A42` names the literal file `report:42`.
+Use `./file.ts:42` for a single-segment Markdown destination: bare `file.ts:42` is URI-scheme-shaped and remains blocked by link safety. Only the pure path reaches filesystem and external-app operations. Ordinary Markdown fragments keep their
+existing handling. Invalid coordinates do not produce navigation; positive coordinates beyond EOF clamp to
+the loaded file. `FilePreviewNavigationProvider.openFile` also accepts the optional location.
+
+The navigation owner creates a fresh location object per accepted click, including repeated clicks on the same
+file and line. Dirty-file confirmation still owns acceptance. Plain opens clear the location. `FileEditor`
+uses Pierre logical-line measurements and its virtualizer; navigation completes only once layout has settled
+and the target is in the viewport, rather than when an off-screen DOM line happens to exist.
+
 ## File I/O, States, and Errors
+
+The host acquires [file observation](../../../../docs/dev/references/file/file-observation.md) independently of any directory tree. The host attempts activation before reading metadata and content, and still allows a one-shot read when observation fails. External changes invalidate the source even when size and timestamps appear unchanged. Focus/visibility return revalidates; format plugins never create watchers. Observation availability remains separate from a successful read.
 
 - Opening surfaces should classify a clicked path before choosing UI: open directories in the file browser without a preview selection; send concrete files to `FilePreview`; let missing or inaccessible file selections reach `FilePreview` so it can show the unavailable state.
 - `FilePreview` uses this routing model:
