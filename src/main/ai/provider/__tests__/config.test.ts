@@ -2437,3 +2437,86 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 })
+
+describe('complete path mode (endpoint config pathMode: complete, #18972)', () => {
+  it('appends no API version and pins requests to the exact stored URL when the path is a custom route', async () => {
+    const provider = makeProvider({
+      id: 'custom-1',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/router/answer',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-1', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    // The SDK base URL collapses to the origin; the exact path is restored by
+    // the fetch wrapper (unit-tested in utils/__tests__/exactPathFetch.test.ts).
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).not.toBe(customFetch)
+  })
+
+  it('pins a path ending in a supported endpoint to the exact URL as well (trailing #)', async () => {
+    const provider = makeProvider({
+      id: 'custom-2',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/custom/chat/completions#',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-2', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    // formatApiHost strips the trailing # before routeToEndpoint runs, so the
+    // exact path is restored by the fetch wrapper either way.
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).not.toBe(customFetch)
+  })
+
+  it('appends no API version to a bare host in complete mode and needs no rewrite', async () => {
+    const provider = makeProvider({
+      id: 'custom-3',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-3', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).toBe(customFetch)
+  })
+
+  it('still appends the default API version in host mode', async () => {
+    const provider = makeProvider({
+      id: 'custom-4',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/router'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-4', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://gateway.example.com/router/v1')
+  })
+})

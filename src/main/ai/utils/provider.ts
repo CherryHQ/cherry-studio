@@ -3,7 +3,7 @@ import { providerService } from '@data/services/ProviderService'
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
@@ -21,29 +21,51 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
  * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
  * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
  */
-export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+/**
+ * Resolve the endpoint config that supplies the effective base URL.
+ *
+ * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
+ * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
+ */
+export function getBaseUrlConfig(
+  provider: Provider,
+  preferredEndpoint?: EndpointType | null
+): EndpointConfig | undefined {
   const configs = provider.endpointConfigs
-  if (!configs) return ''
+  if (!configs) return undefined
 
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
-    return configs[preferredEndpoint].baseUrl
+    return configs[preferredEndpoint]
   }
 
   const ep = provider.defaultChatEndpoint
   if (ep && configs[ep]?.baseUrl) {
-    return configs[ep].baseUrl
+    return configs[ep]
   }
 
   for (const candidate of ENDPOINT_FALLBACK_ORDER) {
-    if (configs[candidate]?.baseUrl) return configs[candidate].baseUrl
+    if (configs[candidate]?.baseUrl) return configs[candidate]
   }
 
   // Last-resort: any remaining config with a baseUrl (audio / embeddings /
   // rerank / image / video endpoints).
   for (const config of Object.values(configs)) {
-    if (config?.baseUrl) return config.baseUrl
+    if (config?.baseUrl) return config
   }
-  return ''
+  return undefined
+}
+
+export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+  return getBaseUrlConfig(provider, preferredEndpoint)?.baseUrl ?? ''
+}
+
+/**
+ * Path-declaration mode of the config that supplies the effective base URL:
+ * `complete` marks the base URL as the exact request path (no API version or
+ * default protocol path is appended).
+ */
+export function getEndpointPathMode(provider: Provider, preferredEndpoint?: EndpointType | null) {
+  return getBaseUrlConfig(provider, preferredEndpoint)?.pathMode
 }
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
