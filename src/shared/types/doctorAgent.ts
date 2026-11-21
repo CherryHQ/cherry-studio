@@ -14,6 +14,7 @@ export type DoctorAgentKey = DoctorScopeKey | `${DoctorScopeKey}#${string}`
  * path (DataApi PATCH handler, PreferenceService, DoctorService.fix); the Agent never gets a wider one.
  */
 export type DoctorAgentWrite =
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Patch proposals retain unvalidated endpoint fields; the selected DataApi route validates the body when the user applies the proposal.
   | { readonly kind: 'data_api_patch'; readonly path: string; readonly body: Readonly<Record<string, unknown>> }
   | { readonly kind: 'preference_set'; readonly key: string; readonly value: unknown }
   | { readonly kind: 'doctor_fix'; readonly request: DoctorFixRequest }
