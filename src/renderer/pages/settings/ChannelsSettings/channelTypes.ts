@@ -1,12 +1,17 @@
+import type {
+  AgentChannelConfig,
+  AgentChannelType,
+  UpdateAgentChannelDto
+} from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 export type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'wecom' | 'dingtalk' | 'discord' | 'slack'
+  type: AgentChannelType
   name: string
   titleKey: string
   description: string
   available: boolean
-  defaultConfig: Record<string, unknown>
+  defaultConfig: AgentChannelConfig
 }
 
 export const AVAILABLE_CHANNELS: AvailableChannel[] = [
@@ -96,6 +101,7 @@ export type ChannelData = {
   name: string
   agentId?: string | null
   workspace?: AgentSessionWorkspaceSource
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical channel snapshots and partial form drafts are unvalidated; the save boundary applies the channel-specific schema.
   config: Record<string, unknown>
   isActive: boolean
   permissionMode?: string | null
@@ -103,4 +109,4 @@ export type ChannelData = {
   updatedAt?: number | null
 }
 
-export type ChannelUpdates = Partial<ChannelData> & { configPatch?: Record<string, unknown> }
+export type ChannelUpdates = Partial<ChannelData> & { configPatch?: UpdateAgentChannelDto['configPatch'] }

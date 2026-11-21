@@ -524,6 +524,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     async (channelId: string, updates: ChannelUpdates) => {
       if (!channelList.some((ch) => ch.id === channelId)) return
 
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Form drafts can carry legacy config values; channel.update validates this transport object before persistence.
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
