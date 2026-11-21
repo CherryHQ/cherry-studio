@@ -128,7 +128,9 @@ export class MemoryStore {
 
   constructor(
     private readonly root: string,
-    private readonly backupRoot: string
+    private readonly backupRoot: string,
+    private readonly backupDataRoot = path.dirname(backupRoot),
+    private readonly onInvalidate?: () => void
   ) {
     const relative = path.relative(path.resolve(root), path.resolve(backupRoot))
     if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))) {
@@ -136,12 +138,16 @@ export class MemoryStore {
     }
   }
 
+  private checkedBackupRoot(): Promise<string> {
+    return assertMemoryPath(this.backupDataRoot, path.relative(this.backupDataRoot, this.backupRoot))
+  }
+
   async initialize(): Promise<void> {
     await this.lock.runExclusive(async () => {
       await mkdir(this.root, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.root, '')
-      await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
-      await assertMemoryPath(this.backupRoot, '')
+      await mkdir(await this.checkedBackupRoot(), { recursive: true, mode: 0o700 })
+      await assertMemoryPath(await this.checkedBackupRoot(), '')
       const latest = await this.latestRecoverableBatch(false)
       const deletedEntry = latest?.steps.some(
         (step) => step.path === MEMORY_ENTRY && step.afterHash === null && step.outcome !== 'unchanged'
@@ -152,6 +158,7 @@ export class MemoryStore {
 
   invalidate(): void {
     this.generation++
+    this.onInvalidate?.()
   }
 
   async list(access: MemoryAccess): Promise<string[]> {
@@ -472,7 +479,7 @@ export class MemoryStore {
       this.recoveries.delete(access)
       this.invalidate()
       for (const confirm of confirmations) await confirm()
-      const root = this.backupRoot
+      const root = await this.checkedBackupRoot()
       const manifest = await latestMemoryBackup(root, preview.batch.id)
       if (!manifest) throw new MemoryError('conflict', 'The recovery manifest is unavailable')
       const previousStatus = manifest.status
@@ -535,7 +542,7 @@ export class MemoryStore {
       source === 'clear'
         ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, memoryHash(after)])))
         : undefined
-    const batch = await createMemoryBackup(this.backupRoot, changes, source, {
+    const batch = await createMemoryBackup(await this.checkedBackupRoot(), changes, source, {
       legacy,
       clearScopeHash,
       recoveryOf,
@@ -587,13 +594,13 @@ export class MemoryStore {
           file.outcome = 'unchanged'
         }
         batch.status = memoryBatchStatus(batch)
-        await saveMemoryBackup(this.backupRoot, batch).catch(() => undefined)
+        await saveMemoryBackup(await this.checkedBackupRoot(), batch).catch(() => undefined)
         return result
       }
     }
     batch.status = memoryBatchStatus(batch)
     try {
-      await saveMemoryBackup(this.backupRoot, batch)
+      await saveMemoryBackup(await this.checkedBackupRoot(), batch)
     } catch (error) {
       result.error = error instanceof Error ? error.message : String(error)
     }
@@ -604,12 +611,15 @@ export class MemoryStore {
     resume = true,
     confirmations?: Array<() => Promise<void>>
   ): Promise<RecoveryBatch | undefined> {
-    let batch = await latestMemoryBackup(this.backupRoot)
+    let batch = await latestMemoryBackup(await this.checkedBackupRoot())
     while (batch) {
-      batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
+      batch = await reconcileMemoryBackup(await this.checkedBackupRoot(), this.root, batch)
       if (batch.steps.some((step) => step.outcome !== 'unchanged')) {
         if (batch.recoveryOf) {
-          const original: RecoveryBatch | undefined = await latestMemoryBackup(this.backupRoot, batch.recoveryOf)
+          const original: RecoveryBatch | undefined = await latestMemoryBackup(
+            await this.checkedBackupRoot(),
+            batch.recoveryOf
+          )
           if (original?.status === 'partial') {
             const completedManifest = {
               ...original,
@@ -617,7 +627,7 @@ export class MemoryStore {
               status: 'completed' as const
             }
             const confirmed: MemoryFileChange[] = []
-            const root = this.backupRoot
+            const root = await this.checkedBackupRoot()
             if (!resume) {
               if (hasCompletedRecovery(original, batch)) await saveMemoryBackup(root, completedManifest)
               return batch
@@ -663,7 +673,7 @@ export class MemoryStore {
         }
         return batch
       }
-      batch = await latestMemoryBackup(this.backupRoot)
+      batch = await latestMemoryBackup(await this.checkedBackupRoot())
     }
     return undefined
   }
