@@ -101,3 +101,20 @@ describe('buildHostEndpointPreviews — complete path mode (#18972)', () => {
     expect(hostPreview).toBe('https://gateway.example.com/router/v1/chat/completions')
   })
 })
+
+it('keeps the Anthropic connection preview aligned with its independent exact path setting', () => {
+  const params = buildAzureParams()
+  params.provider = {
+    ...params.provider,
+    id: 'custom-anthropic',
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { pathMode: 'complete' }
+    }
+  }
+  params.primaryEndpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  params.apiHost = params.anthropicApiHost = 'https://gateway.example.com/literal/'
+  params.pathMode = 'complete'
+  expect(buildHostEndpointPreviews(params).anthropicHostPreview).toBe('https://gateway.example.com/literal/')
+  params.pathMode = 'host'
+  expect(buildHostEndpointPreviews(params).anthropicHostPreview).toBe('https://gateway.example.com/literal/v1/messages')
+})

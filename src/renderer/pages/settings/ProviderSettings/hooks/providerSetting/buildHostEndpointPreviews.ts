@@ -89,7 +89,21 @@ export function buildHostEndpointPreviews(params: {
     return formattedHost
   })()
 
-  const anthropicHostPreview = `${formatApiHost(anthropicApiHost || providerAnthropicHost)}/messages`
+  const anthropicMode =
+    primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ? pathMode
+      : provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.pathMode
+  const anthropicUrl = anthropicApiHost || providerAnthropicHost
+  const anthropicHostPreview =
+    anthropicMode === 'complete'
+      ? (() => {
+          try {
+            return new URL(withoutTrailingSharp(anthropicUrl.trim())).toString()
+          } catch {
+            return anthropicUrl.trim()
+          }
+        })()
+      : `${formatApiHost(anthropicUrl)}/messages`
 
   return {
     hostPreview,

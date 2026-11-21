@@ -111,6 +111,9 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
           />
         ) : (
           <AnthropicApiHostField
+            showExactPathToggle={!provider.presetProviderId}
+            isExactPath={provider.endpointConfigs?.[topology.primaryEndpoint]?.pathMode === 'complete'}
+            onExactPathChange={(checked) => void endpointActions.setApiHostPathMode(checked ? 'complete' : 'host')}
             anthropicApiHost={anthropicApiHost}
             anthropicHostPreview={hostPreview.anthropicHostPreview}
             onAnthropicApiHostChange={handleAnthropicApiHostChange}

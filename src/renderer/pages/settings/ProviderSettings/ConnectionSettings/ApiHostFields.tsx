@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, HelpTooltip, InputGroup, InputGroupAddon, InputGroupInput, Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
+import { EndpointPathModeControl } from '../components/EndpointPathModeControl'
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
@@ -198,9 +199,7 @@ export function ApiHostField({
             checked={isExactPath}
             onCheckedChange={onExactPathChange}
           />
-          <span className="text-[12px] text-muted-foreground">
-            {t('settings.provider.api_host_exact_path')}
-          </span>
+          <span className="text-[12px] text-muted-foreground">{t('settings.provider.api_host_exact_path')}</span>
           <HelpTooltip content={t('settings.provider.api_host_exact_path_tooltip')} />
         </div>
       ) : null}
@@ -214,6 +213,9 @@ export function ApiHostField({
 }
 
 interface AnthropicApiHostFieldProps {
+  showExactPathToggle?: boolean
+  isExactPath?: boolean
+  onExactPathChange?: (checked: boolean) => void
   anthropicApiHost: string
   anthropicHostPreview: string
   onAnthropicApiHostChange: (value: string) => void
@@ -222,6 +224,9 @@ interface AnthropicApiHostFieldProps {
 }
 
 export function AnthropicApiHostField({
+  showExactPathToggle,
+  isExactPath,
+  onExactPathChange,
   anthropicApiHost,
   anthropicHostPreview,
   onAnthropicApiHostChange,
@@ -287,6 +292,13 @@ export function AnthropicApiHostField({
           </span>
         </Tooltip>
       </div>
+      {showExactPathToggle && onExactPathChange && (
+        <EndpointPathModeControl
+          endpointLabel={t('settings.provider.anthropic_api_host')}
+          checked={Boolean(isExactPath)}
+          onCheckedChange={onExactPathChange}
+        />
+      )}
     </ProviderField>
   )
 }

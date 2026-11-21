@@ -141,6 +141,14 @@ The builder table (`config.ts`, first match wins):
 Several builders are `async` (Copilot token, CherryIN relay URLs), which is
 why `providerToAiSdkConfig` returns a promise.
 
+## Custom provider exact paths
+
+`EndpointConfig.pathMode` is a user-owned connection override. Missing or `host` keeps normal URL formatting. `complete` bypasses API-version formatting and endpoint-suffix inference, then `createExactPathFetch` pins the request to the configured URL over the builder's existing fetch. The adapter still owns the request/response protocol. A bare origin therefore targets `/`; trailing slashes, encoded paths and query parameters are preserved, subject to standard URL parsing and removal of a legacy trailing `#` marker.
+
+Custom-provider creation stores the mode independently for each entered endpoint. Request configuration reloads and saves the text and image modes without replacing sibling configuration or adapter metadata. Both surfaces preview the selected mode; primary connection settings also support Anthropic's independent exact-path preview.
+
+The fetch wrapper annotates thrown transport failures with a redacted effective URL. SDK-generated HTTP or parsing errors created after fetch returns still need model-level diagnostic handling. This implementation is draft work under spec PR #23804, not full acceptance evidence. Local SDK-to-HTTP tests substitute Node fetch at the Electron boundary; packaged-app verification remains separate.
+
 ## Custom providers
 
 `src/main/ai/provider/custom/`:

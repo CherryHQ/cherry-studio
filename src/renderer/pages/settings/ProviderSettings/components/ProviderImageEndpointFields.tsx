@@ -2,16 +2,25 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Field, FieldError, FieldLabel, Input, HelpTooltip } from '@cherrystudio/ui'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { buildEndpointRequestPreview } from '../utils/endpointRequestPreview'
 import type { ProviderImageEndpointDraft, ProviderImageEndpointDraftField } from '../utils/providerImageEndpoints'
+import { EndpointPathModeControl } from './EndpointPathModeControl'
 
 interface ProviderImageEndpointFieldsProps {
+  showExactPathToggle?: boolean
   value: ProviderImageEndpointDraft
   invalidField?: ProviderImageEndpointDraftField | null
   onChange: (value: ProviderImageEndpointDraft) => void
 }
 
-export function ProviderImageEndpointFields({ value, invalidField, onChange }: ProviderImageEndpointFieldsProps) {
+export function ProviderImageEndpointFields({
+  value,
+  invalidField,
+  onChange,
+  showExactPathToggle
+}: ProviderImageEndpointFieldsProps) {
   const { t } = useTranslation()
   const uid = useId()
   const generationInputId = `${uid}-image-generation-base-url`
@@ -41,6 +50,27 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
           aria-describedby={invalidField === 'imageGenerationBaseUrl' ? generationErrorId : generationHelpId}
           onChange={(event) => onChange({ ...value, imageGenerationBaseUrl: event.target.value })}
         />
+        {showExactPathToggle && (
+          <>
+            <EndpointPathModeControl
+              endpointLabel={t('settings.provider.image_endpoints.image_generation_base_url.label')}
+              checked={value.imageGenerationPathMode === 'complete'}
+              onCheckedChange={(checked) =>
+                onChange({ ...value, imageGenerationPathMode: checked ? 'complete' : 'host' })
+              }
+            />
+            <p className="text-xs break-all text-muted-foreground">
+              {t('settings.provider.api_host_preview', {
+                url:
+                  buildEndpointRequestPreview(
+                    value.imageGenerationBaseUrl,
+                    ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+                    value.imageGenerationPathMode
+                  ) || '—'
+              })}
+            </p>
+          </>
+        )}
         <FieldError
           id={generationErrorId}
           className="text-xs"
@@ -69,6 +99,25 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
           aria-describedby={invalidField === 'imageEditBaseUrl' ? editErrorId : editHelpId}
           onChange={(event) => onChange({ ...value, imageEditBaseUrl: event.target.value })}
         />
+        {showExactPathToggle && (
+          <>
+            <EndpointPathModeControl
+              endpointLabel={t('settings.provider.image_endpoints.image_edit_base_url.label')}
+              checked={value.imageEditPathMode === 'complete'}
+              onCheckedChange={(checked) => onChange({ ...value, imageEditPathMode: checked ? 'complete' : 'host' })}
+            />
+            <p className="text-xs break-all text-muted-foreground">
+              {t('settings.provider.api_host_preview', {
+                url:
+                  buildEndpointRequestPreview(
+                    value.imageEditBaseUrl,
+                    ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+                    value.imageEditPathMode
+                  ) || '—'
+              })}
+            </p>
+          </>
+        )}
         <FieldError
           id={editErrorId}
           className="text-xs"
