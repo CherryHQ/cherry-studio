@@ -12,7 +12,7 @@ import { CommandOutputLimitError, executeCommand } from '@main/utils/processRunn
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+import { buildGiteaSkillUrl, encodeGithubPath, parseGiteaSkillUrl, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
   assertNoFoldedPathCollisions,
@@ -105,14 +105,16 @@ const FETCHERS: Record<string, Fetcher> = {
   'claude-plugins': fetchFromClaudePlugins,
   'skills.sh': fetchFromSkillsSh,
   clawhub: fetchFromClawhub,
-  github: fetchFromGithub
+  github: fetchFromGithub,
+  gitea: fetchFromGitea
 }
 
 /**
  * Fetch from a marketplace installSource handle.
  * Format: "claude-plugins:{owner}/{repo}/{directoryPath}",
  * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
- * or "github:{https URL of the skill's SKILL.md}".
+ * "github:{https URL of the skill's SKILL.md}",
+ * or "gitea:{https URL of the skill's SKILL.md}".
  */
 export async function fetchRemoteSkill(source: string, identifier: string): Promise<FetchedSkill> {
   const fetcher = FETCHERS[source]
@@ -217,6 +219,48 @@ async function fetchFromGithub(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGithubSkillTarget(identifier)
+
+  const tempDir = await openTempDir()
+  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
+  const { contentDir, skillDir } = await materializeGithubTarget(commit, target, [descriptorFileName])
+  await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
+  await assertSkillDirectoryWithinLimits(skillDir)
+
+  return { skillDir, sourceUrl }
+}
+
+/**
+ * Fetch the one skill a Gitea SKILL.md URL points at (issue #20206). Same rules as the GitHub
+ * fetcher — the ref/path boundary resolves against the server's refs, the commit observed during
+ * that lookup is what gets installed, and only the named skill directory is validated and kept —
+ * but over Git smart HTTP at `https://{host}/{owner}/{repo}.git` on any host. Access is
+ * anonymous: the parser has already rejected embedded credentials, and no token is requested,
+ * stored or sent; a server that requires authentication fails with its transport error.
+ */
+async function resolveGiteaSkillTarget(identifier: string) {
+  const location = parseGiteaSkillUrl(identifier)
+  if (!location) {
+    throw new Error(`Invalid Gitea skill URL: ${identifier}`)
+  }
+
+  const { owner, repo, refAndPath, descriptorFileName } = location
+  const transportRepoUrl = `https://${location.host}/${owner}/${repo}.git`
+  const { ref, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, null)
+
+  const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
+  const sourceUrl = buildGiteaSkillUrl({
+    ...location,
+    refAndPath: [...sourcePath.split('/')]
+  })
+
+  return { transportRepoUrl, oid, target, sourceUrl, descriptorFileName }
+}
+
+async function fetchFromGitea(
+  identifier: string,
+  openTempDir: () => Promise<string>
+): Promise<Omit<FetchedSkill, 'tempDir'>> {
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGiteaSkillTarget(identifier)
 
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
