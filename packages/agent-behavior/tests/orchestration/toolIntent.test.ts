@@ -99,7 +99,7 @@ describe('createToolIntent', () => {
   it('keeps unvalidated arguments typed when a tool has no repair', () => {
     const tool = transform(bash, true)
     if (!('prepareArguments' in tool) || !tool.prepareArguments) throw new Error('Missing argument preparation')
-    const prepared: number | Record<string, unknown> = tool.prepareArguments(42)
+    const prepared: number | object = tool.prepareArguments(42)
     expect(prepared).toBe(42)
   })
 
