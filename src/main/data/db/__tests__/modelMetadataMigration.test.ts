@@ -8,7 +8,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 
 // Nullable provenance must not relabel or alter pre-existing model values.
 describe('model metadata provenance migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0042_model_metadata_provenance' })
+  const dbh = setupTestDatabase({ beforeMigration: '0043_sweet_thunderball' })
   it('preserves populated models, timestamps and foreign keys, and is idempotent', () => {
     dbh.db.insert(userProviderTable).values({ providerId: 'custom', name: 'Custom', orderKey: 'a0' }).run()
     dbh.sqlite
