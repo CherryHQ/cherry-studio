@@ -106,3 +106,19 @@ vi.mock('@renderer/services/fileObservation', async () => {
   const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
   return { fileObservationService: mockFileObservationService }
 })
+
+it('refreshFromDiskIfIdle adopts clean disk changes and never clobbers a dirty draft', async () => {
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+
+  disk = new TextEncoder().encode('external')
+  await act(async () => result.current.refreshFromDiskIfIdle())
+  expect(result.current.draft).toBe('external')
+  expect(result.current.conflict).toBe(false)
+
+  act(() => result.current.setDraft('local'))
+  disk = new TextEncoder().encode('moved externally')
+  await act(async () => result.current.refreshFromDiskIfIdle())
+  expect(result.current.draft).toBe('local')
+  expect(result.current.conflict).toBe(true)
+})

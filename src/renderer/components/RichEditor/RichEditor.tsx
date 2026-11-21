@@ -175,6 +175,7 @@ const RichEditor = ({
   enableSpellCheck = false,
   ariaLabel,
   enableImageInsertion = true,
+  trackImagePastesForRelocation = false,
   disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.Ref<RichEditorRef> }) => {
@@ -191,6 +192,7 @@ const RichEditor = ({
     enableSpellCheck,
     ariaLabel,
     enableImageInsertion,
+    trackImagePastesForRelocation,
     disabledCommands,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
