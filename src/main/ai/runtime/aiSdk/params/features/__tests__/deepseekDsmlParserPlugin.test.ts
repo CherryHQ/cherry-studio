@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV3Content, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -74,6 +74,12 @@ async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-c
   }
   return events
 }
+
+const RESERVED_KEY_DSML =
+  '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="reserved">' +
+  '<｜｜DSML｜｜parameter name="__proto__" string="false">{"retained":true}</｜｜DSML｜｜parameter>' +
+  '<｜｜DSML｜｜parameter name="constructor">literal</｜｜DSML｜｜parameter>' +
+  '</｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>'
 
 // The actual chunk sequence captured from the user's DeepSeek SSE leak.
 // Concatenated this is two parallel builtin_web_search invokes inside one tool_calls block.
@@ -205,6 +211,13 @@ const SSE_DELTAS: string[] = [
 ]
 
 describe('deepseekDsmlParserPlugin', () => {
+  it('preserves reserved parameter names in streaming tool-call JSON', async () => {
+    const events = await runStream([RESERVED_KEY_DSML])
+    const call = events.find((event) => event.type === 'tool-call')
+
+    expect(JSON.parse(call?.input ?? 'null')).toEqual({ ['__proto__']: { retained: true }, constructor: 'literal' })
+  })
+
   it('converts the captured SSE sample into two AI SDK tool-call events', async () => {
     const events = await runStream(SSE_DELTAS, 'stop')
 
@@ -404,6 +417,13 @@ describe('deepseekDsmlParserPlugin', () => {
 
       return result as any
     }
+
+    it('preserves reserved parameter names in generated tool-call JSON', async () => {
+      const result = await runGenerate(RESERVED_KEY_DSML)
+      const call = result.content.find((part: LanguageModelV3Content) => part.type === 'tool-call')
+
+      expect(JSON.parse(call?.input ?? 'null')).toEqual({ ['__proto__']: { retained: true }, constructor: 'literal' })
+    })
 
     it('extracts multiple DSML blocks within a single text part', async () => {
       const text =
