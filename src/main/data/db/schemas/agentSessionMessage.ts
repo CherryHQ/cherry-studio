@@ -92,13 +92,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
-export interface AgentSessionPartSource {
-  contextId: string
-  nativeMessageId: string
-  blockKey: string
-}
-
-/** A placed part may await its first body write. */
+/** One ordered body part of an agent-session message. */
 export const agentSessionMessagePartTable = sqliteTable(
   'agent_session_message_part',
   {
@@ -111,15 +105,13 @@ export const agentSessionMessagePartTable = sqliteTable(
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
     seq: integer().notNull(),
     type: text().notNull(),
-    payload: text({ mode: 'json' }).$type<CherryMessagePart>(),
+    payload: text({ mode: 'json' }).$type<CherryMessagePart>().notNull(),
     pos: integer(),
-    source: text({ mode: 'json' }).$type<AgentSessionPartSource>(),
     ...createUpdateTimestamps
   },
   (t) => [
     uniqueIndex('agent_session_message_part_message_seq_uniq').on(t.messageId, t.seq),
     index('agent_session_message_part_session_idx').on(t.sessionId),
-    uniqueIndex('agent_session_message_part_source_uniq').on(t.sessionId, t.source),
     uniqueIndex('agent_session_message_part_pos_uniq').on(t.sessionId, t.pos)
   ]
 )

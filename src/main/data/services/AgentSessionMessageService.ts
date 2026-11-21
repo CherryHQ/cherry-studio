@@ -30,7 +30,6 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessagePartTable as sessionMessagePartsTable,
-  type AgentSessionPartSource,
   agentSessionMessageTable as sessionMessagesTable,
   agentSessionToolOutputTable as sessionToolOutputsTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
@@ -176,7 +175,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
       json((
         select json_group_array(json(ordered.payload)) from (
           select payload from agent_session_message_part
-          where message_id = ${sessionMessagesTable.id} and payload is not null order by seq
+          where message_id = ${sessionMessagesTable.id} order by seq
         ) as ordered
       ))
     ),
@@ -3147,65 +3146,6 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  /** Places one native block before its first body write and reuses its placement on replay. */
-  placeRunPart(
-    sessionId: string,
-    runId: string,
-    source: AgentSessionPartSource,
-    type: CherryMessagePart['type']
-  ): { id: string; pos: number } | undefined {
-    return application.get('DbService').withWriteTx((tx) => {
-      const key = { contextId: source.contextId, nativeMessageId: source.nativeMessageId, blockKey: source.blockKey }
-      const placed = tx
-        .select({
-          id: sessionMessagePartsTable.id,
-          messageId: sessionMessagePartsTable.messageId,
-          pos: sessionMessagePartsTable.pos,
-          type: sessionMessagePartsTable.type
-        })
-        .from(sessionMessagePartsTable)
-        .where(and(eq(sessionMessagePartsTable.sessionId, sessionId), eq(sessionMessagePartsTable.source, key)))
-        .get()
-      if (placed) {
-        if (placed.messageId !== runId || placed.type !== type || placed.pos === null)
-          throw new Error('Native part placement has a different Run or block type')
-        return { id: placed.id, pos: placed.pos }
-      }
-      const run = tx
-        .select({ id: sessionMessagesTable.id })
-        .from(sessionMessagesTable)
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            eq(sessionMessagesTable.id, runId),
-            eq(sessionMessagesTable.role, 'assistant'),
-            eq(sessionMessagesTable.status, 'pending')
-          )
-        )
-        .get()
-      if (!run) return
-      const context = agentSessionContextService.contextTx(tx, key.contextId)
-      if (context.sessionId !== sessionId) throw new Error('Native part source belongs to a different session')
-      const { pos } = tx
-        .update(sessionTable)
-        .set({ lastPos: sql`${sessionTable.lastPos} + 1`, updatedAt: sessionTable.updatedAt })
-        .where(eq(sessionTable.id, sessionId))
-        .returning({ pos: sessionTable.lastPos })
-        .get()
-      const { seq } = tx
-        .select({ seq: sql<number>`coalesce(max(${sessionMessagePartsTable.seq}), -1) + 1` })
-        .from(sessionMessagePartsTable)
-        .where(eq(sessionMessagePartsTable.messageId, runId))
-        .get()!
-      const placedPart = tx
-        .insert(sessionMessagePartsTable)
-        .values({ messageId: runId, sessionId, seq, type, pos, source: key })
-        .returning({ id: sessionMessagePartsTable.id })
-        .get()
-      return { id: placedPart.id, pos }
-    })
-  }
-
   /**
    * Saves parts that completed while their reply is still pending. `order` is the reply's current
    * part order; only `parts` are written, so other completed parts and results are not rewritten.
@@ -3214,7 +3154,11 @@ export class AgentSessionMessageService {
   saveCompletedMessageParts(
     sessionId: string,
     messageId: string,
-    input: { order: readonly string[]; parts: ReadonlyMap<string, CherryMessagePart> }
+    input: {
+      order: readonly string[]
+      parts: ReadonlyMap<string, CherryMessagePart>
+      positions?: ReadonlyMap<string, number>
+    }
   ): boolean {
     return application.get('DbService').withWriteTx((tx) => {
       const row = tx
@@ -3232,6 +3176,7 @@ export class AgentSessionMessageService {
         sessionId,
         messageId,
         order: input.order,
+        positions: input.positions,
         parts: new Map(ids.map((id, index) => [id, storedData.parts[index]])),
         timestampMs
       })

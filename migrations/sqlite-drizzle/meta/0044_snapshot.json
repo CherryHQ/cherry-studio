@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "384f8d74-f4dd-4d93-ab28-f5131592d003",
+  "id": "6b5dedec-0f13-4e39-842e-2b79be7f9566",
   "prevId": "f1a77c02-2c72-47c2-a9fd-0de5ccecd57c",
   "tables": {
     "agent": {
@@ -1161,19 +1161,12 @@
           "name": "payload",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "pos": {
           "name": "pos",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1208,14 +1201,6 @@
             "session_id"
           ],
           "isUnique": false
-        },
-        "agent_session_message_part_source_uniq": {
-          "name": "agent_session_message_part_source_uniq",
-          "columns": [
-            "session_id",
-            "source"
-          ],
-          "isUnique": true
         },
         "agent_session_message_part_pos_uniq": {
           "name": "agent_session_message_part_pos_uniq",

@@ -230,83 +230,90 @@ describe('AgentSessionMessageService', () => {
         message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
       })
 
-    it('reuses a native placement before and after its body is saved, without exposing an empty part', () => {
+    it('saves a part at its original position after a later steer commits', () => {
       pendingReply()
-      const { id: contextId } = prepareClaudeBranch(SESSION_ID, '/test/placement')
-      const source = { contextId, nativeMessageId: 'native-message', blockKey: 'text:0' }
-      const placement = agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')!
-      const toolPlacement = agentSessionMessageService.placeRunPart(
-        SESSION_ID,
-        ASSISTANT_MESSAGE_ID,
-        { ...source, blockKey: 'call:1' },
-        'dynamic-tool'
-      )!
-      expect(toolPlacement.pos).toBeGreaterThan(placement.pos)
-      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
-        placement
-      )
-      expect(partRows().map((row) => row.id)).toEqual([placement.id, toolPlacement.id])
-      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
-        parts: [],
-        ids: []
+      const steer = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', data: { parts: [{ type: 'text', text: 'Steer' }] } }
       })
-      const visible = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
-      expect(visible.items.find((item) => item.id === ASSISTANT_MESSAGE_ID)?.data.parts).toEqual([])
+      dbh.db.update(agentSessionMessageTable).set({ pos: 11 }).where(eq(agentSessionMessageTable.id, steer.id)).run()
+      dbh.db.update(agentSessionTable).set({ lastPos: 11 }).where(eq(agentSessionTable.id, SESSION_ID)).run()
 
-      const answer = { type: 'text' as const, text: 'First body', state: 'done' as const }
-      expect(
-        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-          order: [placement.id, toolPlacement.id],
-          parts: new Map([[placement.id, answer]])
-        })
-      ).toBe(true)
-      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
-        parts: [answer],
-        ids: [placement.id]
+      const timeline = () =>
+        dbh.sqlite
+          .prepare(
+            `SELECT id, pos FROM agent_session_message WHERE session_id = ? AND pos IS NOT NULL
+             UNION ALL SELECT id, pos FROM agent_session_message_part WHERE session_id = ? AND pos IS NOT NULL
+             ORDER BY pos`
+          )
+          .all(SESSION_ID, SESSION_ID)
+
+      const order = [first, tool]
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order,
+        parts: new Map([[tool, toolPart]]),
+        positions: new Map([[tool, 12]])
       })
-      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
-        placement
-      )
+      expect(timeline()).toEqual([
+        { id: steer.id, pos: 11 },
+        { id: tool, pos: 12 }
+      ])
+      expect(partRows().map(({ id }) => id)).toEqual([tool])
+
+      const answer = { type: 'text' as const, text: 'First body' }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order,
+        parts: new Map([[first, answer]]),
+        positions: new Map([[first, 10]])
+      })
+      const expected = [
+        { id: first, pos: 10 },
+        { id: steer.id, pos: 11 },
+        { id: tool, pos: 12 }
+      ]
+      expect(timeline()).toEqual(expected)
+      expect(dbh.db.select({ pos: agentSessionTable.lastPos }).from(agentSessionTable).get()?.pos).toBe(12)
+
       const corrected = { ...answer, text: 'Corrected body' }
-      agentSessionMessageService.replaceMessageParts(
-        SESSION_ID,
-        ASSISTANT_MESSAGE_ID,
-        [corrected, toolPart],
-        undefined,
-        [placement.id, toolPlacement.id]
-      )
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        partIds: order,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [corrected, toolPart] }
+        }
+      })
+      expect(timeline()).toEqual(expected)
       expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
         parts: [corrected, toolPart],
-        ids: [placement.id, toolPlacement.id]
+        ids: order
       })
-      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
-        placement
-      )
-      expect(searchableText()).toBe('Corrected body')
     })
 
-    it('cannot move a reserved part or its body to another Run', () => {
+    it('cannot write a completed part under another Run', () => {
       pendingReply()
-      const { id: contextId } = prepareClaudeBranch(SESSION_ID, '/test/placement')
-      const source = { contextId, nativeMessageId: 'native-message', blockKey: 'text:0' }
-      const placement = agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')!
+      const answer = { type: 'text' as const, text: 'Original answer' }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [first],
+        parts: new Map([[first, answer]])
+      })
       const another = agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: { role: 'assistant', status: 'pending', data: { parts: [] } }
       })
-      expect(() => agentSessionMessageService.placeRunPart(SESSION_ID, another.id, source, 'text')).toThrow(
-        'different Run'
-      )
       expect(() =>
         agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, another.id, {
-          order: [placement.id],
-          parts: new Map([[placement.id, { type: 'text', text: 'wrong owner' }]])
+          order: [first],
+          parts: new Map([[first, { type: 'text', text: 'wrong owner' }]])
         })
       ).toThrow('different message')
-      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID).parts).toEqual([])
-      expect(agentSessionMessageService.placeRunPart(SESSION_ID, ASSISTANT_MESSAGE_ID, source, 'text')).toEqual(
-        placement
-      )
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual({
+        parts: [answer],
+        ids: [first]
+      })
+      expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, another.id).parts).toEqual([])
     })
 
     it('writes each completed part alone and settles the reply without rewriting them', () => {

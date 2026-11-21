@@ -156,8 +156,8 @@ describe('agent session message part migration (0042)', () => {
   })
 })
 
-describe('agent session part placement migration', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0044_past_stephen_strange' })
+describe('agent session timeline position migration', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0044_agent_session_timeline_positions' })
 
   it('keeps the saved part IDs and assigns positions in ancestry order', () => {
     const workspaceId = uuid()
@@ -196,10 +196,10 @@ describe('agent session part placement migration', () => {
     applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
 
     expect(dbh.sqlite.prepare('SELECT pos FROM agent_session_message WHERE id = ?').get(inputId)).toEqual({ pos: 1 })
-    expect(dbh.sqlite.prepare('SELECT id, pos, source FROM agent_session_message_part ORDER BY pos').all()).toEqual([
-      { id: firstId, pos: 2, source: null },
-      { id: secondId, pos: 3, source: null },
-      { id: siblingPartId, pos: 4, source: null }
+    expect(dbh.sqlite.prepare('SELECT id, pos FROM agent_session_message_part ORDER BY pos').all()).toEqual([
+      { id: firstId, pos: 2 },
+      { id: secondId, pos: 3 },
+      { id: siblingPartId, pos: 4 }
     ])
     expect(
       dbh.sqlite.prepare('SELECT last_pos, active_node_id FROM agent_session WHERE id = ?').get(sessionId)

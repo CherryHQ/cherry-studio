@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
@@ -36,16 +36,10 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
     const stored = db
       .select({ messageId: messageParts.messageId, payload: messageParts.payload })
       .from(messageParts)
-      .where(
-        and(
-          inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)),
-          isNotNull(messageParts.payload)
-        )
-      )
+      .where(inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
       .orderBy(asc(messageParts.messageId), asc(messageParts.seq))
       .all()
     for (const part of stored) {
-      if (!part.payload) continue
       const parts = partsByMessageId.get(part.messageId)
       if (parts) parts.push(part.payload)
       else partsByMessageId.set(part.messageId, [part.payload])
@@ -87,7 +81,7 @@ export function readAgentSessionMessagePartIdsTx(db: DbOrTx, messageId: string):
   return db
     .select({ id: messageParts.id })
     .from(messageParts)
-    .where(and(eq(messageParts.messageId, messageId), isNotNull(messageParts.payload)))
+    .where(eq(messageParts.messageId, messageId))
     .orderBy(asc(messageParts.seq))
     .all()
     .map((row) => row.id)
@@ -104,18 +98,19 @@ export function writeAgentSessionMessagePartsTx(
     messageId: string
     order: readonly string[]
     parts: ReadonlyMap<string, CherryMessagePart>
+    positions?: ReadonlyMap<string, number>
     timestampMs: number
   }
 ): void {
-  const { sessionId, messageId, order, parts, timestampMs } = input
+  const { sessionId, messageId, order, parts, positions, timestampMs } = input
   const seqById = new Map(order.map((id, seq) => [id, seq]))
   if (seqById.size !== order.length) throw new Error('Agent session message part IDs must be unique')
   const existing = db
-    .select({ id: messageParts.id, seq: messageParts.seq, type: messageParts.type })
+    .select({ id: messageParts.id, seq: messageParts.seq, type: messageParts.type, pos: messageParts.pos })
     .from(messageParts)
     .where(eq(messageParts.messageId, messageId))
     .all()
-  const existingIds = new Set(existing.map((row) => row.id))
+  const existingById = new Map(existing.map((row) => [row.id, row]))
   let textChanged = [...parts.values()].some((part) => part.type === 'text')
   const removed = existing.filter((row) => !seqById.has(row.id))
   const moved = existing.filter((row) => seqById.has(row.id) && seqById.get(row.id) !== row.seq)
@@ -144,9 +139,13 @@ export function writeAgentSessionMessagePartsTx(
         .where(eq(messageParts.id, row.id))
         .run()
   }
+  let lastPos = 0
   for (const [id, part] of parts) {
     const seq = seqById.get(id)
     if (seq === undefined) throw new Error('Agent session message part is outside the message order')
+    const stored = existingById.get(id)
+    const pos = stored?.pos ?? positions?.get(id)
+    if (stored?.pos == null && pos !== undefined) lastPos = Math.max(lastPos, pos)
     const result = db
       .insert(messageParts)
       .values({
@@ -156,22 +155,27 @@ export function writeAgentSessionMessagePartsTx(
         seq,
         type: part.type,
         payload: part,
+        pos,
         createdAt: timestampMs,
         updatedAt: timestampMs
       })
       .onConflictDoUpdate({
         target: messageParts.id,
-        set: { seq, type: part.type, payload: part, updatedAt: timestampMs },
+        set: { seq, type: part.type, payload: part, pos, updatedAt: timestampMs },
         setWhere: and(
           eq(messageParts.messageId, messageId),
           eq(messageParts.sessionId, sessionId),
-          sql`(${messageParts.payload} IS NOT excluded.payload OR ${messageParts.seq} IS NOT excluded.seq)`
+          sql`(${messageParts.payload} IS NOT excluded.payload OR ${messageParts.seq} IS NOT excluded.seq OR ${messageParts.pos} IS NOT excluded.pos)`
         )
       })
       .run()
-    if (!result.changes && !existingIds.has(id))
-      throw new Error('Agent session message part ID belongs to a different message')
+    if (!result.changes && !stored) throw new Error('Agent session message part ID belongs to a different message')
   }
+  if (lastPos > 0)
+    db.update(sessions)
+      .set({ lastPos, updatedAt: sessions.updatedAt })
+      .where(and(eq(sessions.id, sessionId), lt(sessions.lastPos, lastPos)))
+      .run()
   if (!textChanged) return
   const text = db
     .select({ text: sql<string | null>`json_extract(${messageParts.payload}, '$.text')` })

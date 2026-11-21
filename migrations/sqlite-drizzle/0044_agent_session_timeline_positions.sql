@@ -1,28 +1,6 @@
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
-CREATE TABLE `__new_agent_session_message_part` (
-	`id` text PRIMARY KEY NOT NULL,
-	`message_id` text NOT NULL,
-	`session_id` text NOT NULL,
-	`seq` integer NOT NULL,
-	`type` text NOT NULL,
-	`payload` text,
-	`pos` integer,
-	`source` text,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`message_id`) REFERENCES `agent_session_message`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`session_id`) REFERENCES `agent_session`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-INSERT INTO `__new_agent_session_message_part`("id", "message_id", "session_id", "seq", "type", "payload", "created_at", "updated_at") SELECT "id", "message_id", "session_id", "seq", "type", "payload", "created_at", "updated_at" FROM `agent_session_message_part`;--> statement-breakpoint
-DROP TABLE `agent_session_message_part`;--> statement-breakpoint
-ALTER TABLE `__new_agent_session_message_part` RENAME TO `agent_session_message_part`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;--> statement-breakpoint
-CREATE UNIQUE INDEX `agent_session_message_part_message_seq_uniq` ON `agent_session_message_part` (`message_id`,`seq`);--> statement-breakpoint
-CREATE INDEX `agent_session_message_part_session_idx` ON `agent_session_message_part` (`session_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `agent_session_message_part_source_uniq` ON `agent_session_message_part` (`session_id`,`source`);--> statement-breakpoint
-CREATE UNIQUE INDEX `agent_session_message_part_pos_uniq` ON `agent_session_message_part` (`session_id`,`pos`);--> statement-breakpoint
 ALTER TABLE `agent_session` ADD `last_pos` integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE `agent_session_message_part` ADD `pos` integer;--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_session_message_part_pos_uniq` ON `agent_session_message_part` (`session_id`,`pos`);--> statement-breakpoint
 ALTER TABLE `agent_session_message` ADD `pos` integer;
 --> statement-breakpoint
 CREATE TEMP TABLE `agent_session_timeline_positions` (
