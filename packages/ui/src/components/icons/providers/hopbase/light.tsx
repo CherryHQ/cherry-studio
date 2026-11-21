@@ -1,0 +1,11 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const HopbaseLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fillRule="evenodd" viewBox="10 5 82 82" width="1em" height="1em" {...props}>
+    <path d="M40 42C35 31 35 16 39 9 41 5 45 6 46 11 48 22 47 33 45 42ZM42 38C40 29.5 40 18.5 42 13 44 18.5 44.4 29.5 43.6 38ZM55 42C57 32 64 20 71 15 75 12 78 16 75 21 69 30 62 39 60 43ZM58.5 39C60.5 31.5 65 23 69.5 19 70.4 23.6 66.6 31 61 40Z" />
+    <path d="M24.5 63a25.5 23.5 0 1 0 51 0a25.5 23.5 0 1 0-51 0ZM37.8 60a3.7 4.7 0 1 0 7.4 0a3.7 4.7 0 1 0-7.4 0ZM54.8 60a3.7 4.7 0 1 0 7.4 0a3.7 4.7 0 1 0-7.4 0ZM50 71.4C48.6 69.4 45.8 69.4 45.8 67.3C45.8 65.9 47.4 65.5 48.6 66.5C49.2 67 49.7 67.6 50 68.2C50.3 67.6 50.8 67 51.4 66.5C52.6 65.5 54.2 65.9 54.2 67.3C54.2 69.4 51.4 69.4 50 71.4Z" />
+  </svg>
+)
+export { HopbaseLight }
+export default HopbaseLight
