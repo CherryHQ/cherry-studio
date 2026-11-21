@@ -17,7 +17,7 @@
  */
 
 import { writeFileSync } from 'node:fs'
-import { Session } from 'node:inspector'
+import { Session } from 'node:inspector/promises'
 
 export const DIAGNOSTICS_ENABLED = !!process.env.CS_DIAGNOSTICS
 
@@ -41,29 +41,23 @@ export class CpuProfiler {
   async start(): Promise<void> {
     this.session = new Session()
     this.session.connect()
-    await this.post('Profiler.enable')
+    await this.session.post('Profiler.enable')
     // 1000µs (V8 default) — 100µs oversampled ~10x, adding ~135ms of inspector
     // overhead that only taxed the profiled whenReady phase and drowned out sub-100ms deltas.
-    await this.post('Profiler.setSamplingInterval', { interval: 1000 })
-    await this.post('Profiler.start')
+    await this.session.post('Profiler.setSamplingInterval', { interval: 1000 })
+    await this.session.post('Profiler.start')
   }
 
   async stopAndWrite(filePath: string): Promise<void> {
     if (!this.session) return
     try {
-      const { profile } = await this.post('Profiler.stop')
+      const { profile } = await this.session.post('Profiler.stop')
       writeFileSync(filePath, JSON.stringify(profile))
     } finally {
       // Always release the inspector session, even if the write fails.
       this.session.disconnect()
       this.session = null
     }
-  }
-
-  private post(method: string, params?: Record<string, unknown>): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.session!.post(method, params as never, (err, result) => (err ? reject(err) : resolve(result)))
-    })
   }
 }
 

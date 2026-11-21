@@ -389,6 +389,7 @@ function looksLikeSqliteLiteral(value: string): boolean {
   return SQLITE_FILE_PATTERN.test(path.basename(uriPath))
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native runtimes own tool argument schemas; this guard reads a runtime-selected path or command field and validates that value before inspecting filesystem access.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

@@ -297,7 +297,8 @@ function isHermesStatusBody(body: unknown): body is { hermes_home: string; gatew
   return (
     typeof body === 'object' &&
     body !== null &&
-    typeof (body as Record<string, unknown>).hermes_home === 'string' &&
+    'hermes_home' in body &&
+    typeof body.hermes_home === 'string' &&
     'gateway_running' in body
   )
 }

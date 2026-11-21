@@ -123,7 +123,13 @@ function readResponseText(body: Buffer): string {
   return new TextDecoder('utf-8', { fatal: true }).decode(body)
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is {
+  id?: unknown
+  status?: unknown
+  created_at?: unknown
+  updated_at?: unknown
+  code?: unknown
+} {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 

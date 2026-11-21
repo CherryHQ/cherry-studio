@@ -148,11 +148,14 @@ function parseLineTimestamp(line: Buffer, kind: DiagnosticFileSourceKind): numbe
   if (!text) return 'empty'
 
   try {
-    const value = JSON.parse(text) as Record<string, unknown>
+    const value: unknown = JSON.parse(text)
+    if (value === null || typeof value !== 'object') return undefined
     if (kind === 'traces') {
-      return typeof value.startTime === 'number' && Number.isFinite(value.startTime) ? value.startTime : undefined
+      return 'startTime' in value && typeof value.startTime === 'number' && Number.isFinite(value.startTime)
+        ? value.startTime
+        : undefined
     }
-    if (typeof value.timestamp !== 'string') return undefined
+    if (!('timestamp' in value) || typeof value.timestamp !== 'string') return undefined
     return parseLogTimestampString(value.timestamp)
   } catch {
     return undefined
