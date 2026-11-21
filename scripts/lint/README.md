@@ -26,10 +26,11 @@ Unconfigured rules are pending migration, not proof that their source is clean.
 Each rule-specific stack layer clears that rule's findings, verifies affected
 contracts, and enables it as an error. Do not weaken an activated rule, exempt owned
 source directories or disguise module mocks to make it pass. Test files and test-only
-directories are exempt from `no-unknown-parameters` and
-`no-chained-type-assertions`: partial mocks, invalid inputs and historical fixtures
-can require these boundaries. Production code keeps both rules as errors; all
-other configured test rules retain their scope. Boundary parsing,
+directories temporarily disable all anti-slop rules and the native
+`oxc/no-accumulating-spread` companion. Partial mocks, invalid inputs and historical
+fixtures have different constraints from production inputs; keep substantive contract
+fixes without expanding fixtures just to satisfy this migration. Other test lint
+rules retain their scope. Production activation continues rule by rule. Boundary parsing,
 reflection, assertions and test dependencies need contract-specific migration;
 replacing omitted fields with `undefined` or changing callback order is not a safe
 mechanical cleanup. The [migration Spec](../../.agents/notes/proposed/process/2026-11-18-anti-slop-lint.md)

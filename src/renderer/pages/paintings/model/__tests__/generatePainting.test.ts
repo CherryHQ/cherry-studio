@@ -19,7 +19,7 @@ import type { GeneratePaintingOptions } from '../generatePainting'
 import { generatePainting } from '../generatePainting'
 
 function makeOptions(
-  paramValues: GeneratePaintingOptions['paramValues'] = {},
+  paramValues: Record<string, unknown> = {},
   signal: AbortSignal = new AbortController().signal
 ): GeneratePaintingOptions {
   return {
@@ -47,10 +47,10 @@ describe('generatePainting', () => {
   })
 
   // The image payload now rides in the second arg as `{ requestId, payload }`.
-  const imagePayload = (): object => {
+  const imagePayload = (): Record<string, unknown> => {
     const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.image.generate')
     if (!call) throw new Error('ai.image.generate was not requested')
-    return call[1].payload
+    return (call[1] as { payload: Record<string, unknown> }).payload
   }
 
   it('sends the canonical paramValues bag in the IPC payload (main owns the wire mapping)', async () => {
@@ -74,7 +74,7 @@ describe('generatePainting', () => {
     await generatePainting(makeOptions({ size: '1024x1024' }))
 
     const payload = imagePayload()
-    expect(payload).toHaveProperty('paramValues', { size: '1024x1024' })
+    expect((payload as { paramValues: Record<string, unknown> }).paramValues).toEqual({ size: '1024x1024' })
     expect(payload).not.toHaveProperty('size')
   })
 
