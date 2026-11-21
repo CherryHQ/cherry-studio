@@ -56,7 +56,9 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
       })
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })
-        toast.error(t('settings.provider.claude_code.launch_failed'))
+        // Keep the user-facing headline localized without losing the selected
+        // binary and recovery instructions returned by the startup probe.
+        toast.error({ title: t('settings.provider.claude_code.launch_failed'), details: result.message })
       }
     } catch (error) {
       logger.error('Failed to launch Claude login terminal', error as Error)
