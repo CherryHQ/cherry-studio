@@ -466,7 +466,7 @@ export class AiStreamManager extends BaseService {
    *  Admission waits on it so a follow-up cannot evict a stream before its terminal lifecycle ran. */
   private readonly terminalDispatchInFlight = new Map<
     string,
-    { pending: number; settled: Promise<void>; release: () => void }
+    { pending: number; settled: Promise<void>; release: () => void; chainedTurns: Set<ActiveStream> }
   >()
   /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
    *  them (mirrors JobManager's suppressed-fires sets). */
@@ -499,7 +499,7 @@ export class AiStreamManager extends BaseService {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
     this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event, stream) => {
-      if (stream.chainedMemoryCompletionPending !== false) this._onMemoryResponsesCompleted.fire(event)
+      if (!stream.chainedTerminalPending) this._onMemoryResponsesCompleted.fire(event)
       this._onConversationCompleted.fire(event)
     })
   }
@@ -1613,7 +1613,7 @@ export class AiStreamManager extends BaseService {
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
 
-    if (chatChaining) stream.chainedMemoryCompletionPending = true
+    if (chatChaining) stream.chainedTerminalPending = true
 
     if (topicDone && stream.status === 'done' && stream.isPersistentConversation) {
       const tasks = this.completedBatchTasks.get(topicId) ?? new Set<string>()
@@ -1625,7 +1625,7 @@ export class AiStreamManager extends BaseService {
       stream.completionFailed = this.failedCompletionAttempts.has(topicId)
     }
 
-    const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+    const settleTerminalDispatch = this.beginTerminalDispatch(topicId, chatChaining ? stream : undefined)
     try {
       await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
@@ -1847,16 +1847,17 @@ export class AiStreamManager extends BaseService {
 
   /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every
    *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
-  private beginTerminalDispatch(topicId: string): () => void {
+  private beginTerminalDispatch(topicId: string, chainedTurn?: ActiveStream): () => void {
     let gate = this.terminalDispatchInFlight.get(topicId)
     if (!gate) {
       let release!: () => void
       const settled = new Promise<void>((resolve) => {
         release = resolve
       })
-      gate = { pending: 0, settled, release }
+      gate = { pending: 0, settled, release, chainedTurns: new Set() }
       this.terminalDispatchInFlight.set(topicId, gate)
     }
+    if (chainedTurn) gate.chainedTurns.add(chainedTurn)
     const inFlight = gate
     inFlight.pending += 1
     let released = false
@@ -1866,6 +1867,22 @@ export class AiStreamManager extends BaseService {
       inFlight.pending -= 1
       if (inFlight.pending > 0) return
       if (this.terminalDispatchInFlight.get(topicId) === inFlight) this.terminalDispatchInFlight.delete(topicId)
+      // Publish persisted replies before releasing a dispatch from another window.
+      for (const turn of inFlight.chainedTurns) {
+        if (
+          turn.status === 'done' &&
+          turn.isPersistentConversation &&
+          !turn.hasTaskResultOwner &&
+          !turn.completionFailed
+        ) {
+          this._onMemoryResponsesCompleted.fire({
+            topicId,
+            memoryResponseIds: [...turn.executions.values()].flatMap((exec) =>
+              exec.anchorMessageId ? [exec.anchorMessageId] : []
+            )
+          })
+        }
+      }
       inFlight.release()
     }
   }
@@ -1912,7 +1929,7 @@ export class AiStreamManager extends BaseService {
       .finally(() => {
         const rerun = this.inFlightChatContinuations.get(topicId)?.reschedule
         this.inFlightChatContinuations.delete(topicId)
-        if (rerun && (this.hasPendingSteer(topicId) || this.activeStreams.get(topicId)?.chainedMemoryCompletionPending))
+        if (rerun && (this.hasPendingSteer(topicId) || this.activeStreams.get(topicId)?.chainedTerminalPending))
           this.scheduleNextChatTurn(topicId)
       })
     this.inFlightChatContinuations.set(topicId, { source, settled, reschedule: false })
@@ -1933,9 +1950,9 @@ export class AiStreamManager extends BaseService {
     const pending = queue?.[0]
     if (!pending) {
       this.pendingSteers.delete(topicId)
-      if (source?.chainedMemoryCompletionPending) {
-        source.chainedMemoryCompletionPending = undefined
+      if (source?.chainedTerminalPending) {
         this.runTerminalLifecycle(source)
+        source.chainedTerminalPending = false
       }
       return
     }
@@ -1951,22 +1968,6 @@ export class AiStreamManager extends BaseService {
     if (queue.length === 0) this.pendingSteers.delete(topicId)
 
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
-    if (previous?.chainedMemoryCompletionPending) {
-      previous.chainedMemoryCompletionPending = false
-      if (
-        previous.status === 'done' &&
-        previous.isPersistentConversation &&
-        !previous.hasTaskResultOwner &&
-        !previous.completionFailed
-      ) {
-        this._onMemoryResponsesCompleted.fire({
-          topicId,
-          memoryResponseIds: [...previous.executions.values()].flatMap((execution) =>
-            execution.anchorMessageId ? [execution.anchorMessageId] : []
-          )
-        })
-      }
-    }
     const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
     const req: MainDispatchRequest = {
       trigger: 'steer-continuation',

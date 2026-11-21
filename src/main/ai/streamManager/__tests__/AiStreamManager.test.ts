@@ -3237,16 +3237,31 @@ describe('AiStreamManager', () => {
 
     it('hands the queued steer to the replacement turn when both completions wait on the topic lock', async () => {
       const dispatch = spyOnLockedDispatch(mgr).mockResolvedValue({ mode: 'started' } as any)
+      const memory = vi.fn()
+      mgr.onMemoryResponsesCompleted(memory)
       const oldWindow = new FakeListener('wc:1:a')
       const newWindow = new FakeListener('wc:2:a')
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [oldWindow] })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), messageId: 'first' },
+        isPersistentConversation: true,
+        listeners: [oldWindow]
+      })
       const unlock = Promise.withResolvers<void>()
       const lock = mgr.withDispatchLock('a', () => unlock.promise)
       mgr.enqueuePendingSteer('a', 'next')
       await mgr.onExecutionDone('a', 'provider-a::model-a')
       await flush()
       expect(mgr.hasPendingSteer('a')).toBe(true)
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-b::model-b', request: req('a'), listeners: [newWindow] })
+      expect(memory.mock.calls).toEqual([[{ topicId: 'a', memoryResponseIds: ['first'] }]])
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-b::model-b',
+        request: { ...req('a'), messageId: 'second' },
+        isPersistentConversation: true,
+        listeners: [newWindow]
+      })
       await mgr.onExecutionDone('a', 'provider-b::model-b')
       await flush()
       expect(dispatch).not.toHaveBeenCalled()
@@ -3255,6 +3270,10 @@ describe('AiStreamManager', () => {
       await flushMicrotasksUntil(() => dispatch.mock.calls.length === 1)
       expect(dispatch).toHaveBeenCalledWith(newWindow, steerReq('a', 'next'))
       expect(mgr.hasPendingSteer('a')).toBe(false)
+      expect(memory.mock.calls).toEqual([
+        [{ topicId: 'a', memoryResponseIds: ['first'] }],
+        [{ topicId: 'a', memoryResponseIds: ['second'] }]
+      ])
     })
 
     it('waits for both persisted replies before admitting the chained turn', async () => {
