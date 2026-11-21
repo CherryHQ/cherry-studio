@@ -42,7 +42,12 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  PopoverTrigger: ({ children }: { children?: ReactNode; asChild?: boolean }) => <>{children}</>
+  PopoverTrigger: ({ children }: { children?: ReactNode; asChild?: boolean }) => <>{children}</>,
+  Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -53,7 +58,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: () => <div data-testid="emoji-picker" />
 }))
 
-import { DialogModelTrigger } from '../DialogFormFields'
+import { DialogModelTrigger, EmojiAvatarPicker } from '../DialogFormFields'
 
 afterEach(() => {
   cleanup()
@@ -73,5 +78,32 @@ describe('DialogModelTrigger', () => {
     fireEvent.click(trigger)
 
     expect(onClick).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('EmojiAvatarPicker', () => {
+  it('replaces the avatar with a different random emoji', () => {
+    const onChange = vi.fn()
+    render(
+      <EmojiAvatarPicker
+        value="🦊"
+        fallback="✨"
+        open
+        onOpenChange={vi.fn()}
+        onChange={onChange}
+        ariaLabel="Choose avatar"
+        portalContainer={null}
+      />
+    )
+
+    for (let i = 0; i < 20; i++) {
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.avatar_random' }))
+    }
+
+    expect(onChange).toHaveBeenCalledTimes(20)
+    for (const [emoji] of onChange.mock.calls) {
+      expect(emoji).not.toBe('🦊')
+      expect(emoji).toMatch(/\p{Extended_Pictographic}/u)
+    }
   })
 })

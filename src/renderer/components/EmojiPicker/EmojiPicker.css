@@ -18,26 +18,46 @@ body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
   font-weight: var(--font-weight-regular);
 }
 
-.cherry-emoji-picker-react .epr-category-nav {
-  padding-top: 6px;
+.EmojiPickerReact.cherry-emoji-picker-react .epr-category-nav {
+  padding: 4px 12px 6px;
+}
+
+.EmojiPickerReact.cherry-emoji-picker-react .epr-header .epr-search-container input {
+  font-size: var(--font-size-body-sm);
 }
 
 .cherry-emoji-picker-react .epr-emoji-list {
   padding-bottom: var(--epr-horizontal-padding);
 }
 
-.cherry-emoji-picker-react .epr-cat-btn {
+.EmojiPickerReact.cherry-emoji-picker-react button.epr-emoji {
+  border-radius: 8px;
+}
+
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
-.cherry-emoji-picker-react .epr-cat-btn:focus::before {
-  top: 50%;
-  right: auto;
-  bottom: auto;
-  left: 50%;
-  width: var(--epr-category-navigation-button-size);
-  height: var(--epr-category-navigation-button-size);
-  transform: translate(-50%, -50%);
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn:hover,
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn.epr-active,
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn:focus-visible {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+/* The vendor's white focus ring is replaced by a visible keyboard-only ring. */
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn:focus::before {
+  display: none;
+}
+
+.EmojiPickerReact.cherry-emoji-picker-react .epr-cat-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
