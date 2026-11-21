@@ -9,7 +9,7 @@ import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY }
 // the legacy buildImageProviderOptions emitter while it still existed.)
 
 /** Run a provider's registration (WIRE_REGISTRY, else the diffusion default). */
-function engine(providerId: string, paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
+function engine(providerId: string, paramValues: Parameters<typeof buildVendorProviderOptions>[1]) {
   const { vendorBag } = splitParamValues(paramValues)
   const registration = WIRE_REGISTRY[providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
   return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
@@ -172,7 +172,7 @@ describe('buildVendorProviderOptions — cherryin-chat (delivers under the cherr
 })
 
 describe('buildVendorProviderOptions — Google native image family (contribute / nested imageConfig)', () => {
-  const cases: Array<[string, Record<string, unknown>, Record<string, Record<string, unknown>>]> = [
+  const cases: Array<[string, Parameters<typeof engine>[1], ReturnType<typeof engine>]> = [
     [
       'personGeneration + imageSize',
       { personGeneration: 'allow_adult', size: '1024x1024', numImages: 1 },

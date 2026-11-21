@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { assert, describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { hasSignedReasoningMetadata, replaceReasoningPartText } from '../reasoningEditing'
 
-const reasoningPart = (text: string, extra: Record<string, unknown> = {}): CherryMessagePart => ({
+type ReasoningPart = Extract<CherryMessagePart, { type: 'reasoning' }>
+
+const reasoningPart = (text: string, extra: Pick<ReasoningPart, 'providerMetadata'> = {}): ReasoningPart => ({
   type: 'reasoning',
   text,
   state: 'done',
@@ -18,10 +20,12 @@ describe('replaceReasoningPartText', () => {
     const parts = [textPart('answer'), reasoningPart('old thought'), textPart('tail')]
 
     const next = replaceReasoningPartText(parts, 1, 'new thought')
+    const edited = next[1]
+    assert(edited?.type === 'reasoning')
 
     expect(next).not.toBe(parts)
-    expect((next[1] as { text: string }).text).toBe('new thought')
-    expect((next[1] as { state?: string }).state).toBe('done')
+    expect(edited.text).toBe('new thought')
+    expect(edited.state).toBe('done')
     expect(next[0]).toBe(parts[0])
     expect(next[2]).toBe(parts[2])
   })
@@ -38,16 +42,16 @@ describe('replaceReasoningPartText', () => {
     ]
 
     const [next] = replaceReasoningPartText(parts, 0, 'new thought')
+    assert(next?.type === 'reasoning')
 
     expect(next).toMatchObject({
-      type: 'reasoning',
       text: 'new thought',
       providerMetadata: {
         cherry: { thinkingMs: 1200, startedAt: 1700000000000, editedReasoningReplay: 'think' }
       }
     })
-    expect((next as { providerMetadata: Record<string, unknown> }).providerMetadata).not.toHaveProperty('openai')
-    expect((next as { providerMetadata: Record<string, unknown> }).providerMetadata).not.toHaveProperty('google')
+    expect(next.providerMetadata).not.toHaveProperty('openai')
+    expect(next.providerMetadata).not.toHaveProperty('google')
   })
 
   it('keeps the think marker when a signed edit is edited again after its signature is gone', () => {
@@ -71,13 +75,13 @@ describe('replaceReasoningPartText', () => {
       0,
       'new thought'
     )
+    assert(next?.type === 'reasoning')
 
     expect(next).toMatchObject({
       text: 'new thought',
       providerMetadata: { cherry: { thinkingMs: 5 } }
     })
-    const metadata = (next as { providerMetadata?: { cherry?: Record<string, unknown> } }).providerMetadata
-    expect(metadata?.cherry).not.toHaveProperty('editedReasoningReplay')
+    expect(next.providerMetadata?.cherry).not.toHaveProperty('editedReasoningReplay')
   })
 
   it('returns the original array when the text is unchanged', () => {

@@ -25,7 +25,7 @@ const HISTORY_ID = '019606a0-0000-7000-8000-00000000000a' // UUIDv7 (translate_h
 const TS = 1700000000000
 
 describe('chatMessageFileRefSchema', () => {
-  function makeChatMessageRef(overrides: Record<string, unknown> = {}) {
+  function makeChatMessageRef(overrides: { role?: string } = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
@@ -70,7 +70,7 @@ describe('agentSessionMessageFileRefSchema', () => {
 })
 
 describe('paintingFileRefSchema', () => {
-  function makePaintingRef(overrides: Record<string, unknown> = {}) {
+  function makePaintingRef(overrides: { role?: string; sourceId?: string; sourceType?: string } = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
@@ -144,7 +144,7 @@ describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
 })
 
 describe('jobFileRefSchema', () => {
-  function makeJobRef(overrides: Record<string, unknown> = {}) {
+  function makeJobRef(overrides: { role?: string; sourceId?: string } = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
@@ -176,7 +176,7 @@ describe('jobFileRefSchema', () => {
 })
 
 describe('translateHistoryFileRefSchema', () => {
-  function makeTranslateHistoryRef(overrides: Record<string, unknown> = {}) {
+  function makeTranslateHistoryRef(overrides: { role?: string; sourceId?: string } = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
