@@ -44,6 +44,8 @@ export class ClaudeProjection {
   private readonly sources = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
   private legacyChanged = false
+  /** A live frame arrived after the latest archive read, so that read's revision may understate the transcript. */
+  liveSinceRead = false
   private readonly messages = new Map<string, RuntimeMessage>()
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
@@ -115,7 +117,8 @@ export class ClaudeProjection {
       ...archive,
       content,
       legacy: { ...this.legacy },
-      retracted: [...this.retracted]
+      retracted: [...this.retracted],
+      revision: this.liveSinceRead ? undefined : archive.revision
     }
   }
 
@@ -434,6 +437,7 @@ export class ClaudeProjection {
   }
 
   restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
+    this.liveSinceRead = false
     const before = this.feed.snapshot
     const metadata = new Map(entries.filter((entry) => entry.uuid).map((entry) => [entry.uuid!, entry]))
     const removals = entries.flatMap((entry) => {
@@ -505,6 +509,7 @@ export class ClaudeProjection {
     message?: ClaudeNativeMessage,
     controls: readonly ClaudeControl[] = []
   ): void {
+    if (message?.source === 'live') this.liveSinceRead = true
     const invocations =
       message?.source === 'live' && message.message.type !== 'command_lifecycle'
         ? this.invocations.accept(message.message)

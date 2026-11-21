@@ -566,8 +566,10 @@ describe('Pi Durable runtime contract', () => {
     const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
     if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
     expect(relationship.subagent.origin).toEqual({ toolCallId: 'delegation-call' })
+    const { work: created, ...identity } = relationship.subagent
+    expect(created).toBe('running')
     const access = confirmed(await parent.durable.openChild('delegation-call'))
-    expect(access.relation).toEqual(relationship.subagent)
+    expect(access.relation).toMatchObject(identity)
     const child = access.handle
     const events = await observe(child)
     await expect
@@ -603,6 +605,10 @@ describe('Pi Durable runtime contract', () => {
         )
       )
       .toBe(true)
+    await expect
+      .poll(() => current(parentEvents)?.subagents)
+      .toEqual([{ ...identity, work: 'idle', revision: expect.any(Number) }])
+    const finished = current(parentEvents)!.subagents![0].revision!
     const parentItems = current(parentEvents)!.messages
     await parent.release()
     const started = gate()
@@ -646,8 +652,12 @@ describe('Pi Durable runtime contract', () => {
       .toMatchObject({ outcome: 'completed' })
     const reopenedParent = confirmed(await runtime.open(parent.thread))
     const restored = await observe(reopenedParent)
-    await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
+    await expect.poll(() => current(restored)).toMatchObject({ subagents: [{ ...identity, work: 'idle' }] })
     expect(current(restored)!.subagents).toHaveLength(1)
+    // A replay reports the continued history, which the child's archive read covers.
+    const replayed = current(restored)!.subagents![0].revision!
+    expect(replayed).toBeGreaterThan(finished)
+    expect(confirmed(await retained.archive()).revision).toBeGreaterThanOrEqual(replayed)
     expect(current(restored)!.messages).toEqual(parentItems)
     await runtime.settled()
     confirmed(await runtime.shutdown())
@@ -657,10 +667,12 @@ describe('Pi Durable runtime contract', () => {
     })
     const calls = faux.state.callCount
     const directChild = confirmed(await recovered.open(child.thread))
-    expect(await directChild.durable.relation()).toEqual(relationship.subagent)
+    expect(await directChild.durable.relation()).toEqual({ ...identity, work: 'idle', revision: expect.any(Number) })
     const coldParent = confirmed(await recovered.open(parent.thread))
     const coldEvents = await observe(coldParent)
-    await expect.poll(() => current(coldEvents)?.subagents).toEqual([relationship.subagent])
+    await expect
+      .poll(() => current(coldEvents)?.subagents)
+      .toEqual([{ ...identity, work: 'idle', revision: expect.any(Number) }])
     const coldChild = confirmed(await coldParent.durable.openChild('delegation-call'))
     expect(coldChild.handle.thread).toEqual(child.thread)
     expect(confirmed(await coldChild.handle.archive())).toMatchObject({
@@ -729,7 +741,8 @@ describe('Pi Durable runtime contract', () => {
       messages: archive.messages,
       responseIds: archive.responseIds,
       legacy: archive.legacy,
-      aliases: {}
+      aliases: {},
+      revision: archive.revision
     })
     expect(faux.state.callCount).toBe(before + 1)
   })

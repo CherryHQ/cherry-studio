@@ -327,6 +327,8 @@ it('continues the discovered child in place, streams to shared handles and deliv
   const relation = rootEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child was published')
   expect(relation.subagent.origin).toEqual({ toolCallId: 'spawn', description: 'scan' })
+  const work = () => rootEvents.findLast((event) => event.type === 'subagent.upsert')?.subagent.work
+  await expect.poll(work).toBe('idle')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const second = confirmed(await runtime.open(child.thread))
   const childEvents = await observe(child)
@@ -336,6 +338,7 @@ it('continues the discovered child in place, streams to shared handles and deliv
     facts: ['dispatch-started']
   })
   await childFinish.reached
+  expect(work()).toBe('running')
   await root.input.submit(draft('parent waits'))
   await parentFinish.reached
   confirmed(await root.interrupt!())
@@ -358,7 +361,9 @@ it('continues the discovered child in place, streams to shared handles and deliv
           .length
     )
     .toBe(1)
-  expect(rootEvents.filter((event) => event.type === 'subagent.upsert')).toHaveLength(1)
+  await expect.poll(work).toBe('idle')
+  const relations = rootEvents.flatMap((event) => (event.type === 'subagent.upsert' ? [event.subagent] : []))
+  expect(new Set(relations.map((subagent) => subagent.id))).toEqual(new Set([relation.subagent.id]))
   expect(relation.subagent.origin?.toolCallId).toBe('spawn')
   expect(child.thread).toEqual(second.thread)
   expect(inputs(rootEvents, 'parent waits').at(-1)?.outcome).toBe('aborted')
@@ -793,6 +798,33 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
   })
 })
 
+// Catches a spawned child's first relationship carrying no work state, which a host cannot tell from a finished child.
+it('lists a spawned child as running before its first run starts', async () => {
+  const held = gate()
+  onTestFinished(() => held.open())
+  let rootId = ''
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return held.wait(assistantReply('child done'))
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply(
+        [subagentCall('spawn', { description: 'scan', prompt: 'task', background: true })],
+        'toolUse'
+      )
+    return assistantReply('parent done')
+  })
+  const { runtime, config } = await setup(provider.model)
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  const root = confirmed(await runtime.create(config))
+  rootId = root.thread.id
+  const events = await observe(root)
+  await root.input.submit(draft('delegate'))
+  await held.reached
+  const first = events.find((event) => event.type === 'subagent.upsert')
+  expect(first).toMatchObject({ type: 'subagent.upsert', subagent: { work: 'running' } })
+})
+
 // Catches silently loading a persisted child as an independent root, losing its behavior ownership.
 it('restores child relations on reopen and refuses a child without its live owner', async () => {
   let rootId = ''
@@ -827,7 +859,10 @@ it('restores child relations on reopen and refuses a child without its live owne
   })
   const rootAgain = confirmed(await reopened.open(root.thread))
   const restored = await observe(rootAgain)
-  await expect.poll(() => restored[0]).toMatchObject({ type: 'snapshot', subagents: [relation.subagent] })
+  // A loaded child reports its revision; a root reopen replays relationships of unloaded children without one.
+  const { revision, ...identity } = relation.subagent
+  expect(revision).toBeGreaterThan(0)
+  await expect.poll(() => restored[0]).toMatchObject({ type: 'snapshot', subagents: [{ ...identity, work: 'idle' }] })
   expect(await reopened.open(relation.subagent.child)).toMatchObject({
     status: 'rejected',
     error: { code: 'child-owner-unavailable' }

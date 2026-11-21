@@ -21,7 +21,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
@@ -815,6 +815,84 @@ describe('desktop Pi root connection', () => {
     await reopened.messageChild(archived.contextId, 'continue after new turn')
     await expect.poll(() => childRuns).toBe(3)
     expect(child).toBe(firstChild)
+  })
+
+  // Catches a finished child held for the root's lifetime and attached again by every reopen.
+  it('releases a finished child, leaves it unloaded on reopen, and reloads it for a message', async () => {
+    let root = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('parent answer')
+    })
+    const first = await connect()
+    await first.connection.send({ message: message('delegate now') })
+    await done(first.events)
+    const context = contexts.findChild(input.sessionId, 'spawn')!
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+    await first.connection.close()
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    const reopened = await connect()
+    await reopened.connection.drainChildWrites()
+    expect(attached).toEqual([])
+    // Pi continues a child only from a parent turn started after the restart.
+    await reopened.connection.send({ message: message('parent again') })
+    await done(reopened.events)
+    await reopened.connection.messageChild(context.id, 'continue')
+    await expect
+      .poll(() => JSON.stringify(savedChildView(contexts.context(context.id)).messages))
+      .toContain('child continued answer')
+  })
+
+  // Catches a released child that its parent continues running unobserved, its answer missing from saved rows.
+  it('reloads a released child that its parent continues and saves its continued answer without a viewer', async () => {
+    let root = ''
+    let childId = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childId = call.sessionId!
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      }
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      if (last.includes('continue it'))
+        return assistantReply(
+          [toolCallPart('continue-call', 'message_subagent', { id: childId, message: 'continue' })],
+          'toolUse'
+        )
+      return assistantReply('parent answer')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate now') })
+    await done(events)
+    const context = contexts.findChild(input.sessionId, 'spawn')!
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    events.length = 0
+    await connection.send({ message: message('continue it') })
+    await done(events)
+    await expect
+      .poll(() => JSON.stringify(savedChildView(contexts.context(context.id)).messages))
+      .toContain('child continued answer')
+    expect(attached).toContain(context.id)
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
   })
 
   // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
