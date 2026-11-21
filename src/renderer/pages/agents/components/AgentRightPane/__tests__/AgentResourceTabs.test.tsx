@@ -1,5 +1,6 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { resetPopupMocks } from '@test-mocks/renderer/popup'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from 'i18next'
 import { useState } from 'react'
@@ -19,6 +20,7 @@ import {
   TerminalResourcesProvider,
   useTerminalResources
 } from '@renderer/components/terminal/TerminalResourcesProvider'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { InputFor } from '@shared/ipc/types'
 import type { TerminalResourceView } from '@shared/types/terminal'
@@ -62,6 +64,7 @@ const record = {
   createdAt: 1
 }
 beforeEach(() => {
+  resetPopupMocks()
   resources = [structuredClone(original)]
   requests = []
   recovered = false
@@ -91,16 +94,16 @@ beforeEach(() => {
     }
     if (route === 'terminal.stop') {
       stopCalls++
-      expect(payload).toEqual({
-        ref: { id: original.id, host: original.host },
-        operationId: expect.any(String),
-        controlRevision: original.controlRevision,
-        cancelRevision: original.cancelRevision
-      })
       const target = resources.find(
         (item) => item.id === original.id && item.host.generation === original.host.generation
       )
       if (!target) throw new Error('Unknown terminal scope')
+      expect(payload).toEqual({
+        ref: { id: original.id, host: original.host },
+        operationId: expect.any(String),
+        controlRevision: target.controlRevision,
+        cancelRevision: target.cancelRevision
+      })
       await stopWait
       if (closeOutcome === 'rejected') return { ok: true, data: { kind: 'rejected', reason: 'stale_control' } }
       const closed: TerminalResourceView = {
@@ -172,6 +175,7 @@ function Content({ attachment = false, emptyFiles = false }: { attachment?: bool
       />
       <ShellExecutionActions toolCallId="pending-bash" />
       <output aria-label="Terminal error">{terminal.error}</output>
+      <output aria-label="Terminal control revision">{terminal.resources[0]?.controlRevision}</output>
       <output aria-label="Selected terminal">{terminal.tabs.selectedTerminalId}</output>
       <output aria-label="Selected file mode">{selectedFile?.previewType ?? 'artifact'}</output>
       {terminal.selectedCleanupId && <TerminalPane sessionId="resource-tabs-test" active />}
@@ -277,12 +281,69 @@ it('stops the process before removing its tab and does not list terminal history
   mount()
   await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
   await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
-  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
   expect(resources[0].cleanup).toBe('confirmed')
   expect(resources[0].process.kind).toBe('exited')
   await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
   expect(screen.queryByRole('menuitem', { name: /zsh 1/ })).not.toBeInTheDocument()
   expect(screen.getByRole('menuitem', { name: t('terminal.new_terminal') })).toBeEnabled()
+})
+
+it('keeps the process and selected tab when closing is cancelled', async () => {
+  vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  expect(stopCalls).toBe(0)
+  expect(resources[0].process.kind).toBe('running')
+  expect(screen.getByRole('tab', { name: 'zsh 1' })).toHaveAttribute('aria-selected', 'true')
+})
+
+it('waits for a single confirmation before stopping a repeatedly closed terminal', async () => {
+  const confirmation = Promise.withResolvers<boolean>()
+  vi.mocked(popup.confirm).mockReturnValueOnce(confirmation.promise)
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  const close = screen.getByRole('button', { name: `${t('common.close')} zsh 1` })
+  await user.click(close)
+  await user.click(close)
+  expect(stopCalls).toBe(0)
+  expect(resources[0].process.kind).toBe('running')
+  confirmation.resolve(true)
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
+  expect(stopCalls).toBe(1)
+  expect(resources[0].cleanup).toBe('confirmed')
+  expect(popup.confirm).toHaveBeenCalledTimes(1)
+})
+
+it('ignores confirmation completed after switching conversations', async () => {
+  const confirmation = Promise.withResolvers<boolean>()
+  vi.mocked(popup.confirm).mockReturnValueOnce(confirmation.promise)
+  const user = userEvent.setup()
+  const mounted = mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  mounted.rerender(<App sessionId="another-conversation" />)
+  confirmation.resolve(true)
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'zsh 1' })).toBeInTheDocument())
+  expect(stopCalls).toBe(0)
+  expect(resources[0].process.kind).toBe('running')
+})
+
+it('uses current control revisions after the close confirmation', async () => {
+  const confirmation = Promise.withResolvers<boolean>()
+  vi.mocked(popup.confirm).mockReturnValueOnce(confirmation.promise)
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
+  await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
+  resources = [{ ...resources[0], controlRevision: 1, cancelRevision: 1, revision: 2 }]
+  await waitFor(() => expect(screen.getByLabelText('Terminal control revision')).toHaveTextContent('1'))
+  confirmation.resolve(true)
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
+  expect(resources[0].cleanup).toBe('confirmed')
 })
 
 it.each(['unconfirmed', 'rejected'] as const)('keeps failed %s closure visible and allows retry', async (outcome) => {
@@ -295,7 +356,7 @@ it.each(['unconfirmed', 'rejected'] as const)('keeps failed %s closure visible a
   expect(screen.getByRole('tab', { name: /^zsh 1/ })).toHaveAttribute('aria-selected', 'true')
   closeOutcome = 'confirmed'
   await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
-  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
   expect(resources[0].cleanup).toBe('confirmed')
 })
 
@@ -331,10 +392,13 @@ it('joins repeated close requests and preserves a file selected during cleanup',
   await user.click(close)
   await user.click(close)
   expect(stopCalls).toBe(1)
-  expect(screen.getByRole('tab', { name: 'zsh 1' })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: /^zsh 1/ })).toBeInTheDocument()
+  expect(within(screen.getByRole('tab', { name: /^zsh 1/ })).getByRole('status')).toHaveTextContent(
+    t('terminal.closing')
+  )
   await user.click(screen.getByRole('tab', { name: 'README.md' }))
   stop.resolve()
-  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
   expect(screen.getByRole('tab', { name: 'README.md' })).toHaveAttribute('aria-selected', 'true')
 })
 
@@ -344,8 +408,9 @@ it('closes an already exited terminal without requesting another stop', async ()
   mount()
   await user.click(await screen.findByRole('tab', { name: 'zsh 1' }))
   await user.click(screen.getByRole('button', { name: `${t('common.close')} zsh 1` }))
-  await waitFor(() => expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /^zsh 1/ })).not.toBeInTheDocument())
   expect(stopCalls).toBe(0)
+  expect(popup.confirm).not.toHaveBeenCalled()
 })
 
 it('reports a rejected terminal creation while a file is selected', async () => {

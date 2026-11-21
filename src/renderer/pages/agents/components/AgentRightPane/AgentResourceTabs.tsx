@@ -155,6 +155,7 @@ export function AgentResourceTabs({
         const resource = terminal.resources.find((resource) => resource.id === item.id)
         const unconfirmed = resource?.cleanup === 'unconfirmed' || resource?.process.kind === 'lost'
         const agent = resource?.control.kind === 'agent'
+        const closing = terminal.closingIds.includes(item.id)
         return {
           kind: 'terminal',
           id: item.id,
@@ -162,7 +163,12 @@ export function AgentResourceTabs({
           title: item.title,
           path: item.title,
           icon: <TerminalSquare className="size-3.5 shrink-0" aria-hidden />,
-          status: unconfirmed ? (
+          status: closing ? (
+            <span role="status" className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
+              {t('terminal.closing')}
+            </span>
+          ) : unconfirmed ? (
             <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-label={t('terminal.cleanup.unconfirmed')} />
           ) : agent ? (
             <span className="flex shrink-0 items-center gap-1 text-xs text-primary">
@@ -259,7 +265,8 @@ export function AgentResourceTabs({
     else if (tab.kind === 'browser') browser.closePages(terminal.sessionId, [tab.id])
     else if (tab.kind === 'terminal')
       void terminal.close(tab.id).then((result) => {
-        if (result === 'rejected') setPendingClose((current) => (current?.key === key ? null : current))
+        if (result === 'rejected' || result === 'cancelled')
+          setPendingClose((current) => (current?.key === key ? null : current))
       })
     else terminal.closeCleanup(tab.record.id)
   }

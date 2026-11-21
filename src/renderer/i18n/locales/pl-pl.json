@@ -6386,6 +6386,8 @@
   "terminal.cleanup.protected": "Nie potwierdzono zatrzymania pierwotnego zadania. Pliki obszaru roboczego zostaną zachowane.",
   "terminal.cleanup.unconfirmed": "Czyszczenie niepotwierdzone — można ponowić",
   "terminal.close": "Zamknij terminal",
+  "terminal.close_confirm": "Powłoka tego terminala i wszystkie uruchomione w nim procesy zostaną zatrzymane. Zamknąć ten terminal?",
+  "terminal.closing": "Zamykanie…",
   "terminal.copy": "Kopiuj zaznaczenie",
   "terminal.empty": "Utwórz terminal, aby rozpocząć.",
   "terminal.error.frame_capacity": "Ekran przekracza limit bufora. Zmniejsz rozmiar terminala.",

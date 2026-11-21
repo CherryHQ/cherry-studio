@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "元のタスクが停止したことを確認できません。ワークスペースのファイルは保持されます。",
   "terminal.cleanup.unconfirmed": "終了処理を確認できません。再試行できます",
   "terminal.close": "ターミナルを閉じる",
+  "terminal.close_confirm": "このターミナルのシェルと実行中のすべてのプロセスが停止します。ターミナルを閉じますか？",
+  "terminal.closing": "終了中…",
   "terminal.copy": "選択範囲をコピー",
   "terminal.empty": "ターミナルを作成して開始します。",
   "terminal.error.frame_capacity": "画面がバッファーの上限を超えました。ターミナルを小さくしてください。",

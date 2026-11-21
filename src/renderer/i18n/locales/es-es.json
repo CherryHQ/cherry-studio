@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "No se pudo confirmar que la tarea original se haya detenido. Se conservarán los archivos del espacio de trabajo.",
   "terminal.cleanup.unconfirmed": "Limpieza sin confirmar; se puede reintentar",
   "terminal.close": "Cerrar terminal",
+  "terminal.close_confirm": "Se detendrán el shell de este terminal y todos sus procesos en ejecución. ¿Cerrar este terminal?",
+  "terminal.closing": "Cerrando…",
   "terminal.copy": "Copiar selección",
   "terminal.empty": "Crea un terminal para empezar.",
   "terminal.error.frame_capacity": "La pantalla supera el límite del búfer. Reduce el tamaño del terminal.",

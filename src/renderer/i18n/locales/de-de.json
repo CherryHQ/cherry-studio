@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Es konnte nicht bestätigt werden, dass die ursprüngliche Aufgabe beendet ist. Die Arbeitsbereichsdateien bleiben erhalten.",
   "terminal.cleanup.unconfirmed": "Bereinigung unbestätigt – erneuter Versuch möglich",
   "terminal.close": "Terminal schließen",
+  "terminal.close_confirm": "Dadurch werden die Shell dieses Terminals und alle darin laufenden Prozesse beendet. Dieses Terminal schließen?",
+  "terminal.closing": "Wird geschlossen…",
   "terminal.copy": "Auswahl kopieren",
   "terminal.empty": "Erstelle ein Terminal, um zu beginnen.",
   "terminal.error.frame_capacity": "Der Bildschirm überschreitet das Pufferlimit. Verkleinere das Terminal.",

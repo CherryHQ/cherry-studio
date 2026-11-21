@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "无法确认原任务已停止，工作区文件将继续保留。",
   "terminal.cleanup.unconfirmed": "清理未确认，可重试",
   "terminal.close": "关闭终端",
+  "terminal.close_confirm": "关闭后将终止此终端的 Shell 及其所有运行中的进程。确定关闭？",
+  "terminal.closing": "关闭中…",
   "terminal.copy": "复制选区",
   "terminal.empty": "创建终端以开始使用。",
   "terminal.error.frame_capacity": "屏幕超出视图缓冲区限制，请缩小终端尺寸。",

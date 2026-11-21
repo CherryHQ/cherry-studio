@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Impossibile confermare che l’attività originale sia stata arrestata. I file dello spazio di lavoro verranno conservati.",
   "terminal.cleanup.unconfirmed": "Pulizia non confermata: riprova",
   "terminal.close": "Chiudi terminale",
+  "terminal.close_confirm": "La shell di questo terminale e tutti i suoi processi in esecuzione verranno arrestati. Chiudere questo terminale?",
+  "terminal.closing": "Chiusura…",
   "terminal.copy": "Copia selezione",
   "terminal.empty": "Crea un terminale per iniziare.",
   "terminal.error.frame_capacity": "La schermata supera il limite del buffer. Riduci le dimensioni del terminale.",

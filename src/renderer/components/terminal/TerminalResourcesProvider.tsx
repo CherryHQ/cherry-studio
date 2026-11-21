@@ -4,6 +4,7 @@ import useSWR from 'swr'
 
 import { useCache } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TerminalResourceState, TerminalResourceView } from '@shared/types/terminal'
 import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
@@ -11,7 +12,7 @@ import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 import { useRightPanelActions } from '../chat/panes/Shell'
 
 type TerminalRef = Pick<TerminalResourceView, 'id' | 'host'>
-type TerminalCloseResult = 'closed' | 'unconfirmed' | 'rejected'
+type TerminalCloseResult = 'closed' | 'unconfirmed' | 'rejected' | 'cancelled'
 
 function useTerminalResourcesState(sessionId: string, active: boolean) {
   const { t } = useTranslation()
@@ -165,16 +166,29 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     const key = JSON.stringify([sessionId, resource.host.generation, id])
     const pending = closes.current.get(key)
     if (pending) return pending
-    setClosingIds((current) => [...current, id])
     const ref = { id: resource.id, host: resource.host }
     const work = (async (): Promise<TerminalCloseResult> => {
       try {
         if (resource.cleanup !== 'confirmed') {
+          const confirmed = await popup.confirm({
+            title: t('terminal.close'),
+            content: t('terminal.close_confirm'),
+            okText: t('terminal.close'),
+            cancelText: t('common.cancel'),
+            okButtonProps: { danger: true }
+          })
+          if (!confirmed) return 'cancelled'
+          if (currentSession.current !== sessionId) return 'rejected'
+        }
+        const latest = observed.current.find((item) => item.id === id)
+        if (latest?.host.generation !== ref.host.generation) return 'rejected'
+        setClosingIds((current) => [...current, id])
+        if (latest.cleanup !== 'confirmed') {
           const receipt = await ipcApi.request('terminal.stop', {
             ref,
             operationId: crypto.randomUUID(),
-            controlRevision: resource.controlRevision,
-            cancelRevision: resource.cancelRevision
+            controlRevision: latest.controlRevision,
+            cancelRevision: latest.cancelRevision
           })
           if (receipt.kind !== 'resource')
             throw new Error(

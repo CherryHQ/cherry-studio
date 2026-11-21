@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Não foi possível confirmar que a tarefa original parou. Os ficheiros do espaço de trabalho serão mantidos.",
   "terminal.cleanup.unconfirmed": "Limpeza não confirmada — pode tentar novamente",
   "terminal.close": "Fechar terminal",
+  "terminal.close_confirm": "A shell deste terminal e todos os seus processos em execução serão parados. Fechar este terminal?",
+  "terminal.closing": "A fechar…",
   "terminal.copy": "Copiar seleção",
   "terminal.empty": "Crie um terminal para começar.",
   "terminal.error.frame_capacity": "O ecrã excede o limite da memória intermédia. Reduza o tamanho do terminal.",

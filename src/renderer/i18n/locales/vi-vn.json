@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Không thể xác nhận tác vụ ban đầu đã dừng. Các tệp trong không gian làm việc sẽ được giữ lại.",
   "terminal.cleanup.unconfirmed": "Chưa xác nhận dọn dẹp — có thể thử lại",
   "terminal.close": "Đóng terminal",
+  "terminal.close_confirm": "Shell của terminal này và mọi tiến trình đang chạy trong đó sẽ bị dừng. Đóng terminal này?",
+  "terminal.closing": "Đang đóng…",
   "terminal.copy": "Sao chép vùng chọn",
   "terminal.empty": "Tạo terminal để bắt đầu.",
   "terminal.error.frame_capacity": "Màn hình vượt quá giới hạn bộ đệm. Hãy giảm kích thước terminal.",

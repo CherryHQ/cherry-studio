@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Nu s-a putut confirma oprirea sarcinii inițiale. Fișierele spațiului de lucru vor fi păstrate.",
   "terminal.cleanup.unconfirmed": "Curățare neconfirmată — se poate reîncerca",
   "terminal.close": "Închide terminalul",
+  "terminal.close_confirm": "Shell-ul acestui terminal și toate procesele sale în execuție vor fi oprite. Închideți acest terminal?",
+  "terminal.closing": "Se închide…",
   "terminal.copy": "Copiază selecția",
   "terminal.empty": "Creează un terminal pentru a începe.",
   "terminal.error.frame_capacity": "Ecranul depășește limita memoriei tampon. Micșorează terminalul.",

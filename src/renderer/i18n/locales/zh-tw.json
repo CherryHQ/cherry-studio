@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "無法確認原任務已停止，工作區檔案將繼續保留。",
   "terminal.cleanup.unconfirmed": "清理尚未確認，可重試",
   "terminal.close": "關閉終端機",
+  "terminal.close_confirm": "關閉後將終止此終端的 Shell 及其所有執行中的處理程序。確定關閉？",
+  "terminal.closing": "關閉中…",
   "terminal.copy": "複製選取範圍",
   "terminal.empty": "建立終端機以開始使用。",
   "terminal.error.frame_capacity": "畫面超出檢視緩衝區限制，請縮小終端機尺寸。",

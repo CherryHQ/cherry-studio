@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "Impossible de confirmer l’arrêt de la tâche initiale. Les fichiers de l’espace de travail seront conservés.",
   "terminal.cleanup.unconfirmed": "Nettoyage non confirmé — nouvelle tentative possible",
   "terminal.close": "Fermer le terminal",
+  "terminal.close_confirm": "Le shell de ce terminal et tous ses processus en cours seront arrêtés. Fermer ce terminal ?",
+  "terminal.closing": "Fermeture…",
   "terminal.copy": "Copier la sélection",
   "terminal.empty": "Créez un terminal pour commencer.",
   "terminal.error.frame_capacity": "Cet écran dépasse la limite du tampon. Réduisez la taille du terminal.",

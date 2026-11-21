@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "İlk görevin durdurulduğu doğrulanamadı. Çalışma alanı dosyaları korunacak.",
   "terminal.cleanup.unconfirmed": "Temizleme doğrulanmadı — yeniden denenebilir",
   "terminal.close": "Terminali kapat",
+  "terminal.close_confirm": "Bu terminalin kabuğu ve çalışan tüm işlemleri durdurulacak. Bu terminal kapatılsın mı?",
+  "terminal.closing": "Kapatılıyor…",
   "terminal.copy": "Seçimi kopyala",
   "terminal.empty": "Başlamak için bir terminal oluşturun.",
   "terminal.error.frame_capacity": "Ekran arabellek sınırını aşıyor. Terminal boyutunu küçültün.",

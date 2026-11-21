@@ -6310,6 +6310,8 @@
   "terminal.cleanup.protected": "The original task could not be confirmed stopped. Workspace files will be kept.",
   "terminal.cleanup.unconfirmed": "Cleanup unconfirmed — retry available",
   "terminal.close": "Close terminal",
+  "terminal.close_confirm": "This will stop the terminal's shell and all its running processes. Close this terminal?",
+  "terminal.closing": "Closing…",
   "terminal.copy": "Copy selection",
   "terminal.empty": "Create a terminal to begin.",
   "terminal.error.frame_capacity": "This screen exceeds the view buffer limit. Reduce the terminal size.",
