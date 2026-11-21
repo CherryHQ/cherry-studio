@@ -209,7 +209,8 @@ export function resolveEndpointDialect(
   return {
     streamOptions: declared?.streamOptions ?? true,
     developerRole: declared?.developerRole ?? false,
-    reasoningSummary: declared?.reasoningSummary ?? false
+    reasoningSummary: declared?.reasoningSummary ?? false,
+    requiresMaxOutputTokens: declared?.requiresMaxOutputTokens ?? false
   }
 }
 
