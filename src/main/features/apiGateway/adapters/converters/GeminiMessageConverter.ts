@@ -38,7 +38,7 @@ interface GeminiFileData {
 interface GeminiFunctionCall {
   id?: string
   name?: string
-  args?: Record<string, unknown>
+  args?: unknown
 }
 
 /** Multimodal payload of a function response (Gemini 3+) — one field set per part. */
@@ -50,7 +50,7 @@ interface GeminiFunctionResponsePart {
 interface GeminiFunctionResponse {
   id?: string
   name?: string
-  response?: Record<string, unknown>
+  response?: unknown
   parts?: GeminiFunctionResponsePart[]
 }
 
@@ -205,23 +205,25 @@ function takeToolOutput(call: GeminiFunctionCall, responses: CollectedToolRespon
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Client Gemini schema definitions and recursive nodes are unvalidated; this converter must inspect them while preserving extension keywords.
 function geminiSchemaToJsonSchema(schema: unknown): JsonSchemaLike {
   if (!schema || typeof schema !== 'object') return {}
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the schema container is checked; client extension keywords retain their original unvalidated values.
   const source = schema as Record<string, unknown>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Normalizing type names does not validate extension keyword values; forward them without claiming a closed schema.
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(source)) {
+    let normalized = value
     if (key === 'type' && typeof value === 'string') {
       const lowered = value.toLowerCase()
-      if (lowered !== 'type_unspecified') result.type = lowered
+      if (lowered === 'type_unspecified') continue
+      normalized = lowered
     } else if (key === 'properties' && value && typeof value === 'object') {
-      const properties: Record<string, unknown> = {}
-      for (const [propName, propSchema] of Object.entries(value as Record<string, unknown>)) {
-        properties[propName] = geminiSchemaToJsonSchema(propSchema)
-      }
-      result.properties = properties
+      const propertyEntries: [string, unknown][] = Object.entries(value)
+      normalized = Object.fromEntries(
+        propertyEntries.map(([propName, propSchema]) => [propName, geminiSchemaToJsonSchema(propSchema)])
+      )
     } else if (key === 'items') {
-      result.items = geminiSchemaToJsonSchema(value)
-    } else {
-      result[key] = value
+      normalized = geminiSchemaToJsonSchema(value)
     }
+    Object.defineProperty(result, key, { value: normalized, enumerable: true, writable: true, configurable: true })
   }
   return result
 }
