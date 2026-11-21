@@ -7,7 +7,7 @@ import { CodeCli } from '@shared/types/codeCli'
 import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
-import type { CliConfigFileDraft, CliConfigTarget } from '../index'
+import type { CliConfigFileDraft, CliConfigTarget, CliConfigWriteArgs } from '../index'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -60,7 +60,7 @@ async function buildDraft(
   cliTool: CodeCli,
   provider: Provider,
   model: string,
-  configBlob: Record<string, unknown> = {}
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']> = {}
 ): Promise<CliConfigFileDraft[]> {
   mockGet({
     [`/providers/${provider.id}/api-keys`]: () => ({ keys: [enabledKey] }),
@@ -81,7 +81,9 @@ beforeEach(() => {
   }))
 })
 
-async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promise<CliConfigFileDraft[]> {
+async function buildCodexDraft(
+  configBlob: NonNullable<CliConfigWriteArgs['configBlob']> = {}
+): Promise<CliConfigFileDraft[]> {
   mockGet({
     '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
     '/providers/deepseek': () => responsesProvider,
@@ -120,13 +122,13 @@ describe('updateCliConfigDraftConfig', () => {
     config.model_auto_compact_token_limit = 900000
     configFile.content = stringify(config)
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, { reasoningEffort: 'high' })
-    const result = parse(updated.find((file) => file.target === 'codex-config')!.content) as Record<string, any>
+    const result = parse(updated.find((file) => file.target === 'codex-config')!.content)
     expect(result.model_context_window).toBe(900000)
     expect(result.model_auto_compact_token_limit).toBe(900000)
     expect(result.model_reasoning_effort).toBe('high')
     expect(result.model).toBe('gpt-5')
     expect(result.model_provider).toBe('cherry-DeepSeek')
-    expect(result.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+    expect(result).toHaveProperty('model_providers.cherry-DeepSeek.base_url', 'https://api.deepseek.com/v1')
     expect(JSON.parse(updated.find((file) => file.target === 'codex-auth')!.content).OPENAI_API_KEY).toBe('sk-secret')
   })
 
@@ -195,7 +197,7 @@ describe('updateCliConfigDraftConfig', () => {
   // update must (1) leave the connection untouched and (2) land the same managed config the write
   // path would have produced for that blob. Comparing against a freshly built draft avoids
   // hard-coding each tool's managed shape while still catching a mis-extracted adapter branch.
-  const parityCases: Array<[string, CodeCli, Provider, string, Record<string, unknown>]> = [
+  const parityCases: Array<[string, CodeCli, Provider, string, NonNullable<CliConfigWriteArgs['configBlob']>]> = [
     [
       'claude',
       CodeCli.CLAUDE_CODE,
