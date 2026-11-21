@@ -39,3 +39,27 @@ describe('createExactPathFetch (#18972)', () => {
     expect(await forwarded.text()).toBe(JSON.stringify({ model: 'gpt-4' }))
   })
 })
+
+describe('createExactPathFetch diagnostics (AC4)', () => {
+  it('reports the effective path on failure with sensitive query values redacted', async () => {
+    const apiError = Object.assign(new Error('Not Found'), {
+      url: 'https://gateway.example.com/chat/completions'
+    })
+    const baseFetch = vi.fn().mockRejectedValue(apiError)
+    const fetchFn = createExactPathFetch('https://gateway.example.com/router/answer?api_key=secret123', baseFetch)
+
+    const failure = await fetchFn('https://gateway.example.com/chat/completions').catch((e: unknown) => e)
+
+    expect(failure).toBe(apiError)
+    expect((failure as { url?: string }).url).toContain('/router/answer')
+    expect((failure as { url?: string }).url).not.toContain('secret123')
+  })
+
+  it('leaves non-extensible errors untouched', async () => {
+    const frozen = Object.freeze(new Error('network'))
+    const baseFetch = vi.fn().mockRejectedValue(frozen)
+    const fetchFn = createExactPathFetch('https://gateway.example.com/router/answer', baseFetch)
+
+    await expect(fetchFn('https://gateway.example.com/x')).rejects.toBe(frozen)
+  })
+})

@@ -204,7 +204,7 @@ export function ApiHostField({
           <HelpTooltip content={t('settings.provider.api_host_exact_path_tooltip')} />
         </div>
       ) : null}
-      {showExactPathToggle && isExactPath ? (
+      {showExactPathToggle ? (
         <div className="pt-1 text-[12px] leading-[1.35] break-all text-muted-foreground">
           {t('settings.provider.api_host_preview', { url: hostPreview || '—' })}
         </div>
