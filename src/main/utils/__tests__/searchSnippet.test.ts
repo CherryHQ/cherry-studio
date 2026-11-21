@@ -22,6 +22,20 @@ describe('searchSnippet', () => {
     expect(snippet).not.toContain('https://example.com')
   })
 
+  it.each(['score < 100 and limit > 10', '1<2 && 3>0', 'count <= 10 && total >= 5'])(
+    'keeps literal comparison text searchable: %s',
+    (text) => {
+      expect(stripMarkdownFormatting(text)).toBe(text)
+      expect(buildSearchSnippet(text, ['limit'], 'substring')).toBe(text)
+    }
+  )
+
+  it('still removes HTML tags, comments and declarations around searchable text', () => {
+    const text = '<!DOCTYPE html><!-- note --><SPAN class="note">needle</SPAN><br/><?meta?>'
+
+    expect(stripMarkdownFormatting(text)).toBe('needle')
+  })
+
   it('fragments long lines around search matches', () => {
     const line = `${'a'.repeat(90)}needle${'b'.repeat(90)}target${'c'.repeat(90)}`
 

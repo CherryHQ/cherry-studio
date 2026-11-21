@@ -15,7 +15,7 @@ export function stripMarkdownFormatting(text: string) {
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/`(.*?)`/g, '$1')
     .replace(/^#{1,6}\s/gm, '')
-    .replace(/<[^>]*>/g, '')
+    .replace(/<(?:\/?[A-Za-z]|!|\?)[^>]*>/g, '')
 }
 
 const normalizeText = (text: string) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
