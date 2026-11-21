@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-subagent-retry-error-projection.md
+2026-11-19-subagent-retry-error-projection.md: 5ba0ee962bbf1e3e2e3e605a9e4cf44c7a04d3f0
+2026-11-19-subagent-retry-error-projection.zh.md: a8870ba924c2fdafe9694b07b68f6b5e12ab6045
