@@ -52,7 +52,9 @@ import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { isTrustedClaudeSlot } from './environment'
 import { createClaudeCodeQueryOptions } from './queryOptions'
+import type { ClaudeCodeGatewayModelSlot } from './settingsBuilder'
 import {
   buildClaudeCodeSessionSettings,
   buildSkillWhitelist,
@@ -102,6 +104,17 @@ interface ClaudeCodeRouteFacts {
   toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
+  /**
+   * Routed sub-model slots for gateway sessions, derived from the materialized route.
+   * The gateway fans out per-model slots to providers the settings builder never sees, so the
+   * single process-wide budget protects the weakest usable slot (minimum wins).
+   */
+  budgetSlots?: ClaudeCodeGatewayModelSlot[]
+  /**
+   * Trust verdict for the primary slot, materialized with the route. Budgeting prefers
+   * it over re-reading provider/model rows; an absent verdict resolves live, failing closed.
+   */
+  primaryTrusted?: boolean
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -594,7 +607,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         fastMode: nativeFastMode,
         effectiveLanguage,
         promptModelName,
-        effectiveModelId: uniqueModelId
+        effectiveModelId: uniqueModelId,
+        primaryModelId: uniqueModelId,
+        primaryTrusted: route.primaryTrusted,
+        gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined
       },
       agent
     ),
@@ -743,6 +759,8 @@ function deriveRouteFacts(
       credentialsFingerprint: 'external-cli',
       toolSearchCompatible,
       modelIds,
+      budgetSlots: [],
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
@@ -765,6 +783,14 @@ function deriveRouteFacts(
       sonnet: slotModelId(sonnetRef),
       haiku: slotModelId(haikuRef)
     },
+    budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
+      providerId: ref.providerId,
+      modelId: ref.modelId,
+      contextWindow: ref.contextWindow,
+      maxOutputTokens: ref.model?.maxOutputTokens,
+      trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
+    })),
+    primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel, 'gateway-forwarding'),
     usageModels: []
   }
 }
@@ -815,6 +841,8 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
+    budgetSlots: route.budgetSlots,
+    primaryTrusted: route.primaryTrusted,
     usageModels: route.usageModels
   }
 }
