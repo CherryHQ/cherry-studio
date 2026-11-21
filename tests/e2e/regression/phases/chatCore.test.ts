@@ -33,6 +33,7 @@ import { messageTokenDetails } from '../scenarios/messageTokenDetails'
 import { polishPrompt } from '../scenarios/polishPrompt'
 import { searchAndFetch } from '../scenarios/searchAndFetch'
 import { searchChatMessages } from '../scenarios/searchChatMessages'
+import { selectionToolbar } from '../selectionToolbar'
 
 test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(6 * 60_000)
@@ -884,4 +885,9 @@ test(...caseDefinition('MP-39'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-40'), async ({ app, mainWindow }, testInfo) => {
   await codeBlockToolbar(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-149'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(180_000)
+  await selectionToolbar(app, mainWindow, testInfo)
 })

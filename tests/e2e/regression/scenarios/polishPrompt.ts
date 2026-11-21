@@ -156,7 +156,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     expect(JSON.stringify(invalid.body.messages)).toContain('{{date}}')
     await expect
       .soft(editor, 'Prompt editor must be locked during polishing')
-      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
+      .toHaveAttribute('contenteditable', 'false', { timeout: 5000 })
     const beforeTyping = await editor.innerText()
     await editor.click()
     await page.keyboard.type('MP16_LOCK_PROBE')

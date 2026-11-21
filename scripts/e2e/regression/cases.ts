@@ -311,6 +311,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MP-49',
+    title: 'Agent work directory persistence',
+    phase: 'agentRuntimes',
+    tasks: ['agent-workdir'],
+    capabilities: []
+  },
+  {
     id: 'MP-05',
     title: 'Multiple topics and history persistence',
     tasks: ['topics'],
@@ -440,6 +447,13 @@ export const REGRESSION_CASES = [
     tasks: ['chat-core', 'code-block-toolbar'],
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-149',
+    title: 'Message selection toolbar',
+    phase: 'chatCore',
+    tasks: ['selection-toolbar'],
+    capabilities: []
   },
   { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: ['desktopAutomation'] },
   {
