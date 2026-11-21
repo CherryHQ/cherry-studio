@@ -39,6 +39,7 @@ export function logAiFailure(
   error: unknown,
   operation: string,
   failure: FailureFacts,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Caller diagnostic fields pass through the logger's sanitization boundary; do not claim raw values are already serializable.
   context: Record<string, unknown> = {},
   level: 'error' | 'warn' | 'debug' = 'error'
 ): void {
