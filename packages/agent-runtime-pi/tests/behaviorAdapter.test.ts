@@ -1366,11 +1366,12 @@ describe('coding-agent behavior adapter', () => {
         })
       },
       [
-        (api) =>
+        (api) => {
           api.on('tool_call', (event) => {
             original = event.input
             Object.defineProperty(event.input, nativeMarker, { value: 'native', enumerable: true })
           })
+        }
       ]
     )
     const thread = await pi.harness.createThread()
