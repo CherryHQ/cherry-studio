@@ -33,7 +33,7 @@ export function createPiMcpExtension(
         source: 'Cherry Studio',
         config: {
           command: 'cherry-in-memory',
-          exposure: name === 'automation' ? ('direct' as const) : ('codemode' as const),
+          exposure: name === 'automation' || name === 'skills' ? ('direct' as const) : ('codemode' as const),
           timeout: MCP_FORWARDING_TIMEOUT_MS / 1000
         }
       })),

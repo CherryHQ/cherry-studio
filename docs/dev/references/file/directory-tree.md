@@ -36,7 +36,8 @@ The primitive is separate from FileManager because its identity and lifecycle di
 
 ### 1.1 Relationship to DirectoryWatcher
 
-`FileObservationService` creates native watchers through its private `WatchScope` helper. The
+`FileObservationService` acquires native watchers through its private `WatchScope` helper. One
+service-owned Node Worker runs the native watcher operations, including synchronous closure. The
 builder receives the service explicitly from the manager, acquires a compatible scope, and awaits
 readiness before scanning. It releases the lease when disposed and never creates a native watcher.
 
@@ -51,7 +52,10 @@ src/main/services/file/
 ├── observation/
 │   ├── FileObservationService.ts
 │   └── WatchScope.ts
-├── watcher.ts
+├── watcher.ts                    # Main adapter and shared worker host
+├── watcherProtocol.ts            # private worker messages and structured filters
+├── watcherWorker.ts              # worker entry and scope routing
+├── nativeWatcher.ts              # chokidar handles, filtering and fallback
 └── tree/
     ├── builder.ts                 # scan, tree/index mutation, observation lease
     ├── DirectoryTreeManager.ts    # shared builders and per-window consumers
