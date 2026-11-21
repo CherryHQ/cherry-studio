@@ -2584,7 +2584,7 @@ export class BinaryManager extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted custom-tool entries may be legacy or malformed; reconstruct only checked fields before the caller validates their grammar.
   private reconstructCustomDefinition(entry: unknown): CustomToolDefinition | null {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
-    const source = entry as Record<string, unknown>
+    const source = entry as { name?: unknown; tool?: unknown; requestedVersion?: unknown; version?: unknown }
     if (typeof source.name !== 'string' || typeof source.tool !== 'string') return null
     const requestedVersion =
       typeof source.requestedVersion === 'string'
@@ -2601,7 +2601,7 @@ export class BinaryManager extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Skipped registry entries have not passed reconstruction; use only a verified string name for their diagnostic label.
   private describeSkipped(entry: unknown): string {
     if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-      const name = (entry as Record<string, unknown>).name
+      const name = (entry as { name?: unknown }).name
       if (typeof name === 'string' && name) return name
     }
     return '<malformed>'
@@ -2618,7 +2618,7 @@ export class BinaryManager extends BaseService {
     return normalized.every((definition, index) => {
       const stored = raw[index]
       if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return false
-      const record = stored as Record<string, unknown>
+      const record = stored as { name?: unknown; tool?: unknown; requestedVersion?: unknown }
       const expectedKeys = definition.requestedVersion ? 3 : 2
       if (Object.keys(record).length !== expectedKeys) return false
       return (
