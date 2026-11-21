@@ -22,7 +22,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
+import { buildGiteaSkillResult, buildGithubSkillResult } from '@shared/utils/skillMarketplace'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 
@@ -35,9 +35,12 @@ const SOURCE_LABELS: Record<SkillSearchSource, string> = {
   'skills.sh': 'skills.sh',
   'claude-plugins.dev': 'claude-plugins.dev',
   'clawhub.ai': 'clawhub.ai',
-  github: 'GitHub'
+  github: 'GitHub',
+  // A Gitea SKILL.md URL installs through the same direct-URL tab as GitHub; it is not a
+  // searchable registry, so it gets no tab of its own.
+  gitea: 'Gitea'
 }
-const SEARCH_SOURCES = Object.keys(SOURCE_LABELS) as SkillSearchSource[]
+const SEARCH_SOURCES: SkillSearchSource[] = ['skills.sh', 'claude-plugins.dev', 'clawhub.ai', 'github']
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SEARCH_DEBOUNCE_MS = 300
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
@@ -76,9 +79,13 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
   useEffect(() => clearPendingSearch, [clearPendingSearch])
 
-  // GitHub installs one skill from the URL itself — the registries have nothing to search.
+  // A GitHub or Gitea SKILL.md URL installs one skill from the URL itself — the registries have
+  // nothing to search.
   const githubResult = useMemo(
-    () => (isGithubSource && submittedUrl.trim() ? buildGithubSkillResult(submittedUrl) : null),
+    () =>
+      isGithubSource && submittedUrl.trim()
+        ? (buildGithubSkillResult(submittedUrl) ?? buildGiteaSkillResult(submittedUrl))
+        : null,
     [isGithubSource, submittedUrl]
   )
 
