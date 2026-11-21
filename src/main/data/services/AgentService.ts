@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or,
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { requireValidCustomCli } from '@main/services/codeCli/customCliExecutable'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
@@ -32,6 +33,7 @@ import {
   AGENT_MUTABLE_FIELDS,
   type AgentBase,
   type AgentConfiguration,
+  type CustomCliConfiguration,
   type AgentEntity,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
@@ -365,6 +367,11 @@ export class AgentService {
         'create agent',
         'configuration.builtin_role is reserved for system agents'
       )
+    }
+    // A custom Code CLI executable must validate before it is persisted (issue #19966);
+    // the typed code reaches the renderer, which maps it to a translated message.
+    if (req.configuration?.custom_cli) {
+      requireValidCustomCli(req.configuration.custom_cli)
     }
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
@@ -847,6 +854,11 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
+            // Re-validate a custom Code CLI executable whenever configuration changes so an
+            // invalid registration never reaches the store; the launch path re-checks too.
+            if (nextConfiguration.custom_cli) {
+              requireValidCustomCli(nextConfiguration.custom_cli as CustomCliConfiguration)
+            }
             // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
             const effectiveModelId =
               updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)
