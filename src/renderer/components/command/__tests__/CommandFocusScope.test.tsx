@@ -215,19 +215,19 @@ describe('CommandFocusScope', () => {
     expect(screen.getByLabelText('B actions')).toHaveTextContent('1')
   })
 
-  it('uses the focused nested context and handler in the same dispatch', () => {
+  it('uses focused nested context independently of the navigation owner', () => {
     render(
       <Providers>
         <Surface name="parent" command="app.sidebar.open_1" context={{ 'webview.focused': true }}>
-          <Surface name="child" command="app.sidebar.open_1" context={{ 'webview.focused': false }} />
+          <Surface name="child" context={{ 'webview.focused': false }} />
         </Surface>
       </Providers>
     )
 
     expect(pressShortcut(screen.getByRole('button', { name: 'Focus parent' }), '1', 'Digit1')).toBe(false)
     expect(pressShortcut(screen.getByRole('button', { name: 'Focus child' }), '1', 'Digit1')).toBe(true)
-    expect(screen.getByLabelText('parent actions')).toHaveTextContent('0')
-    expect(screen.getByLabelText('child actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('parent actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('child actions')).toHaveTextContent('0')
   })
 
   it('does not fall back to an ancestor or sibling when the focused command is disabled', () => {

@@ -81,7 +81,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   }, [])
 
   return (
-    <CommandFocusScope rootRef={contentRef} active={isActive && !transitionUrl}>
+    <CommandFocusScope kind="tab" rootRef={contentRef} active={isActive && !transitionUrl}>
       <Activity mode={isActive ? 'visible' : 'hidden'}>
         <TabIdProvider tabId={tab.id}>
           {/* This tab's content root is the portal target for overlays and PageSidePanel

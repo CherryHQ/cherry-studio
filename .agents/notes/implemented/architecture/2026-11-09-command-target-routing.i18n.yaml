@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-09-command-target-routing.md
+2026-11-09-command-target-routing.md: 6ff6b721730926184cacfe9295c73e0767acab9e
+2026-11-09-command-target-routing.zh.md: 29dea4337c28c411eb6ca4a55bb9966b662f3195

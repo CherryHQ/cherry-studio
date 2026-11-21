@@ -16,7 +16,7 @@ Everything in `@shared` must satisfy **both**, or it does not belong here.
 
 ### 1.1 Cross-process
 
-A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, with one deliberate carve-out: the Cache schema registry (§1.1.1).
+A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, with deliberate carve-outs for the Cache schema registry (§1.1.1) and command execution metadata (§1.1.2).
 
 - **Why**: `@shared` is the single source of truth shared across the process boundary; single-process code already has a process to live in.
 - Reachable from only one process → it lives in that process's own layer (`src/main/*` or `src/renderer/{utils,hooks,services}`).
@@ -24,7 +24,11 @@ A module belongs in `@shared` only if **both** `main` and `renderer` actually us
 
 #### 1.1.1 Carve-out: the Cache schema registry
 
-The Cache subsystem is the one exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `ChatScrollAnchor`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. Cache subsystem only; §1.1 holds everywhere else.
+The Cache schema registry is an exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `ChatScrollAnchor`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. This exception is limited to Cache schemas and their value types.
+
+#### 1.1.2 Carve-out: command execution metadata
+
+The shared command catalog is consumed by native-menu validation, shortcut configuration and both process dispatchers. Each command keeps its static execution metadata in that same declaration: `scope: 'renderer' | 'both'` requires `renderer.target`; `scope: 'main'` forbids it. This metadata may describe a single process without duplicating command IDs in a second catalog. Target resolution, handlers, focus scopes, active tabs and mutable registrations remain in their owning process. This exception does not admit renderer runtime code or unrelated renderer-only types into `@shared`.
 
 ### 1.2 No mutable runtime state
 

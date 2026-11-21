@@ -4,7 +4,6 @@ import { KeyboardLayerProvider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  type CommandHandler,
   CommandRuntimeContext,
   type CommandRuntime,
   runCommandHandler,
@@ -17,9 +16,9 @@ import {
   CommandFocusRegistry,
   CommandFocusScopeContext,
   CommandFocusScopeState,
-  findScopeHandler,
-  readScopeContext,
-  readRegisteredHandler
+  type CommandInvocation,
+  isCommandInvocationActive,
+  readScopeContext
 } from '@renderer/hooks/command'
 import { platform } from '@renderer/utils/platform'
 import type { ContextReader, SupportedPlatform } from '@shared/types/command'
@@ -57,10 +56,10 @@ export function CommandProvider({ children }: { children: ReactNode }) {
     const registry = new CommandFocusRegistry()
     const forScope = (scope: CommandFocusScopeState): CommandRuntime => ({
       registerHandler: (command, handler, options) => scope.registerHandler(command, handler, options),
-      hasHandler: (command) => Boolean(findScopeHandler(scope, command)),
+      hasHandler: (command) => Boolean(registry.resolveInvocation(scope, rootScope, command)),
       execute: (command, args) => {
-        const entry = findScopeHandler(scope, command)
-        if (entry) runCommandHandler(command, readRegisteredHandler(entry), args)
+        const invocation = registry.resolveInvocation(scope, rootScope, command)
+        if (invocation) runCommandHandler(command, invocation.handler, args)
         else logger.warn(`No renderer command handler registered: ${command}`)
       }
     })
@@ -77,10 +76,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       const base = readScopeContext(scope, stateRef.current.context)
       const context: ContextReader = (key) =>
         key === 'input.focused' ? editable : typeof base === 'function' ? base(key) : undefined
-      const candidates = new Map<
-        CommandId,
-        { entry: NonNullable<ReturnType<typeof findScopeHandler>>; handler: CommandHandler }
-      >()
+      const candidates = new Map<CommandId, CommandInvocation>()
       const command = resolveCommandByKeybinding({
         binding: getShortcutBindingFromKeyboardEvent(event, platform as SupportedPlatform),
         preferences: stateRef.current.shortcutPreferences,
@@ -88,14 +84,15 @@ export function CommandProvider({ children }: { children: ReactNode }) {
         platform: platform as SupportedPlatform,
         scope: 'renderer',
         canExecuteCommand: (id) => {
-          const entry = findScopeHandler(scope, id)
-          if (entry) candidates.set(id, { entry, handler: readRegisteredHandler(entry) })
-          return Boolean(entry)
+          const invocation = host.registry.resolveInvocation(scope, host.rootScope, id, 'keyboard')
+          if (invocation) candidates.set(id, invocation)
+          return Boolean(invocation)
         }
       })
       if (!command) return
       const candidate = candidates.get(command)
       if (!candidate || candidate.entry.options.shouldHandleKeyEvent?.(event) === false) return
+      if (!isCommandInvocationActive(candidate)) return
       event.preventDefault()
       runCommandHandler(command, candidate.handler)
     }
