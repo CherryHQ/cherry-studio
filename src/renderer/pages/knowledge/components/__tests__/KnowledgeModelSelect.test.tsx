@@ -113,8 +113,8 @@ describe('KnowledgeModelSelect', () => {
 
     const visibleFilter = mockModelSelectorProps.at(-1)?.filter
     const openai = { id: 'openai', authMethods: ['api-key'] } as Provider
-    expect(visibleFilter(allowedModel, openai)).toBe(true)
-    expect(visibleFilter(rejectedModel, openai)).toBe(false)
-    expect(visibleFilter(cloudModel)).toBe(false)
+    expect(visibleFilter?.(allowedModel, openai)).toBe(true)
+    expect(visibleFilter?.(rejectedModel, openai)).toBe(false)
+    expect(visibleFilter?.(cloudModel)).toBe(false)
   })
 })
