@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { JSONValue } from '@ai-sdk/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { netFetchMock } = vi.hoisted(() => ({ netFetchMock: vi.fn() }))
@@ -26,9 +27,9 @@ function jsonResponse(body: unknown, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status: 200, headers })
 }
 
-function requestBody(callIndex: number): Record<string, unknown> {
+function requestBody(callIndex: number): JSONValue {
   const options = netFetchMock.mock.calls[callIndex][1] as RequestInit
-  return JSON.parse(options.body as string) as Record<string, unknown>
+  return JSON.parse(options.body as string)
 }
 
 beforeEach(async () => {
@@ -144,8 +145,7 @@ describe('WeixinBot media protocol', () => {
     expect(requestBody(0)).toMatchObject({ media_type: 3, rawsize: 3, filesize: 16, to_user_id: 'user-1' })
     expect(netFetchMock.mock.calls[1][0]).toContain('encrypted_query_param=upload-token')
 
-    const sent = requestBody(2).msg as { item_list: Array<{ type: number; file_item?: Record<string, unknown> }> }
-    expect(sent.item_list).toEqual([
+    expect(requestBody(2)).toHaveProperty('msg.item_list', [
       {
         type: 4,
         file_item: {
@@ -169,8 +169,7 @@ describe('WeixinBot media protocol', () => {
     expect(requestBody(0)).toMatchObject({ media_type: 2, rawsize: 5, filesize: 16, to_user_id: 'user-1' })
     expect(netFetchMock.mock.calls[1][0]).toBe('https://novac2c.cdn.weixin.qq.com/c2c/upload')
 
-    const sent = requestBody(2).msg as { item_list: Array<{ type: number; video_item?: Record<string, unknown> }> }
-    expect(sent.item_list).toEqual([
+    expect(requestBody(2)).toHaveProperty('msg.item_list', [
       {
         type: 5,
         video_item: {
@@ -189,17 +188,16 @@ describe('WeixinBot media protocol', () => {
       .mockResolvedValueOnce(jsonResponse({ ret: 0 }))
 
     const bot = new WeixinBot({ tokenPath })
-    const contextTokens = bot as unknown as { contextTokens: Map<string, string> }
-    contextTokens.contextTokens.set('user-1', 'context-before-upload')
+    const contextTokens = bot['contextTokens']
+    contextTokens.set('user-1', 'context-before-upload')
 
     const sending = bot.sendFile('user-1', 'report.pdf', Buffer.from('pdf'), 'application/pdf')
     await vi.waitFor(() => expect(netFetchMock).toHaveBeenCalledTimes(1))
-    contextTokens.contextTokens.set('user-1', 'context-after-upload')
+    contextTokens.set('user-1', 'context-after-upload')
     resolveUploadUrl(jsonResponse({ upload_param: 'upload-token' }))
     await sending
 
-    const sent = requestBody(2).msg as { context_token: string }
-    expect(sent.context_token).toBe('context-before-upload')
+    expect(requestBody(2)).toHaveProperty('msg.context_token', 'context-before-upload')
   })
 
   it('stops polling without waiting for the lifecycle notification', async () => {
@@ -228,14 +226,7 @@ describe('WeixinBot media protocol', () => {
 
   it('normalizes inbound file, video, and voice media for the channel adapter', () => {
     const bot = new WeixinBot({ tokenPath })
-    const toIncomingMessage = bot as unknown as {
-      toIncomingMessage: (message: Record<string, unknown>) => {
-        _fileItems?: Array<{ filename: string; mediaType: string }>
-        text: string
-      }
-    }
-
-    const incoming = toIncomingMessage.toIncomingMessage({
+    const incoming = bot['toIncomingMessage']({
       message_id: 42,
       from_user_id: 'user-1',
       to_user_id: 'bot-user',
@@ -255,6 +246,7 @@ describe('WeixinBot media protocol', () => {
         }
       ]
     })
+    if (!incoming) throw new Error('Expected the inbound user message to be accepted')
 
     expect(incoming.text).toContain('[quote: Earlier message | original message]')
     expect(incoming.text).toContain('hello')
