@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeProvider } from '../../__tests__/fixtures'
-import { getBaseUrl, getExtraHeaders } from '../provider'
+import { getBaseUrl, getEndpointPathMode, getExtraHeaders } from '../provider'
 
 function relayProvider() {
   return makeProvider({
@@ -99,6 +99,43 @@ describe('getBaseUrl', () => {
       }
     })
     expect(getBaseUrl(provider)).toBe('')
+  })
+})
+
+
+describe('getEndpointPathMode (#18972)', () => {
+  it('returns the pathMode of the config that supplies the effective base URL', () => {
+    const provider = makeProvider({
+      id: 'custom',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/router/answer',
+          pathMode: 'complete'
+        }
+      }
+    })
+    expect(getEndpointPathMode(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('complete')
+    expect(getEndpointPathMode(provider)).toBe('complete')
+  })
+
+  it('tracks the same fallback cascade as getBaseUrl', () => {
+    const provider = makeProvider({
+      id: 'custom',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/openai', pathMode: 'complete' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' }
+      }
+    })
+    // Preferred endpoint wins with its own (host-mode) declaration.
+    expect(getEndpointPathMode(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBeUndefined()
+    // Without a preferred endpoint the default chat endpoint's mode applies.
+    expect(getEndpointPathMode(provider)).toBe('complete')
+  })
+
+  it('returns undefined when no config declares a base URL', () => {
+    expect(getEndpointPathMode(makeProvider({ id: 'custom', endpointConfigs: undefined }))).toBeUndefined()
   })
 })
 

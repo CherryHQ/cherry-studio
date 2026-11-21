@@ -44,6 +44,8 @@ export const HTTP_TRACE_FINAL_BODY_SLOT: unique symbol = Symbol('httpTrace.final
 
 /** Slot value stored under {@link HTTP_TRACE_FINAL_BODY_SLOT}. */
 export interface HttpTraceFinalBodySlot {
+  /** Effective URL after provider routing. */
+  url?: string
   /** The body this request actually sent. */
   body?: BodyInit | null
 }

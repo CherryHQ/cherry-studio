@@ -5525,6 +5525,8 @@
   "settings.provider.api.url.tip": "Adicione # no final para desativar a versão da API adicionada automaticamente.",
   "settings.provider.api_host": "Endereço API",
   "settings.provider.api_host_drawer_hint": "URL personalizado do pedido da API; deixe vazio quando o padrão do catálogo se aplicar.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "O endereço da API é inválido",
   "settings.provider.api_host_placeholder": "Não configurado",
   "settings.provider.api_host_preview": "Pré-visualização: {{url}}",

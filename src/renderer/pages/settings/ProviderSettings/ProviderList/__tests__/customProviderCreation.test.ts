@@ -11,6 +11,25 @@ import {
 } from '../customProviderCreation'
 
 describe('custom provider creation', () => {
+  it('persists independent path modes and previews complete URLs without rewriting the route', () => {
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const anthropic = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    const endpointUrls = {
+      [chat]: ' https://gateway.example.com/router/answer/?api-version=2 ',
+      [anthropic]: 'https://other.example.com'
+    }
+    const payload = buildCustomProviderCreationPayload({ endpointUrls, endpointPathModes: { [chat]: 'complete' } })
+    expect(payload.endpointConfigs).toEqual({
+      [chat]: { baseUrl: endpointUrls[chat].trim(), pathMode: 'complete' },
+      [anthropic]: { baseUrl: endpointUrls[anthropic] }
+    })
+    expect(buildCustomProviderEndpointPreview(endpointUrls[chat], chat, 'complete')).toBe(endpointUrls[chat].trim())
+    expect(buildCustomProviderEndpointPreview(endpointUrls[chat], chat, 'host')).not.toBe(endpointUrls[chat].trim())
+    expect(buildCustomProviderEndpointPreview('https://gateway.example.com#', chat, 'complete')).toBe(
+      'https://gateway.example.com/'
+    )
+  })
+
   it.each([
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     ENDPOINT_TYPE.OPENAI_RESPONSES,

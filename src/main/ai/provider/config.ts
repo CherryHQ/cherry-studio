@@ -26,6 +26,7 @@ import {
   isBareVertexApiHost,
   isWithTrailingSharp,
   withoutTrailingApiVersion,
+  withoutTrailingSharp,
   withoutTrailingSlash
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
@@ -42,8 +43,10 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
+import { createExactPathFetch } from '../utils/exactPathFetch'
 import {
   getBaseUrl,
+  getEndpointPathMode,
   getExtraHeaders,
   getProviderAppHeaders,
   headersWithoutCredentials,
@@ -97,6 +100,14 @@ export interface ResolvedProviderAiSdkConfig {
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
+
+  // A complete-path declaration uses the stored URL exactly as entered: no
+  // API version and no default protocol path is appended (the general form of
+  // the legacy trailing-# convention, which only covers known endpoint
+  // suffixes).
+  if (getEndpointPathMode(provider, endpointType) === 'complete') {
+    return withoutTrailingSharp(baseURL.trim())
+  }
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
 
@@ -222,8 +233,20 @@ export async function resolveProviderAiSdkConfig(
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
-  const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+  const isExactPath = getEndpointPathMode(provider, endpointType) === 'complete'
+  const routed = isExactPath ? { baseURL: formattedBaseUrl, endpoint: undefined } : routeToEndpoint(formattedBaseUrl)
+  let { baseURL } = routed
+  const { endpoint } = routed
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
+
+  // Exact mode always pins the whole URL, including root and trailing slash.
+  // routeToEndpoint and adapter suffix detection must not choose its path.
+  let exactRequestUrl: string | undefined
+  if (isExactPath) {
+    const parsed = new URL(formattedBaseUrl)
+    exactRequestUrl = parsed.toString()
+    baseURL = parsed.origin
+  }
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -421,6 +444,13 @@ export async function resolveProviderAiSdkConfig(
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
+
+  // Complete-path mode pins every SDK request to the declared URL, including
+  // bare-origin paths and paths ending in a known endpoint suffix.
+  if (exactRequestUrl) {
+    config.exactRequestUrl = exactRequestUrl
+    config.providerSettings.fetch = createExactPathFetch(exactRequestUrl, config.providerSettings.fetch)
+  }
 
   return {
     config,

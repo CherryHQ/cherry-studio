@@ -5525,6 +5525,8 @@
   "settings.provider.api.url.tip": "เพิ่ม # ต่อท้ายเพื่อปิดการผนวกเวอร์ชัน API อัตโนมัติ",
   "settings.provider.api_host": "โฮสต์ API",
   "settings.provider.api_host_drawer_hint": "URL คำขอ API ที่กำหนดเอง ปล่อยว่างเมื่อใช้ค่าจากแคตตาล็อก",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "ที่อยู่ API ไม่ถูกต้อง",
   "settings.provider.api_host_placeholder": "ไม่ได้กำหนดค่า",
   "settings.provider.api_host_preview": "ตัวอย่าง: {{url}}",

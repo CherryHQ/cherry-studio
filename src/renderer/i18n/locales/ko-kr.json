@@ -5525,6 +5525,8 @@
   "settings.provider.api.url.tip": "끝에 #을 추가하면 API 버전이 자동으로 추가되지 않습니다.",
   "settings.provider.api_host": "API 호스트",
   "settings.provider.api_host_drawer_hint": "사용자 지정 API 요청 URL입니다. 카탈로그 기본값을 사용하려면 비워 두세요.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "API 주소가 유효하지 않습니다",
   "settings.provider.api_host_placeholder": "설정되지 않음",
   "settings.provider.api_host_preview": "미리보기: {{url}}",

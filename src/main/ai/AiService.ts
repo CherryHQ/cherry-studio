@@ -105,6 +105,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { withExactPathDiagnostics } from './utils/exactPathDiagnostics'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
@@ -1191,13 +1192,11 @@ export class AiService extends BaseService {
       messageRef: null
     })
     return this.withRuntimeActivity('ai:generate-image', async () => {
-      const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
-        sdkConfig.providerId,
-        sdkConfig.providerSettings,
-        {
+      const result = await withExactPathDiagnostics(sdkConfig.exactRequestUrl, () =>
+        aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
           ...imageParams,
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
-        }
+        })
       )
 
       const dataUrls: Base64String[] = []
@@ -1365,16 +1364,18 @@ export class AiService extends BaseService {
 
     const retryPolicy = readRetryPolicy()
     const result = await this.withRuntimeActivity('ai:embed-many', () =>
-      aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-        model: sdkConfig.modelId,
-        values: request.values,
-        // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
-        ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
-        // Preserve the SDK's default retry count when the global retry policy is disabled.
-        maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-        onProviderCallStart: () => createProviderCallHandler(usageContext()),
-        ...(signal ? { abortSignal: signal } : {})
-      })
+      withExactPathDiagnostics(sdkConfig.exactRequestUrl, () =>
+        aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+          model: sdkConfig.modelId,
+          values: request.values,
+          // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
+          ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+          // Preserve the SDK's default retry count when the global retry policy is disabled.
+          maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
+          onProviderCallStart: () => createProviderCallHandler(usageContext()),
+          ...(signal ? { abortSignal: signal } : {})
+        })
+      )
     )
 
     return { embeddings: result.embeddings, usage: result.usage }
@@ -1419,7 +1420,9 @@ export class AiService extends BaseService {
     }
 
     const result = await this.withRuntimeActivity('ai:rerank', () =>
-      aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
+      withExactPathDiagnostics(sdkConfig.exactRequestUrl, () =>
+        aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
+      )
     )
 
     return {

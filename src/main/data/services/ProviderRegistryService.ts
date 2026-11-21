@@ -887,6 +887,8 @@ class ProviderRegistryService {
         }
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
+        const pathMode = rowConfig?.pathMode ?? presetConfig?.pathMode
+        if (pathMode !== undefined) config.pathMode = pathMode
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
         // Dialect merges per key: the row states only the deviations the user found.
         const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }

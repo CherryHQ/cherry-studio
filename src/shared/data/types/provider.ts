@@ -213,6 +213,12 @@ export type ModelsApiUrls = z.infer<typeof ModelsApiUrlsSchema>
 export const EndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
   baseUrl: z.string().optional(),
+  /**
+   * `complete`: the base URL is the exact request path — no API version or
+   * default protocol path is appended. Default (`host`) keeps path
+   * construction unchanged.
+   */
+  pathMode: z.enum(['host', 'complete']).optional(),
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
@@ -233,6 +239,8 @@ export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
 export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
   baseUrl: z.string().optional(),
+  /** User-owned exact-path declaration for this endpoint type's base URL */
+  pathMode: z.enum(['host', 'complete']).optional(),
   /** User-owned dialect overrides — the only way a custom provider states its deviations */
   dialect: EndpointDialectSchema.optional()
 })

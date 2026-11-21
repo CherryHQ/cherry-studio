@@ -1,8 +1,10 @@
 import { trim } from 'es-toolkit/compat'
 
-import { formatApiHost, validateApiHost } from '@renderer/utils/api'
+import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
+
+export { buildEndpointRequestPreview as buildCustomProviderEndpointPreview } from '../utils/endpointRequestPreview'
 
 export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -25,7 +27,10 @@ export type CustomProviderTextEndpoint = (typeof CUSTOM_PROVIDER_TEXT_ENDPOINTS)
 export type CustomProviderEndpoint = (typeof CUSTOM_PROVIDER_ENDPOINTS)[number]
 export type CustomProviderEndpointUrls = Partial<Record<CustomProviderEndpoint, string>>
 
+export type CustomProviderEndpointPathModes = Partial<Record<CustomProviderEndpoint, EndpointConfig['pathMode']>>
+
 export interface CustomProviderCreationInput {
+  endpointPathModes?: CustomProviderEndpointPathModes
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint?: CustomProviderTextEndpoint
 }
@@ -38,15 +43,6 @@ export interface CustomProviderCreationPayload {
 export type CustomProviderCreationInvalidUrl =
   | { field: 'textEndpointRequired' }
   | { field: 'endpointUrl'; endpointType: CustomProviderEndpoint }
-
-const ENDPOINT_PATHS: Record<CustomProviderEndpoint, string> = {
-  [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: '/chat/completions',
-  [ENDPOINT_TYPE.OPENAI_RESPONSES]: '/responses',
-  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: '/messages',
-  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: '/models/{model}:generateContent',
-  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: '/images/generations',
-  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: '/images/edits'
-}
 
 export function getCustomProviderDefaultChatEndpoint(
   endpointUrls: CustomProviderEndpointUrls,
@@ -67,7 +63,10 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
     const baseUrl = trim(input.endpointUrls[endpointType])
     if (baseUrl) {
-      endpointConfigs[endpointType] = { baseUrl }
+      endpointConfigs[endpointType] = {
+        baseUrl,
+        ...(input.endpointPathModes?.[endpointType] ? { pathMode: input.endpointPathModes[endpointType] } : {})
+      }
     }
   }
 
@@ -75,17 +74,6 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
     defaultChatEndpoint: getCustomProviderDefaultChatEndpoint(input.endpointUrls, input.preferredChatEndpoint),
     endpointConfigs
   }
-}
-
-export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderEndpoint): string {
-  const value = trim(baseUrl)
-  if (!value || !validateApiHost(value)) {
-    return ''
-  }
-
-  const formattedHost =
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(value, true, 'v1beta') : formatApiHost(value)
-  return `${formattedHost}${ENDPOINT_PATHS[endpointType]}`
 }
 
 export function findInvalidCustomProviderCreationUrl(

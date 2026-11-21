@@ -5525,6 +5525,8 @@
   "settings.provider.api.url.tip": "Thêm # vào cuối để vô hiệu hóa phiên bản API được thêm tự động.",
   "settings.provider.api_host": "Máy chủ API",
   "settings.provider.api_host_drawer_hint": "URL yêu cầu API tùy chỉnh; để trống khi áp dụng mặc định của danh mục.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "Địa chỉ API không hợp lệ",
   "settings.provider.api_host_placeholder": "Chưa được cấu hình",
   "settings.provider.api_host_preview": "Xem trước: {{url}}",

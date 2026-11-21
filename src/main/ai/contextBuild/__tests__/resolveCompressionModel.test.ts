@@ -1,4 +1,4 @@
-import { generateText } from 'ai'
+import { APICallError, generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -43,6 +43,24 @@ describe('resolveCompressionModel', () => {
       throw new Error('no such provider')
     })
     expect(await resolveCompressionModel('ghost::model-x', CONVERSATION)).toBeNull()
+  })
+
+  it('corrects the compressor SDK error URL using the same complete-mode metadata', async () => {
+    providerConfig.mockResolvedValue({
+      providerId: 'openai-compatible',
+      exactRequestUrl: 'https://gateway.example.com/summary/?token=private-token',
+      providerSettings: {
+        name: 'fixture',
+        baseURL: 'https://gateway.example.com',
+        fetch: async () => Response.json({ error: { message: 'no route' } }, { status: 404 })
+      }
+    })
+    const descriptor = await resolveCompressionModel('opencode::small', CONVERSATION)
+    const error = await generateText({ model: descriptor!.languageModel, prompt: 'Summarize', maxRetries: 0 }).catch(
+      (value: unknown) => value
+    )
+    expect(APICallError.isInstance(error)).toBe(true)
+    expect((error as APICallError).url).toBe('https://gateway.example.com/summary/?token=%3Credacted%3E')
   })
 
   it('budgets the summary against the compressor own window', async () => {

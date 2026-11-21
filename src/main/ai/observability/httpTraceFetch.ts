@@ -204,6 +204,7 @@ function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBody
   const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
+  if (slot?.url) span.setAttribute('http.url', redactUrlParams(slot.url))
   const finalBody = slot?.body
   if (finalBody === null) {
     span.setAttribute('inputs', '')
