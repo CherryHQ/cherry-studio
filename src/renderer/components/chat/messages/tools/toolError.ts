@@ -1,4 +1,4 @@
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is { text?: unknown; isError?: unknown; content?: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

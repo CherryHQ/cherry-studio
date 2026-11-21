@@ -8,7 +8,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import type { McpTool } from '@renderer/types/tool'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId } from '../toolResponse'
+import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId, type ToolApprovalMatch } from '../toolResponse'
 
 const logger = loggerService.withContext('useToolApproval')
 
@@ -21,7 +21,7 @@ export interface ToolApprovalState {
   isWaiting: boolean
   isExecuting: boolean
   isSubmitting: boolean
-  input?: Record<string, unknown>
+  input?: ToolApprovalMatch['input']
 }
 
 export interface ToolApprovalActions {
@@ -129,7 +129,7 @@ export function useToolApproval(
     // `input-available` = SDK has inputs, tool about to run (post-approval).
     isExecuting: optimisticSubmitted || remoteExecuting,
     isSubmitting: optimisticSubmitted && !remoteExecuting,
-    input: match.input as Record<string, unknown> | undefined,
+    input: match.input,
     confirm: () => void respond(true),
     cancel: () => void respond(false),
     // `autoApprove` ("always allow") only persists for MCP tools (per-server
