@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { stampAndSerialize } from '../../packages/provider-registry/scripts/catalogSerialization.mjs'
 import { REGISTRY_MIN_APP_VERSION, REGISTRY_SCHEMA_VERSION } from '../../packages/provider-registry/src/registry-loader'
+import type { ProviderModelOverride } from '../../packages/provider-registry/src/schemas/provider-models'
 import { publishRegistryCatalog } from '../publishRegistryCatalog'
 
 const COMPAT_DIRECTORY = path.resolve(__dirname, '../../packages/provider-registry/compat')
@@ -31,7 +32,7 @@ function makeDirectories() {
 }
 
 /** A v1-shaped override carrying `ultra`, the effort v1's frozen enum does not know. */
-function writeCatalog(sourceDirectory: string, override: Record<string, unknown>) {
+function writeCatalog(sourceDirectory: string, override: Pick<ProviderModelOverride, 'providerId' | 'modelId'>) {
   fs.writeFileSync(path.join(sourceDirectory, 'models.json'), JSON.stringify({ version: 'm1', models: [] }))
   fs.writeFileSync(path.join(sourceDirectory, 'providers.json'), JSON.stringify({ version: 'p1', providers: [] }))
   fs.writeFileSync(
@@ -207,11 +208,10 @@ describe('publishRegistryCatalog', () => {
       const decoded = read(file, wire)
       expect(decoded[key]).toHaveLength(formats.length)
       for (const [index, entry] of decoded[key].entries()) {
-        for (const descriptor of Object.values(entry.imageGeneration.modes) as Array<{
-          supports: Record<string, unknown>
-        }>) {
-          expect(descriptor.supports.outputFormat).toEqual(expectedFormats[index])
-          expect(descriptor.supports.quality).toEqual(quality)
+        for (const descriptor of Object.values(entry.imageGeneration.modes)) {
+          if (expectedFormats[index] === undefined) expect(descriptor).not.toHaveProperty('supports.outputFormat')
+          else expect(descriptor).toHaveProperty('supports.outputFormat', expectedFormats[index])
+          expect(descriptor).toHaveProperty('supports.quality', quality)
         }
       }
       expect(manifest.files[file]).toBe(wire.version)
@@ -281,8 +281,8 @@ describe('publishRegistryCatalog', () => {
     expect(models).toHaveLength(1)
     expect(offers).toHaveLength(3)
     for (const entry of [models[0], offers[0], offers[1]]) {
-      for (const mode of Object.values(entry.imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
-        expect(mode.supports).toEqual({
+      for (const mode of Object.values(entry.imageGeneration.modes)) {
+        expect(mode).toHaveProperty('supports', {
           numImages: supports.numImages,
           size: supports.size,
           quality: supports.quality,
@@ -292,11 +292,11 @@ describe('publishRegistryCatalog', () => {
         })
       }
     }
-    for (const mode of Object.values(offers[2].imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
-      expect(mode.supports.outputFormat).toEqual(supports.outputFormat)
-      expect(mode.supports.outputCompression).toEqual(supports.outputCompression)
-      expect(mode.supports.frameCount).toBeUndefined()
-      expect(mode.supports.complexity).toBeUndefined()
+    for (const mode of Object.values(offers[2].imageGeneration.modes)) {
+      expect(mode).toHaveProperty('supports.outputFormat', supports.outputFormat)
+      expect(mode).toHaveProperty('supports.outputCompression', supports.outputCompression)
+      expect(mode).not.toHaveProperty('supports.frameCount')
+      expect(mode).not.toHaveProperty('supports.complexity')
     }
     for (const [file, original] of Object.entries(originals)) {
       expect(fs.readFileSync(path.join(sourceDirectory, file))).toEqual(original)
