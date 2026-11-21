@@ -14,6 +14,8 @@ function renderNavigation(input: unknown) {
       topic: {
         id: '0f8e7521-a342-4a63-9e3c-8801d29f6d10',
         name: 'Navigation',
+        assistantId: 'assistant-1',
+        messages: [],
         isNameManuallyEdited: false,
         orderKey: 'a0',
         lastActivityAt: '2026-01-01T00:00:00Z',
