@@ -3,10 +3,12 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import { followupQueueStateTable, followupQueueTable } from '@data/db/schemas/followupQueue'
 import { topicTable } from '@data/db/schemas/topic'
+import { assistantDataService } from '@data/services/AssistantService'
 import { FollowupQueueService, followupQueueService } from '@data/services/FollowupQueueService'
 import { topicService } from '@data/services/TopicService'
 
@@ -15,6 +17,7 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 
 import { application } from '@application'
 import { ErrorCode, type DataApiError } from '@shared/data/api/errors'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { FOLLOWUP_QUEUE_LIMIT, FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS } from '@shared/data/types/followupQueue'
 
 const SCOPE_A = 'topic-a:assistant-1'
@@ -42,6 +45,18 @@ describe('FollowupQueueService', () => {
 
   beforeEach(async () => {
     notifyDataApiDataChangeMock.mockClear()
+    dbh.db
+      .insert(assistantTable)
+      .values(
+        ['assistant-1', 'assistant-2'].map((id, index) => ({
+          id,
+          name: 'Assistant',
+          emoji: '',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: `a${index}`
+        }))
+      )
+      .run()
     // Enqueue requires the owning conversation to exist (deletion barrier).
     await dbh.db
       .insert(topicTable)
@@ -627,9 +642,70 @@ describe('FollowupQueueService', () => {
       expect(retry).toMatchObject({ id: delivered.id, status: 'closed' })
       expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
     })
+
+    it('should close rows carrying sentAt before purging, so a crash after markSent cannot resurrect a sent item', async () => {
+      // Delivered and marked, but the process died before the dequeue removal
+      // landed: the row is still `sending` with a sentAt barrier.
+      const delivered = enqueueIn('topic-a:assistant-1', 'delivered')
+      expect(followupQueueService.claim(delivered.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
+      followupQueueService.markSent(delivered.id, 'token-1')
+      enqueueIn('topic-a:assistant-1', 'queued')
+
+      application.get('DbService').withWriteTx((tx) => {
+        followupQueueService.purgeForScopePrefixTx(tx, 'topic-a:', { keepClosedReceipts: true })
+      })
+
+      const rows = await dbh.db.select().from(followupQueueTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: delivered.id, status: 'closed' })
+      expect(rows[0].sentAt).not.toBeNull()
+
+      // A's late same-id retry settles against the receipt instead of resurrecting.
+      const retry = followupQueueService.enqueue({
+        scopeKey: 'topic-a:assistant-1',
+        draft: draft('delivered'),
+        payload: payload('delivered'),
+        id: delivered.id
+      })
+      expect(retry).toMatchObject({ id: delivered.id, status: 'closed' })
+      expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
+    })
   })
 
   describe('conversation delete cascade', () => {
+    it('refuses late enqueues for a deleted assistant when its topic is retained', () => {
+      dbh.db
+        .insert(assistantTable)
+        .values({
+          id: 'deleted-assistant',
+          name: 'Deleted',
+          emoji: '',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db.update(topicTable).set({ assistantId: 'deleted-assistant' }).where(eq(topicTable.id, 'topic-a')).run()
+      const scopeKey = 'topic-a:deleted-assistant'
+      const receipt = enqueueIn(scopeKey, 'already sent')
+      followupQueueService.remove(receipt.id)
+      enqueueIn(scopeKey, 'before')
+      assistantDataService.delete('deleted-assistant')
+      assistantDataService.delete('deleted-assistant', { permanent: true })
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-a')).get()).toBeDefined()
+      expect(
+        followupQueueService.enqueue({ id: receipt.id, scopeKey, draft: draft('retry'), payload: payload('retry') })
+      ).toMatchObject({ id: receipt.id, status: 'closed' })
+      expectErrorCode(() => enqueueIn(scopeKey, 'late'), ErrorCode.NOT_FOUND)
+      expect(enqueueIn('topic-a:no-assistant', 'unowned')).toMatchObject({ scopeKey: 'topic-a:no-assistant' })
+      expect(enqueueIn('topic-a:assistant-2', 'other owner')).toMatchObject({ scopeKey: 'topic-a:assistant-2' })
+      expect(followupQueueService.listByScope(scopeKey)).toEqual([])
+    })
+
+    it('still accepts follow-ups for a restorable assistant', () => {
+      assistantDataService.delete('assistant-1')
+      expect(enqueueIn(SCOPE_A, 'restorable')).toMatchObject({ scopeKey: SCOPE_A })
+    })
+
     it('should drop queue rows and paused state when the topic is permanently deleted', async () => {
       enqueueIn('topic-a:assistant-1', 'a1')
       enqueueIn('topic-a:assistant-2', 'a2')

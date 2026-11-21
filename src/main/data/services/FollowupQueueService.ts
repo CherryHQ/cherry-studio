@@ -19,11 +19,12 @@
  * `purgeForScopePrefixTx` — there is no FK by design.
  */
 
-import { and, asc, eq, gte, inArray, like, lt, ne, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, like, lt, ne, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   type FollowupQueueRow,
@@ -39,6 +40,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateFollowupQueueDto } from '@shared/data/api/schemas/followupQueues'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
+  FOLLOWUP_NO_ASSISTANT,
   FOLLOWUP_QUEUE_LIMIT,
   FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS,
   FOLLOWUP_QUEUE_SCOPE_DIMENSION,
@@ -72,9 +74,18 @@ function throwIfScopeConversationGoneTx(tx: Pick<DbType, 'select'>, scopeKey: st
     if (!session) throw DataApiErrorFactory.notFound('AgentSession', sessionId)
     return
   }
-  const topicId = scopeKey.split(':')[0]
+  const [topicId, assistantId] = scopeKey.split(':')
   const [topic] = tx.select({ id: topicTable.id }).from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
   if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+  if (assistantId && assistantId !== FOLLOWUP_NO_ASSISTANT) {
+    const assistant = tx
+      .select({ id: assistantTable.id })
+      .from(assistantTable)
+      .where(eq(assistantTable.id, assistantId))
+      .limit(1)
+      .get()
+    if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+  }
 }
 
 function rowToItem(row: FollowupQueueRow): FollowupQueueItem {
@@ -560,7 +571,40 @@ export class FollowupQueueService {
    * (`topicFollowupScopePrefix` / `sessionFollowupScopePrefix`); LIKE is safe
    * here because scope prefixes contain no `%` / `_` wildcards.
    */
-  purgeForScopePrefixTx(tx: Pick<DbType, 'delete'>, prefix: string, options?: { keepClosedReceipts?: boolean }): void {
+  purgeForScopePrefixTx(
+    tx: Pick<DbType, 'delete' | 'update'>,
+    prefix: string,
+    options?: { keepClosedReceipts?: boolean }
+  ): void {
+    if (options?.keepClosedReceipts) {
+      // A row carrying sentAt was delivered but crashed before its dequeue
+      // removal landed, so it is still `sending`. Close it before purging:
+      // deleting it would drop the replay barrier, and a late same-id retry
+      // would resurrect an already-sent item instead of settling here.
+      const delivered = tx
+        .update(followupQueueTable)
+        .set({ status: 'closed' })
+        .where(
+          and(
+            like(followupQueueTable.scopeKey, `${prefix}%`),
+            isNotNull(followupQueueTable.sentAt),
+            ne(followupQueueTable.status, 'closed')
+          )
+        )
+        .returning({ id: followupQueueTable.id })
+        .all()
+      if (delivered.length > 0) {
+        // Parity with `remove`: a closed receipt no longer owns file bytes.
+        tx.delete(followupQueueFileRefTable)
+          .where(
+            inArray(
+              followupQueueFileRefTable.sourceId,
+              delivered.map((row) => row.id)
+            )
+          )
+          .run()
+      }
+    }
     tx.delete(followupQueueTable)
       .where(
         options?.keepClosedReceipts
