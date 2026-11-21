@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'v
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
@@ -258,6 +259,11 @@ const { messageService } = await import('@main/data/services/MessageService')
 function createService(): InstanceType<typeof AiService> {
   BaseService.resetInstances()
   return new (AiService as any)()
+}
+
+async function drain(stream: ReadableStream<unknown>): Promise<void> {
+  const reader = stream.getReader()
+  while (!(await reader.read()).done) {}
 }
 
 describe('AiService', () => {
@@ -614,6 +620,343 @@ describe('AiService', () => {
     expect((await reader.read()).done).toBe(true)
   })
 
+  it('runs a dedicated image model as a chat image turn when its catalog also exposes a chat URL', async () => {
+    const service = createService()
+    const provider = makeProvider({ id: 'test-provider', name: 'Test Provider' })
+    mockProviderGetByProviderId.mockReturnValueOnce(provider)
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'test-provider::test-image',
+        providerId: 'test-provider',
+        apiModelId: 'test-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: ['image'],
+        supportsStreaming: false
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: { generate: { supports: { size: { type: 'enum', options: ['1024x1024'], default: '1024x1024' } } } }
+    })
+    const file = {
+      id: 'image-entry',
+      origin: 'internal',
+      ext: 'png',
+      name: 'generated',
+      size: 3,
+      createdAt: 0,
+      cleanupPolicy: 'delete_when_unreferenced'
+    }
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [file] as never })
+    const fileManager = {
+      getUrl: vi.fn(() => 'file:///data/files/image-entry.png')
+    }
+    mockApplicationGet.mockImplementation((name: string) => (name === 'FileManager' ? fileManager : undefined))
+    const buildAgentParamsFor = vi.spyOn(service as any, 'buildAgentParamsFor')
+
+    const result = await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-image',
+      messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'A red fox' }] }],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(buildAgentParamsFor).not.toHaveBeenCalled()
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'test-provider::test-image',
+        prompt: 'A red fox',
+        mode: 'generate',
+        paramValues: { size: '1024x1024' },
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    )
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'control', chunk: { type: 'start' } })
+    expect((await reader.read()).value).toMatchObject({
+      type: 'message',
+      parts: [
+        {
+          type: 'file',
+          mediaType: 'image/png',
+          filename: 'generated.png',
+          url: 'file:///data/files/image-entry.png',
+          providerMetadata: { cherry: { fileEntryId: 'image-entry' } }
+        }
+      ]
+    })
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('rejects a reference image before calling a text-only image generator', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'openai' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'openai::dall-e-3',
+        providerId: 'openai',
+        apiModelId: 'dall-e-3',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: ['text'],
+        outputModalities: ['image']
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce({ modes: { generate: { supports: {} } } })
+
+    await expect(
+      service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        uniqueModelId: 'openai::dall-e-3',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            parts: [
+              { type: 'text', text: 'Match this palette' },
+              withCherryMeta(
+                { type: 'file', mediaType: 'image/png', url: 'file:///reference.png' },
+                { fileEntryId: 'ref' }
+              )
+            ]
+          }
+        ],
+        requestOptions: { signal: new AbortController().signal }
+      })
+    ).rejects.toMatchObject({ i18nKey: 'image_edit_unsupported' })
+  })
+
+  it.each([
+    ['embedding', ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+    ['rerank', ENDPOINT_TYPE.JINA_RERANK]
+  ] as const)('keeps the declared %s host for a model that also serves chat', async (operation, endpointType) => {
+    const service = createService()
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const baseURL = 'https://non-chat.test/v1'
+    const provider = makeProvider({
+      endpointConfigs: {
+        [endpointType]: { baseUrl: baseURL, adapterFamily: 'openai-compatible' },
+        [chat]: { baseUrl: 'https://chat.test/v1', adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({
+      id: 'test-provider::test-model',
+      providerId: provider.id,
+      endpointTypes: [endpointType, chat]
+    })
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockModelGetByKey.mockReturnValue(model)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? defaultServiceInstances.PreferenceService : undefined
+    )
+    mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
+    mockRerank.mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
+
+    if (operation === 'embedding') {
+      await service.embedMany({ uniqueModelId: model.id, values: ['word'] })
+      expect(mockEmbedMany.mock.lastCall?.[1]).toMatchObject({ baseURL })
+    } else {
+      await service.rerank({ uniqueModelId: model.id, query: 'word', documents: ['word'] })
+      expect(mockRerank.mock.lastCall?.[1]).toMatchObject({ baseURL })
+    }
+  })
+
+  it('uses distinct configured hosts for image generation and edits', async () => {
+    const service = createService()
+    const generation = ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    const edit = ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    const provider = makeProvider({
+      endpointConfigs: {
+        [generation]: { baseUrl: 'https://generate.test/v1', adapterFamily: 'openai-compatible' },
+        [edit]: { baseUrl: 'https://edit.test/v1', adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({
+      id: 'test-provider::test-model',
+      providerId: provider.id,
+      endpointTypes: [generation, edit]
+    })
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockModelGetByKey.mockReturnValue(model)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? defaultServiceInstances.PreferenceService : undefined
+    )
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    const request = { uniqueModelId: model.id, prompt: 'Draw a cat', paramValues: {}, cleanupPolicy: 'manual' as const }
+
+    await service.generateImage(request)
+    await service.generateImage({ ...request, mode: 'edit', inputImages: ['data:image/png;base64,iVBORw0KGgo='] })
+
+    expect(mockGenerateImage.mock.calls.map(([, settings]) => settings.baseURL)).toEqual([
+      'https://generate.test/v1',
+      'https://edit.test/v1'
+    ])
+  })
+
+  it.each([
+    { endpoint: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, reference: false, i18nKey: 'image_input_required' },
+    { endpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, reference: true, i18nKey: 'image_edit_unsupported' }
+  ])('checks the declared $endpoint contract for a custom New API model', async ({ endpoint, reference, i18nKey }) => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'relay', presetProviderId: 'newapi' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'relay::custom-image',
+        providerId: 'relay',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: ['text', 'image'],
+        endpointTypes: [endpoint]
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce(null)
+
+    await expect(
+      service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        uniqueModelId: 'relay::custom-image',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            parts: [
+              { type: 'text', text: 'Make the sky blue' },
+              ...(reference
+                ? [{ type: 'file' as const, mediaType: 'image/png', url: 'data:image/png;base64,iVBORw0KGgo=' }]
+                : [])
+            ]
+          }
+        ],
+        requestOptions: { signal: new AbortController().signal }
+      })
+    ).rejects.toMatchObject({ i18nKey })
+  })
+
+  it('reports an empty dedicated image result as a stream error', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'test-provider' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'test-provider::test-image',
+        providerId: 'test-provider',
+        apiModelId: 'test-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: ['image'],
+        supportsStreaming: false
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: { generate: { supports: { size: { type: 'enum', options: ['1024x1024'], default: '1024x1024' } } } }
+    })
+    vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+
+    const result = await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-image',
+      messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'A red fox' }] }],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'control', chunk: { type: 'start' } })
+    expect((await reader.read()).value).toMatchObject({
+      type: 'error',
+      error: expect.objectContaining({ message: 'Image generation returned no images.', i18nKey: 'image_result_empty' })
+    })
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('cancels image work without emitting an error message', async () => {
+    const service = createService()
+    mockModelGetByKey.mockReturnValue(
+      makeModel({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: ['image']
+      })
+    )
+    const controller = new AbortController()
+    vi.spyOn(service, 'generateImage').mockImplementation(
+      ({ requestOptions }) =>
+        new Promise((_, reject) => {
+          requestOptions?.signal?.addEventListener('abort', () => reject(requestOptions.signal?.reason), { once: true })
+        })
+    )
+    const result = await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-image',
+      messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Draw a fox' }] }],
+      requestOptions: { signal: controller.signal }
+    })
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'control', chunk: { type: 'start' } })
+    controller.abort()
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('uses the latest assistant image on the active chat branch to edit the next turn', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'test-provider' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'test-provider::test-image',
+        providerId: 'test-provider',
+        apiModelId: 'test-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: ['image'],
+        supportsStreaming: false
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          maxInputImages: 1,
+          supports: { size: { type: 'enum', options: ['1024x1024'], default: '1024x1024' } }
+        }
+      }
+    })
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const filePart = (id: string) => ({
+      type: 'file' as const,
+      mediaType: 'image/png',
+      filename: `${id}.png`,
+      url: `file:///files/${id}.png`,
+      providerMetadata: { cherry: { fileEntryId: id } }
+    })
+    const fileManager = {
+      read: vi.fn().mockResolvedValue({ content: 'QUJD', mime: 'image/png' }),
+      getPhysicalPath: vi.fn()
+    }
+    mockApplicationGet.mockImplementation((name: string) => (name === 'FileManager' ? fileManager : undefined))
+
+    const result = await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-image',
+      messages: [
+        { id: 'assistant-1', role: 'assistant', parts: [filePart('current-branch')] },
+        { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Make it blue' }] }
+      ],
+      requestOptions: { signal: new AbortController().signal }
+    })
+    await drain(result.stream)
+
+    expect(fileManager.read).toHaveBeenCalledWith('current-branch', { encoding: 'base64' })
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: 'Make it blue',
+        mode: 'edit',
+        inputImages: ['data:image/png;base64,QUJD']
+      })
+    )
+  })
+
   it('rejects agent-session streams that do not carry a runtime request', async () => {
     const service = createService()
     const buildAgentParamsFor = vi.spyOn(service as any, 'buildAgentParamsFor')
@@ -851,7 +1194,8 @@ describe('AiService', () => {
     expect(createInternalEntry).toHaveBeenCalledWith({
       source: 'base64',
       data: 'data:image/png;base64,abc123',
-      cleanupPolicy: 'delete_when_unreferenced'
+      cleanupPolicy: 'delete_when_unreferenced',
+      name: 'Generated image'
     })
     expect(result).toEqual({ files: [fileEntry] })
   })
@@ -1285,6 +1629,41 @@ describe('AiService', () => {
           context: expect.objectContaining({ modelId: 'test-model' }),
           modality: 'image',
           imageCount: 1
+        })
+      )
+    })
+
+    it('attributes a chat image invocation to its assistant message and source', async () => {
+      const service = createService()
+      stubDirectImage(service)
+      const fileManager = mockApplicationGet('FileManager')
+      fileManager.getPhysicalPath = () => '/files/file-1.png'
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: 'test-provider::test-model',
+          providerId: 'test-provider',
+          apiModelId: 'test-model',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+          outputModalities: ['text', 'image']
+        })
+      )
+      const source = { type: 'assistant', id: 'assistant-1', name: 'Painter', icon: '🎨' } as const
+      const result = await service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        uniqueModelId: 'test-provider::test-model',
+        messageId: 'assistant-message-1',
+        source,
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Draw a cat' }] }],
+        requestOptions: { signal: new AbortController().signal }
+      })
+      await drain(result.stream)
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'image',
+          imageCount: 1,
+          context: expect.objectContaining({ source, messageRef: { kind: 'chat', id: 'assistant-message-1' } })
         })
       )
     })
@@ -2030,6 +2409,7 @@ describe('AiService tool approval', () => {
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-model',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
     })
@@ -2077,6 +2457,7 @@ describe('AiService tool approval', () => {
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
+      uniqueModelId: 'test-provider::test-model',
       messages: [],
       requestOptions: { maxRetries: 0.5, signal: new AbortController().signal }
     })
@@ -2429,6 +2810,7 @@ describe('AiService tool approval', () => {
       name: 'Test Multimodal',
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      outputModalities: ['text', 'image'],
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false

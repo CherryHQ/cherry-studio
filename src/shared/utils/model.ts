@@ -14,7 +14,7 @@
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, ParameterSupport, RuntimeParameterSupport } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -44,6 +44,31 @@ export const isFunctionCallingModel = (model: Model): boolean =>
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+
+export function supportsImageGenerationReference(model: Model, support = model.imageGeneration): boolean {
+  if (!support) {
+    if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)) return true
+    if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)) return false
+    return isVisionModel(model)
+  }
+  const { edit, generate } = support.modes
+  return !!edit || (!!generate && (generate.maxInputImages !== undefined || isVisionModel(model)))
+}
+
+/** Dedicated image APIs cannot run the language-model chat loop. */
+export const isImageGenerationOnlyModel = (model: Model): boolean => {
+  if (!isGenerateImageModel(model)) return false
+  const endpoints = model.endpointTypes
+  const modalities = model.outputModalities
+  if (!endpoints?.length) return modalities?.includes(MODALITY.TEXT) !== true
+  const hasChatEndpoint = endpoints.some((endpointType) => endpointImpliedCapability(endpointType) == null)
+  if (!hasChatEndpoint) return true
+  const hasImageEndpoint = endpoints.some(
+    (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
+  )
+  // Declared image-only output is authoritative; a source that omits modalities keeps chat.
+  return hasImageEndpoint && modalities !== undefined && !modalities.includes(MODALITY.TEXT)
+}
 
 export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
   if (model.providerId === CHERRYAI_PROVIDER_ID) {
@@ -85,15 +110,30 @@ export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
   !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
 
-export const isNonChatModel = (model: Model): boolean =>
-  endpointImpliedCapability(model.endpointTypes?.[0]) != null ||
-  isEmbeddingModel(model) ||
-  isRerankModel(model) ||
-  isGenerateImageModel(model) ||
-  isGenerateVideoModel(model) ||
-  isGenerateAudioModel(model) ||
-  isTextToSpeechModel(model) ||
-  isSpeechToTextModel(model)
+export const isNonChatModel = (model: Model): boolean => {
+  const impliedCapability = endpointImpliedCapability(model.endpointTypes?.[0])
+  const hasChatAlongsideImage =
+    impliedCapability === MODEL_CAPABILITY.IMAGE_GENERATION &&
+    model.endpointTypes?.some((endpointType) => endpointImpliedCapability(endpointType) == null)
+  return (
+    (impliedCapability != null && !hasChatAlongsideImage) ||
+    isEmbeddingModel(model) ||
+    isRerankModel(model) ||
+    isImageGenerationOnlyModel(model) ||
+    isGenerateVideoModel(model) ||
+    isGenerateAudioModel(model) ||
+    isTextToSpeechModel(model) ||
+    isSpeechToTextModel(model)
+  )
+}
+
+/**
+ * Models a conversation can select: ordinary chat models plus dedicated image APIs,
+ * which chat runs as an image turn. Everything else (embedding, rerank, speech, video)
+ * is excluded — those can never answer a conversation turn.
+ */
+export const isChatSelectableModel = (model: Model): boolean =>
+  isImageGenerationOnlyModel(model) || !isNonChatModel(model)
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

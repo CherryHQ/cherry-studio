@@ -34,8 +34,9 @@ Decided per file part in `prepareChatMessages`
 | Attachment | Native when | What the model receives |
 |---|---|---|
 | image | model is vision | native image part (inline) |
-| image | non-vision, OCR finds text | OCR text, inline (capped) |
-| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
+| managed user image | non-vision, OCR finds text | OCR text, inline (capped) |
+| managed user image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
+| assistant image | non-vision | short omission note |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
@@ -65,7 +66,7 @@ Decided per file part in `prepareChatMessages`
 - Unknown extensions undergo a conservative content sniff (binary detection +
   encoding confidence). Binary bytes or ambiguous legacy encodings get a short
   unsupported note instead of being decoded into mojibake.
-- A non-vision image only degrades to OCR text when OCR actually finds text.
+- A managed user image sent to a non-vision model degrades to OCR text when OCR finds text.
   Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
   raises a localized error before opening the provider request. A gateway-backed
   model that accepts images must have **Vision** enabled under Provider Settings
@@ -77,7 +78,7 @@ Decided per file part in `prepareChatMessages`
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
-Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
+Only `fileEntryId`-backed images outside assistant messages enter the OCR path. Gateway /
 external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.

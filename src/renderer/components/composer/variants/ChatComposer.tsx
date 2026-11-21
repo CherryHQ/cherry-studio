@@ -73,7 +73,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
-import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
+import {
+  isGPT5SeriesReasoningModel,
+  isImageGenerationOnlyModel,
+  isVisionModel,
+  supportsImageGenerationReference
+} from '@shared/utils/model'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
@@ -783,7 +788,11 @@ const ChatComposerInner = ({
           : runtimeModel
             ? [runtimeModel]
             : EMPTY_MODELS
-  const supportsImageInput = effectiveSubmittedModels.length > 0 && effectiveSubmittedModels.every(isVisionModel)
+  const supportsImageInput =
+    effectiveSubmittedModels.length > 0 &&
+    effectiveSubmittedModels.every((model) =>
+      isImageGenerationOnlyModel(model) ? supportsImageGenerationReference(model) : isVisionModel(model)
+    )
   const supportsImageInputRef = useLatest(supportsImageInput)
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector

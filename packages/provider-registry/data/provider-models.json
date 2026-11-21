@@ -22265,6 +22265,22 @@
       "providerId": "ollama"
     },
     {
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "chatgpt-image-latest",
+      "providerId": "openai"
+    },
+    {
+      "apiModelId": "gpt-image-1.5",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-1-5",
+      "providerId": "openai"
+    },
+    {
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-1-mini",
+      "providerId": "openai"
+    },
+    {
       "apiModelId": "gpt-image-2.6-flare",
       "endpointTypes": ["openai-image-generation", "openai-image-edit"],
       "modelId": "gpt-image-2-6-flare",
@@ -25938,7 +25954,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26125,7 +26141,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -45324,5 +45340,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "4610ad89a9f9685d"
+  "version": "e13c0dd77e66595a"
 }

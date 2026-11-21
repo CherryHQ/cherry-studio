@@ -1,4 +1,5 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
@@ -115,6 +116,44 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(resolveApiKeyMock).not.toHaveBeenCalled()
     }
   )
+
+  it('requests native image output from a dual-protocol OpenRouter chat model', async () => {
+    const provider = makeProvider({
+      id: 'openrouter',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openrouter.ai/api/v1',
+          adapterFamily: 'openrouter'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'openrouter::google/gemini-3.1-flash-image',
+      providerId: 'openrouter',
+      apiModelId: 'google/gemini-3.1-flash-image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      outputModalities: ['text', 'image']
+    })
+    const config = await providerToAiSdkConfig(provider, model)
+    let requestBody: unknown
+    const client = createOpenRouter({
+      ...(config.providerSettings as Record<string, unknown>),
+      fetch: async (_url, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        return Response.json({
+          id: 'image-chat',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Done' }, finish_reason: 'stop' }]
+        })
+      }
+    })
+
+    await client.chat(model.apiModelId!).doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Draw a cat' }] }]
+    })
+
+    expect(requestBody).toMatchObject({ modalities: ['text', 'image'] })
+  })
 
   it('does not route an ordinary CherryAI model from its display group', async () => {
     const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })

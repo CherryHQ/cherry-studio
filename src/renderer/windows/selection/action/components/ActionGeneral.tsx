@@ -18,6 +18,7 @@ import { cn } from '@renderer/utils/style'
 import { SELECTION_ACTION_RUNNER } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types/selection'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import { ResultReadAloudButton } from './ResultReadAloudButton'
@@ -46,14 +47,25 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const assistantId =
     !action.isBuiltIn && action.runner === SELECTION_ACTION_RUNNER.ASSISTANT ? action.assistantId : undefined
-  const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(assistantId ?? '')
-  const shouldUseFallback = action.isBuiltIn && !!quickAssistantId
-  const { assistant: fallbackAssistant, isLoading: isFallbackLoading } = useAssistant(
-    shouldUseFallback ? quickAssistantId : ''
-  )
+  const {
+    assistant: chosenAssistant,
+    isLoading: isChosenLoading,
+    model: defaultModel,
+    isModelPending: isDefaultModelPending
+  } = useAssistant(assistantId ?? '', { loadDefaultModel: action.isBuiltIn })
+  const {
+    assistant: fallbackAssistant,
+    model: fallbackModel,
+    isModelPending: isFallbackModelPending
+  } = useAssistant(action.isBuiltIn ? quickAssistantId : '', { loadDefaultModel: false })
+  const textModel = fallbackAssistant ? fallbackModel : defaultModel
+  const textModelId = action.isBuiltIn ? textModel?.id : undefined
   const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
   const waitingForConfiguredAssistant =
-    (Boolean(assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
+    (Boolean(assistantId) && isChosenLoading) ||
+    (action.isBuiltIn && (isFallbackModelPending || (!fallbackAssistant && isDefaultModelPending)))
+  const cannotRunTextAction =
+    action.isBuiltIn && !waitingForConfiguredAssistant && (!textModel || isNonChatModel(textModel))
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
   const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
@@ -125,17 +137,30 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   )
 
   const isStreaming = isPending
-  const error = completionError
+  const error = cannotRunTextAction ? t('selection.action.agent_issue.no_model') : completionError
 
   const fetchResult = useCallback(() => {
-    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
+    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant || cannotRunTextAction) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
     setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
-    // topicId is captured by the command hook; Main resolves assistant/model from topic.assistantId.
-    void sendMessage({ text: promptContent })
-  }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
+    if (textModelId) {
+      // Submit the model checked above even if the assistant or default preference changes.
+      void sendMessage({ text: promptContent }, { body: { mentionedModels: [textModelId] } })
+    } else {
+      void sendMessage({ text: promptContent })
+    }
+  }, [
+    cannotRunTextAction,
+    chosenAssistantId,
+    promptContent,
+    ready,
+    sendMessage,
+    temporaryTopicId,
+    textModelId,
+    waitingForConfiguredAssistant
+  ])
 
   useEffect(() => {
     // Kick the result-renderer chunk off immediately — rendering waits for the

@@ -48,6 +48,8 @@ function emptyOrphanFileReport(): MockFileSweepReport {
  * Deterministic path so assertions can predict it.
  */
 const mockFileManager = {
+  createInternalEntry: vi.fn(),
+  getPhysicalPath: vi.fn(),
   publishIntake: vi.fn(),
   retainTemporaryEntry: vi.fn((_id: FileEntryId) => ({ dispose: vi.fn() })),
   getById: vi.fn(),

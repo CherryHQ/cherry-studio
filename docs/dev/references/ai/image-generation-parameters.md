@@ -6,6 +6,7 @@ sources:
   - src/shared/ai/seedreamImageContract.ts
   - src/main/ai/AiService.ts
   - src/renderer/pages/paintings
+  - src/main/ai/imageTurn
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
 ---
@@ -21,6 +22,18 @@ The goal: adding a new image model (or a whole new vendor) should be a **data**
 change. A new param that several models share is a one-row catalog addition that
 flows to the form, the validation, the wire body, and the static types at once.
 Vendor wire-format quirks live in exactly one declarative place each.
+
+A dedicated image model started from a chat turn seeds its parameters from the
+selected mode's registry defaults only (`imageTurnParamValues` in
+`src/main/ai/imageTurn/imageTurn.ts`) — there is no per-turn form, so the user
+cannot edit them. Those values still flow through the same canonical
+`paramValues` → `splitParamValues` path as the paintings form. Per-turn
+parameter controls remain owned by the paintings form.
+
+In chat, attached images select `edit` when the model declares that mode.
+Generate-only models with registry mode metadata accept a reference when the
+generate mode declares `maxInputImages` or the model declares image input.
+Both modes cap references with their own `maxInputImages`.
 
 ---
 
@@ -253,6 +266,11 @@ The native OpenAI SDK reads camelCase image options. Its profile therefore maps
 ### 4. Transport delivery (async / bespoke wire shape)
 
 When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+
+Stopping a job ends local polling. DashScope also receives a remote cancel
+request for a submitted task. DashScope can cancel queued tasks and rejects
+cancellation after processing starts. The job logs whether the provider
+confirmed the cancellation.
 
 The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 

@@ -32,7 +32,11 @@ export interface ProviderCapabilities {
   enableReasoning: boolean
   /** Whether provider-native web search should be enabled. */
   enableWebSearch: boolean
-  /** Whether the model should generate images inline. */
+  /**
+   * Whether the model's native chat response should include generated images
+   * (Gemini `responseModalities`). Unrelated to the `generate_image` tool, which is
+   * gated on `assistant.settings.enableGenerateImage`.
+   */
   enableGenerateImage: boolean
 }
 

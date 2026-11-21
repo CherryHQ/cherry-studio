@@ -2,6 +2,7 @@ import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { isImageGenerationOnlyModel } from '@shared/utils/model'
 
 import type { ConversationRef } from '../types'
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
@@ -42,7 +43,7 @@ export async function resolveRequestContextSettings(
   })
 
   let compressionModel: CompressionModelDescriptor | null = null
-  if (contextSettings.enabled && contextSettings.compress.enabled) {
+  if (!isImageGenerationOnlyModel(model) && contextSettings.enabled && contextSettings.compress.enabled) {
     // Explicit pick, else fall back to the current request model.
     //
     // Blank counts as "no pick", not as a pick of "". `??` alone would only

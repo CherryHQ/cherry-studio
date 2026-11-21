@@ -16501,8 +16501,8 @@
       "id": "chatgpt-image-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "chatgpt-image-latest",
-      "outputModalities": ["text", "image"],
+      "name": "ChatGPT Image Latest",
+      "outputModalities": ["image"],
       "ownedBy": "openai"
     },
     {
@@ -18656,7 +18656,7 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 1.5",
-      "outputModalities": ["image", "text"],
+      "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -18740,7 +18740,7 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT-Image-1-Mini",
-      "outputModalities": ["text", "image"],
+      "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -24019,5 +24019,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "92d2386de7dd37d4"
+  "version": "701a833645ae547d"
 }

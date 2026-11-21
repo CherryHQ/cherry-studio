@@ -9,7 +9,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/skill'
 import type { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
-import { isNonChatModel } from '@shared/utils/model'
+import { isChatSelectableModel } from '@shared/utils/model'
 
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 
@@ -60,7 +60,7 @@ export function ResourceCatalogDialogs({
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}
         isSubmitting={dialogs.creatingResource}
-        modelFilter={dialogs.createDialogKind === 'agent' ? undefined : (candidate) => !isNonChatModel(candidate)}
+        modelFilter={dialogs.createDialogKind === 'agent' ? undefined : (candidate) => isChatSelectableModel(candidate)}
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
       />

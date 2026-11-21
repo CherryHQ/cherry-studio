@@ -5,6 +5,7 @@ import type { ContextSettingsOverride } from '@shared/data/types/contextSettings
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import { relocateInlineImages } from '../relocateInlineImages'
 import { trimOversizedToolOutputs } from '../trimToolOutputs'
 
 export interface MessageServiceBackendOptions {
@@ -32,7 +33,9 @@ export class MessageServiceBackend implements PersistenceBackend {
     // Offload oversized tool outputs BEFORE the synchronous finalize tx (the
     // FileManager write is async); the tx then writes the envelope data and
     // its tool_output file refs together.
-    const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
+    const parts = await relocateInlineImages(
+      await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
+    )
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,

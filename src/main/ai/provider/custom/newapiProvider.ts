@@ -26,6 +26,8 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { applyReasoningModelMaxTokensConversion, OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
+import { normalizeNewApiDataImages } from './newApiDataImage'
+
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
 
 export type NewApiEndpointType =
@@ -70,6 +72,8 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   })
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const compatibleFetch: FetchFunction = async (input, init) =>
+    normalizeNewApiDataImages(await (customFetch ?? globalThis.fetch)(input, init))
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
@@ -113,7 +117,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       provider: `${NEWAPI_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
-      fetch: customFetch,
+      fetch: compatibleFetch,
       transformRequestBody: applyReasoningModelMaxTokensConversion
     })
 

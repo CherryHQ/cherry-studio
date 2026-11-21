@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 vi.mock('@application', () => ({
@@ -60,5 +60,79 @@ describe('resolveCapabilities — provider-builtin web search config key', () =>
     })
 
     expect(capabilities.webSearchPluginConfig).toBeUndefined()
+  })
+})
+
+describe('resolveCapabilities — native image output', () => {
+  it.each(['google', 'newapi', 'aihubmix', 'dmxapi'] as const)(
+    'enables native Gemini image responses through %s',
+    (id) => {
+      const model = {
+        id: 'google::gemini-3.1-flash-image',
+        providerId: 'google',
+        apiModelId: 'gemini-3.1-flash-image',
+        capabilities: ['image-generation'],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+        outputModalities: ['text', 'image']
+      } as unknown as Model
+      const provider = {
+        id,
+        presetProviderId: id,
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+      } as unknown as Provider
+
+      expect(resolveCapabilities(model, provider, assistant, { runtimeProviderId: id }).enableGenerateImage).toBe(true)
+    }
+  )
+
+  it('enables native image output on a Google image-chat model without a redundant text declaration', () => {
+    const model = {
+      id: 'google::gemini-3-pro-image-preview',
+      providerId: 'google',
+      apiModelId: 'gemini-3-pro-image-preview',
+      capabilities: ['image-generation'],
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+      outputModalities: ['image']
+    } as unknown as Model
+    const provider = {
+      id: 'google',
+      presetProviderId: 'google',
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+    } as unknown as Provider
+
+    expect(resolveCapabilities(model, provider, assistant).enableGenerateImage).toBe(true)
+  })
+
+  it('leaves image-only and non-Gemini models on their dedicated image route', () => {
+    const provider = { id: 'openrouter', presetProviderId: 'openrouter' } as unknown as Provider
+    const base = {
+      id: 'openrouter::google/gemini-3.1-flash-image',
+      providerId: 'openrouter',
+      apiModelId: 'google/gemini-3.1-flash-image',
+      capabilities: ['image-generation']
+    }
+
+    expect(
+      resolveCapabilities(
+        {
+          ...base,
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+          outputModalities: ['image']
+        } as Model,
+        provider,
+        assistant
+      ).enableGenerateImage
+    ).toBe(false)
+    expect(
+      resolveCapabilities(
+        {
+          ...base,
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+          outputModalities: ['text', 'image']
+        } as Model,
+        provider,
+        assistant
+      ).enableGenerateImage
+    ).toBe(false)
   })
 })
