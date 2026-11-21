@@ -4,6 +4,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { TOptions } from 'i18next'
 import { Children, isValidElement, type ComponentType, type ReactElement, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +13,12 @@ import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
+import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -520,12 +523,12 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 })
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    const values: Record<string, unknown> = {
+  usePreference: (key: UnifiedPreferenceKeyType) => {
+    const values: Partial<UnifiedPreferenceType> = {
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.send_message_shortcut': ['Enter'],
       'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'chat.message.render_as_markdown': mocks.renderAsMarkdown,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
@@ -649,7 +652,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, options?: Record<string, unknown>) => {
+      t: (key: string, options?: TOptions) => {
         if (key === 'common.selectedItems') return `${options?.count ?? 0} selected`
         return String(options?.defaultValue ?? key)
       },
@@ -2848,7 +2851,7 @@ describe('ChatComposer', () => {
   })
 
   it('edits provider-signed reasoning and saves a think replay marker', async () => {
-    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const editMessage = vi.fn<ChatWriteActions['editMessage']>().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend: vi.fn() }
 
     const message = {
@@ -2885,10 +2888,7 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'edited answer', tokens: [] })
     })
 
-    const [, savedParts] = editMessage.mock.calls[0] as unknown as [
-      string,
-      Array<{ type: string; text?: string; providerMetadata?: { cherry?: Record<string, unknown> } }>
-    ]
+    const [, savedParts] = editMessage.mock.calls[0]
     expect(savedParts.find((part) => part.type === 'reasoning')?.providerMetadata?.cherry).toMatchObject({
       editedReasoningReplay: 'think'
     })
@@ -3960,7 +3960,7 @@ describe('ChatComposer', () => {
   it('preserves Cherry file metadata when resending an edited message with an existing attachment', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
-    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn<ChatWriteActions['forkAndResend']>().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
     const message = {
       id: 'message-1',
@@ -4002,7 +4002,7 @@ describe('ChatComposer', () => {
       })
     })
 
-    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, unknown>>
+    const editedParts = forkAndResend.mock.calls[0][1]
     expect(editedParts.find((part) => part.type === 'file')).toEqual({
       ...filePart,
       providerMetadata: {
@@ -4024,7 +4024,7 @@ describe('ChatComposer', () => {
   it('keeps edited message file tokens at their persisted text offsets', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
-    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn<ChatWriteActions['forkAndResend']>().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
     const message = {
       id: 'message-1',
@@ -4105,7 +4105,7 @@ describe('ChatComposer', () => {
       })
     })
 
-    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const editedParts = forkAndResend.mock.calls[0][1]
     expect(editedParts[0]).toMatchObject({
       type: 'text',
       text: 'test.pdf 你好',
@@ -4133,7 +4133,7 @@ describe('ChatComposer', () => {
   it('re-links multiple edited file tokens to their original parts by source id regardless of order', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
-    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn<ChatWriteActions['forkAndResend']>().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
     const message = {
       id: 'message-1',
@@ -4209,7 +4209,7 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'a.pdf b.png', tokens: [rewrittenPdfToken!, rewrittenPngToken!] })
     })
 
-    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const editedParts = forkAndResend.mock.calls[0][1]
     const fileParts = editedParts.filter((part) => part.type === 'file')
     // Both originals are reused by file fields, each linked through legacy hints while the
     // editable draft and resent parts use fresh file token sources.
@@ -4240,7 +4240,7 @@ describe('ChatComposer', () => {
   it('falls back to the sole remaining file token when no source id matches', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
-    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn<ChatWriteActions['forkAndResend']>().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
     const message = {
       id: 'message-1',
@@ -4296,7 +4296,7 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'x.pdf 你好', tokens: [rewrittenToken!] })
     })
 
-    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const editedParts = forkAndResend.mock.calls[0][1]
     // The attachment is preserved, not dropped, via the unambiguous fallback while the
     // resent part records the canonical file token source.
     expect(editedParts.find((part) => part.type === 'file')).toEqual({
@@ -4315,7 +4315,7 @@ describe('ChatComposer', () => {
   it('keeps editable knowledge tokens when forking and resending an edited message', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
-    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn<ChatWriteActions['forkAndResend']>().mockResolvedValue(undefined)
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -4387,7 +4387,7 @@ describe('ChatComposer', () => {
       })
     })
 
-    const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
+    const editedParts = forkAndResend.mock.calls[0][1]
     expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array), {
       reasoningEffort: 'default',
       serviceTier: 'standard',
