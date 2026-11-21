@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c516e6e2-fff0-4f9d-a51e-5b793d371b7c",
+  "id": "da0ca127-9aa9-4030-800b-b57b79ac14fb",
   "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
@@ -3034,7 +3034,7 @@
       "checkConstraints": {
         "asmfr_role_check": {
           "name": "asmfr_role_check",
-          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar', 'generated')"
+          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar')"
         }
       }
     },
@@ -3229,7 +3229,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar', 'generated')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar')"
         }
       }
     },
@@ -4767,6 +4767,13 @@
         },
         "disabled_auto_approve_tools": {
           "name": "disabled_auto_approve_tools",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "skill_permissions": {
+          "name": "skill_permissions",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
