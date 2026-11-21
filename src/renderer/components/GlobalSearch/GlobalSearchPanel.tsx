@@ -224,17 +224,20 @@ function getOpenItemLogContext(item: GlobalSearchKeyboardItem) {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi and navigation may reject with arbitrary values; preserve the original failure alongside the selected target context.
-function logOpenFailure(error: unknown, context: Record<string, unknown>) {
+function logOpenFailure(error: unknown, context: NonNullable<Parameters<typeof logger.withContext>[1]>) {
   logger.error('Failed to open global search result', error instanceof Error ? error : { error }, context)
 }
 
-function reportGlobalSearchSelectionFailure(emission: Promise<void>, context: Record<string, unknown>) {
+function reportGlobalSearchSelectionFailure(
+  emission: Promise<void>,
+  context: NonNullable<Parameters<typeof logger.withContext>[1]>
+) {
   void emission.catch((error) => {
     logger.error('Failed to emit global search selection event', error, context)
   })
 }
 
-function logMissingSelectionTarget(context: Record<string, unknown>) {
+function logMissingSelectionTarget(context: NonNullable<Parameters<typeof logger.withContext>[1]>) {
   logger.warn('Skipped global search selection event without target tab', context)
 }
 
