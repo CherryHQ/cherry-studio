@@ -2888,13 +2888,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const events = cache.getShared(key) ?? {}
     // Merge instead of replace: identity fields and the row title may exist only on the start edge.
     // A completion overwriting it wholesale would strip the task of its type and display name.
-    const merged: AgentTaskEventPartData & Record<string, unknown> = {
+    const merged: AgentTaskEventPartData = {
       ...events[data.taskId],
       event: data.event,
       taskId: data.taskId
     }
     for (const [field, value] of Object.entries(data)) {
-      if (value !== undefined) merged[field] = value
+      if (value !== undefined) {
+        Object.defineProperty(merged, field, { value, enumerable: true, writable: true, configurable: true })
+      }
     }
     cache.setShared(key, { ...events, [data.taskId]: merged })
     const projections = [...(entry.rootProjections?.values() ?? [])]

@@ -21,7 +21,8 @@ export interface ExecCodeContext<TToolResult> {
   abortSignal?: AbortSignal
   executeTool(
     name: string,
-    params: Record<string, unknown>,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Scripts pass structured-clone values; this worker transport must not claim the selected tool's input schema has run.
+    params: unknown,
     requestId: string,
     signal: AbortSignal
   ): Promise<TToolResult>
@@ -32,7 +33,7 @@ interface WorkerCallToolMessage {
   type: 'callTool'
   requestId: string
   name: string
-  params: Record<string, unknown>
+  params: unknown
 }
 
 interface WorkerLogMessage {

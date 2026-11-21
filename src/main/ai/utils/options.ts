@@ -231,6 +231,7 @@ export function isCustomProviderNamespace(
  */
 export function mergeCustomProviderParameters(
   providerOptions: ProviderOptions,
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This SDK compatibility bridge forwards unvalidated custom fields, callbacks and toJSON values without coercion; provider-specific serialization owns their interpretation.
   providerParams: Record<string, any>,
   rawProviderId: string,
   adapterFamily: AppProviderId = rawProviderId

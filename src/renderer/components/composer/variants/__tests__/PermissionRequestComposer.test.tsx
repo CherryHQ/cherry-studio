@@ -98,6 +98,25 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  it('keeps array-shaped builtin arguments visible through the generic preview', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          toolResponse: {
+            id: 'read-approval',
+            toolCallId: 'read-approval',
+            status: 'pending',
+            arguments: [{ file_path: '/tmp/review-me.txt' }],
+            tool: { id: 'Read', name: 'Read', type: 'builtin' }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('permission-preview')).toHaveTextContent('/tmp/review-me.txt')
+  })
+
   // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
   it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
     const user = userEvent.setup()
