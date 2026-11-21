@@ -258,7 +258,8 @@ describe('useProviderConnectionCheck', () => {
         expect.objectContaining({
           key: original.key,
           type: 'error',
-          title: 'settings.provider.enable_failed_after_connection'
+          title: 'settings.provider.enable_failed_after_connection',
+          cause: new Error('Enablement unavailable')
         })
       ])
     expect(result.current.singleModelResult?.kind).toBe('ok')

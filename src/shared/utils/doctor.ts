@@ -17,7 +17,14 @@ import {
   type DoctorScopeKey,
   type DoctorSubjectRef
 } from '../types/doctor'
-import type { DoctorAgentIncident, DoctorAgentKey } from '../types/doctorAgent'
+import type {
+  DoctorAgentIncident,
+  DoctorAgentKey,
+  DoctorAgentOwnedRunFailure,
+  DoctorAgentProposal,
+  DoctorAgentState,
+  DoctorOperationIncident
+} from '../types/doctorAgent'
 
 export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
   return typeof value === 'string' && Object.hasOwn(DOCTOR_CHECK_CATALOG, value)
@@ -27,6 +34,7 @@ export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
 export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
   if (ref.kind === 'global') return 'global'
   if (ref.kind === 'chat') return `chat:${ref.providerId}/${ref.modelId}`
+  if (ref.kind === 'operation') return `operation:${ref.operationId}`
   return ref.providerId && ref.modelId
     ? `agent:${ref.agentId}:${ref.providerId}/${ref.modelId}`
     : `agent:${ref.agentId}`
@@ -41,12 +49,47 @@ export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${stri
   return `doctor.state.${cacheSegment(scope)}`
 }
 
+export function isOperationIncident(incident: DoctorAgentIncident): incident is DoctorOperationIncident {
+  return 'kind' in incident && incident.kind === 'operation'
+}
+
 export function doctorAgentKey(scope: DoctorScopeKey, incident?: DoctorAgentIncident): DoctorAgentKey {
-  return incident ? `${scope}#${incident.messageId}` : scope
+  if (!incident) return scope
+  const id = isOperationIncident(incident) ? incident.context.id : (incident.errorId ?? incident.messageId)
+  return `${scope}#${id}`
 }
 
 export function isDoctorAgentKey(value: unknown): value is DoctorAgentKey {
   return isDoctorScopeKey(value) || (typeof value === 'string' && value.startsWith('global#'))
+}
+
+type FailedDoctorAgentState = Extract<DoctorAgentState, { status: 'failed' }>
+
+/** What the panel may show under a translated headline. `external` is evidence the service did not invent. */
+type DoctorFailureDetail =
+  | {
+      readonly source: 'service'
+      readonly failure: DoctorAgentOwnedRunFailure | { readonly kind: 'report_superseded' }
+    }
+  | { readonly source: 'external'; readonly text: string }
+
+export function doctorRunFailureDetail(
+  failure: Pick<FailedDoctorAgentState, 'error' | 'errorSource' | 'ownedFailure'>
+): DoctorFailureDetail {
+  if (failure.errorSource === 'external') return { source: 'external', text: failure.error }
+  return { source: 'service', failure: failure.ownedFailure ?? { kind: 'unknown' } }
+}
+
+export function doctorProposalFailureDetail(
+  proposal: Pick<DoctorAgentProposal, 'error' | 'errorSource' | 'ownedError'>
+): DoctorFailureDetail | undefined {
+  if (proposal.errorSource === 'external') {
+    return proposal.error ? { source: 'external', text: proposal.error } : undefined
+  }
+  if (proposal.errorSource !== 'service') return undefined
+  return proposal.ownedError === 'report_superseded'
+    ? { source: 'service', failure: { kind: 'report_superseded' } }
+    : { source: 'service', failure: { kind: 'unknown' } }
 }
 
 /** Sibling of `doctorStateCacheKey`: one AI analysis, of a scope's report or of one failed message. */
@@ -55,7 +98,7 @@ export function doctorAgentStateCacheKey(key: DoctorAgentKey): `doctor.agent.${s
 }
 
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
-  return value === 'global' || (typeof value === 'string' && /^(chat|agent):./.test(value))
+  return value === 'global' || (typeof value === 'string' && /^(chat|agent|operation):./.test(value))
 }
 
 export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: DoctorFixId<Id>): DoctorFixMeta {

@@ -2157,7 +2157,9 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }), {
+      title: 'chat.input.send_failed'
+    })
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
+import { AlertCircle, Info, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useRef } from 'react'
 
@@ -12,7 +12,15 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 import i18n from '@renderer/i18n/resolver'
+import {
+  detailErrorFromHost,
+  isDetailSuppressed,
+  localizedSummaryFromHost,
+  appErrorContextService
+} from '@renderer/services/AppErrorContextService'
+import { openLoadedErrorDetail } from '@renderer/services/appErrorDetailOpen'
 import type { ConfirmPopupEntry, ConfirmPopupProps, ConfirmPopupType } from '@renderer/services/popup'
 import { popupService } from '@renderer/services/popup'
 
@@ -24,7 +32,7 @@ function getIcon(type: ConfirmPopupType, icon: React.ReactNode) {
 
   switch (type) {
     case 'error':
-      return <XCircle className={cn(className, 'text-destructive')} />
+      return <AlertCircle className={cn(className, 'text-error')} />
     case 'warning':
       return <TriangleAlert className={cn(className, 'text-warning')} />
     case 'info':
@@ -78,6 +86,15 @@ function getCancelText(props: ConfirmPopupProps) {
 export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }) {
   const { props, confirmType: type, instanceId, open } = entry
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const showDetails = type === 'error' && !isDetailSuppressed(props.data)
+  const presentedContext = showDetails
+    ? appErrorContextService.contextForHostError(instanceId, {
+        cause: props.cause,
+        data: props.data,
+        description: props.content,
+        title: props.title
+      })
+    : undefined
 
   const icon = getIcon(type, props.icon)
   const showOkButton = shouldShowOkButton(props)
@@ -101,14 +118,15 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
   )
 
   return (
+    // Later dialogs use the library z-80 layer and portal onto the page. A higher layer covers
+    // error details and the report, Doctor, and update dialogs opened from them.
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         data-confirm-popup="true"
         motion="fade-scale"
         showCloseButton={props.closable === true}
         closeOnOverlayClick={props.maskClosable !== false}
-        overlayClassName="z-[90]"
-        className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg', props.rootClassName, props.className)}
+        className={cn('confirm-popup gap-5 sm:max-w-lg', props.rootClassName, props.className)}
         style={getContentStyle(props)}
         onOpenAutoFocus={(event) => {
           if (props.autoFocusConfirm && confirmButtonRef.current && !confirmButtonRef.current.disabled) {
@@ -151,8 +169,27 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
           </div>
         </DialogHeader>
 
-        {(showOkButton || showCancelButton) && (
+        {(showOkButton || showCancelButton || showDetails) && (
           <DialogFooter>
+            {showDetails ? (
+              <ErrorDetailLink
+                className="me-auto"
+                label={i18n.t('error.diagnosis.view_details')}
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (!presentedContext) return
+                  const error = detailErrorFromHost(props.cause, props.data)
+                  const localizedErrorMessage =
+                    localizedSummaryFromHost({ data: props.data, description: props.content, title: props.title }) ??
+                    i18n.t('error.unexpected')
+                  openLoadedErrorDetail(
+                    error
+                      ? { context: presentedContext, error, localizedErrorMessage }
+                      : { context: presentedContext, localizedErrorMessage }
+                  )
+                }}
+              />
+            ) : null}
             {showCancelButton && (
               <Button
                 variant="outline"

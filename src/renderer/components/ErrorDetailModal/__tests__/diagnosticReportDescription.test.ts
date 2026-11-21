@@ -5,9 +5,12 @@ import { diagnosticDescriptionByteLength } from '@shared/utils/diagnostics'
 
 import {
   buildDiagnosticReportDescription,
+  buildErrorContextReportDescription,
   DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES,
   type DiagnosticReportDescriptionLabels,
+  diagnosticMachineLocationId,
   diagnosticReportFields,
+  formatDiagnosticReportLocation,
   resolveDiagnosticReportLocation
 } from '../diagnosticReportDescription'
 
@@ -114,6 +117,23 @@ describe('buildDiagnosticReportDescription', () => {
     expect(description).not.toContain('secret response payload')
   })
 
+  it('prefills the error message without secrets or home directories', () => {
+    const description = buildDiagnosticReportDescription({
+      error: {
+        name: 'ProviderError',
+        message: 'cannot open /Users/alice/a.pdf with Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456',
+        stack: null
+      },
+      localizedErrorMessage: '无法打开 /Users/alice/a.pdf',
+      labels,
+      location: 'Home conversation'
+    })
+
+    expect(description).toContain('Error message: 无法打开 ~/a.pdf (cannot open ~/a.pdf')
+    expect(description).not.toContain('alice')
+    expect(description).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+  })
+
   it('omits unavailable context', () => {
     expect(
       buildDiagnosticReportDescription({
@@ -137,24 +157,62 @@ describe('buildDiagnosticReportDescription', () => {
   })
 })
 
+describe('buildErrorContextReportDescription', () => {
+  it('prefills the upload description from the redacted error, not the raw message', () => {
+    const description = buildErrorContextReportDescription(
+      {
+        id: 'err-1',
+        occurredAt: '2026-10-14T00:00:00.000Z',
+        source: 'file.preview',
+        operation: 'file.preview.load_error',
+        message: 'cannot open /Users/alice/a.pdf with Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456'
+      },
+      { errorMessage: 'Error message', model: 'Model', operation: 'Operation', source: 'Source' }
+    )
+
+    expect(description).toContain('Error message: cannot open ~/a.pdf')
+    expect(description).not.toContain('alice')
+    expect(description).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+  })
+})
+
 describe('resolveDiagnosticReportLocation', () => {
-  const t = (key: string, options?: { defaultValue?: string }) =>
-    key === 'error.diagnostic_report.locations.work'
-      ? '工作对话'
-      : key === 'error.diagnostic_report.locations.home'
-        ? '普通对话'
-        : (options?.defaultValue ?? key)
+  const labels: Record<string, string> = {
+    'error.diagnostic_report.locations.application': '应用',
+    'error.diagnostic_report.locations.files': '文件',
+    'error.diagnostic_report.locations.home': '普通对话',
+    'error.diagnostic_report.locations.painting': '图像',
+    'error.diagnostic_report.locations.runtime': '运行时',
+    'error.diagnostic_report.locations.work': '工作对话'
+  }
+  const t = (key: string, options?: { defaultValue?: string }) => labels[key] ?? options?.defaultValue ?? key
 
   it('maps Agent location ids and leftover Chinese copy to the work-conversation label', () => {
     expect(resolveDiagnosticReportLocation(t, 'agent', 'zh-CN')).toBe('工作对话')
     expect(resolveDiagnosticReportLocation(t, 'Agent 对话', 'zh-CN')).toBe('工作对话')
+    expect(diagnosticMachineLocationId('agent')).toBeUndefined()
   })
 
   it('maps the home location id', () => {
     expect(resolveDiagnosticReportLocation(t, 'home')).toBe('普通对话')
+    expect(diagnosticMachineLocationId('home')).toBeUndefined()
+  })
+
+  it('maps painting, files, and runtime module ids', () => {
+    expect(resolveDiagnosticReportLocation(t, 'painting')).toBe('图像')
+    expect(resolveDiagnosticReportLocation(t, 'files')).toBe('文件')
+    expect(resolveDiagnosticReportLocation(t, 'runtime')).toBe('运行时')
+    expect(diagnosticMachineLocationId('painting')).toBeUndefined()
+  })
+
+  it('uses a generic heading for a route id and keeps that id', () => {
+    expect(resolveDiagnosticReportLocation(t, 'main:/settings/provider')).toBe('应用')
+    expect(diagnosticMachineLocationId('main:/settings/provider')).toBe('main:/settings/provider')
+    expect(formatDiagnosticReportLocation(t, 'main:/settings/provider')).toBe('应用 (main:/settings/provider)')
   })
 
   it('leaves already-translated locations unchanged', () => {
     expect(resolveDiagnosticReportLocation(t, 'Agent conversation')).toBe('Agent conversation')
+    expect(diagnosticMachineLocationId('Agent conversation')).toBeUndefined()
   })
 })

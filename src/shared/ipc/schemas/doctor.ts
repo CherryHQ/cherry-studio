@@ -28,7 +28,16 @@ const agentSubjectSchema = z.union([
     })
     .strict()
 ])
-const contextualSubjectSchema = z.union([chatSubjectSchema, agentSubjectSchema])
+const operationSubjectSchema = z
+  .object({
+    kind: z.literal('operation'),
+    operationId: z.string().min(1),
+    providerId: z.string().min(1).optional(),
+    modelId: z.string().min(1).optional(),
+    imageOnly: z.boolean().optional()
+  })
+  .strict()
+const contextualSubjectSchema = z.union([chatSubjectSchema, agentSubjectSchema, operationSubjectSchema])
 const subjectRefSchema = z.union([z.object({ kind: z.literal('global') }).strict(), contextualSubjectSchema])
 const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)
 

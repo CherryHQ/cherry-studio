@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   handleRequest: vi.fn(),
   requestWrite: vi.fn(),
   reportBinding: vi.fn(),
-  diagnoseEndpoint: vi.fn()
+  diagnoseEndpoint: vi.fn(),
+  incidentForSession: vi.fn((): unknown => undefined)
 }))
 
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-userdata-'))
@@ -30,7 +31,7 @@ vi.mock('@application', async () => {
       requestWrite: mocks.requestWrite,
       reportBindingForSession: mocks.reportBinding,
       reportForSession: vi.fn(),
-      incidentForSession: () => undefined
+      incidentForSession: mocks.incidentForSession
     },
     NetworkService: { diagnoseEndpoint: mocks.diagnoseEndpoint }
   } as never)
@@ -61,6 +62,7 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   mocks.requestWrite.mockResolvedValue({ status: 'proposed', proposal: { id: 'p1' } })
   mocks.reportBinding.mockReturnValue({ scope: 'global', reportRunId: 'run-1' })
+  mocks.incidentForSession.mockReturnValue(undefined)
 })
 
 describe('doctor data_api tool', () => {
@@ -277,12 +279,36 @@ describe('doctor server binding', () => {
 })
 
 describe('doctor session tool', () => {
-  it('refuses to read any conversation when the analysis was not opened from a failed message', async () => {
+  it('omits the session tool when the analysis has no conversation', async () => {
     const client = await connect()
-    const result = await client.callTool({ name: 'session', arguments: { action: 'overview' } })
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('not opened from a failed message')
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name)).not.toContain('session')
     await client.close()
+  })
+
+  it('advertises the session tool only when the analysis has a conversation', async () => {
+    const names = async () => {
+      const client = await connect()
+      const listed = await client.listTools()
+      const toolNames = listed.tools.map((tool) => tool.name)
+      await client.close()
+      return toolNames
+    }
+
+    mocks.incidentForSession.mockReturnValue({ topicId: 'topic-1', messageId: 'message-1' })
+    expect(await names()).toContain('session')
+
+    mocks.incidentForSession.mockReturnValue({
+      kind: 'operation',
+      context: {
+        id: 'op-1',
+        occurredAt: '2026-10-14T00:00:00.000Z',
+        source: 'painting',
+        operation: 'painting.generate',
+        message: 'upstream failed'
+      }
+    })
+    expect(await names()).not.toContain('session')
   })
 })
 
