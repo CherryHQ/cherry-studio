@@ -291,6 +291,21 @@ Numbered list:
     })
 
     describe('Gemini format citations', () => {
+      it('skips malformed grounding entries while retaining valid citation placement', () => {
+        const metadata = Object.freeze([
+          null,
+          42,
+          { groundingChunkIndices: 'invalid', segment: { endIndex: 5 } },
+          { groundingChunkIndices: [0], segment: { endIndex: '5' } },
+          { groundingChunkIndices: [0], segment: { endIndex: 5 } }
+        ])
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', metadata }]
+
+        expect(normalizeCitationMarks('Hello world', createCitationMap(citations), WEB_SEARCH_SOURCE.GEMINI)).toBe(
+          'Hello[cite:1] world'
+        )
+      })
+
       it('should normalize Gemini format citations', () => {
         const content = 'This is test content from Gemini'
         const metadata: GroundingSupport[] = [

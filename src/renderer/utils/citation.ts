@@ -10,13 +10,18 @@
  * upstream is intentionally provider-agnostic.
  */
 
-import type { GroundingSupport } from '@google/genai'
+import * as z from 'zod'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
 const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
+
+const groundingSupportSchema = z.object({
+  groundingChunkIndices: z.array(z.number().int().nonnegative()),
+  segment: z.object({ endIndex: z.number().int().nonnegative() })
+})
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
 export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
@@ -143,7 +148,7 @@ export function normalizeCitationMarks(
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
       const firstCitation = Array.from(citationMap.values())[0]
-      const metadata = firstCitation?.metadata as GroundingSupport[] | undefined
+      const metadata = firstCitation?.metadata
       if (metadata?.length) {
         const encoder = new TextEncoder()
         const contentBytes = encoder.encode(content)
@@ -154,10 +159,11 @@ export function normalizeCitationMarks(
         }
 
         const insertions: Array<{ position: number; tag: string }> = []
-        metadata.forEach((support) => {
-          if (!support.groundingChunkIndices || !support.segment) return
+        metadata.forEach((entry) => {
+          const parsed = groundingSupportSchema.safeParse(entry)
+          if (!parsed.success) return
+          const support = parsed.data
           const { endIndex } = support.segment
-          if (endIndex == null) return
 
           const tag = support.groundingChunkIndices
             .map((citationNum) => {

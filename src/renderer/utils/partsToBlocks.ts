@@ -125,8 +125,8 @@ function normalizeWebResults(results: unknown): Citation[] {
   if (obj && Array.isArray(obj.groundingChunks)) {
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the array container is checked; optional chunk fields stay unvalidated and web values are inspected below.
     const chunks = obj.groundingChunks as Array<Record<string, unknown>>
-    const groundingSupports =
-      obj.groundingSupports && Array.isArray(obj.groundingSupports) ? (obj.groundingSupports as unknown[]) : undefined
+    const groundingSupports: Citation['metadata'] =
+      obj.groundingSupports && Array.isArray(obj.groundingSupports) ? obj.groundingSupports : undefined
 
     return chunks
       .map((chunk, index) => {
@@ -134,9 +134,6 @@ function normalizeWebResults(results: unknown): Citation[] {
         const web = chunk?.web && typeof chunk.web === 'object' ? (chunk.web as Record<string, unknown>) : undefined
         const url = typeof web?.uri === 'string' ? web.uri : ''
         if (!url) return null
-        // NOTE: metadata is actually an array (groundingSupports) despite Citation.metadata
-        // being Record<string, any>. Downstream citation.ts calls metadata.forEach() directly.
-        // TODO: fix Citation.metadata type to support this shape properly.
         const citation: Citation = {
           number: index + 1,
           url,

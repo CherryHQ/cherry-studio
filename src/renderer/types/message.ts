@@ -31,7 +31,8 @@ export interface Citation {
   content?: string
   showFavicon?: boolean
   type?: string
-  metadata?: Record<string, any>
+  /** Raw grounding-support entries; readers validate them before using byte offsets. */
+  metadata?: readonly unknown[]
 }
 
 /**
