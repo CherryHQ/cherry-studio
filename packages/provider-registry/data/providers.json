@@ -913,6 +913,29 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LLMTR - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://llmtr.com/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "llmtr",
+      "metadata": {
+        "website": {
+          "apiKey": "https://llmtr.com/dashboard/keys",
+          "docs": "https://llmtr.com",
+          "official": "https://llmtr.com/"
+        }
+      },
+      "name": "LLMTR"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -2968,5 +2991,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "0ba92b7095bbe4e6"
 }
