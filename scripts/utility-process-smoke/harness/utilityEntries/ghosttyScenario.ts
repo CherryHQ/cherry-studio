@@ -37,6 +37,10 @@ export async function checkGhostty(assetDirectory: string, onLog: (message: stri
   try {
     core.write('世界\x1b[6n')
     const unicode = core.snapshot().rowData[0].text
+    core.openSearch('smoke', '世界')
+    const searchCount = core.advanceSearch('smoke', true).count
+    const searchIndex = core.navigateSearch('smoke', 'next').selected?.index ?? null
+    core.closeSearch('smoke')
     const key = { key: 78, mods: 0, consumedMods: 0, composing: false, unshiftedCodepoint: 0, text: '', repeat: false }
     const normalKey = core.encodeKey(key)
     core.write('\x1b[?1h\x1b[?2004h')
@@ -54,6 +58,8 @@ export async function checkGhostty(assetDirectory: string, onLog: (message: stri
       node: process.version,
       revision,
       unicode,
+      searchCount,
+      searchIndex,
       reply: replies.join(''),
       normalKey,
       applicationKey,

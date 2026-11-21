@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,8 +54,11 @@ try {
       .digest('hex')
     if (actual !== expected) throw new Error(`${file} hash mismatch: expected ${expected}, got ${actual}`)
   }
-  for (const file of Object.keys(manifest.sha256))
-    copyFileSync(path.join(buildDir, 'bin', file), path.join(assetDir, file))
+  for (const file of Object.keys(manifest.sha256)) {
+    const target = path.join(assetDir, file)
+    copyFileSync(path.join(buildDir, 'bin', file), target)
+    chmodSync(target, 0o644)
+  }
 } finally {
   rmSync(buildDir, { recursive: true, force: true })
 }

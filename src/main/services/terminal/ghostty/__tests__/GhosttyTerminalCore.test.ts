@@ -6,7 +6,12 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 import manifest from '../../../../../../resources/terminal/ghostty/manifest.json'
 import { GhosttyRuntime, type GhosttyRuntimeOptions } from '../GhosttyRuntime'
-import { GHOSTTY_CELL_WIDE, GhosttyTerminalCore, type GhosttySnapshot } from '../GhosttyTerminalCore'
+import {
+  GHOSTTY_CELL_WIDE,
+  GhosttySearchCapacityError,
+  GhosttyTerminalCore,
+  type GhosttySnapshot
+} from '../GhosttyTerminalCore'
 
 let assets: GhosttyRuntimeOptions
 let runtime: GhosttyRuntime
@@ -56,6 +61,119 @@ function rowText(screen: GhosttySnapshot, row: number) {
 }
 
 describe('headless Ghostty engine', () => {
+  it('rejects an engine missing a required search entry before creating a terminal', async () => {
+    const wasm = Buffer.from(assets.wasm)
+    const symbol = Buffer.from('ghostty_search_tick')
+    const offset = wasm.indexOf(symbol)
+    expect(offset).toBeGreaterThan(0)
+    Buffer.from('ghostty_search_xxxx').copy(wasm, offset)
+    await expect(GhosttyRuntime.create({ ...assets, wasm: Uint8Array.from(wasm) })).rejects.toThrow(
+      'ghostty_search_tick'
+    )
+  })
+
+  it('searches retained history incrementally without changing viewport or interactive selection', () => {
+    const core = terminal()
+    core.write('first ERROR\r\nsecond\r\nthird error\r\nfourth\r\nfifth')
+    core.setSelection({ x: 0, y: 0 }, { x: 5, y: 0 })
+    const selection = core.selectionText()
+    const before = core.scrollbarState()
+    core.openSearch('find', 'error')
+    let result = core.advanceSearch('find', true)
+    for (let step = 0; result.status !== 'complete' && step < 30; step++)
+      result = core.advanceSearch('find', result.status === 'feed-required')
+    expect(result).toMatchObject({ status: 'complete', count: 2 })
+    const newest = core.navigateSearch('find', 'next')
+    const oldest = core.navigateSearch('find', 'next')
+    expect(newest.selected?.index).toBe(0)
+    expect(oldest.selected?.index).toBe(1)
+    expect(newest.selected?.range.start.y).toBeGreaterThan(oldest.selected?.range.start.y ?? -1)
+    expect(core.selectionText()).toBe(selection)
+    expect(core.scrollbarState()).toEqual(before)
+    core.write('\r\nnew ERROR')
+    result = core.advanceSearch('find', true)
+    for (let step = 0; result.status !== 'complete' && step < 30; step++)
+      result = core.advanceSearch('find', result.status === 'feed-required')
+    expect(result).toMatchObject({ status: 'complete', count: 3 })
+    core.closeSearch('find')
+    core.closeSearch('find')
+  })
+
+  it('recovers from native search budget exhaustion without losing either terminal', () => {
+    const core = terminal()
+    const sibling = terminal()
+    core.write('a'.repeat(300_000))
+    expect(() => {
+      core.openSearch('limited', 'a', 64 * 1024)
+      for (let step = 0; step < 1000; step++) core.advanceSearch('limited', true)
+    }).toThrow(GhosttySearchCapacityError)
+    sibling.write('sibling remains usable')
+    expect(
+      sibling
+        .snapshot()
+        .rowData.map((row) => row.text)
+        .join('')
+    ).toContain('sibling remains usable')
+    core.write('\r\nrecovered')
+    expect(
+      core
+        .snapshot()
+        .rowData.map((row) => row.text)
+        .join('\n')
+    ).toContain('recovered')
+    core.openSearch('fresh', 'recovered')
+    expect(core.advanceSearch('fresh', true).count).toBe(1)
+  })
+
+  it('frees a searched core without invalidating its sibling search', () => {
+    const first = terminal()
+    const second = terminal()
+    first.write('one')
+    second.write('two')
+    first.openSearch('one', 'one')
+    second.openSearch('two', 'two')
+    first.advanceSearch('one', true)
+    first.dispose()
+    expect(second.advanceSearch('two', true).count).toBe(1)
+    second.write('\r\ntwo')
+    expect(second.advanceSearch('two', true).count).toBe(2)
+  })
+
+  it('bounds aggregate search allocations and makes released capacity reusable', () => {
+    const budgets = Array.from({ length: 4 }, () => runtime.createBudget(4 * 1024 * 1024))
+    const last = runtime.createBudget(4 * 1024 * 1024)
+    try {
+      for (const budget of budgets) runtime.allocBudget(budget, 3 * 1024 * 1024)
+      expect(() => runtime.allocBudget(last, 4 * 1024 * 1024 - last.size)).toThrow(GhosttySearchCapacityError)
+    } finally {
+      for (const budget of [...budgets, last]) runtime.releaseBudget(budget)
+    }
+    const recovered = runtime.createBudget(4 * 1024 * 1024)
+    try {
+      const pointer = runtime.allocBudget(recovered, 3 * 1024 * 1024)
+      runtime.bytes(pointer, 3)[0] = 42
+      expect(runtime.bytes(pointer, 3)[0]).toBe(42)
+    } finally {
+      runtime.releaseBudget(recovered)
+    }
+  })
+
+  it('keeps screen search results separate and refreshes coordinates after reflow', () => {
+    const core = terminal()
+    core.write('primary match')
+    core.openSearch('screens', 'match')
+    expect(core.advanceSearch('screens', true).count).toBe(1)
+    core.write('\x1b[?1049h\x1b[HALT match match')
+    expect(core.advanceSearch('screens', true).count).toBe(2)
+    core.write('\x1b[?1049l')
+    expect(core.advanceSearch('screens', true).count).toBe(1)
+    core.resize(8, 4, 8, 16)
+    const refreshed = core.advanceSearch('screens', true)
+    expect(refreshed.count).toBe(1)
+    const selected = core.navigateSearch('screens', 'next').selected
+    expect(selected?.range).toEqual({ start: { x: 0, y: 1 }, end: { x: 4, y: 1 } })
+  })
+
   it('loads the pinned assets and rejects an ABI source revision mismatch', async () => {
     expect(createHash('sha256').update(assets.wasm).digest('hex')).toBe(manifest.sha256['ghostty-vt.wasm'])
     expect(createHash('sha256').update(assets.writePtyWasm).digest('hex')).toBe(

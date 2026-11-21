@@ -1,9 +1,9 @@
 {
-  "ghosttyRevision": "9f62873bf195e4d8a762d768a1405a5f2f7b1697",
+  "ghosttyRevision": "6d244209978e599277904ff3ced7b8a2ebcc528d",
   "t3Revision": "0a8aaa3ccb944dadb70054ae4ef2e29897b0db03",
-  "zigVersion": "0.15.2",
+  "zigVersion": "0.17.1",
   "sha256": {
-    "ghostty-vt.wasm": "51b016a6aa3c29ead71c7c8acf8c01d43b064bae19957a9c9f9e2bf469267629",
-    "ghostty-write-pty.wasm": "75cb147e98ede3f85f3cd6236a30f6d12565b0b237e1d8db941f5f3e8ad3d903"
+    "ghostty-vt.wasm": "b2b15c415afd83b16989d891b1dc6999089ae87dd65b5726246056ddc9e98e74",
+    "ghostty-write-pty.wasm": "aa8bf3c7f695641b6c0a7d3d7c0db0efed69cdd5675feec4cf0db47bbbcf2ca0"
   }
 }
