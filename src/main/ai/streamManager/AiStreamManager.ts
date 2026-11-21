@@ -1157,9 +1157,13 @@ export class AiStreamManager extends BaseService {
     return [...this.inFlightDispatches.values()].includes(topicId)
   }
 
+  getPendingTerminalDispatch(topicId: string): Promise<void> | undefined {
+    return this.terminalDispatchInFlight.get(topicId)?.settled
+  }
+
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
   whenTerminalDispatchSettled(topicId: string): Promise<void> {
-    return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
+    return this.getPendingTerminalDispatch(topicId) ?? Promise.resolve()
   }
 
   /**
@@ -1174,6 +1178,8 @@ export class AiStreamManager extends BaseService {
     parentAnchorId: string,
     compatibleSiblingsGroupId?: number
   ): Promise<LiveExecutionChangeAdmission> {
+    const saving = this.getPendingTerminalDispatch(topicId)
+    if (saving) await saving
     const intent = {
       mode: 'replace' as const,
       modelId,

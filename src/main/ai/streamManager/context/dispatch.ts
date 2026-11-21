@@ -175,6 +175,11 @@ export async function dispatchStreamRequest(
     )
   }
 
+  if (req.trigger === 'regenerate-message' && req.retryMessageId && provider === persistentChatContextProvider) {
+    let saving: Promise<void> | undefined
+    while ((saving = manager.getPendingTerminalDispatch(prepared.topicId))) await saving
+  }
+
   // Async preparation may outlive the stream it planned to append to. Re-check
   // liveness once at the synchronous handoff and degrade to a fresh turn when
   // the original stream has settled.

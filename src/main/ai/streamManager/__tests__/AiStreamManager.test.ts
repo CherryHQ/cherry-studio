@@ -1848,6 +1848,52 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: expect.arrayContaining([next.id]) })
     })
 
+    it('publishes a saved sibling before a prepared same-group retry takes over', async () => {
+      mgr['markReconciled']()
+      const { persistentChatContextProvider } = await import('../context/PersistentChatContextProvider')
+      const saved = Promise.withResolvers<void>()
+      const preparing = Promise.withResolvers<void>()
+      const prepared = Promise.withResolvers<void>()
+      const storage = new FakeListener('persistence:a', 'persistence')
+      storage.onDoneImpl = () => saved.promise
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'p::a',
+        siblingsGroupId: 7,
+        isPersistentConversation: true,
+        request: { ...req('a'), messageId: 'reply-a' },
+        listeners: [storage]
+      })
+      const memory = vi.fn()
+      mgr.onMemoryResponsesCompleted(memory)
+      vi.spyOn(persistentChatContextProvider, 'prepareDispatch').mockImplementationOnce(async (subscriber) => {
+        preparing.resolve()
+        await prepared.promise
+        return {
+          topicId: 'a',
+          siblingsGroupId: 7,
+          models: [{ modelId: 'p::b', request: { ...req('a'), messageId: 'reply-b' } }],
+          listeners: [subscriber]
+        }
+      })
+      const retry = mgr.dispatch(new FakeListener('wc:retry'), {
+        topicId: 'a',
+        trigger: 'regenerate-message',
+        parentAnchorId: 'user',
+        retryMessageId: 'reply-b'
+      })
+      await preparing.promise
+      const previous = mgr.onExecutionDone('a', 'p::a')
+      prepared.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(memory).not.toHaveBeenCalled()
+      saved.resolve()
+      await previous
+      await expect(retry).resolves.toMatchObject({ mode: 'started' })
+      expect(memory).toHaveBeenCalledTimes(1)
+      expect(memory).toHaveBeenCalledWith(expect.objectContaining({ memoryResponseIds: ['reply-a'] }))
+    })
+
     it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
       ;(mgr as unknown as { markReconciled(): void }).markReconciled()
       let releaseB!: () => void
