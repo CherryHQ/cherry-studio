@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-19-agent-session-timeline-and-context-transfer.md
-2026-11-19-agent-session-timeline-and-context-transfer.md: 4562b3cb6f08464a76fe2308e78580ffc9a2b612
-2026-11-19-agent-session-timeline-and-context-transfer.zh.md: 9c599b7b0c35835eb3201e9fc42cd45b4261ea30
+2026-11-19-agent-session-timeline-and-context-transfer.md: e08d7b8b9f77d5ec2d739a5057c8e34465479e3c
+2026-11-19-agent-session-timeline-and-context-transfer.zh.md: 26a6d88ee942bc9ea763233e0625f631e22e0dba
