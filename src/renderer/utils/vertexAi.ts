@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 export interface VertexAIServiceAccountJson {
   projectId?: string
   privateKey: string
@@ -23,16 +25,11 @@ export const DEFAULT_VERTEX_AI_LOCATIONS: VertexAILocationOption[] = [
   { value: 'asia-southeast1', label: 'asia-southeast1' }
 ]
 
-const getStringField = (value: Record<string, unknown>, field: string): string | undefined => {
-  const fieldValue = value[field]
-
-  if (typeof fieldValue !== 'string') {
-    return undefined
-  }
-
-  const trimmed = fieldValue.trim()
-  return trimmed || undefined
-}
+const serviceAccountJsonSchema = z.object({
+  private_key: z.string().trim().min(1),
+  client_email: z.string().trim().min(1),
+  project_id: z.string().trim().optional().catch(undefined)
+})
 
 const hasValue = (value?: string): boolean => !!value?.trim()
 
@@ -73,24 +70,13 @@ export function parseVertexAIServiceAccountJson(value: string): VertexAIServiceA
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as unknown
-
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return undefined
-    }
-
-    const credentials = parsed as Record<string, unknown>
-    const privateKey = getStringField(credentials, 'private_key')
-    const clientEmail = getStringField(credentials, 'client_email')
-
-    if (!privateKey || !clientEmail) {
-      return undefined
-    }
+    const parsed = serviceAccountJsonSchema.safeParse(JSON.parse(trimmed))
+    if (!parsed.success) return undefined
 
     return {
-      privateKey,
-      clientEmail,
-      projectId: getStringField(credentials, 'project_id')
+      privateKey: parsed.data.private_key,
+      clientEmail: parsed.data.client_email,
+      projectId: parsed.data.project_id || undefined
     }
   } catch {
     return undefined
