@@ -17,6 +17,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type { CommandHandlerOptions } from '@renderer/hooks/command'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -24,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceSchemas'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -35,7 +37,7 @@ import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAni
 import * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
-import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
 import { useAgentResourceMentionSource } from '../agent/useAgentResourceMentionSource'
@@ -105,12 +107,12 @@ const mocks = vi.hoisted(() => ({
     | { couldAddImageFile: boolean; extensions: string[]; selectableKnowledgeBases?: KnowledgeBase[] }
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
-  shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  shortcutOptions: new Map<string, CommandHandlerOptions | undefined>(),
   topicFulfilled: false,
   markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
-  sessionLayout: undefined as string | undefined,
+  sessionLayout: undefined as UnifiedPreferenceType['agent.session.display_mode'] | 'classic' | undefined,
   runtimeHostProps: undefined as
     | {
         assistant?: { modelId?: string | null }
@@ -574,7 +576,7 @@ vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandRuntime: () => ({ execute: vi.fn() }),
-  useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
+  useCommandHandler: (key: string, handler: () => void, options?: CommandHandlerOptions) => {
     mocks.shortcutHandlers.set(key, handler)
     mocks.shortcutOptions.set(key, options)
   }
@@ -685,13 +687,13 @@ vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    const values: Record<string, unknown> = {
+  usePreference: (key: UnifiedPreferenceKeyType) => {
+    const values: Partial<UnifiedPreferenceType> = {
       'feature.screenshot.enabled': mocks.screenshotEnabled,
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.send_message_shortcut': ['Enter'],
       'agent.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'chat.message.render_as_markdown': mocks.renderAsMarkdown,
       'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
@@ -734,10 +736,10 @@ vi.mock('@renderer/components/QuickPanel/useQuickPanel', () => ({
 // Mirrors just enough of the editor for token commands: the chain records inserted tokens as
 // document nodes so the async reference settle path can find (or miss) them afterwards.
 function buildComposerEditorMock() {
-  const nodes: Array<{ type: { name: string }; attrs: Record<string, unknown>; nodeSize: number }> = []
+  const nodes: Array<{ type: { name: string }; attrs: ComposerDraftToken; nodeSize: number }> = []
   const chain = {
     focus: vi.fn(() => chain),
-    insertComposerToken: vi.fn((token: Record<string, unknown>) => {
+    insertComposerToken: vi.fn((token: ComposerDraftToken) => {
       nodes.push({ type: { name: COMPOSER_TOKEN_NODE_NAME }, attrs: { ...token }, nodeSize: 1 })
       return chain
     }),
