@@ -187,6 +187,89 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
   return { owner, repo, refNamespace, refAndPath, descriptorFileName }
 }
 
+export type GiteaSkillLocation = {
+  /** Lowercased host without a leading `www.`, e.g. `gitea.example.com`. */
+  host: string
+  owner: string
+  repo: string
+  /** Decoded ref and path segments. Their boundary is resolved from the repository's actual refs. */
+  refAndPath: string[]
+  descriptorFileName: 'SKILL.md' | 'skill.md'
+}
+
+/**
+ * Parse a Gitea URL pointing at one skill's SKILL.md file, in either copyable shape:
+ * `https://{host}/{owner}/{repo}/src/branch/{ref}/{dir}/SKILL.md` or the `/raw/branch/` twin.
+ * Any HTTPS host is accepted; the renderer validates input and `SkillService` resolves the
+ * install with this same parser, so a URL the UI accepts is exactly one the installer can clone.
+ *
+ * Like GitHub, the boundary between the ref and the directory is resolved against the
+ * repository's own refs at install time, so branch names containing `/` work. Tag and commit
+ * routes, bare repository or tree URLs, non-HTTPS URLs and URLs with embedded credentials are
+ * rejected, as is any URL not ending in the SKILL.md descriptor name.
+ */
+export function parseGiteaSkillUrl(rawUrl: string): GiteaSkillLocation | null {
+  let url: URL
+  let segments: string[]
+  try {
+    const trimmedUrl = rawUrl.trim()
+    url = new URL(trimmedUrl)
+    const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
+    const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
+    const rawSegments = rawPath.split('/').filter(Boolean).map(decodeURIComponent)
+    if (rawSegments.some(invalidPathPart)) return null
+    segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return null
+  }
+
+  // Anonymous access only: credentials are never read, stored or sent.
+  if (url.protocol !== 'https:' || url.username || url.password) return null
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const [owner, rawRepo, route, refKind, ...tail] = segments
+  // Gitea exposes a skill descriptor under /src/branch/ (file view) and /raw/branch/ (download).
+  const refAndPath = (route === 'src' || route === 'raw') && refKind === 'branch' ? tail : null
+  if (!refAndPath) return null
+
+  const repo = rawRepo?.replace(/\.git$/i, '')
+  const fileName = refAndPath.at(-1)
+  const descriptorFileName = fileName === 'SKILL.md' || fileName === 'skill.md' ? fileName : null
+  const refAndDir = refAndPath.slice(0, -1)
+
+  if (!host || !owner || !repo || !descriptorFileName) return null
+  if (![owner, repo].every((part) => GITHUB_REPO_PART.test(part))) return null
+  // A single segment can be a ref selecting a descriptor at the repository root.
+  if (refAndDir.length < 1 || refAndDir.some(invalidPathPart)) return null
+
+  return { host, owner, repo, refAndPath: refAndDir, descriptorFileName }
+}
+
+/** The canonical `src/branch` descriptor URL identifying a Gitea skill install. */
+export function buildGiteaSkillUrl(location: GiteaSkillLocation): string {
+  const path = encodeGithubPath(location.refAndPath.join('/'))
+  return `https://${location.host}/${location.owner}/${location.repo}/src/branch/${path}/${location.descriptorFileName}`
+}
+
+/** Present a validated Gitea SKILL.md URL as an installable search result. */
+export function buildGiteaSkillResult(rawUrl: string): SkillSearchResult | null {
+  const location = parseGiteaSkillUrl(rawUrl)
+  if (!location) return null
+
+  const canonicalUrl = buildGiteaSkillUrl(location)
+  return {
+    slug: `${location.host}/${location.owner}/${location.repo}/${location.refAndPath.join('/')}`,
+    name: location.repo,
+    description: null,
+    author: location.owner,
+    stars: 0,
+    downloads: 0,
+    sourceRegistry: 'gitea',
+    sourceUrl: canonicalUrl,
+    installSource: `gitea:${canonicalUrl}`
+  }
+}
+
 /** Present a validated GitHub SKILL.md URL as an installable search result. */
 export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null {
   const location = parseGithubSkillUrl(rawUrl)
@@ -220,6 +303,11 @@ export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | n
   const githubResult = buildGithubSkillResult(sourceUrl)
   if (githubResult) {
     return { sourceRegistry: githubResult.sourceRegistry, installSource: githubResult.installSource }
+  }
+
+  const giteaResult = buildGiteaSkillResult(sourceUrl)
+  if (giteaResult) {
+    return { sourceRegistry: giteaResult.sourceRegistry, installSource: giteaResult.installSource }
   }
 
   let url: URL

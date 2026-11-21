@@ -5,7 +5,13 @@ import {
   marketplaceSkillSource,
   summarizeMarketplaceSkill
 } from '@shared/utils/cherrySkillMarketplace'
-import { buildGithubSkillResult, parseGithubSkillUrl, parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
+import {
+  buildGiteaSkillResult,
+  buildGithubSkillResult,
+  parseGiteaSkillUrl,
+  parseGithubSkillUrl,
+  parseSkillSourceUrl
+} from '@shared/utils/skillMarketplace'
 import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
 
 describe('normalizeSubscriptionUrl', () => {
@@ -207,5 +213,88 @@ describe('parseSkillSourceUrl', () => {
     'https://github.com/owner/repo/tree/feature/skills/writer'
   ])('rejects a source URL that does not identify one exact Skill (%s)', (sourceUrl) => {
     expect(parseSkillSourceUrl(sourceUrl)).toBeNull()
+  })
+})
+
+describe('parseGiteaSkillUrl (#20206)', () => {
+  it('reads host, owner, repo and the undivided ref-and-path from a src/branch URL', () => {
+    expect(
+      parseGiteaSkillUrl('https://gitea.internal.example.com/team/skills-repo/src/branch/dev/skills/review/SKILL.md')
+    ).toEqual({
+      host: 'gitea.internal.example.com',
+      owner: 'team',
+      repo: 'skills-repo',
+      refAndPath: ['dev', 'skills', 'review'],
+      descriptorFileName: 'SKILL.md'
+    })
+  })
+
+  it('accepts the raw/branch twin and lowercase skill.md', () => {
+    expect(parseGiteaSkillUrl('https://gitea.example.com/o/r/raw/branch/main/tools/x/skill.md')).toEqual({
+      host: 'gitea.example.com',
+      owner: 'o',
+      repo: 'r',
+      refAndPath: ['main', 'tools', 'x'],
+      descriptorFileName: 'skill.md'
+    })
+  })
+
+  it('strips a .git repository suffix', () => {
+    expect(parseGiteaSkillUrl('https://gitea.example.com/o/repo.git/src/branch/main/SKILL.md')?.repo).toBe('repo')
+  })
+
+  it('accepts a SKILL.md at the repository root', () => {
+    expect(parseGiteaSkillUrl('https://gitea.example.com/o/r/src/branch/main/SKILL.md')).not.toBeNull()
+  })
+
+  it.each([
+    ['a plain-HTTP URL', 'http://gitea.example.com/o/r/src/branch/main/SKILL.md'],
+    ['embedded credentials', 'https://user:pass@gitea.example.com/o/r/src/branch/main/SKILL.md'],
+    ['a tag route', 'https://gitea.example.com/o/r/src/tag/v1/skills/x/SKILL.md'],
+    ['a commit route', 'https://gitea.example.com/o/r/src/commit/abc123/skills/x/SKILL.md'],
+    ['a bare repository URL', 'https://gitea.example.com/o/r'],
+    ['a directory URL without the file', 'https://gitea.example.com/o/r/src/branch/main/skills/x'],
+    ['a filename the installer does not look for', 'https://gitea.example.com/o/r/src/branch/main/x/README.md'],
+    ['a path that escapes the repo', 'https://gitea.example.com/o/r/src/branch/main/../../etc/SKILL.md'],
+    ['a segment hiding a separator', 'https://gitea.example.com/o/r/src/branch/main/x%2F../SKILL.md'],
+    ['plain keywords', 'resume review']
+  ])('rejects %s', (_case, url) => {
+    expect(parseGiteaSkillUrl(url)).toBeNull()
+  })
+
+  it.each(['%', '%ZZ', '%E0%A4%A'])('returns null for malformed percent-encoding (%s) instead of throwing', (bad) => {
+    const url = `https://gitea.example.com/o/r/src/branch/main/${bad}/SKILL.md`
+
+    expect(() => parseGiteaSkillUrl(url)).not.toThrow()
+    expect(parseGiteaSkillUrl(url)).toBeNull()
+  })
+})
+
+describe('buildGiteaSkillResult (#20206)', () => {
+  it('canonicalizes a raw/branch URL to the src/branch install source', () => {
+    const result = buildGiteaSkillResult('https://gitea.example.com/o/r/raw/branch/dev/skills/x/SKILL.md')
+
+    expect(result).toMatchObject({
+      sourceRegistry: 'gitea',
+      author: 'o',
+      sourceUrl: 'https://gitea.example.com/o/r/src/branch/dev/skills/x/SKILL.md',
+      installSource: 'gitea:https://gitea.example.com/o/r/src/branch/dev/skills/x/SKILL.md'
+    })
+  })
+
+  it('round-trips through parseSkillSourceUrl for remote-update provenance', () => {
+    const parsed = parseSkillSourceUrl('https://gitea.example.com/o/r/src/branch/main/skills/x/SKILL.md')
+
+    expect(parsed).toEqual({
+      sourceRegistry: 'gitea',
+      installSource: 'gitea:https://gitea.example.com/o/r/src/branch/main/skills/x/SKILL.md'
+    })
+  })
+
+  it('leaves GitHub URLs on the github: source', () => {
+    const parsed = parseSkillSourceUrl('https://github.com/o/r/blob/main/skills/x/SKILL.md')
+
+    expect(parsed?.sourceRegistry).toBe('github')
+    expect(parsed?.installSource.startsWith('github:')).toBe(true)
   })
 })
