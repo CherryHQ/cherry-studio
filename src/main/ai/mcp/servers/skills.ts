@@ -4,7 +4,7 @@ import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
-import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
+import { buildGiteaSkillResult, buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
 
@@ -50,16 +50,16 @@ export function createSkillsServer(agentId: string): McpServer {
           .string()
           .min(1)
           .describe(
-            'Keywords describing the capability, e.g. "react performance" or "pr review". A GitHub link to a skill\'s SKILL.md file resolves that one skill instead of searching — use it when the registries do not list what the user asked for.'
+            'Keywords describing the capability, e.g. "react performance" or "pr review". A GitHub or Gitea link to a skill\'s SKILL.md file resolves that one skill instead of searching — use it when the registries do not list what the user asked for.'
           )
       })
     },
     async ({ query }) => {
-      // A GitHub SKILL.md URL already identifies exactly one skill, so the registries have nothing to
-      // add — and a skill they never indexed is only reachable this way.
-      const githubResult = buildGithubSkillResult(query)
-      const results = githubResult
-        ? [githubResult]
+      // A GitHub or Gitea SKILL.md URL already identifies exactly one skill, so the registries have
+      // nothing to add — and a skill they never indexed is only reachable this way.
+      const directResult = buildGithubSkillResult(query) ?? buildGiteaSkillResult(query)
+      const results = directResult
+        ? [directResult]
         : await searchSkillMarketplaces(query.replace(/[-_]+/g, ' ').trim(), fetchMarketplaceJson, (source, error) => {
             logger.warn('Skill marketplace search source failed', {
               agentId,

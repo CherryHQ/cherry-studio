@@ -232,7 +232,8 @@ export class SkillService {
    * Install from a marketplace installSource handle.
    * Format: "claude-plugins:{owner}/{repo}/{directoryPath}",
    * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
-   * or "github:{https URL of the skill's SKILL.md}".
+   * "github:{https URL of the skill's SKILL.md}",
+   * or "gitea:{https URL of the skill's SKILL.md}".
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
     const [source, ...rest] = options.installSource.split(':')
