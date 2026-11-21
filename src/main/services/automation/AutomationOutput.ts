@@ -14,6 +14,7 @@ export class AutomationOutput {
   private sequence = 0
   private omitted = 0
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Browser/native observations and operation errors carry different fields; serialize their complete values before applying the existing output budget.
   add(value: Record<string, unknown>, images: Observation['images'] = []): void {
     const sequence = ++this.sequence
     const id = String(value.id ?? sequence)

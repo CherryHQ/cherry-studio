@@ -1,6 +1,7 @@
 import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import { tool } from 'ai'
+import type * as z from 'zod'
 
 import { loggerService } from '@logger'
 import {
@@ -49,11 +50,12 @@ function automationReplModelOutput(output: unknown): ToolResultOutput {
 export function createAutomationReplToolEntries(): ToolEntry[] {
   return [false, true].map((reset) => {
     const name = reset ? 'automation_repl_reset' : 'automation_repl'
-    const fallbackTool = tool<Record<string, unknown>, CallToolResult>({
+    const inputSchema = reset ? automationReplResetInput : automationReplInput
+    const fallbackTool = tool<z.input<typeof inputSchema>, CallToolResult>({
       description: reset
         ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
         : automationReplDescription,
-      inputSchema: reset ? automationReplResetInput : automationReplInput,
+      inputSchema,
       execute: async (args, options) => {
         const { request } = getToolCallContext(options)
         const run = await request.automationRun?.()

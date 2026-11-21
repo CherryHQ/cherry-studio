@@ -52,6 +52,7 @@ export class ComputerAutomationSession {
 
   async execute(
     name: string,
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- REPL arguments have not been checked against the selected Computer operation's schema; parsing stays with that operation before native dispatch.
     args: Record<string, unknown>,
     target: string | undefined,
     signal: AbortSignal,
