@@ -29,6 +29,7 @@ import {
 import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
+import type { ProviderModelOverride } from '../schemas/provider-models'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
@@ -37,9 +38,17 @@ const models = read('models.json').models as Array<{
   name?: string
   ownedBy: string
 }>
-const providers = read('providers.json').providers as Array<Record<string, unknown> & { id: string }>
+const providers = read('providers.json').providers as Array<{ id: string }>
 const overrides = read('provider-models.json').overrides as Array<
-  Record<string, unknown> & { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }
+  Pick<ProviderModelOverride, 'providerId' | 'modelId' | 'apiModelId' | 'modelVariants'> & {
+    endpointTypes?: unknown
+    pricing?: unknown
+    reasoningContracts?: unknown
+    requestControls?: unknown
+    parameterSupport?: unknown
+    name?: unknown
+    ownedBy?: unknown
+  }
 >
 
 const modelById = new Map(models.map((m) => [m.id, m]))
@@ -61,13 +70,13 @@ const GEN_ONLY_PROVIDER_FIELDS = [
   'standaloneModelIds',
   'overrides',
   'modelTemplates'
-]
-const expectedProviderPayload = (p: Record<string, unknown>) => {
+] as const
+const expectedProviderPayload = (p: (typeof PROVIDERS)[number]) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
   if (Array.isArray(conn.serverTools)) {
     conn.serverTools = conn.serverTools.map((tool) => {
-      const config = { ...(tool as Record<string, unknown>) }
+      const config = { ...tool }
       delete config.modelIdPrefixes
       delete config.modelIds
       delete config.imageModelIds
@@ -124,7 +133,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
 
     const mismatched = PROVIDERS.filter((p) => {
       const row = providerById.get(p.id)
-      return row && stable(row) !== stable(expectedProviderPayload(p as unknown as Record<string, unknown>))
+      return row && stable(row) !== stable(expectedProviderPayload(p))
     }).map((p) => p.id)
     expect(mismatched).toEqual([]) // a provider field changed in src but data/ wasn't regenerated
   })
