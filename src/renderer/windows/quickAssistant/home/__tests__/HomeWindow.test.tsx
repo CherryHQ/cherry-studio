@@ -243,7 +243,7 @@ vi.mock('../components/ClipboardPreview', () => ({
     clipboardText ? <div data-testid="clipboard-preview">{clipboardText}</div> : null
 }))
 
-vi.mock('../../chat/ChatWindow', () => ({
+vi.mock('../../chat/components/Messages', () => ({
   default: () => <div data-testid="chat-window" />
 }))
 
@@ -336,6 +336,13 @@ describe('HomeWindow', () => {
     expect(container.querySelector('[data-ui~="quick-assistant.view"]')).toHaveStyle({
       backgroundColor: 'var(--popover)'
     })
+  })
+
+  it.each([true, false])('preserves draggable=%s when opening the chat branch', async (draggable) => {
+    const { container } = render(<HomeWindow draggable={draggable} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    await screen.findByTestId('chat-window')
+    expect(container.querySelector('.drag') !== null).toBe(draggable)
   })
 
   it('uses the configured quick model in model-only mode', () => {
