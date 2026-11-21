@@ -265,6 +265,7 @@ function projectEndpointConfigOverrides(
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    if (config.pathMode !== undefined && config.pathMode !== presetConfig?.pathMode) override.pathMode = config.pathMode
     // Same delta rule per dialect key: a value equal to the registry's is not an override.
     const baselineDialect = resolveEndpointDialect({ endpointConfigs: presetConfigs ?? undefined }, ep)
     const dialect = Object.fromEntries(
