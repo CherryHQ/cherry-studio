@@ -1111,7 +1111,8 @@ export class CacheService {
    */
   private savePersistCache(): void {
     try {
-      const data: Record<string, any> = {}
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persisted values may come from older localStorage data; preserve raw values until JSON serialization handles them.
+      const data: Record<string, unknown> = {}
       for (const [key, value] of this.persistCache.entries()) {
         data[key] = value
       }

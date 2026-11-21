@@ -241,7 +241,7 @@ export class DataApiService implements ApiClient {
       params?: any
       body?: any
       headers?: Record<string, string>
-      metadata?: Record<string, any>
+      metadata?: Partial<NonNullable<DataRequest['metadata']>>
     } = {}
   ): Promise<T> {
     const { params, body, headers, metadata } = options

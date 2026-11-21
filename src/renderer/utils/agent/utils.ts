@@ -4,7 +4,8 @@ import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/dat
 const logger = loggerService.withContext('agentConfiguration')
 
 export function parseAgentConfiguration(
-  raw: Record<string, unknown> | null | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored agent/session configuration is unvalidated; the shared sanitizer checks the root and known fields while preserving extension keys.
+  raw: unknown,
   context: { entityId: string; entityType: 'agent' | 'session' }
 ): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)

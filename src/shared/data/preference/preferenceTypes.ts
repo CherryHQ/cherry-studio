@@ -387,6 +387,7 @@ export interface CliProviderConfig {
    */
   modelId: UniqueModelId | null
   /** User-edited tool-specific config blob. */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored CLI parameters vary by tool and version; draft adapters check consumed fields before serializing each target file.
   config?: Record<string, unknown>
   /** Sort order in the provider list (lower = first). */
   sortIndex?: number

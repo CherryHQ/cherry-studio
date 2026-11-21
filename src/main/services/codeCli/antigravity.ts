@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
+
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
@@ -22,9 +24,9 @@ async function ensureGeminiModeSettings(): Promise<string> {
   const geminiDir = application.getPath('feature.cli.antigravity.root')
   const settingsPath = AbsoluteFilePathSchema.parse(application.getPath('feature.cli.antigravity.settings.file'))
 
-  let settings: Record<string, unknown> = {}
+  let settings: JSONObject = {}
   try {
-    const parsed = JSON.parse(await readFile(settingsPath, 'utf8'))
+    const parsed: JSONValue = JSON.parse(await readFile(settingsPath, 'utf8'))
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('settings must be a JSON object')
     }
