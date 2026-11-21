@@ -187,9 +187,11 @@ export async function createMemoryBackup(
     if (candidate.steps.every((step) => step.outcome === 'unchanged')) continue
     protectedIds.add(candidate.id)
     if (candidate.recoveryOf) {
-      protectedIds.add(candidate.recoveryOf)
       const original = existing.find((item) => item.batch.id === candidate.recoveryOf)?.batch
-      if (original?.status === 'partial') protectedIds.add(original.recoveryOf)
+      if (original?.status === 'partial') {
+        protectedIds.add(original.id)
+        protectedIds.add(original.recoveryOf)
+      }
     }
     if (candidate.steps.some((step) => step.outcome === 'applied')) break
   }
