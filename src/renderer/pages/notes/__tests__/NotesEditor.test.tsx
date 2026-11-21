@@ -89,6 +89,7 @@ describe('NotesEditor focus behavior', () => {
   it('loads only the selected editor stack', async () => {
     render(
       <NotesEditor
+        hasNotes
         activeNodeId="/notes/example.md"
         currentContent="note"
         tokenCount={4}
@@ -111,6 +112,7 @@ describe('NotesEditor focus behavior', () => {
   it('marks the active note surface with its node id', async () => {
     render(
       <NotesEditor
+        hasNotes
         activeNodeId="/notes/example.md"
         currentContent="note"
         tokenCount={4}
@@ -127,6 +129,7 @@ describe('NotesEditor focus behavior', () => {
   it('names the spell check toggle in the editor footer', async () => {
     render(
       <NotesEditor
+        hasNotes
         activeNodeId="/notes/example.md"
         currentContent="note"
         tokenCount={4}
@@ -143,6 +146,7 @@ describe('NotesEditor focus behavior', () => {
 
 describe('NotesEditor empty state', () => {
   const emptyEditorProps = {
+    hasNotes: false,
     currentContent: '',
     tokenCount: 0,
     editorRef: { current: null },
@@ -167,9 +171,22 @@ describe('NotesEditor empty state', () => {
     expect(onCreateNote).toHaveBeenCalledTimes(1)
   })
 
+  it('asks for a selection when notes exist and keeps the create action', async () => {
+    const user = userEvent.setup()
+    const onCreateNote = vi.fn()
+
+    render(<NotesEditor {...emptyEditorProps} hasNotes onCreateNote={onCreateNote} />)
+
+    expect(screen.getByText('Please select a note first')).toBeInTheDocument()
+    expect(screen.queryByText('No notes available yet')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Create a new note' }))
+    expect(onCreateNote).toHaveBeenCalledTimes(1)
+  })
+
   it('does not expose a create-note action on a load error', () => {
     render(
       <NotesEditor
+        hasNotes
         activeNodeId="/notes/example.md"
         currentContent=""
         contentLoadError={new Error('read failed')}
