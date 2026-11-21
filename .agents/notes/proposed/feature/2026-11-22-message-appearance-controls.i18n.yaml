@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-message-appearance-controls.md
+2026-11-22-message-appearance-controls.md: 3203d0ad3ab8a41b6a0d9844ed89a04c350ce79e
+2026-11-22-message-appearance-controls.zh.md: ccb32f6be0951c109672c836f741d5e67c21a053
