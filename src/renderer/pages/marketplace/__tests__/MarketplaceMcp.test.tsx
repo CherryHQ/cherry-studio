@@ -82,3 +82,17 @@ it('explains filesystem configuration before the server is installed', async () 
   expect(dialog.getByText(/first line of Arguments/)).toHaveTextContent('built-in MCP workspace')
   expect(dialog.getByText('WORKSPACE_ROOT=/absolute/path/to/workspace', { exact: true })).toBeVisible()
 })
+
+it('shows the ZoneFoundry setup guide in the current Marketplace detail dialog', async () => {
+  const user = userEvent.setup()
+  const zonefoundry = PRESET_MCP_SERVERS.find((preset) => preset.name === BuiltinMcpServerNames.zonefoundry)!
+  render(<Catalog presets={[zonefoundry]} moreSources={false} />)
+  await user.click(screen.getByText(BuiltinMcpServerNames.zonefoundry, { exact: true }))
+  const dialog = within(screen.getByRole('dialog'))
+  expect(dialog.getByText(/Third-party ZoneFoundry relay/, { selector: 'p:not(.sr-only)' })).toBeVisible()
+  expect(dialog.getByRole('link', { name: 'ZoneFoundry setup guide' })).toHaveAttribute(
+    'href',
+    'https://zonefoundry.dev/guides/ai-agent-control/'
+  )
+  expect(dialog.getByRole('button', { name: 'Add: @cherry/zonefoundry' })).toBeEnabled()
+})

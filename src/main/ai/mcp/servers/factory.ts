@@ -41,6 +41,14 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
       const apiKey = server.env?.QVERIS_API_KEY?.trim()
       return apiKey ? { ...resolved, headers: { ...resolved.headers, Authorization: `Bearer ${apiKey}` } } : resolved
     }
+    case BuiltinMcpServerNames.zonefoundry: {
+      const apiKey = server.env?.ZONEFOUNDRY_API_KEY?.trim()
+      return {
+        ...server,
+        type: 'streamableHttp',
+        headers: apiKey ? { ...server.headers, Authorization: `Bearer ${apiKey}` } : { ...server.headers }
+      }
+    }
     default:
       return server
   }
