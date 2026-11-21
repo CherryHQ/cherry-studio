@@ -3,12 +3,13 @@ import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ActionTool } from '@renderer/components/ActionTools'
 
 import CodeToolButton from './CodeToolButton'
 import { ToolWrapper } from './styles'
 
-const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
+const CodeToolbar = ({ tools, inline = false }: { tools: ActionTool[]; inline?: boolean }) => {
   const [showQuickTools, setShowQuickTools] = useState(false)
   const { t } = useTranslation()
 
@@ -33,8 +34,12 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
   }
 
   return (
-    <div className="pointer-events-none sticky top-7 z-10 h-0">
-      <div className="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1">
+    <div className={inline ? undefined : 'pointer-events-none sticky top-7 z-10 h-0'}>
+      <div
+        className={cn(
+          'code-toolbar pointer-events-auto flex h-6 items-center gap-1',
+          !inline && 'absolute right-2 bottom-1'
+        )}>
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (

@@ -35,6 +35,8 @@ export interface AppMarkdownProps {
   rehypePlugins?: Pluggable[]
   /** Replaces default source cleanup when the host protects embedded content. */
   transformSource?: (source: string) => string
+  /** Supplies a host-specific streaming partition while preserving parser state per content identity. */
+  createBlockParser?: () => (source: string) => string[]
 }
 
 const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
@@ -56,14 +58,15 @@ function MarkdownContent({
   components,
   remarkPlugins,
   rehypePlugins,
-  transformSource = removeSvgEmptyLines
+  transformSource = removeSvgEmptyLines,
+  createBlockParser = createLatexMarkdownBlockParser
 }: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
   const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
   if (isStreaming && !hasStreamed) setHasStreamed(true)
 
-  const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
+  const parseMarkdownBlocks = useMemo(createBlockParser, [createBlockParser])
   const codeStyle = use(CodeStyleContext)
   const code = useMemo(
     () => createCodeHighlightPlugin({ execute: codeHighlightService.highlightSnapshot, themes: codeStyle?.codeThemes }),
