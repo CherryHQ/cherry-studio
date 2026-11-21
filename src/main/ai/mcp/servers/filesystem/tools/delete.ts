@@ -1,10 +1,9 @@
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, validatePath } from '../types'
+import { logger, relativeToRoots, validatePath } from '../types'
 
 // Schema definition
 export const DeleteToolSchema = z.object({
@@ -21,10 +20,10 @@ export const deleteToolDefinition = {
 // Handler implementation
 export async function handleDeleteTool(
   args: z.infer<typeof DeleteToolSchema>,
-  baseDir: string
+  roots: string[]
 ): Promise<CallToolResult> {
   const targetPath = args.path
-  const validPath = await validatePath(targetPath, baseDir)
+  const validPath = await validatePath(targetPath, roots)
   const recursive = args.recursive || false
 
   // Check if path exists and get stats
@@ -39,7 +38,7 @@ export async function handleDeleteTool(
   }
 
   const isDirectory = stats.isDirectory()
-  const relativePath = path.relative(baseDir, validPath)
+  const relativePath = relativeToRoots(roots, validPath)
 
   // Perform deletion
   try {

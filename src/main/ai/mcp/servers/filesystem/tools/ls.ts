@@ -19,9 +19,9 @@ export const lsToolDefinition = {
 }
 
 // Handler implementation
-export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const targetPath = args.path || baseDir
-  const validPath = await validatePath(targetPath, baseDir)
+export async function handleLsTool(args: z.infer<typeof LsToolSchema>, roots: string[]): Promise<CallToolResult> {
+  const targetPath = args.path || roots[0]
+  const validPath = await validatePath(targetPath, roots)
 
   // Verify the target exists and is a directory before walking it: the recursive
   // walk below treats an unreadable directory as empty, so without this check a
@@ -91,7 +91,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
           const childPath = path.join(dirPath, entry.name)
           // Validate symlinked directories to prevent escaping the workspace root
           try {
-            await validatePath(childPath, baseDir)
+            await validatePath(childPath, roots)
             node.children = await buildTree(childPath, depth + 1)
           } catch {
             logger.debug('Skipping directory outside workspace root', { path: childPath })
