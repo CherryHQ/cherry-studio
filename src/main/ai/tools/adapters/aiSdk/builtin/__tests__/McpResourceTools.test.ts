@@ -5,6 +5,8 @@ import path from 'node:path'
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import type { RequestContext } from '@main/ai/tools/adapters/aiSdk/context'
 import { type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -13,7 +15,7 @@ import type { McpResource } from '@shared/types/mcp'
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
 const listResourceTemplates = vi.fn()
 const getResource = vi.fn()
-const getConnectedServerCapabilities = vi.fn<(serverId: string) => Record<string, unknown> | undefined>()
+const getConnectedServerCapabilities = vi.fn<McpRuntimeService['getConnectedServerCapabilities']>()
 const getPath = vi.hoisted(() => vi.fn<(key: string, filename?: string) => string>())
 
 vi.mock('@application', () => ({
@@ -73,7 +75,7 @@ function makeResource(serverId: string, uri: string): McpResource {
 function callExecute<TInput, TResult>(
   entry: { tool: { execute?: (input: TInput, options: ToolExecutionOptions) => TResult } },
   args: TInput,
-  request: Record<string, unknown> = {}
+  request: Partial<RequestContext> = {}
 ) {
   const execute = entry.tool.execute
   if (!execute) throw new Error('Expected an executable MCP resource tool')
@@ -84,16 +86,19 @@ function callExecute<TInput, TResult>(
   })
 }
 
-function callNeedsApproval(args: Record<string, unknown>, request: Record<string, unknown>): Promise<boolean> {
-  const needsApproval = readEntry.tool.needsApproval as (
-    args: unknown,
-    options: ToolExecutionOptions
-  ) => Promise<boolean>
-  return needsApproval(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: { requestId: 'req-1', ...request }
-  })
+function callNeedsApproval(
+  args: Parameters<NonNullable<typeof readEntry.tool.execute>>[0],
+  request: Partial<RequestContext>
+): Promise<boolean> {
+  const needsApproval = readEntry.tool.needsApproval
+  if (typeof needsApproval !== 'function') throw new Error('Expected an MCP resource approval callback')
+  return Promise.resolve(
+    needsApproval(args, {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: { requestId: 'req-1', ...request }
+    })
+  )
 }
 
 describe('mcp_resource_* entries', () => {
@@ -298,7 +303,7 @@ describe('mcp_resource_read', () => {
       topicId: 'topic-1',
       model: 'provider::model',
       roots: [{ uri: 'file:///workspace', name: 'Workspace' }]
-    }
+    } satisfies Pick<RequestContext, 'windowId' | 'topicId' | 'model' | 'roots'>
     await callExecute(
       readEntry,
       { serverId: 's1', uri: 'x://a' },
@@ -350,10 +355,10 @@ describe('mcp_resource_read', () => {
 
   it('prompts for approval when the addressed server is wildcard-gated, and not otherwise', async () => {
     listServers.mockReturnValue({ items: [makeServer('s1')] })
-    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(false)
+    expect(await callNeedsApproval({ serverId: 's1', uri: 'file:///a.md' }, { assistant: makeAssistant() })).toBe(false)
 
     listServers.mockReturnValue({ items: [makeServer('s1', { disabledAutoApproveTools: ['mcp__s1Name__*'] })] })
-    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(true)
+    expect(await callNeedsApproval({ serverId: 's1', uri: 'file:///a.md' }, { assistant: makeAssistant() })).toBe(true)
   })
 
   it('does not let one gated server force approval for reads from another', async () => {
@@ -361,13 +366,15 @@ describe('mcp_resource_read', () => {
       items: [makeServer('s1', { disabledAutoApproveTools: ['mcp__s1Name__*'] }), makeServer('s2')]
     })
 
-    expect(await callNeedsApproval({ serverId: 's2' }, { assistant: makeAssistant() })).toBe(false)
-    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(true)
+    expect(await callNeedsApproval({ serverId: 's2', uri: 'file:///a.md' }, { assistant: makeAssistant() })).toBe(false)
+    expect(await callNeedsApproval({ serverId: 's1', uri: 'file:///a.md' }, { assistant: makeAssistant() })).toBe(true)
   })
 
   it('fails closed when the addressed server cannot be resolved', async () => {
     listServers.mockReturnValue({ items: [makeServer('s1')] })
 
-    expect(await callNeedsApproval({ serverId: 'unknown' }, { assistant: makeAssistant() })).toBe(true)
+    expect(await callNeedsApproval({ serverId: 'unknown', uri: 'file:///a.md' }, { assistant: makeAssistant() })).toBe(
+      true
+    )
   })
 })
