@@ -1,3 +1,6 @@
+vi.mock('../SkillSetupService', () => ({
+  skillSetupService: { preflight: vi.fn(async () => ({ state: 'ready', missing: [] })), cancel: vi.fn() }
+}))
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'

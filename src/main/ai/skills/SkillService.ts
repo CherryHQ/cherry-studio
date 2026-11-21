@@ -49,6 +49,7 @@ import { SkillImportError } from './SkillImportError'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
+import { skillSetupService } from './SkillSetupService'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
@@ -209,6 +210,7 @@ export class SkillService {
       if (!skill) {
         throw new Error(`Skill not found: ${skillId}`)
       }
+      skillSetupService.cancel(skill.id)
       await this.uninstallLocked(skill)
     })
   }
@@ -223,6 +225,7 @@ export class SkillService {
           `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
         )
       }
+      skillSetupService.cancel(skill.id)
       await this.uninstallLocked(skill)
       return true
     })
@@ -721,6 +724,7 @@ export class SkillService {
       this.enableForAllAgents(inserted.id)
     }
 
+    inserted = agentGlobalSkillService.getById(inserted.id)!
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
     return inserted
   }
@@ -763,6 +767,7 @@ export class SkillService {
     if (!(await this.linkClaudeMirror(folderName, options))) return false
     const skill = agentGlobalSkillService.getByFolderName(folderName)
     if (!skill) return true
+    await skillSetupService.preflight(skill.id)
     try {
       await this.setExportEnabled(folderName, skill.mirrorEnabled)
     } catch (error) {

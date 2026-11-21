@@ -3,7 +3,9 @@ import * as path from 'node:path'
 
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import { inspectSkillEnvironment } from '@main/ai/skills/skillEnvironment'
 import { skillService } from '@main/ai/skills/SkillService'
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 
@@ -12,7 +14,8 @@ import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
  * Bash surface in frontmatter, and the SDK forks regardless of whether either resolves — a missing
  * subagent degrades into unrelated output instead of an error.
  *
- * Only a plugin-qualified subagent can be *proven* absent (its plugin and agent file are both
+ * Explicit `requires` declarations are blocking and rechecked before use.
+ * In the legacy advisory metadata below, only a plugin-qualified subagent can be *proven* absent (its plugin and agent file are both
  * enumerable), so that is the only case that blocks. Everything else — an unresolvable bare agent
  * name, a declared executable that is not on PATH — is reported as advisory context, because
  * `allowed-tools` is a permission allowlist whose entries are frequently interchangeable
@@ -90,6 +93,26 @@ async function runDependencyCheck(
   }
 
   const notes: string[] = []
+  if (metadata.requires) {
+    try {
+      const installed = agentGlobalSkillService
+        .listAll()
+        .find((skill) => path.resolve(skillService.getInstalledSkillDirectory(skill)) === path.resolve(skillDirectory))
+      const readiness = installed
+        ? await skillSetupService.assertReady(installed.id)
+        : await inspectSkillEnvironment(skillDirectory)
+      if (readiness.state !== 'ready')
+        return {
+          deny: `Skill ${skillName} setup required: ${readiness.missing.join(', ')}. Import it into Skill settings to review setup.`
+        }
+      if ('pythonPath' in readiness && readiness.pythonPath)
+        notes.push(
+          `Use the approved absolute Python interpreter ${JSON.stringify(readiness.pythonPath)} for this Skill. Never install packages in the task working directory.`
+        )
+    } catch (error) {
+      return { deny: error instanceof Error ? error.message : 'Skill prerequisite verification failed' }
+    }
+  }
   const executables = await findUnresolvedExecutables(metadata.allowed_tools ?? [])
   if (executables.length > 0) {
     const list = executables.map((name) => `"${name}"`).join(', ')
@@ -109,7 +132,7 @@ async function runDependencyCheck(
   }
 
   if (notes.length === 0) return {}
-  return { warning: [`Skill "${skillName}" may be missing runtime dependencies.`, ...notes].join(' ') }
+  return { warning: notes.join(' ') }
 }
 
 async function resolveSkillDirectory(

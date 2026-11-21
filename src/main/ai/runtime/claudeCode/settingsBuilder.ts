@@ -44,7 +44,9 @@ import {
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
+import { inspectSkillEnvironment } from '@main/ai/skills/skillEnvironment'
 import { skillService } from '@main/ai/skills/SkillService'
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -423,18 +425,29 @@ export async function buildSkillWhitelist(
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
   let names = bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
   if (resolveAgentCapabilities(agent).environment !== 'sealed') {
-    const [installedSkills, workspaceNames] = await Promise.all([
+    const [installedSkills, workspaceNames, workspacePaths] = await Promise.all([
       skillService.list({ agentId: agent.id }),
-      skillService.listLocalFolderNames(cwd)
+      skillService.listLocalFolderNames(cwd),
+      skillService.listLocalSkillPaths(cwd)
     ])
     const access = resolveAutomationAccess(agent, {
       channelLinked,
       browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
       computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
     })
-    const enabledNames = installedSkills
-      .filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
-      .map((skill) => skill.folderName)
+    const enabledSkills = installedSkills.filter(
+      (skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access)
+    )
+    for (const skill of enabledSkills) await skillSetupService.assertReady(skill.id)
+    for (const directory of workspacePaths) {
+      const name = path.basename(directory)
+      const check = await inspectSkillEnvironment(directory)
+      if (check.state !== 'ready')
+        throw new Error(
+          `Skill ${name} setup required: ${check.missing.join(', ')}. Import it into Skill settings to review setup.`
+        )
+    }
+    const enabledNames = enabledSkills.map((skill) => skill.folderName)
     names = [...enabledNames, ...workspaceNames, ...bundledNames]
   }
 

@@ -83,6 +83,13 @@ describe('checkSkillRuntimeDependencies', () => {
     await Promise.all(tempDirs.splice(0).map((dir) => fs.promises.rm(dir, { recursive: true, force: true })))
   })
 
+  it('denies declared prerequisites that fail a real runtime recheck, not the advisory allowed-tools check', async () => {
+    mocks.findExecutableInEnv.mockResolvedValue(null)
+    const workdir = await writeWorkspaceSkill('pdf', 'requires:\n  bins: [pandoc]\n')
+    const result = await checkSkillRuntimeDependencies('pdf', workdir, new Map())
+    expect(result.deny).toContain('binary pandoc')
+  })
+
   // The index only holds the plugins settingsBuilder passes; the enabled setting sources let the SDK
   // load others, so an unindexed plugin is not evidence that its subagent is missing.
   it('warns instead of denying when the subagent plugin is not in the index', async () => {

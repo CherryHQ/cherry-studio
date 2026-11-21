@@ -147,12 +147,15 @@ describe('SkillService authoring and remote updates', () => {
       .from(agentGlobalSkillTable)
       .where(eq(agentGlobalSkillTable.id, OTHER_SKILL_ID))
       .get()
-    expect(updated).toMatchObject({ contentHash: baseline, updatedAt: 10 })
+    expect(updated).toMatchObject({ contentHash: baseline, readiness: { state: 'ready' } })
     expect(untouched?.updatedAt).toBe(20)
     await expect(fs.promises.readFile(path.join(mirrorRoot, 'writer', 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
       'echo changed\n'
     )
-    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID] },
+      { endpoint: '/skills/:skillId', entityIds: [SKILL_ID] }
+    ])
   })
 
   it('reconciles edited metadata without replacing the installation baseline', async () => {
@@ -166,8 +169,9 @@ describe('SkillService authoring and remote updates', () => {
 
     const updated = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
     expect(updated).toMatchObject({ version: '2.0.0', contentHash: baseline })
+    expect(updated?.readiness?.state).toBe('ready')
     expect(updated?.updatedAt).toBeGreaterThan(10)
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID] },
       { endpoint: '/skills/:skillId', entityIds: [SKILL_ID] }
     ])
@@ -203,6 +207,7 @@ describe('SkillService authoring and remote updates', () => {
     await seedSkill(SKILL_ID, 'writer')
     const service = new SkillService()
     await service.linkMirror('writer')
+    notifyDataApiDataChangeMock.mockClear()
     await fs.promises.rm(path.join(skillDir, 'SKILL.md'))
     await fs.promises.mkdir(path.join(skillDir, 'SKILL.md'))
 

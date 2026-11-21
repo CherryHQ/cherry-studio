@@ -1,3 +1,10 @@
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
+vi.mock('@main/ai/skills/SkillSetupService', () => ({
+  skillSetupService: { assertReady: vi.fn(async () => ({ state: 'ready', missing: [], fingerprint: 'verified' })) }
+}))
+vi.mock('@main/ai/skills/skillEnvironment', () => ({
+  inspectSkillEnvironment: vi.fn(async () => ({ state: 'ready', missing: [], fingerprint: 'verified' }))
+}))
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -85,6 +92,24 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('blocks an enabled Skill when runtime preflight no longer passes', async () => {
+    vi.mocked(skillSetupService.assertReady).mockRejectedValueOnce(new Error('Skill setup required: binary pandoc'))
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).rejects.toThrow('binary pandoc')
+  })
+  it('carries the approved interpreter into runtime instructions without changing process environment', async () => {
+    vi.mocked(skillSetupService.assertReady).mockResolvedValueOnce({
+      state: 'ready',
+      missing: [],
+      fingerprint: 'env',
+      checkedAt: 'today',
+      pythonPath: '/app/env/venv/bin/python'
+    })
+    const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(snapshot.skillRuntimeInstructions).toContain('/app/env/venv/bin/python')
+    expect(snapshot.skillRuntimeRoots).toEqual(['/app/env/venv'])
+    expect(snapshot).not.toHaveProperty('env')
+  })
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({

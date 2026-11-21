@@ -200,7 +200,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
-      additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
+      additionalReadOnlyRoots: [
+        ...additionalSkillPaths,
+        ...(initialSnapshot.skillRuntimeRoots ?? []),
+        application.getPath('feature.agents.outputs')
+      ],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
       autoApprovedTools: new Set(
         mountedPolicies
@@ -332,7 +336,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDir,
       sessionManager: manager,
       systemPrompt: prompt.base.kind === 'custom' ? prompt.base.content : undefined,
-      appendSystemPrompt: prompt.append ? [prompt.append] : [],
+      appendSystemPrompt: [prompt.append, initialSnapshot.skillRuntimeInstructions].filter((value): value is string =>
+        Boolean(value)
+      ),
       contextFiles: true,
       skillPaths: additionalSkillPaths,
       builtinTools: ['read', 'bash', 'edit', 'write', ...(process.platform === 'win32' ? ['powershell'] : [])],

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import path from 'node:path'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -15,7 +16,9 @@ import {
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
+import { inspectSkillEnvironment } from '@main/ai/skills/skillEnvironment'
 import { skillService } from '@main/ai/skills/SkillService'
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -45,6 +48,8 @@ export interface PiConnectionSnapshot {
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
   effectiveLanguage: string | null
+  skillRuntimeRoots?: string[]
+  skillRuntimeInstructions?: string
   mcpInstructions?: string
   signature: string
 }
@@ -92,6 +97,24 @@ export async function capturePiConnectionSnapshot(
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
   })
   const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
+  const skillRuntimeInstructions: string[] = []
+  const skillRuntimeRoots: string[] = []
+  for (const skill of enabledSkills) {
+    const readiness = await skillSetupService.assertReady(skill.id)
+    skill.readiness = readiness
+    if (readiness.pythonPath) skillRuntimeRoots.push(path.dirname(path.dirname(readiness.pythonPath)))
+    if (readiness.pythonPath)
+      skillRuntimeInstructions.push(
+        `Skill ${JSON.stringify(skill.name)} uses the approved Python interpreter ${JSON.stringify(readiness.pythonPath)}. Invoke this absolute interpreter for its scripts; never install packages in the task directory.`
+      )
+  }
+  for (const directory of workspaceSkillPaths) {
+    const check = await inspectSkillEnvironment(directory)
+    if (check.state !== 'ready')
+      throw new Error(
+        `Skill setup required in ${directory}: ${check.missing.join(', ')}. Import it into Skill settings to review setup.`
+      )
+  }
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
   const mcpServers = (agent.mcps ?? []).map((idOrName) => {
     const server = mcpServerService.findByIdOrName(idOrName)
@@ -119,7 +142,11 @@ export async function capturePiConnectionSnapshot(
           provider,
           model,
           apiKeys,
-          enabledSkills,
+          enabledSkills: enabledSkills.map(({ updatedAt: _updatedAt, readiness, ...skill }) => ({
+            ...skill,
+            readiness: readiness ? { ...readiness, checkedAt: undefined } : undefined
+          })),
+          skillRuntimeInstructions,
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
@@ -143,6 +170,8 @@ export async function capturePiConnectionSnapshot(
     model,
     effectiveLanguage,
     mcpInstructions,
+    skillRuntimeRoots,
+    skillRuntimeInstructions: skillRuntimeInstructions.join('\n'),
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths

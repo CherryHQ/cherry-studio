@@ -1,3 +1,10 @@
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
+vi.mock('@main/ai/skills/SkillSetupService', () => ({
+  skillSetupService: { assertReady: vi.fn(async () => ({ state: 'ready', missing: [], fingerprint: 'verified' })) }
+}))
+vi.mock('@main/ai/skills/skillEnvironment', () => ({
+  inspectSkillEnvironment: vi.fn(async () => ({ state: 'ready', missing: [], fingerprint: 'verified' }))
+}))
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -41,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   createAssistantFileToolsServer: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
+  listLocalSkillPaths: vi.fn(async () => []),
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
   findBySessionId: vi.fn(),
@@ -112,6 +120,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
+    listLocalSkillPaths: mocks.listLocalSkillPaths,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }
 }))
@@ -341,6 +350,17 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  })
+
+  it('blocks an Agent run before loading an enabled Skill whose preflight fails', async () => {
+    mocks.listSkills.mockResolvedValueOnce([{ id: 'unready-skill', folderName: 'pdf', isEnabled: true }])
+    vi.mocked(skillSetupService.assertReady).mockRejectedValueOnce(new Error('Skill setup required: binary pandoc'))
+    await expect(
+      buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+    ).rejects.toThrow('binary pandoc')
   })
 
   it('preserves managed CLI paths from the login-shell environment', async () => {

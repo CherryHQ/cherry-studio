@@ -16,6 +16,7 @@ import type {
   MarketplaceSkillDetail,
   MarketplaceSkillPage
 } from '@shared/types/skillMarketplace'
+import { SkillReadinessSchema, SkillSetupPlanSchema } from '@shared/types/skillReadiness'
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
@@ -31,6 +32,13 @@ import { uint8ArraySchema } from './common'
  * validates inputs, not outputs.
  */
 export const skillRequestSchemas = {
+  'skill.preflight': defineRoute({ input: z.object({ skillId: z.string().min(1) }), output: SkillReadinessSchema }),
+  'skill.setup.plan': defineRoute({ input: z.object({ skillId: z.string().min(1) }), output: SkillSetupPlanSchema }),
+  'skill.setup.approve': defineRoute({
+    input: z.object({ skillId: z.string().min(1), approvalId: z.string().uuid() }),
+    output: SkillReadinessSchema
+  }),
+  'skill.setup.cancel': defineRoute({ input: z.object({ skillId: z.string().min(1) }), output: z.void() }),
   'skill.subscription.add': defineRoute({
     input: z.object({ url: z.string().trim().min(1) }),
     output: z.custom<SkillSubscriptionSource>()

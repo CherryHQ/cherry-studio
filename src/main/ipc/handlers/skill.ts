@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { getMarketplaceSkill, listMarketplaceSkills } from '@main/ai/skills/cherrySkillMarketplace'
 import { SkillImportError } from '@main/ai/skills/SkillImportError'
 import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
+import { skillSetupService } from '@main/ai/skills/SkillSetupService'
 import { t } from '@main/i18n'
 import { PluginError } from '@main/utils/markdownParser'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -77,6 +78,10 @@ async function toSkillResult<T>(
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
+  'skill.preflight': ({ skillId }) => skillSetupService.preflight(skillId),
+  'skill.setup.plan': ({ skillId }) => skillSetupService.prepare(skillId),
+  'skill.setup.approve': ({ skillId, approvalId }) => skillSetupService.approve(skillId, approvalId),
+  'skill.setup.cancel': ({ skillId }) => skillSetupService.cancel(skillId),
   'skill.subscription.add': ({ url }) => application.get('SkillSubscriptionService').add(url),
   'skill.subscription.list': async ({ sourceId }) => application.get('SkillSubscriptionService').list(sourceId),
   'skill.subscription.refresh': ({ sourceId }) => application.get('SkillSubscriptionService').refresh(sourceId),
