@@ -1,3 +1,4 @@
+import type { TOptions } from 'i18next'
 import { Clipboard, FileJson, Import, Link } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -86,7 +87,7 @@ export function createAssistantImportFetchInit(): RequestInit {
 
 export function summarizeAssistantImportOutcomes(
   outcomes: DraftOutcome[],
-  t: (key: string, values?: Record<string, unknown>) => string,
+  t: (key: string, values?: TOptions) => string,
   fileName?: string
 ): CompletedImportStatus {
   const successes = outcomes.filter((o) => o.kind === 'ok').length
