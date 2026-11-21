@@ -7,6 +7,7 @@ import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystu
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils/mcp'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -83,7 +84,7 @@ const NpxSearch: FC = () => {
       setSearchResults([])
       _searchResults = []
       if (error instanceof Error) {
-        toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
+        toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.npx_list.search_error')))
       } else {
         toast.error(t('settings.mcp.npx_list.search_error'))
       }

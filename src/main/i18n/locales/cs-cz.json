@@ -252,7 +252,7 @@
   "paintings.generate_failed": "Generování obrázku selhalo",
   "paintings.image_mix_failed": "Míchání obrázků selhalo",
   "selection.name": "Asistent výběru textu",
-  "settings.mcp.oauth.callback.listen_error": "Nelze naslouchat na zpětném volání OAuth na adrese 127.0.0.1:{{port}} ({{reason}}). Zkontrolujte, zda je port volný, a zkuste to znovu.",
+  "settings.mcp.oauth.callback.listen_error": "Nelze naslouchat na zpětném volání OAuth na adrese 127.0.0.1:{{port}}. Zkontrolujte, zda je port volný, a zkuste to znovu.",
   "settings.mcp.oauth.callback.message": "Tuto stránku můžete zavřít a vrátit se do Cherry Studio",
   "settings.mcp.oauth.callback.title": "Ověření proběhlo úspěšně",
   "settings.mcp.oauth.cancelled": "Autorizace byla zrušena.",

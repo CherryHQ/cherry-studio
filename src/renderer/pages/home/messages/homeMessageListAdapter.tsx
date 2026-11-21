@@ -47,7 +47,7 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, isAbortError, LocalizedError } from '@renderer/utils/error'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { translateText } from '@renderer/utils/translate'
@@ -214,7 +214,7 @@ export function useHomeMessageListProviderValue({
         actionName,
         topicId: topic.id
       })
-      throw new Error(t('message.error.operation_unavailable'))
+      throw new LocalizedError(t('message.error.operation_unavailable'))
     },
     [chatWrite, t, topic.id]
   )
@@ -439,7 +439,7 @@ export function useHomeMessageListProviderValue({
       })
       .catch((error) => {
         logger.error('Failed to update context boundary:', error as Error)
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+        toast.error(formatErrorMessageWithPrefix(error, t('chat.context.clear_failed')))
       })
   }, [canStartNewContext, requireChatWrite, t, topic.id])
 
@@ -772,7 +772,7 @@ export function useHomeMessageListProviderValue({
           await regenerateMessageUsingModel(message.id, selected.id)
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error as Error)
-          toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+          toast.error(formatErrorMessageWithPrefix(error, t('message.regenerate.failed')))
         }
       }
 

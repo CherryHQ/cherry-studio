@@ -231,7 +231,7 @@ describe('EnvironmentDependencies', () => {
     fireEvent.change(mirror, { target: { value: 'https://ghfast.top' } })
     fireEvent.blur(mirror)
 
-    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('preference write failed'))
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('common.save_failed'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
@@ -622,7 +622,7 @@ describe('EnvironmentDependencies', () => {
     await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
 
     await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
-    expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: catalog offline')
+    expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed')
     expect(toastMock.success).not.toHaveBeenCalled()
   })
 
@@ -644,9 +644,7 @@ describe('EnvironmentDependencies', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
 
-    await waitFor(() =>
-      expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: mise ls failed')
-    )
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed'))
     expect(toastMock.success).not.toHaveBeenCalled()
     expect(within(card).getByText('common.retry')).toBeInTheDocument()
   })
@@ -1040,7 +1038,7 @@ describe('EnvironmentDependencies', () => {
     )
     const fallback = screen.getByRole('alertdialog')
     expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyConfirmMessage')
-    expect(fallback).toHaveTextContent('Tool is still installed after removal: mytool')
+    expect(fallback).not.toHaveTextContent('Tool is still installed after removal: mytool')
 
     fireEvent.click(within(fallback).getByTestId('confirm-dialog-confirm'))
     await waitFor(() => expect(ipcMocks.removeTool).toHaveBeenCalledWith({ name: 'mytool', definitionOnly: true }))

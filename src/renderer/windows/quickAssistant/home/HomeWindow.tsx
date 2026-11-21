@@ -17,6 +17,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -138,7 +139,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setMessages
   } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
     setIsPreparing(false)
-    setFlowError(err.message)
+    setFlowError(formatErrorMessageWithPrefix(err, t('quickAssistant.error.request_failed')))
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -402,11 +403,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         }
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
-        setFlowError(resolvedError.message)
+        setFlowError(formatErrorMessageWithPrefix(resolvedError, t('quickAssistant.error.request_failed')))
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {

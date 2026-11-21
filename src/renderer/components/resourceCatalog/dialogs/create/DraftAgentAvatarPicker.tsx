@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ColFlex, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import { prepareAvatarImage } from '../components/prepareAvatarImage'
 
@@ -71,7 +72,7 @@ export function DraftAgentAvatarPicker({
       onChange(emoji, data)
       setOpen(false)
     } catch (error) {
-      if (session.active) toast.error((error as Error).message)
+      if (session.active) toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     } finally {
       session.pending = false
       if (session.active) {

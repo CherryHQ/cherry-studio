@@ -10,6 +10,7 @@ interface ErrorFallbackDetailsProps {
   error: unknown
 }
 
+/** Raw text stays collapsed so the fallback reads in one language until the user asks for details. */
 const ErrorFallbackDetails: FC<ErrorFallbackDetailsProps> = ({ error }) => (
   <details className="group min-w-0 text-muted-foreground">
     <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md py-1 text-xs outline-none focus-visible:bg-accent [&::-webkit-details-marker]:hidden">

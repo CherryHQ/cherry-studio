@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('useMiniAppUpdate')
-
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 /** An update that carries a token — the two shapes the review surfaces can render. */
 export type UpdateOffer = Exclude<OutputFor<'mini_app.update.check'>, { status: 'current' }>
@@ -50,7 +49,7 @@ export function useMiniAppUpdate(
       options.onChecked?.()
     } catch (e) {
       logger.error('Mini app update check failed', e as Error)
-      toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      toast.error(formatErrorMessageWithPrefix(e, t('miniApp.detail.action_error')))
     } finally {
       setBusy(false)
     }
@@ -74,7 +73,7 @@ export function useMiniAppUpdate(
       options.onApplied?.()
     } catch (e) {
       logger.error('Mini app update failed', e as Error)
-      toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      toast.error(formatErrorMessageWithPrefix(e, t('miniApp.detail.action_error')))
     } finally {
       // Consumed either way: main deletes the review on `consume`, so the token is spent
       // even when the publish failed and a retry has to re-check. Dropped HERE rather than

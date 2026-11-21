@@ -252,7 +252,7 @@
   "paintings.generate_failed": "Nie udało się wygenerować obrazu",
   "paintings.image_mix_failed": "Nie udało się połączyć obrazów",
   "selection.name": "Asystent zaznaczenia",
-  "settings.mcp.oauth.callback.listen_error": "Nie udało się nasłuchiwać wywołania zwrotnego OAuth na 127.0.0.1:{{port}} ({{reason}}). Sprawdź, czy port jest dostępny, i spróbuj ponownie.",
+  "settings.mcp.oauth.callback.listen_error": "Nie udało się nasłuchiwać wywołania zwrotnego OAuth na 127.0.0.1:{{port}}. Sprawdź, czy port jest dostępny, i spróbuj ponownie.",
   "settings.mcp.oauth.callback.message": "Możesz zamknąć tę stronę i powrócić do Cherry Studio",
   "settings.mcp.oauth.callback.title": "Uwierzytelnianie powiodło się",
   "settings.mcp.oauth.cancelled": "Autoryzacja została anulowana.",

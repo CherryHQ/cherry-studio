@@ -20,6 +20,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { EventPayload } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('McpInteractionHost')
@@ -265,7 +266,11 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                       url &&
                       void ipcApi
                         .request('system.shell.open_external_website', url.href)
-                        .catch((error) => setValidationError(String(error)))
+                        .catch((error) =>
+                          setValidationError(
+                            formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content'))
+                          )
+                        )
                     }>
                     {t('common.open')}
                   </Button>

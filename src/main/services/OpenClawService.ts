@@ -10,7 +10,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -27,6 +27,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { readsInLanguage } from '@shared/utils/languageScript'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -722,10 +723,12 @@ export class OpenClawService extends BaseService {
       ? 'binary_incompatible'
       : 'external_config_invalid'
     const details = this.formatValidationDetails(report.issues)
+    logger.warn('OpenClaw rejected the generated config', { kind, details })
+    const shownDetails = readsInLanguage(details, getAppLanguage()) ? details : ''
     const message =
       kind === 'binary_incompatible'
-        ? t('openclaw.errors.binary_incompatible', { details })
-        : t('openclaw.errors.external_config_invalid', { details })
+        ? t('openclaw.errors.binary_incompatible', { details: shownDetails })
+        : t('openclaw.errors.external_config_invalid', { details: shownDetails })
     throw new OpenClawPreflightError(kind, message)
   }
 
@@ -859,7 +862,7 @@ export class OpenClawService extends BaseService {
   private throwSchemaCapabilityError(diagnostic: string): never {
     const summary = this.sanitizeDiagnostic(diagnostic)
     logger.warn('OpenClaw schema capability check failed', { summary })
-    const details = summary ? `\n${summary}` : ''
+    const details = summary && readsInLanguage(summary, getAppLanguage()) ? `\n${summary}` : ''
     throw new OpenClawPreflightError('binary_incompatible', t('openclaw.errors.binary_incompatible', { details }))
   }
 

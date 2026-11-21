@@ -38,10 +38,7 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
         })
       : t('agent.session.api_retry.retrying', { attempt: retry.attempt, max: retry.maxRetries })
 
-  const tooltip = t('agent.session.api_retry.reason', {
-    error: retry.errorCategory,
-    status: retry.errorStatus ?? '—'
-  })
+  const tooltip = t('agent.session.api_retry.reason', { status: retry.errorStatus ?? '—' })
 
   return (
     <div

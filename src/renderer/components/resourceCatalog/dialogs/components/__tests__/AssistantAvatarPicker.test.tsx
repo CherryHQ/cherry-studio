@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18next from 'i18next'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
@@ -114,11 +115,16 @@ describe('AssistantAvatarPicker persistence', () => {
   })
 
   it('keeps the saved avatar and menu on failure so the user can retry', async () => {
+    const previousLanguage = i18next.language
+    i18next.language = 'zh-CN'
+    onTestFinished(() => {
+      i18next.language = previousLanguage
+    })
     vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Upload failed'))
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
     await user.upload(screen.getByLabelText(uploadLabel), file)
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Upload failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.general.avatar.update_failed'))
     expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', props.avatarSrc)
     expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeEnabled()
     await user.upload(screen.getByLabelText(uploadLabel), file)

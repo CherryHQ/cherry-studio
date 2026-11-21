@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -34,7 +35,7 @@ function getEndpointActionErrorMessage(error: unknown, fallback: string): string
   }
 
   if (error instanceof Error && error.message.trim()) {
-    return `${fallback}: ${error.message}`
+    return formatErrorMessageWithPrefix(error, fallback)
   }
 
   return fallback

@@ -133,7 +133,7 @@ describe('OpenTargetButton', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open in Visual Studio Code' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/README.md: launch failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/README.md'))
   })
 })
 
