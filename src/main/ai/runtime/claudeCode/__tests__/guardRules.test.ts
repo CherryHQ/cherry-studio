@@ -11,6 +11,7 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
+import { AGENT_AVATAR_TOOL_NAME } from '@shared/ai/agentAvatarTool'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
@@ -471,6 +472,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         ruleId: 'approval-required'
       })
     })
+  })
+
+  it('requires avatar approval even in Full Access and denies unattended calls', async () => {
+    const ctx = makeCtx({
+      toolName: toCherryBuiltinRuntimeName(AGENT_AVATAR_TOOL_NAME),
+      permissionMode: 'bypassPermissions'
+    })
+    await expect(evaluate(ctx)).resolves.toMatchObject({ effect: 'ask' })
+    await expect(evaluate({ ...ctx, interaction: HEADLESS })).resolves.toMatchObject({ effect: 'deny' })
+    await expect(evaluate({ ...ctx, isDisabled: () => true })).resolves.toMatchObject({ effect: 'deny' })
   })
 
   describe.each([SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME])('delegation approval: %s', (name) => {

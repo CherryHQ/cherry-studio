@@ -18,9 +18,11 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import CopyButton from '@renderer/components/CopyButton'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import { AGENT_AVATAR_TOOL_NAME } from '@shared/ai/agentAvatarTool'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -131,27 +133,50 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   )
 }
 
-function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse }) {
+type AvatarTarget = { id: string | null; name?: string }
+
+function McpPermissionPreview({
+  toolResponse,
+  avatarTarget
+}: {
+  toolResponse: McpToolResponse
+  avatarTarget?: AvatarTarget
+}) {
   const { t } = useTranslation()
   const args = normalizeArgs(toolResponse.arguments)
+  const previewArgs =
+    args && !Array.isArray(args) && avatarTarget?.name
+      ? {
+          ...args,
+          ...(avatarTarget.id
+            ? { target_agent_id: `${avatarTarget.name} (${avatarTarget.id})` }
+            : { [t('common.agent')]: avatarTarget.name })
+        }
+      : args
 
   return (
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
-      {args ? (
+      {previewArgs ? (
         <ScrollArea
           viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
           className="max-h-60">
-          <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
+          <ToolArgsTable args={previewArgs} title={t('message.tools.sections.input')} />
         </ScrollArea>
       ) : (
-        <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
+        <div className="text-muted-foreground py-2 text-xs">{t('message.tools.noData')}</div>
       )}
     </div>
   )
 }
 
-function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike }) {
+function PermissionPreview({
+  toolResponse,
+  avatarTarget
+}: {
+  toolResponse: ToolResponseLike
+  avatarTarget?: AvatarTarget
+}) {
   const { t } = useTranslation()
   const args = toolResponse.arguments
   const command =
@@ -163,7 +188,7 @@ function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike })
   ) {
     return (
       <div className="px-3 py-2">
-        <div className="mb-1 flex items-center justify-between gap-2 text-muted-foreground text-xs">
+        <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-xs">
           <span>{t('message.tools.sections.command')}</span>
           <CopyButton textToCopy={command} tooltip={t('common.copy')} successFeedback="icon" />
         </div>
@@ -172,7 +197,7 @@ function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike })
     )
   }
   if (isMcpToolResponse(toolResponse)) {
-    return <McpPermissionPreview toolResponse={toolResponse} />
+    return <McpPermissionPreview toolResponse={toolResponse} avatarTarget={avatarTarget} />
   }
 
   return <BuiltinPermissionPreview toolResponse={toolResponse} />
@@ -188,10 +213,10 @@ function getPermissionRequestSubtitle(request: PermissionRequestComposerRequest)
 
 function PermissionPreviewHeader({ toolName, description }: { toolName: string; description?: string }) {
   return (
-    <div className="min-w-0 text-foreground text-sm">
+    <div className="min-w-0 text-sm text-foreground">
       <div className="truncate font-medium">{toolName}</div>
       {description ? (
-        <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</div>
+        <div className="text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-4">{description}</div>
       ) : null}
     </div>
   )
@@ -217,7 +242,7 @@ function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unk
     <div
       data-testid="permission-risk-summary"
       className="mt-2 rounded-[12px] border border-border bg-background px-3 py-2">
-      <div className="font-medium text-muted-foreground text-xs">{t('agent.toolPermission.risk.title')}</div>
+      <div className="text-muted-foreground text-xs font-medium">{t('agent.toolPermission.risk.title')}</div>
       <ul className="mt-1 space-y-0.5">
         {effects.map((effect) => (
           <li key={effect} className={`flex items-start gap-1.5 text-xs leading-4 ${RISK_EFFECT_TONE[effect]}`}>
@@ -247,6 +272,19 @@ export default function PermissionRequestComposer({
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
   const subtitle = getPermissionRequestSubtitle(request)
+  const toolResponse = request.toolResponse
+  const isAvatarRequest =
+    isMcpToolResponse(toolResponse) &&
+    toolResponse.tool.serverId.replaceAll('_', '-') === 'cherry-tools' &&
+    toolResponse.tool.name === AGENT_AVATAR_TOOL_NAME
+  const args = normalizeArgs(toolResponse.arguments)
+  const targetId =
+    isAvatarRequest && args && !Array.isArray(args) && typeof args.target_agent_id === 'string'
+      ? args.target_agent_id.trim()
+      : null
+  const { agent: targetAgent } = useAgent(targetId)
+  const avatarTarget = isAvatarRequest ? { id: targetId, name: targetId ? targetAgent?.name : agentName } : undefined
+  const cannotApprove = isSubmitting || Boolean(targetId && !targetAgent?.name)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -267,7 +305,7 @@ export default function PermissionRequestComposer({
   )
 
   const approve = useCallback(async () => {
-    if (isSubmitting) return
+    if (cannotApprove) return
     await respond(
       {
         match: request.match,
@@ -275,7 +313,7 @@ export default function PermissionRequestComposer({
       },
       'approve'
     )
-  }, [isSubmitting, request.match, respond])
+  }, [cannotApprove, request.match, respond])
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
@@ -308,8 +346,8 @@ export default function PermissionRequestComposer({
         className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex min-w-0 items-center gap-2 px-1">
-          <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-            <span className="inline-flex shrink-0 text-muted-foreground">
+          <h2 className="flex shrink-0 items-center gap-2 text-sm leading-5 font-semibold text-foreground">
+            <span className="text-muted-foreground inline-flex shrink-0">
               <ShieldCheck aria-hidden="true" className="size-4" />
             </span>
             {t('agent.toolPermission.title')}
@@ -317,7 +355,7 @@ export default function PermissionRequestComposer({
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
             {isSubmitting ? (
-              <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 font-medium text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-[11px] font-medium">
                 <Loader2 aria-hidden="true" className="size-3 animate-spin" />
                 {t('message.processing')}
               </div>
@@ -325,7 +363,7 @@ export default function PermissionRequestComposer({
           </div>
         </div>
 
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-muted-foreground text-xs">
+        <div className="text-muted-foreground mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-xs">
           <span>{t('agent.toolPermission.source')}</span>
           {request.source ? (
             <>
@@ -334,7 +372,7 @@ export default function PermissionRequestComposer({
                 <Button
                   type="button"
                   variant="link"
-                  className="h-auto min-w-0 max-w-full justify-start gap-1 p-0 text-link text-xs"
+                  className="text-link h-auto max-w-full min-w-0 justify-start gap-1 p-0 text-xs"
                   onClick={() => onOpenSource(request.source!)}>
                   <span className="truncate">{request.source.title || t('agent.toolPermission.subagent')}</span>
                   <ArrowUpRight aria-hidden="true" className="size-3 shrink-0" />
@@ -350,15 +388,15 @@ export default function PermissionRequestComposer({
             <span className="text-foreground">{agentName || t('common.agent')}</span>
           )}
         </div>
-        {subtitle ? <p className="mt-1 break-words px-1 text-muted-foreground text-xs">{subtitle}</p> : null}
+        {subtitle ? <p className="text-muted-foreground mt-1 px-1 text-xs break-words">{subtitle}</p> : null}
         {request.commandPolicy ? (
           <div className="mt-2 space-y-1 px-1 text-xs">
-            <p className="flex items-start gap-1.5 text-warning-subtle-foreground">
+            <p className="text-warning-subtle-foreground flex items-start gap-1.5">
               <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
               {request.commandPolicy.reason}
             </p>
             {request.commandPolicy.cwd ? (
-              <p className="break-all text-muted-foreground">
+              <p className="text-muted-foreground break-all">
                 {t('agent.toolPermission.workingDirectory')}:{' '}
                 <span className="font-mono text-foreground">{request.commandPolicy.cwd}</span>
               </p>
@@ -383,7 +421,7 @@ export default function PermissionRequestComposer({
                 {evidenceApprovalId === request.approvalId ? (
                   <ul className="max-h-28 space-y-1 overflow-auto rounded bg-muted p-2 font-mono text-foreground">
                     {request.commandPolicy.rules.map((rule) => (
-                      <li key={rule.ruleId} className="whitespace-pre-wrap break-all">
+                      <li key={rule.ruleId} className="break-all whitespace-pre-wrap">
                         {rule.evidence}
                       </li>
                     ))}
@@ -396,7 +434,7 @@ export default function PermissionRequestComposer({
           <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         )}
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
-          <PermissionPreview toolResponse={request.toolResponse} />
+          <PermissionPreview toolResponse={toolResponse} avatarTarget={avatarTarget} />
         </div>
 
         <div className="mt-2 px-1">
@@ -405,7 +443,7 @@ export default function PermissionRequestComposer({
             variant="ghost"
             disabled={isSubmitting}
             aria-expanded={reasonExpanded}
-            className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
+            className="text-muted-foreground h-auto gap-1 px-0 py-1 text-xs"
             onClick={() =>
               setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
             }>
@@ -434,11 +472,11 @@ export default function PermissionRequestComposer({
         <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
             {t('agent.toolPermission.button.deny')}
-            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+            <Kbd aria-hidden="true" className="text-muted-foreground bg-muted">
               {hasRejectionReason ? 'Enter' : 'Esc'}
             </Kbd>
           </Button>
-          <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
+          <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
             {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
             {!hasRejectionReason && (
               <Kbd aria-hidden="true" className="bg-current/10 text-current">

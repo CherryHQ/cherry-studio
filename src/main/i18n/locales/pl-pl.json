@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "Ustawiono nowy awatar dla {{name}} ({{id}}). Można przywrócić poprzedni awatar.",
+  "agent.avatar_tool.no_backup": "Ten agent nie ma zapisanego poprzedniego awatara.",
+  "agent.avatar_tool.prompt_required": "Aby wygenerować awatar, podaj opis.",
+  "agent.avatar_tool.restored": "Przywrócono poprzedni awatar dla {{name}} ({{id}}).",
+  "agent.avatar_tool.unreadable_backup": "Nie można odczytać poprzedniego awatara.",
   "agent.builtin.cherry_assistant.description": "Wbudowany doradca Cherry Studio. Diagnozuje problemy, prowadzi przez operacje, gromadzi często zadawane pytania, zgłasza błędy/propozycje funkcji oraz wyszukuje i tworzy umiejętności",
   "agent.builtin.cherry_doctor.description": "Wbudowany analityk diagnostyki systemu. Odczytuje raport diagnostyczny i stan środowiska wykonawczego, wyjaśnia przyczynę źródłową oraz proponuje ukierunkowane poprawki",
   "agent.builtin.cherry_support.description": "Oficjalny agent pomocy Cherry Studio do wskazówek konfiguracyjnych, rozwiązywania problemów, często zadawanych pytań i opinii",

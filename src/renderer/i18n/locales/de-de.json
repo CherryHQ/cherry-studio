@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Gedächtnis",
   "agent.tools.builtin.Bash.description": "Führt Shell-Befehle in Ihrer Umgebung aus",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Erstellt oder stellt mit deiner Zustimmung den Avatar eines Agenten wieder her",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Agentenavatar ändern",
   "agent.tools.builtin.CherryConfig.description": "Überprüft und verwaltet diese Agent-Konfiguration und -Kanäle",
   "agent.tools.builtin.CherryConfig.label": "Agent-Konfiguration",
   "agent.tools.builtin.CherryCron.description": "Verwaltet den In-App-Planer",

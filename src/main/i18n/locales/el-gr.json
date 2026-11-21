@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "Ορίστηκε νέο avatar για τον πράκτορα {{name}} ({{id}}). Μπορείτε να επαναφέρετε το προηγούμενο avatar.",
+  "agent.avatar_tool.no_backup": "Δεν υπάρχει αποθηκευμένο προηγούμενο avatar για αυτόν τον πράκτορα.",
+  "agent.avatar_tool.prompt_required": "Απαιτείται περιγραφή για τη δημιουργία avatar.",
+  "agent.avatar_tool.restored": "Επαναφέρθηκε το προηγούμενο avatar του πράκτορα {{name}} ({{id}}).",
+  "agent.avatar_tool.unreadable_backup": "Δεν είναι δυνατή η ανάγνωση του προηγούμενου avatar.",
   "agent.builtin.cherry_assistant.description": "Ενσωματωμένος σύμβουλος του Cherry Studio. Διαγιγνώσκει προβλήματα, καθοδηγεί τις λειτουργίες, συλλέγει συχνές ερωτήσεις, υποβάλλει αναφορές σφαλμάτων ή αιτήματα λειτουργιών και αναζητά ή δημιουργεί Skills.",
   "agent.builtin.cherry_doctor.description": "Ενσωματωμένος αναλυτής διαγνωστικών συστήματος. Διαβάζει την αναφορά διαγνωστικών και την κατάσταση εκτέλεσης, εξηγεί τη βασική αιτία και προτείνει περιορισμένες διορθώσεις",
   "agent.builtin.cherry_support.description": "Επίσημος Agent υποστήριξης του Cherry Studio για ρυθμίσεις, διάγνωση, FAQ και σχόλια",

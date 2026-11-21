@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Memoria",
   "agent.tools.builtin.Bash.description": "Esegue comandi della shell nel tuo ambiente",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Genera o ripristina l’avatar di un agente con la tua approvazione",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Cambia avatar dell’agente",
   "agent.tools.builtin.CherryConfig.description": "Esamina e gestisce la configurazione e i canali di questo agente",
   "agent.tools.builtin.CherryConfig.label": "Configurazione agente",
   "agent.tools.builtin.CherryCron.description": "Gestisce la pianificazione delle attività nell'app",

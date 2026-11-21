@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "記憶",
   "agent.tools.builtin.Bash.description": "在你的環境中執行 Shell 命令",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "經你批准後為智慧體產生或還原頭像",
+  "agent.tools.builtin.CherryAgentAvatar.label": "更換智慧體頭像",
   "agent.tools.builtin.CherryConfig.description": "檢查並管理此智能體設定和頻道",
   "agent.tools.builtin.CherryConfig.label": "智能體設定",
   "agent.tools.builtin.CherryCron.description": "管理應用程式內的定時排程",

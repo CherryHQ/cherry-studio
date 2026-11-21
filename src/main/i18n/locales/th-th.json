@@ -1,4 +1,9 @@
 {
+  "agent.avatar_tool.applied": "ใช้รูปโปรไฟล์ใหม่กับ {{name}} ({{id}}) แล้ว คุณสามารถกู้คืนรูปเดิมได้",
+  "agent.avatar_tool.no_backup": "ไม่มีรูปโปรไฟล์ก่อนหน้าที่บันทึกไว้สำหรับเอเจนต์นี้",
+  "agent.avatar_tool.prompt_required": "ต้องระบุคำอธิบายเพื่อสร้างรูปโปรไฟล์",
+  "agent.avatar_tool.restored": "กู้คืนรูปโปรไฟล์ก่อนหน้าของ {{name}} ({{id}}) แล้ว",
+  "agent.avatar_tool.unreadable_backup": "ไม่สามารถอ่านรูปโปรไฟล์ก่อนหน้าได้",
   "agent.builtin.cherry_assistant.description": "ที่ปรึกษาในตัวของ Cherry Studio วินิจฉัยปัญหา แนะนำการใช้งาน รวบรวม FAQ ส่งรายงานบั๊ก/คำขอฟีเจอร์ และค้นหา/สร้าง Skills",
   "agent.builtin.cherry_doctor.description": "เอเจนต์วิเคราะห์ System Doctor ในตัว อ่านรายงานวินิจฉัยและสถานะ runtime อธิบายสาเหตุที่แท้จริง และเสนอวิธีแก้ที่ควบคุมขอบเขตได้",
   "agent.builtin.cherry_support.description": "เอเจนต์สนับสนุนอย่างเป็นทางการของ Cherry Studio สำหรับคำแนะนำการตั้งค่า การแก้ไขปัญหา FAQ และข้อเสนอแนะ",

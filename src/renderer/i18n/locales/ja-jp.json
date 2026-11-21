@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "メモリー",
   "agent.tools.builtin.Bash.description": "環境でシェルコマンドを実行します",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "承認を得てエージェントのアバターを生成または復元します",
+  "agent.tools.builtin.CherryAgentAvatar.label": "エージェントのアバターを変更",
   "agent.tools.builtin.CherryConfig.description": "このエージェント設定とチャネルの検査と管理",
   "agent.tools.builtin.CherryConfig.label": "エージェント設定",
   "agent.tools.builtin.CherryCron.description": "アプリ内スケジューラを管理します",

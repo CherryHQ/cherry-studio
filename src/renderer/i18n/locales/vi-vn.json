@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Bộ nhớ",
   "agent.tools.builtin.Bash.description": "Thực thi các lệnh shell trong môi trường của bạn",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Tạo hoặc khôi phục ảnh đại diện cho tác nhân khi bạn chấp thuận",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Đổi ảnh đại diện của tác nhân",
   "agent.tools.builtin.CherryConfig.description": "Kiểm tra và quản lý cấu hình cùng các kênh của Agent này",
   "agent.tools.builtin.CherryConfig.label": "Cấu hình Agent",
   "agent.tools.builtin.CherryCron.description": "Quản lý trình lên lịch trong ứng dụng",

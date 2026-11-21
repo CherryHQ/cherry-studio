@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Memorie",
   "agent.tools.builtin.Bash.description": "Execută comenzi shell în mediul tău",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Generează sau restaurează avatarul unui agent cu aprobarea ta",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Schimbă avatarul agentului",
   "agent.tools.builtin.CherryConfig.description": "Inspectează și gestionează această configurație de agent și canalele sale",
   "agent.tools.builtin.CherryConfig.label": "Configurare Agent",
   "agent.tools.builtin.CherryCron.description": "Gestionează programatorul din aplicație",

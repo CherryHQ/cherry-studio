@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Paměť",
   "agent.tools.builtin.Bash.description": "Spouští příkazy shellu ve vašem prostředí",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "S vaším schválením vytvoří nebo obnoví avatar agenta",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Změnit avatar agenta",
   "agent.tools.builtin.CherryConfig.description": "Kontroluje a spravuje konfiguraci tohoto agenta a kanály",
   "agent.tools.builtin.CherryConfig.label": "Konfigurace agenta",
   "agent.tools.builtin.CherryCron.description": "Spravuje plánovač v aplikaci",

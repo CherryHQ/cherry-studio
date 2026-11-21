@@ -9,6 +9,7 @@ import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getAgentAvatar } from '@renderer/utils/agent'
 import type { InputFor } from '@shared/ipc/types'
 
 import { prepareAvatarImage } from './prepareAvatarImage'
@@ -73,7 +74,7 @@ export function AgentAvatarPicker({
       setView('menu')
       if (onChanged) {
         const data = await dataApiService.get(`/agents/${id}`)
-        if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '🤖' })
+        if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '' })
       }
     } catch (error: any) {
       if (session.active) toast.error(error.message)
@@ -108,7 +109,7 @@ export function AgentAvatarPicker({
                 size={avatarSize}
                 fontSize={size === 'sm' ? 18 : 16}
                 className="rounded-lg border border-border">
-                {emoji}
+                {getAgentAvatar(emoji)}
               </EmojiAvatar>
             }
           />

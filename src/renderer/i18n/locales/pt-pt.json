@@ -600,6 +600,8 @@
   "agent.tools.builtin.AgentMemory.label": "Memória",
   "agent.tools.builtin.Bash.description": "Executa comandos shell no seu ambiente",
   "agent.tools.builtin.Bash.label": "Bash",
+  "agent.tools.builtin.CherryAgentAvatar.description": "Gera ou restaura o avatar de um agente com a sua aprovação",
+  "agent.tools.builtin.CherryAgentAvatar.label": "Alterar avatar do agente",
   "agent.tools.builtin.CherryConfig.description": "Inspeciona e gerencia esta configuração do agente e canais",
   "agent.tools.builtin.CherryConfig.label": "Configuração do Agente",
   "agent.tools.builtin.CherryCron.description": "Gerencia o agendador dentro da aplicação",
