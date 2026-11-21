@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessageTable, agentSessionToolOutputTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -23,12 +23,15 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -3155,6 +3158,221 @@ describe('AgentSessionMessageService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 20))
       expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+    })
+  })
+
+  describe('agent_session_tool_output sidecar storage', () => {
+    const oversizedOutputA = { content: 'a'.repeat(DEFER_TOOL_OUTPUT_BYTES + 128) }
+    const oversizedOutputB = { content: 'b'.repeat(DEFER_TOOL_OUTPUT_BYTES + 256) }
+    const smallOutput = { content: 'small' }
+
+    it('resolves a deferred legacy inline output through the full-result reader', async () => {
+      const parts = [
+        {
+          type: 'dynamic-tool' as const,
+          toolName: 'Read',
+          toolCallId: 'legacy-call',
+          state: 'output-available' as const,
+          input: {},
+          output: oversizedOutputA
+        }
+      ]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ data: { parts } })
+        .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+        .run()
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(page.items).toHaveLength(1)
+      const part = page.items[0].data.parts?.[0]
+      if (part?.type !== 'dynamic-tool' || part.state !== 'output-available' || !isDeferredToolOutput(part.output))
+        throw new Error('Expected a deferred tool result')
+      const { topicId, messageId, toolCallId } = part.output.$deferredToolResult
+      await expect(findPersistedToolOutput(topicId, messageId, toolCallId)).resolves.toEqual({
+        found: true,
+        output: oversizedOutputA
+      })
+      expect(JSON.stringify(page).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual(parts)
+      expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
+    })
+
+    it('splits oversized tool outputs into agent_session_tool_output while keeping deferred list reads compact and hydrating full reads', () => {
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              { type: 'text', text: 'Done reading' },
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'call-large',
+                state: 'output-available',
+                input: { path: 'large.txt' },
+                output: oversizedOutputA
+              },
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'call-small',
+                state: 'output-available',
+                input: { path: 'small.txt' },
+                output: smallOutput
+              }
+            ]
+          }
+        }
+      })
+
+      expect(saved.data.parts).toEqual([
+        { type: 'text', text: 'Done reading' },
+        expect.objectContaining({ toolCallId: 'call-large', output: oversizedOutputA }),
+        expect.objectContaining({ toolCallId: 'call-small', output: smallOutput })
+      ])
+
+      const [rawRow] = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+        .all()
+      const rawLargePart = rawRow.data.parts?.[1] as { output?: unknown } | undefined
+      expect(isDeferredToolOutput(rawLargePart?.output)).toBe(true)
+      expect(Buffer.byteLength(JSON.stringify(rawRow.data), 'utf8')).toBeLessThan(2048)
+
+      const sidecarRows = dbh.db.select().from(agentSessionToolOutputTable).all()
+      expect(sidecarRows).toHaveLength(1)
+      expect(sidecarRows[0]).toMatchObject({
+        messageId: ASSISTANT_MESSAGE_ID,
+        toolCallId: 'call-large',
+        sessionId: SESSION_ID,
+        output: oversizedOutputA
+      })
+
+      const deferredPage = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      const deferredLargePart = deferredPage.items[0]?.data.parts?.[1] as { output?: unknown } | undefined
+      expect(isDeferredToolOutput(deferredLargePart?.output)).toBe(true)
+
+      const hydratedPage = agentSessionMessageService.listSessionMessages(SESSION_ID)
+      expect(hydratedPage.items[0]?.data.parts?.[1]).toMatchObject({ output: oversizedOutputA })
+
+      const single = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(single.data.parts?.[1]).toMatchObject({ output: oversizedOutputA })
+
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-large')).toEqual({
+        found: true,
+        output: oversizedOutputA
+      })
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-small')).toEqual({
+        found: false
+      })
+
+      const metadata = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 0,
+        toMs: Number.MAX_SAFE_INTEGER,
+        limit: 10
+      }).items[0]
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(single), 'utf8'))
+    })
+
+    it('keeps only the latest tool output, skips unchanged writes and cleans up removed or cascade-deleted outputs', () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: {},
+                output: oversizedOutputA
+              },
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'call-2',
+                state: 'output-available',
+                input: {},
+                output: oversizedOutputB
+              }
+            ]
+          }
+        }
+      })
+
+      dbh.db
+        .update(agentSessionToolOutputTable)
+        .set({ updatedAt: 1000 })
+        .where(eq(agentSessionToolOutputTable.messageId, ASSISTANT_MESSAGE_ID))
+        .run()
+
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'call-1',
+          state: 'output-available',
+          input: {},
+          output: oversizedOutputA
+        },
+        {
+          type: 'text',
+          text: 'Completed'
+        }
+      ])
+
+      const remaining = dbh.db.select().from(agentSessionToolOutputTable).all()
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0]).toMatchObject({
+        messageId: ASSISTANT_MESSAGE_ID,
+        toolCallId: 'call-1',
+        updatedAt: 1000
+      })
+
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'call-1',
+          state: 'output-available',
+          input: {},
+          output: oversizedOutputB
+        }
+      ])
+
+      const replaced = dbh.db.select().from(agentSessionToolOutputTable).all()
+      expect(replaced).toHaveLength(1)
+      expect(replaced[0]).toMatchObject({
+        messageId: ASSISTANT_MESSAGE_ID,
+        toolCallId: 'call-1',
+        output: oversizedOutputB,
+        createdAt: remaining[0].createdAt
+      })
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1')).toEqual({
+        found: true,
+        output: oversizedOutputB
+      })
+      expect(
+        agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+      ).toMatchObject({
+        output: oversizedOutputB
+      })
+
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toHaveLength(0)
     })
   })
 })

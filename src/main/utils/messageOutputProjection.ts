@@ -79,15 +79,21 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
-  const web = webSearchOutputSchema.safeParse(output)
-  if (web.success) {
-    return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+  if (Array.isArray(output)) {
+    const web = webSearchOutputSchema.safeParse(output)
+    if (web.success) {
+      return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
+    if (knowledgeSearch.success) {
+      return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    return undefined
   }
 
-  const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
-  if (knowledgeSearch.success) {
-    return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
-  }
+  if (!isRecord(output) || typeof output.conceptId !== 'string') return undefined
 
   const knowledgeRead = kbReadOutputSchema.safeParse(output)
   if (knowledgeRead.success) {
@@ -216,15 +222,24 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (!entities || entities.length <= 1) return deferred
 
   // Citation order defines display numbering, so retain the longest prefix that fits.
-  for (let end = entities.length - 1; end > 0; end -= 1) {
+  let low = 1
+  let high = entities.length - 1
+  let best: DeferredToolOutput | undefined
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
     const trimmedSkeleton = Array.isArray(skeleton)
-      ? entities.slice(0, end)
-      : { ...skeleton, content: entities.slice(0, end) }
-    const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
-    if (!exceedsToolOutputTransportLimit(trimmed)) return trimmed
+      ? entities.slice(0, mid)
+      : { ...skeleton, content: entities.slice(0, mid) }
+    const candidate = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
+    if (!exceedsToolOutputTransportLimit(candidate)) {
+      best = candidate
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
   }
 
-  return deferred
+  return best ?? deferred
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {

@@ -37,39 +37,36 @@ describe('Agent message tree', () => {
       .map((row) => row.id)
   }
 
-  it('projects large outputs as each page is read without hydrating the lookahead message', () => {
+  it('reads deferred tool outputs for each page without hydrating the lookahead message', () => {
+    const ids = Array.from({ length: 52 }, () => crypto.randomUUID())
     const output = { content: 'x'.repeat(128 * 1024) }
-    let parentId = service.captureHead(sessionId)
-    dbh.db.transaction((tx) => {
-      for (let i = 0; i < 52; i++) {
-        const id = `page-${i}`
-        tx.insert(messages)
-          .values({
-            id,
-            sessionId,
-            parentId,
-            role: 'assistant',
-            status: 'success',
-            createdAt: i + 100,
-            updatedAt: i + 100,
-            data: {
-              parts: [
-                {
-                  type: 'dynamic-tool',
-                  toolName: 'probe',
-                  toolCallId: `call-${i}`,
-                  state: 'output-available',
-                  input: {},
-                  output
-                }
-              ]
-            }
-          })
-          .run()
-        parentId = id
-      }
-      tx.update(sessions).set({ activeNodeId: parentId }).where(eq(sessions.id, sessionId)).run()
-    })
+    for (let i = 0; i < 52; i++) {
+      service.saveMessage({
+        sessionId,
+        message: {
+          id: ids[i],
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'probe',
+                toolCallId: `call-${i}`,
+                state: 'output-available',
+                input: {},
+                output
+              }
+            ]
+          }
+        }
+      })
+      dbh.db
+        .update(messages)
+        .set({ createdAt: i + 100 })
+        .where(eq(messages.id, ids[i]))
+        .run()
+    }
     const decode = messages.data.mapFromDriverValue.bind(messages.data)
     const guard = vi.spyOn(messages.data, 'mapFromDriverValue').mockImplementation((raw) => {
       if (typeof raw === 'string' && raw.includes('"call-1"')) throw new Error('Lookahead payload must not be hydrated')
@@ -82,18 +79,18 @@ describe('Agent message tree', () => {
       guard.mockRestore()
     }
     expect(page.items).toHaveLength(50)
-    expect(page.items.map((item) => item.id)).toEqual(Array.from({ length: 50 }, (_, i) => `page-${51 - i}`))
+    expect(page.items.map((item) => item.id)).toEqual(Array.from({ length: 50 }, (_, i) => ids[51 - i]))
     expect(page.items[0].data.parts![0]).toMatchObject({
       output: {
-        $deferredToolResult: { topicId: `agent-session:${sessionId}`, messageId: 'page-51', toolCallId: 'call-51' }
+        $deferredToolResult: { topicId: `agent-session:${sessionId}`, messageId: ids[51], toolCallId: 'call-51' }
       }
     })
     const older = service.listSessionMessages(sessionId, { cursor: page.nextCursor, deferToolOutputs: true })
-    expect(older.items.map((item) => item.id)).toEqual(['page-1', 'page-0'])
+    expect(older.items.map((item) => item.id)).toEqual([ids[1], ids[0]])
     expect(older.nextCursor).toBeUndefined()
     const raw = service.listSessionMessages(sessionId, { limit: 1 })
     expect(raw.items[0].data.parts![0]).toMatchObject({ output })
-    expect(service.getSessionMessage(sessionId, 'page-51').data.parts![0]).toMatchObject({ output })
+    expect(service.getSessionMessage(sessionId, ids[51]).data.parts![0]).toMatchObject({ output })
   })
 
   it('keeps small tool outputs and user parts verbatim when deferral is requested', () => {
