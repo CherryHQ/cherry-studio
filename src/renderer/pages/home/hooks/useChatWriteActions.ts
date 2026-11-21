@@ -28,6 +28,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import { hasSubstantiveAssistantParts } from '@shared/ai/messageRenderability'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -265,7 +266,7 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
-    async (messageId, editedParts) => {
+    async (messageId, editedParts, options) => {
       await seedOptimisticBranch((items) => {
         const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
           msg.id === messageId ? { ...msg, data: { ...msg.data, parts: editedParts } } : msg
@@ -276,7 +277,13 @@ export function useChatWriteActions(params: Params): Result {
         }))
       })
       try {
-        await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        await patchMessageTrigger({
+          params: { id: messageId },
+          body: {
+            data: { parts: editedParts },
+            ...(options?.expectedParts !== undefined && { expectedParts: options.expectedParts })
+          }
+        })
         setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
@@ -310,7 +317,7 @@ export function useChatWriteActions(params: Params): Result {
       const isFailedAssistant =
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
-        (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+        (targetStatus === 'error' || targetStatus === 'paused' || !hasSubstantiveAssistantParts(target.parts))
       // Pending replies are not a regeneration target; otherwise use the current composer selection.
       const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
       const retryModelId =

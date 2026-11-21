@@ -144,6 +144,9 @@ export function gatewayPromptOptions(
     messages: request.messages,
     callOverrides: request.callOverrides,
     contextOwner: 'caller' as const,
+    // Protocol translator: caller-defined tools are valid completions for
+    // external clients even when Cherry's renderer has no card for them.
+    allowEmptySuccess: true,
     ...(usageContext ? { usageContext } : {}),
     ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
     idleTimeoutMs,
