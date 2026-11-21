@@ -890,7 +890,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
     throw new Error('QR authentication requires the channel to be enabled')
   }
 
-  let cfg: Record<string, unknown> = rawConfig ?? {}
+  let cfg: NonNullable<ConfigInput['config']> = rawConfig ?? {}
   if (authMode === 'qr' && type === 'wechat') {
     cfg = { ...rawConfig, token_path: '' }
   } else if (authMode === 'qr' && type === 'feishu') {
@@ -1030,11 +1030,11 @@ function getOwnedChannel(ctx: AutonomyToolsContext, channelId: string | undefine
 function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): CallToolResult {
   const existing = getOwnedChannel(ctx, args.channel_id, 'update_channel')
 
-  const updates: Record<string, unknown> = {}
+  const updates: Parameters<typeof updateAgentChannel>[1] = {}
   if (args.name !== undefined) updates.name = args.name
   if (args.enabled !== undefined) updates.isActive = args.enabled
   if (args.config !== undefined) {
-    updates.config = { ...existing.config, ...args.config }
+    updates.configPatch = args.config
   }
 
   updateAgentChannel(existing.id, updates)
