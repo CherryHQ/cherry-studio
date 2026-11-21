@@ -92,6 +92,16 @@
   --resource-list-row-active-foreground: var(--accent-foreground);
   --resource-list-row-selected: oklch(0 0 0 / 0.08);
   --resource-list-row-selected-foreground: var(--accent-foreground);
+
+  /* Stable product domain: per-agent accents in the agent sessions sidebar */
+  --agent-color-0: oklch(0.6 0.19 293);
+  --agent-color-1: oklch(0.6 0.14 162);
+  --agent-color-2: oklch(0.7 0.16 70);
+  --agent-color-3: oklch(0.63 0.11 215);
+  --agent-color-4: oklch(0.6 0.2 22);
+  --agent-color-5: oklch(0.6 0.19 262);
+  --agent-color-6: oklch(0.67 0.18 45);
+  --agent-color-7: oklch(0.62 0.17 340);
 }
 
 .dark {
@@ -139,4 +149,13 @@
   --chat-user: oklch(0.2393 0 0);
 
   --resource-list-row-selected: oklch(1 0 0 / 0.14);
+
+  --agent-color-0: oklch(0.75 0.15 293);
+  --agent-color-1: oklch(0.76 0.13 162);
+  --agent-color-2: oklch(0.8 0.14 85);
+  --agent-color-3: oklch(0.76 0.1 215);
+  --agent-color-4: oklch(0.73 0.16 22);
+  --agent-color-5: oklch(0.74 0.14 262);
+  --agent-color-6: oklch(0.78 0.15 55);
+  --agent-color-7: oklch(0.75 0.14 340);
 }
