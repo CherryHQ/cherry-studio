@@ -456,16 +456,19 @@ describe('useResourceCatalogController', () => {
     }
   })
 
-  it('creates an assistant and refetches the resource list', async () => {
+  it('creates an assistant, refetches the resource list, and resolves its id for the result page', async () => {
     const { result } = renderHook(() => useResourceCatalogController('assistant'))
 
     act(() => {
       result.current.gridProps.onCreate('assistant')
     })
 
+    let createdId: string | undefined
     await act(async () => {
-      await result.current.dialogs.handleSubmitCreateResource(createValues)
+      createdId = await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
+
+    expect(createdId).toBe('assistant-created')
 
     expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
       description: createValues.description,
@@ -476,19 +479,23 @@ describe('useResourceCatalogController', () => {
       prompt: createValues.prompt
     })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
-    expect(result.current.dialogs.createDialogOpen).toBe(false)
+    // The wizard stays open to show its result page.
+    expect(result.current.dialogs.createDialogOpen).toBe(true)
   })
 
-  it('creates an agent and refetches the resource list', async () => {
+  it('creates an agent, refetches the resource list, and resolves its id for the result page', async () => {
     const { result } = renderHook(() => useResourceCatalogController('agent'))
 
     act(() => {
       result.current.gridProps.onCreate('agent')
     })
 
+    let createdId: string | undefined
     await act(async () => {
-      await result.current.dialogs.handleSubmitCreateResource(createValues)
+      createdId = await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
+
+    expect(createdId).toBe('agent-created')
 
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
@@ -506,7 +513,8 @@ describe('useResourceCatalogController', () => {
       type: 'claude-code'
     })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
-    expect(result.current.dialogs.createDialogOpen).toBe(false)
+    // The wizard stays open to show its result page.
+    expect(result.current.dialogs.createDialogOpen).toBe(true)
   })
 
   it('reports assistant duplicate failures without refetching', async () => {
