@@ -54,6 +54,30 @@ const live = (attempt = 1): LiveState => ({
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
+it.each([0, 2048])('applies a native preview suffix with %i prior entries without reading them', async (count) => {
+  const entries = Array.from({ length: count }, (_, index) => entry(index + 1, 'Settled'))
+  const { projection, events } = setup(view(entries, live()))
+  const before = projection.feed.snapshot
+  const preview = before.messages.at(-1)!
+  const next = view(entries, live())
+  Object.defineProperty(next, 'entries', {
+    get() {
+      throw new Error('A text suffix must not read the transcript')
+    }
+  })
+  expect(
+    projection.appendPreview(next, [
+      { part: 0, text: ' then' },
+      { part: 0, text: ' suffix' }
+    ])
+  ).toBe(true)
+  await expect
+    .poll(() => events.filter((event) => event.type === 'message.text-append').map((event) => event.text))
+    .toEqual([' then', ' suffix'])
+  expect(projection.feed.snapshot.messages.at(-1)?.parts[0]).toMatchObject({ text: 'same text then suffix' })
+  expect(preview.parts[0]).toMatchObject({ text: 'same text' })
+})
+
 it.each(['', 'partial answer'])('retains the provider failure alongside %j content', (text) => {
   const failure = {
     ...entry(10, text),

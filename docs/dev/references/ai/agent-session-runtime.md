@@ -1061,6 +1061,8 @@ and input outcomes remain separate facts within the same captured delivery. Conc
 include aliases and live/history provenance with their content. Delivery modes and Durable commit
 revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
 
+Pi Durable publishes proven native preview suffixes as `message.text-append`. The Main consumer applies the suffix to the targeted streaming part before projecting it. The attach and recovery baselines contain the accumulated text.
+
 Native `message.upsert` observations may carry `changedParts` indexes. The owner captures those changed parts and preserves accepted untouched parts; without a hint it captures the complete message. Metadata decorators retain those identities, so unrelated text growth does not revisit an accepted tool output. Tool replacements still pass through acceptance even when their stable tool-call identity is unchanged. The resulting compact renderer publication and detail invalidation follow [Execution Overlay](./execution-overlay.md#publication).
 
 Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay

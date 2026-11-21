@@ -229,10 +229,16 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(current(left)?.messages.map((item) => item.id)).toEqual(current(right)?.messages.map((item) => item.id))
-    // Streamed text reaches observers as message changes, not as repeated whole snapshots.
-    expect(
-      right.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
-    ).toBe(true)
+    await expect.poll(() => right.some((event) => event.type === 'message.text-append')).toBe(true)
+    const preview = current(right)?.messages.find((message) => message.metadata?.completeness === 'partial')
+    const previewText = preview?.parts[0]
+    if (!preview || previewText?.type !== 'text') throw new Error('Missing the live text part')
+    const late = await observe(second)
+    await expect.poll(() => late[0]?.type).toBe('snapshot')
+    expect(current(late)?.messages.find((message) => message.id === preview.id)?.parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining(previewText.text)
+    })
     await first.release()
     const releasedCount = left.length
     await expect
@@ -256,12 +262,12 @@ describe('Pi Durable runtime contract', () => {
     const archive = confirmed(await second.archive())
     const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
-    const preview = right
+    const initialPreview = right
       .flatMap((event) =>
         event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
       )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
-    expect(archive.aliases[committed!.id]).toBe(preview.id)
+    expect(archive.aliases[committed!.id]).toBe(initialPreview.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 

@@ -18,6 +18,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { ContentProjection, entryMessageId } from './content'
+import type { PreviewTextAppend } from './previewTextAppends'
 
 export interface DurableObservation {
   readonly events: readonly ObservationPayload[]
@@ -87,6 +88,15 @@ export class DurableProjection {
       snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
     return this.feed.observeCaptured(sink, (event, delivery) => {
+      if (event.type === 'message.text-append')
+        return {
+          value: {
+            events: [event],
+            aliases: {},
+            live: [event.ref.id],
+            backgroundResults: this.backgroundResults
+          }
+        }
       for (const [committed, preview] of Object.entries(this.aliases))
         if (historical.has(preview)) historical.add(committed)
       const messages =
@@ -123,6 +133,18 @@ export class DurableProjection {
     this.admitting.delete(inputId)
     if (!accepted && !this.cycle.size) this.pending = false
     if (this.view) this.update(this.view, this.revision)
+  }
+
+  appendPreview(view: ConversationView, appends: readonly PreviewTextAppend[]): boolean {
+    const live = view.docs['pi.live'] as LiveState | undefined
+    const preview = this.preview
+    if (!preview || live?.run?.taskId !== preview.task || live.generation?.attempt !== preview.attempt) return false
+    if (!appends.every(({ part }) => this.feed.hasStreamingText(preview.id, part))) return false
+    this.view = view
+    this.revision = undefined
+    const ref = { session: this.ref, id: runtimeId<'item'>(preview.id) }
+    for (const append of appends) this.feed.publish({ type: 'message.text-append', ref, ...append })
+    return true
   }
 
   update(view: ConversationView, revision?: number, changed: readonly InputState[] = [], history = this.history): void {

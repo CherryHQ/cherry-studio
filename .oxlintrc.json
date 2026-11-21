@@ -28,6 +28,22 @@
   },
   "overrides": [
     {
+      "files": ["packages/agent-runtime-pi-durable/src/previewTextAppends.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(pi-durable|content|projection|runtime)([/.]|$)",
+                "message": "Preview text append decoding takes native operations only. Use the projection owner for snapshots and reconciliation."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
       "rules": { "import/first": "off" }
     },

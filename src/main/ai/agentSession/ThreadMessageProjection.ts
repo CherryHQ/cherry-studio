@@ -122,7 +122,18 @@ export class ThreadMessageProjection {
     refresh: readonly string[] | true = []
   ): Promise<readonly CherryUIMessage[]> {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
-    const captured = ('type' in event ? [event] : event).map((item): ObservationPayload => {
+    const captured = ('type' in event ? [event] : event).flatMap((item): ObservationPayload | [] => {
+      if (item.type === 'message.text-append') {
+        this.assertThread(item.ref.session)
+        const before = this.admitted.get(item.ref.id)
+        const part = before?.parts[item.part]
+        if (!before || part?.type !== 'text' || part.state !== 'streaming') return []
+        const parts = before.parts.slice()
+        parts[item.part] = { ...part, text: part.text + item.text }
+        const message = snapshotRuntimeMessage({ ...before, parts }, before, [item.part])
+        this.admitted.set(message.id, message)
+        return { type: 'message.upsert', message, changedParts: [item.part] }
+      }
       if (item.type === 'snapshot') {
         const messages = item.messages.map((message) => {
           const previous = this.admitted.get(message.id)

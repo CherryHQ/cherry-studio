@@ -94,16 +94,25 @@ export class ThreadFeed {
   }>()
   private ended = false
   private value: ThreadSnapshot
+  private readonly messageIndices = new Map<string, number>()
+  private readonly textAppends = new Map<string, Map<number, string>>()
 
   constructor(
     value: ThreadSnapshot,
     private readonly report: (error: unknown) => void
   ) {
     this.value = immutable({ ...value, messages: value.messages.map((message) => snapshotRuntimeMessage(message)) })
+    this.indexMessages()
   }
 
   /** The current frozen snapshot, shared with observers rather than copied. */
   get snapshot(): ThreadSnapshot {
+    if (this.textAppends.size) {
+      const messages = this.value.messages.slice()
+      for (const id of this.textAppends.keys()) messages[this.messageIndices.get(id)!] = this.message(id)!
+      this.textAppends.clear()
+      this.value = immutable({ ...this.value, messages })
+    }
     return this.value
   }
 
@@ -116,16 +125,48 @@ export class ThreadFeed {
     return this.value.messages.map((message) => message.id)
   }
 
+  private indexMessages(): void {
+    this.messageIndices.clear()
+    this.value.messages.forEach((message, index) => this.messageIndices.set(message.id, index))
+  }
+
   message(id: string | undefined): RuntimeMessage | undefined {
-    return this.value.messages.find((message) => message.id === id)
+    if (id === undefined) return
+    const index = this.messageIndices.get(id)
+    if (index === undefined) return
+    const message = this.value.messages[index]
+    const appends = this.textAppends.get(id)
+    if (!appends) return message
+    const parts = message.parts.slice()
+    for (const [partIndex, text] of appends) {
+      const part = parts[partIndex]
+      if (part.type === 'text') parts[partIndex] = { ...part, text: part.text + text }
+    }
+    return immutable({ ...message, parts })
   }
 
   messageInputId(id: string): InputId | undefined {
-    return this.value.messages.find((message) => message.id === id)?.metadata?.inputId
+    const index = this.messageIndices.get(id)
+    return index === undefined ? undefined : this.value.messages[index].metadata?.inputId
+  }
+
+  hasStreamingText(id: string, part: number): boolean {
+    const index = this.messageIndices.get(id)
+    const current = index === undefined ? undefined : this.value.messages[index].parts[part]
+    return current?.type === 'text' && current.state === 'streaming'
   }
 
   publish(event: ObservationPayload): ObservationPayload | undefined {
     if (this.ended) return
+    if (event.type === 'message.text-append') {
+      if (!event.text || !this.hasStreamingText(event.ref.id, event.part)) return
+      const appends = this.textAppends.get(event.ref.id) ?? new Map<number, string>()
+      appends.set(event.part, (appends.get(event.part) ?? '') + event.text)
+      this.textAppends.set(event.ref.id, appends)
+      const next = immutable(event)
+      for (const observer of this.observers) observer.send(next)
+      return next
+    }
     let next = event
     if (event.type === 'message.upsert')
       next = {
@@ -137,18 +178,25 @@ export class ThreadFeed {
     next = immutable(next)
     switch (next.type) {
       case 'snapshot':
+        this.textAppends.clear()
         this.value = next
+        this.indexMessages()
         break
       case 'message.upsert': {
         const replaced = new Set([next.message.id, ...(next.replaces ?? []).map((ref) => ref.id)])
+        this.textAppends.delete(next.message.id)
+        for (const ref of next.replaces ?? []) this.textAppends.delete(ref.id)
         const messages = this.value.messages.filter((item) => !replaced.has(item.id))
         const at = this.value.messages.findIndex((item) => replaced.has(item.id))
         messages.splice(at < 0 ? messages.length : at, 0, next.message)
         this.value = { ...this.value, messages }
+        this.indexMessages()
         break
       }
       case 'message.remove':
+        this.textAppends.delete(next.ref.id)
         this.value = { ...this.value, messages: this.value.messages.filter((item) => item.id !== next.ref.id) }
+        this.indexMessages()
         break
       case 'input.changed':
         this.value = {
@@ -205,7 +253,9 @@ export class ThreadFeed {
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
       immutable(capture(event, delivery))
-    let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
+    let pending: Delivery[] = [
+      { value: captureFrame(this.snapshot, 'baseline').value, through: sent, shouldClose: false }
+    ]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
       for (const barrier of barriers) {
@@ -257,7 +307,7 @@ export class ThreadFeed {
           value: captured.value,
           through: ++sent,
           shouldClose: event.type === 'closed',
-          ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
+          ...(captured.retain && { recovery: captureFrame(this.snapshot, 'recovery').value })
         }
         pending.push(next)
         if (pending.length > 100) {
@@ -265,7 +315,7 @@ export class ThreadFeed {
             .filter((item) => item.recovery !== undefined)
             .map((item) => ({ ...item, value: item.recovery! }))
           const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
-          const snapshot = this.value
+          const snapshot = this.snapshot
           if (retained.length > 1000) {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }

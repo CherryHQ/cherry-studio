@@ -136,6 +136,7 @@ export type ObservationPayload =
       /** Authoritative changed indices; omitted for a full replacement or reconciliation. */
       readonly changedParts?: readonly number[]
     }
+  | { readonly type: 'message.text-append'; readonly ref: ItemRef; readonly part: number; readonly text: string }
   | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }

@@ -91,8 +91,9 @@ result or live progress copies only the message it changes. A view that does not
 entries, such as after compaction, rebuilds once. Unchanged messages keep their identity across
 snapshots. An observation starts with a snapshot, and the projection publishes another only after a
 mapping reset and when a run starts, so an observer receives the run's inputs and activity in one frame;
-a run end publishes `activity.changed`. Every other update publishes `message.upsert`,
-`message.remove` and `input.changed` for what changed. A committed answer replaces its preview through
+a run end publishes `activity.changed`. Exact native text appends for an already published preview
+travel as `message.text-append`. Other updates publish `message.upsert`, `message.remove` and
+`input.changed` for what changed. A committed answer replaces its preview through
 `replaces`. When an update's changes cannot reproduce the new order, it publishes a snapshot instead.
 Completion rides the update's last frame, or `activity.changed` when nothing else changed.
 Slow observers retain terminal batches through bounded recovery; final persistence must

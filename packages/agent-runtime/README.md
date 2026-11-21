@@ -34,7 +34,9 @@ native contract, not application-wide cancellation.
 message-local model-response errors in `metadata.error`.
 `ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.
 Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
-originating tool part. Activity, input outcomes, and child relationships remain separate facts.
+originating tool part. `message.text-append` adds a suffix to an already published streaming text
+part. A new baseline includes every accepted suffix. Activity, input outcomes, and child relationships
+remain separate facts.
 
 Live `message.upsert.changedParts` identifies the native parts accepted by that update. Omit it
 for a full replacement or reconciliation; an empty array accepts metadata only. Producers must

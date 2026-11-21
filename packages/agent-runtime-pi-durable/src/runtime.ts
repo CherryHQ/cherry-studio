@@ -56,6 +56,7 @@ import { DurableFolds, HistoryFold, historyOf, pages, readFacts } from './behavi
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
+import { previewTextAppends, type PreviewTextAppend } from './previewTextAppends'
 import { DurableProjection, submissionState, type DurableObservation } from './projection'
 
 export interface PiDurableRuntimeOptions {
@@ -502,8 +503,22 @@ export async function createPiDurableRuntime(
             projection.update(view, undefined, states, fold.history)
             let currentView = view
             let publishedView = view
+            let pendingPreview: { from: typeof view; appends: PreviewTextAppend[] | undefined } | undefined
             detachCommits = native.observeCommits({
               advance(publication) {
+                // The adopted view delivers deferred text progress separately from its stored receipt.
+                if (
+                  publication.changes.length &&
+                  publication.changes.every(
+                    (change) =>
+                      change.type === 'document' &&
+                      change.kind === 'change' &&
+                      change.conversationId === conversation.id &&
+                      change.record.kind === 'pi.live' &&
+                      previewTextAppends(change.ops, 'live-document') !== undefined
+                  )
+                )
+                  return
                 const after = currentView
                 const changed: InputState[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
@@ -543,13 +558,29 @@ export async function createPiDurableRuntime(
             return {
               advance(call) {
                 if (call.kind !== 'value') return
+                const before = currentView
                 currentView = call.value
-                // Stored commits notify hosts before this preview microtask; deferred progress has no receipt.
+                const appends = previewTextAppends(call.ops)
+                if (pendingPreview) {
+                  if (pendingPreview.appends && appends) pendingPreview.appends.push(...appends)
+                  else pendingPreview.appends = undefined
+                  return
+                }
+                pendingPreview = { from: before, appends }
+                // Stored commits publish before the deferred preview microtask.
                 queueMicrotask(() => {
-                  if (!closing && currentView === call.value && publishedView !== call.value) {
-                    publishedView = call.value
-                    projection.update(call.value, undefined, [], fold.history)
-                  }
+                  const pending = pendingPreview
+                  pendingPreview = undefined
+                  if (!pending || closing || publishedView === currentView) return
+                  const from = publishedView
+                  publishedView = currentView
+                  if (
+                    pending.from === from &&
+                    pending.appends &&
+                    projection.appendPreview(currentView, pending.appends)
+                  )
+                    return
+                  projection.update(currentView, undefined, [], fold.history)
                 })
               },
               end(end) {
