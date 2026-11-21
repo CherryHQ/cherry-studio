@@ -66,36 +66,6 @@ export function StringInputTool({
   )
 }
 
-// 单字段输入工具 (pattern, query, file_path 等)
-export function SimpleFieldInputTool({
-  input,
-  label,
-  fieldName,
-  className = ''
-}: {
-  input: Record<string, any>
-  label: string
-  fieldName: string
-  className?: string
-}) {
-  return (
-    <div className={className}>
-      <div>{label}:</div>
-      <div>
-        <div>{input[fieldName]}</div>
-        {/* 显示其他字段（如 Grep 的 output_mode） */}
-        {Object.entries(input)
-          .filter(([key]) => key !== fieldName)
-          .map(([key, value]) => (
-            <span key={key}>
-              {key}: {String(value)}
-            </span>
-          ))}
-      </div>
-    </div>
-  )
-}
-
 // 字符串输出工具 (Read, Bash, Search, Glob, WebSearch, Grep 等)
 export function StringOutputTool({
   output,
