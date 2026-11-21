@@ -549,8 +549,9 @@ describe('SkillService', () => {
       await expect(skillArchive.exportSkillArchive(directory)).rejects.toThrow('symbolic links')
       await fs.promises.unlink(path.join(directory, 'escape'))
       const large = await fs.promises.open(path.join(directory, 'large.bin'), 'w')
-      await large.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+      await large.truncate(skillArchive.MAX_SKILL_EXPORT_SIZE + 1)
       await large.close()
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(directory)).resolves.toBeUndefined()
       await expect(skillArchive.exportSkillArchive(directory)).rejects.toThrow('size limit')
     })
   })
@@ -1591,14 +1592,18 @@ describe('SkillService', () => {
     it('rejects an oversized selected target before installing it', async () => {
       const { skillService, installSpy } = await setupGithubInstall({
         refs: [{ name: 'main', oid: 'a'.repeat(40) }],
-        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/model.bin', size: 100 * 1024 * 1024 }]
+        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/model.bin', size: skillArchive.MAX_SKILL_SIZE }]
       })
 
       await expect(
         skillService.install({
           installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
         })
-      ).rejects.toThrow(/Skill holds \d+ bytes, over the 104857600-byte limit/)
+      ).rejects.toThrow(
+        new RegExp(
+          `Skill holds \\d+ bytes \\([^)]+\\), over the ${skillArchive.MAX_SKILL_SIZE}-byte limit \\(130 MiB\\)`
+        )
+      )
       expect(installSpy).not.toHaveBeenCalled()
     })
 
@@ -1906,12 +1911,17 @@ describe('SkillService', () => {
 
     it.each(marketplaceSources)('rejects an oversized %s skill before installing it', async (source, installSource) => {
       const { skillService, installSpy, workDir } = await setupGithubInstall({
-        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/payload.bin', size: 101 * 1024 * 1024 }]
+        tree: [
+          'skills/demo/SKILL.md',
+          { path: 'skills/demo/payload.bin', size: skillArchive.MAX_SKILL_SIZE + 1024 * 1024 }
+        ]
       })
       if (source === 'skills.sh') await findDescriptorsIn(workDir, { 'skills/demo': 'demo' })
 
       await expect(skillService.install({ installSource })).rejects.toThrow(
-        /Skill holds \d+ bytes, over the 104857600-byte limit/
+        new RegExp(
+          `Skill holds \\d+ bytes \\([^)]+\\), over the ${skillArchive.MAX_SKILL_SIZE}-byte limit \\(130 MiB\\)`
+        )
       )
       expect(installSpy).not.toHaveBeenCalled()
     })
@@ -2253,16 +2263,33 @@ describe('SkillService', () => {
       expect(installSkillDirSpy).toHaveBeenCalledWith(skillDir, 'zip', pathToFileURL(canonicalZipPath).href)
     })
 
+    it('accepts a skill directory between the previous 100 MiB and current 130 MiB install ceiling', async () => {
+      const skillDir = await createTempDir('skill-110mib-')
+      const payload = await fs.promises.open(path.join(skillDir, 'payload.bin'), 'w')
+      try {
+        await payload.truncate(110 * 1024 * 1024)
+      } finally {
+        await payload.close()
+      }
+
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).resolves.toBeUndefined()
+    })
+
     it('refuses a skill directory over the per-skill size limit, reporting its real size', async () => {
       const skillDir = await createTempDir('skill-oversized-')
-      // 110 MiB across 110 files: a scan that stopped at the file crossing the ceiling would report
-      // 105906176 (the 101st file), not what the directory actually holds.
-      for (let index = 0; index < 110; index++) {
-        await fs.promises.writeFile(path.join(skillDir, `${index}.bin`), Buffer.alloc(1024 * 1024))
+      // 140 MiB across 140 files: a scan that stopped at the file crossing the ceiling would report
+      // 131 MiB instead of the real total.
+      for (let index = 0; index < 140; index++) {
+        const file = await fs.promises.open(path.join(skillDir, `${index}.bin`), 'w')
+        try {
+          await file.truncate(1024 * 1024)
+        } finally {
+          await file.close()
+        }
       }
 
       await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).rejects.toThrow(
-        'Skill holds 115343360 bytes, over the 104857600-byte limit'
+        `Skill holds ${140 * 1024 * 1024} bytes (140 MiB), over the ${skillArchive.MAX_SKILL_SIZE}-byte limit (130 MiB)`
       )
     })
 
@@ -2693,6 +2720,110 @@ describe('SkillService', () => {
         `over the ${skillArchive.MAX_SKILL_SIZE}-byte limit`
       )
       expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+    })
+
+    it('installs valid collection members when another member exceeds the per-skill size limit', async () => {
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' })
+      const actual = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementationOnce(async (zipPath, destination) => {
+        await actual.extractZip(zipPath, destination)
+        const file = await fs.promises.open(path.join(destination, 'two', 'large.bin'), 'w')
+        try {
+          await file.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+        } finally {
+          await file.close()
+        }
+      })
+
+      const result = await new SkillService().installMarketplace(itemId)
+      expect(result.installed.map((skill) => skill.folderName)).toEqual(['one'])
+      expect(result.members).toEqual([
+        { path: 'one', name: 'one' },
+        { path: 'two', name: 'two' }
+      ])
+      expect(result.failed).toEqual([
+        {
+          path: 'two',
+          name: 'two',
+          error: expect.stringContaining(`over the ${skillArchive.MAX_SKILL_SIZE}-byte limit (130 MiB)`)
+        }
+      ])
+      expect(await fs.promises.readFile(path.join(root, 'feature.agents.skills', 'one', 'SKILL.md'), 'utf8')).toContain(
+        '# One'
+      )
+      expect(fs.existsSync(path.join(root, 'feature.agents.skills', 'two'))).toBe(false)
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+    })
+
+    it('returns per-member failures when every member in a multi-skill collection exceeds the size limit', async () => {
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' })
+      const actual = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementationOnce(async (zipPath, destination) => {
+        await actual.extractZip(zipPath, destination)
+        for (const member of ['one', 'two']) {
+          const file = await fs.promises.open(path.join(destination, member, 'large.bin'), 'w')
+          try {
+            await file.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+          } finally {
+            await file.close()
+          }
+        }
+      })
+
+      const result = await new SkillService().installMarketplace(itemId)
+      expect(result.installed).toEqual([])
+      expect(result.failed).toMatchObject([
+        {
+          path: 'one',
+          name: 'one',
+          error: expect.stringContaining(`over the ${skillArchive.MAX_SKILL_SIZE}-byte limit`)
+        },
+        {
+          path: 'two',
+          name: 'two',
+          error: expect.stringContaining(`over the ${skillArchive.MAX_SKILL_SIZE}-byte limit`)
+        }
+      ])
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+    })
+
+    it('isolates oversized members when installing a ZIP subscription collection', async () => {
+      const item = servePackage({
+        'one/SKILL.md': '---\nname: one\n---\n# One',
+        'two/SKILL.md': '---\nname: two\n---\n# Two'
+      })
+      const actual = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementationOnce(async (zipPath, destination) => {
+        await actual.extractZip(zipPath, destination)
+        const file = await fs.promises.open(path.join(destination, 'two', 'large.bin'), 'w')
+        try {
+          await file.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+        } finally {
+          await file.close()
+        }
+      })
+
+      const result = await new SkillService().installSubscription({
+        ...item,
+        subscription: { sourceId: 'sub-1', kind: 'zip', url: item.downloadUrl },
+        members: [],
+        membersKnown: false,
+        isCollection: true
+      })
+      expect(result.installed.map((skill) => skill.folderName)).toEqual(['one'])
+      expect(result.members).toEqual([
+        { path: 'one', name: 'one' },
+        { path: 'two', name: 'two' }
+      ])
+      expect(result.failed).toMatchObject([
+        {
+          path: 'two',
+          name: 'two',
+          error: expect.stringContaining(`over the ${skillArchive.MAX_SKILL_SIZE}-byte limit`)
+        }
+      ])
       expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
     })
 

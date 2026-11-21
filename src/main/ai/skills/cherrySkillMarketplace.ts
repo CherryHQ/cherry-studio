@@ -12,7 +12,9 @@ import {
   CherrySkillDetailSchema,
   CherrySkillPageSchema,
   type CherrySkill,
+  type MarketplaceInstallResult,
   type MarketplaceSkillDetail,
+  type MarketplaceSkillMember,
   type MarketplaceSkillPage
 } from '@shared/types/skillMarketplace'
 import { CHERRY_SKILL_MARKETPLACE_URL, summarizeMarketplaceSkill } from '@shared/utils/cherrySkillMarketplace'
@@ -136,26 +138,42 @@ export async function downloadSkillPackage(url: string, collection = false) {
     const candidates = await findAllSkillDirectories(contentDir, contentDir)
     if (!candidates.length) throw new Error('Skill package contains no skills')
     const isCollection = candidates.length > 1 || (collection && candidates[0].sourcePath !== '')
-    const directories: Array<MarketplaceSkillDetail['members'][number] & { skillDir: string }> = []
+    const isolateMemberFailures = candidates.length > 1
+    const members: MarketplaceSkillMember[] = []
+    const directories: Array<MarketplaceSkillMember & { skillDir: string }> = []
+    const failed: MarketplaceInstallResult['failed'] = []
     const folderNames = new Set<string>()
     for (const candidate of candidates) {
       const memberPath = isCollection ? candidate.sourcePath.split(path.sep).join('/') : ''
-      let skillDir = await validateRepositorySkillDirectory(contentDir, candidate.folderPath)
-      await assertSkillDirectoryWithinLimits(skillDir)
-      const metadata = await parseSkillMetadata(skillDir, memberPath, 'skills', { calculateSize: false })
-      const folderName = sanitizeFolderName(isCollection ? metadata.filename : metadata.name)
-      if (!folderName || folderNames.has(folderName.toLowerCase()))
-        throw new Error(`Conflicting skill folder: ${folderName}`)
-      folderNames.add(folderName.toLowerCase())
-      if (!isCollection) {
-        const stagedDir = path.join(tempDir, 'staged', folderName)
-        await fs.mkdir(path.dirname(stagedDir))
-        await fs.rename(skillDir, stagedDir)
-        skillDir = stagedDir
+      let memberName = path.basename(candidate.folderPath) || memberPath
+      try {
+        let skillDir = await validateRepositorySkillDirectory(contentDir, candidate.folderPath)
+        await assertSkillDirectoryWithinLimits(skillDir)
+        const metadata = await parseSkillMetadata(skillDir, memberPath, 'skills', { calculateSize: false })
+        memberName = metadata.name
+        const folderName = sanitizeFolderName(isCollection ? metadata.filename : metadata.name)
+        if (!folderName || folderNames.has(folderName.toLowerCase()))
+          throw new Error(`Conflicting skill folder: ${folderName}`)
+        folderNames.add(folderName.toLowerCase())
+        if (!isCollection) {
+          const stagedDir = path.join(tempDir, 'staged', folderName)
+          await fs.mkdir(path.dirname(stagedDir))
+          await fs.rename(skillDir, stagedDir)
+          skillDir = stagedDir
+        }
+        members.push({ path: memberPath, name: metadata.name })
+        directories.push({ path: memberPath, name: metadata.name, skillDir })
+      } catch (error) {
+        if (!isolateMemberFailures) throw error
+        members.push({ path: memberPath, name: memberName })
+        failed.push({
+          path: memberPath,
+          name: memberName,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
-      directories.push({ path: memberPath, name: metadata.name, skillDir })
     }
-    return { tempDir, directories }
+    return { tempDir, members, directories, failed }
   } catch (error) {
     await safeRemoveDirectory(tempDir)
     throw error
@@ -171,7 +189,7 @@ export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
   const cache = application.get('CacheService')
   cache.setPersist('skill.marketplace.members', {
     ...cache.getPersist('skill.marketplace.members'),
-    [skill.id]: downloaded.directories.map(({ path, name }) => ({ path, name }))
+    [skill.id]: downloaded.members
   })
   return downloaded
 }

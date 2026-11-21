@@ -260,10 +260,13 @@ export class SkillService {
     const namespace = marketplaceSkillNamespace(id)
     const downloaded = await downloadMarketplaceSkill(skill)
     const result: MarketplaceInstallResult = {
-      members: downloaded.directories.map(({ path, name }) => ({ path, name })),
+      members: downloaded.members,
       installed: [],
       alreadyInstalled: [],
-      failed: []
+      failed: [...downloaded.failed]
+    }
+    for (const failure of downloaded.failed) {
+      logger.warn('Failed to validate marketplace member', { id, member: failure.path, error: failure.error })
     }
     try {
       await this.mutationLock.runExclusive(async () => {
@@ -303,10 +306,17 @@ export class SkillService {
       ? [{ path: '', name: skill.name.en, skillDir: fetched.skillDir }]
       : downloaded!.directories
     const result: MarketplaceInstallResult = {
-      members: directories.map(({ path, name }) => ({ path, name })),
+      members: fetched ? [{ path: '', name: skill.name.en }] : downloaded!.members,
       installed: [],
       alreadyInstalled: [],
-      failed: []
+      failed: fetched ? [] : [...downloaded!.failed]
+    }
+    for (const failure of result.failed) {
+      logger.warn('Failed to validate subscription member', {
+        id: skill.id,
+        member: failure.path,
+        error: failure.error
+      })
     }
     try {
       await this.mutationLock.runExclusive(async () => {
