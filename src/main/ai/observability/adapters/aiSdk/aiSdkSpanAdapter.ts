@@ -9,7 +9,12 @@ import type { Attributes, Span } from '@opentelemetry/api'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { loggerService } from '@logger'
-import type { SpanEntity, TokenUsage } from '@shared/data/types/trace'
+import type {
+  Attributes as TraceAttributes,
+  AttributeValue as TraceAttributeValue,
+  SpanEntity,
+  TokenUsage
+} from '@shared/data/types/trace'
 
 const logger = loggerService.withContext('AiSdkSpanAdapter')
 
@@ -23,6 +28,9 @@ export interface AiSdkSpanData {
 interface SpanWithInternals extends Span {
   _spanProcessor?: any
   _attributes?: Attributes
+  attributes?: Attributes
+  getAttributes?: () => Attributes
+  _spanData?: { attributes?: Attributes }
   _events?: any[]
   name?: string
   startTime?: [number, number]
@@ -44,8 +52,9 @@ export class AiSdkSpanAdapter {
     const spanContext = span.spanContext()
 
     // Read span data via the various internal accessors the SDK may expose.
+    // SAFETY: The tracer supplies OTel spans; optional accessors cover SDK snapshot layouts without requiring them.
     const spanWithInternals = span as SpanWithInternals
-    let attributes: Record<string, any> = {}
+    let attributes: Attributes = {}
     let events: any[] = []
     let spanName = 'unknown'
     let spanStatus = { code: SpanStatusCode.UNSET }
@@ -59,12 +68,12 @@ export class AiSdkSpanAdapter {
     // Resolve span attributes from whichever internal accessor the SDK exposes.
     if (spanWithInternals._attributes) {
       attributes = spanWithInternals._attributes
-    } else if (typeof (span as any).getAttributes === 'function') {
-      attributes = (span as any).getAttributes()
-    } else if ((span as any).attributes) {
-      attributes = (span as any).attributes
-    } else if ((span as any)._spanData?.attributes) {
-      attributes = (span as any)._spanData.attributes
+    } else if (typeof spanWithInternals.getAttributes === 'function') {
+      attributes = spanWithInternals.getAttributes()
+    } else if (spanWithInternals.attributes) {
+      attributes = spanWithInternals.attributes
+    } else if (spanWithInternals._spanData?.attributes) {
+      attributes = spanWithInternals._spanData.attributes
     } else {
       logger.warn('Failed to read span attributes; falling back to defaults', {
         availableKeys: Object.keys(span),
@@ -102,7 +111,8 @@ export class AiSdkSpanAdapter {
     }
     // Fallback: read the parent info we injected from attributes.
     if (!parentSpanId && attributes['trace.parentSpanId']) {
-      parentSpanId = attributes['trace.parentSpanId']
+      // SAFETY: The legacy parent attribute carries the same string span-id contract as parentSpanContext.spanId.
+      parentSpanId = attributes['trace.parentSpanId'] as SpanEntity['parentId']
     }
     if (spanWithInternals.links) {
       links = spanWithInternals.links
@@ -228,10 +238,13 @@ export class AiSdkSpanAdapter {
    * Extract inputs and outputs from AI SDK attributes.
    * Maps precisely by span type per the AI SDK documentation.
    */
-  private static extractInputsOutputs(attributes: Attributes): { inputs?: any; outputs?: any } {
+  private static extractInputsOutputs(attributes: Attributes): {
+    inputs?: TraceAttributeValue
+    outputs?: TraceAttributeValue
+  } {
     const operationId = attributes['ai.operationId']
-    let inputs: any = undefined
-    let outputs: any = undefined
+    let inputs: TraceAttributeValue = undefined
+    let outputs: TraceAttributeValue = undefined
 
     logger.debug('Extracting inputs/outputs by operation type', {
       operationId,
@@ -295,8 +308,8 @@ export class AiSdkSpanAdapter {
   /**
    * Extract outputs for top-level LLM spans.
    */
-  private static extractLLMOutputs(attributes: Attributes): any {
-    const outputs: any = {}
+  private static extractLLMOutputs(attributes: Attributes): TraceAttributes | undefined {
+    const outputs: TraceAttributes = {}
 
     if (attributes['ai.response.text']) {
       outputs.text = attributes['ai.response.text']
@@ -317,8 +330,8 @@ export class AiSdkSpanAdapter {
   /**
    * Extract outputs for provider spans.
    */
-  private static extractProviderOutputs(attributes: Attributes): any {
-    const outputs: any = {}
+  private static extractProviderOutputs(attributes: Attributes): TraceAttributes | undefined {
+    const outputs: TraceAttributes = {}
 
     if (attributes['ai.response.text']) {
       outputs.text = attributes['ai.response.text']
@@ -347,7 +360,7 @@ export class AiSdkSpanAdapter {
   /**
    * Generic input extraction (fallback logic).
    */
-  private static extractGenericInputs(attributes: Attributes): any {
+  private static extractGenericInputs(attributes: Attributes): TraceAttributeValue {
     const inputKeys = ['ai.prompt', 'ai.prompt.messages', 'ai.request', 'inputs']
 
     for (const key of inputKeys) {
@@ -361,7 +374,7 @@ export class AiSdkSpanAdapter {
   /**
    * Generic output extraction (fallback logic).
    */
-  private static extractGenericOutputs(attributes: Attributes): any {
+  private static extractGenericOutputs(attributes: Attributes): TraceAttributeValue {
     const outputKeys = ['ai.response.text', 'ai.response', 'ai.output', 'outputs']
 
     for (const key of outputKeys) {
@@ -375,7 +388,7 @@ export class AiSdkSpanAdapter {
   /**
    * Parse an attribute value, handling stringified JSON.
    */
-  private static parseAttributeValue(value: any): any {
+  private static parseAttributeValue(value: Attributes[string]): TraceAttributeValue {
     if (typeof value === 'string') {
       try {
         return JSON.parse(value)
@@ -401,7 +414,7 @@ export class AiSdkSpanAdapter {
   /**
    * Extract a precise span tag from the AI SDK operationId.
    */
-  private static extractSpanTag(name: string, attributes: Record<string, any>): string {
+  private static extractSpanTag(name: string, attributes: Attributes): Attributes[string] {
     const operationId = attributes['ai.operationId']
 
     logger.debug('Extracting span tag', {
@@ -449,9 +462,9 @@ export class AiSdkSpanAdapter {
   /**
    * Extract extra data specific to the span type.
    */
-  private static extractSpanTypeSpecificData(attributes: Attributes): Record<string, any> {
+  private static extractSpanTypeSpecificData(attributes: Attributes): TraceAttributes {
     const operationId = attributes['ai.operationId']
-    const specificData: Record<string, any> = {}
+    const specificData: TraceAttributes = {}
 
     switch (operationId) {
       case 'ai.generateText':
@@ -523,21 +536,20 @@ export class AiSdkSpanAdapter {
   /**
    * Extract the model name from attributes.
    */
-  private static extractModelFromAttributes(attributes: Record<string, any>): string | undefined {
-    return (
-      attributes['ai.model.id'] ||
+  private static extractModelFromAttributes(attributes: Attributes): SpanEntity['modelName'] {
+    // SAFETY: AI SDK model identity and the legacy model-name fields carry strings; their OTel map erases per-key types.
+    return (attributes['ai.model.id'] ||
       attributes['ai.model'] ||
       attributes['model.id'] ||
       attributes['model'] ||
-      attributes['modelName']
-    )
+      attributes['modelName']) as SpanEntity['modelName']
   }
 
   /**
    * Filter relevant attributes, removing unneeded system attributes.
    */
-  private static filterRelevantAttributes(attributes: Record<string, any>): Record<string, any> {
-    const filtered: Record<string, any> = {}
+  private static filterRelevantAttributes(attributes: Attributes): Attributes {
+    const filtered: Attributes = {}
 
     // Keep useful attributes; drop those already handled separately.
     const excludeKeys = ['ai.usage', 'ai.prompt', 'ai.response', 'ai.input', 'ai.output', 'inputs', 'outputs']

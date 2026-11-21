@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { AttributeValue } from '@shared/data/types/trace'
+import type { Serializable } from '@shared/types/serializable'
 
 import type { TraceNode } from './traceNode'
 
@@ -41,9 +43,8 @@ interface SpanPresenter {
   build: (node: TraceNode, t: Translate) => SpanView
 }
 
-const attrsOf = (node: TraceNode): Record<string, unknown> => node.attributes ?? {}
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Trace attributes and decoded MCP server fields have heterogeneous values; accept only nonempty strings for detail rows.
-const str = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
+const attrsOf = (node: TraceNode): NonNullable<TraceNode['attributes']> => node.attributes ?? {}
+const str = (value: AttributeValue): string | undefined => (typeof value === 'string' && value ? value : undefined)
 
 /** Common tab set for spans without bespoke tabs: inputs / outputs / raw. */
 function defaultTabs(node: TraceNode, t: Translate): SpanTab[] {
@@ -165,8 +166,10 @@ function getTokenDetail(
   tokenKey: string
 ): number | undefined {
   if (!usage || typeof usage !== 'object') return undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the historical usage container is checked; nested token values are validated below.
   const details = (usage as Record<string, unknown>)[detailsKey]
   if (!details || typeof details !== 'object') return undefined
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; only a numeric token count is returned.
   const value = (details as Record<string, unknown>)[tokenKey]
   return typeof value === 'number' ? value : undefined
 }
@@ -230,22 +233,19 @@ function resolveSpanModel(node: TraceNode): { id: string; name: string; provider
 interface McpCall {
   server?: { name?: string; type?: string; description?: string }
   name?: string
-  args?: unknown
+  args?: Serializable
 }
 
 /** Parse the MCP span input (`[{ server, name, args }]`) to its single call. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP trace inputs are serialized call arguments; decode the call object and check server identity strings before presenting them.
-function parseMcpCall(raw: unknown): McpCall | undefined {
+function parseMcpCall(raw: AttributeValue): McpCall | undefined {
   if (typeof raw !== 'string') return undefined
   try {
-    const parsed: unknown = JSON.parse(raw)
-    const call: unknown = Array.isArray(parsed) ? parsed[0] : parsed
+    const parsed: Serializable = JSON.parse(raw)
+    const call: Serializable | undefined = Array.isArray(parsed) ? parsed[0] : parsed
     if (!call || typeof call !== 'object' || Array.isArray(call)) return undefined
-    const record = call as Record<string, unknown>
+    const record = call
     const server =
-      record.server && typeof record.server === 'object' && !Array.isArray(record.server)
-        ? (record.server as Record<string, unknown>)
-        : undefined
+      record.server && typeof record.server === 'object' && !Array.isArray(record.server) ? record.server : undefined
     return {
       server: server
         ? { name: str(server.name), type: str(server.type), description: str(server.description) }
@@ -343,7 +343,7 @@ function getEventName(event: NonNullable<TraceNode['events']>[number]) {
 }
 
 function pickAttributes(attributes: NonNullable<TraceNode['attributes']>, keys: string[]) {
-  const picked: Record<string, unknown> = {}
+  const picked: NonNullable<TraceNode['attributes']> = {}
   for (const key of keys) {
     const value = attributes[key]
     if (value !== undefined) picked[key] = value

@@ -2,15 +2,15 @@ import type { Link } from '@opentelemetry/api'
 import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 import * as z from 'zod'
 
+/** Trace projections retain decoded JSON and undefined fields until JSONL serialization. */
 export type AttributeValue =
   | string
   | number
   | boolean
-  | Array<null | undefined | string>
-  | Array<null | undefined | number>
-  | Array<null | undefined | boolean>
-  | { [key: string]: string | number | boolean }
-  | Array<null | undefined | { [key: string]: string | number | boolean }>
+  | null
+  | undefined
+  | AttributeValue[]
+  | { [key: string]: AttributeValue }
 
 export type Attributes = {
   [key: string]: AttributeValue
