@@ -7,17 +7,18 @@
 
 import { createHash } from 'node:crypto'
 
-import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
+import { UnsupportedFunctionalityError, type JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
+  DocumentBlockParam,
   MessageCreateParams,
   MessageParam,
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { jsonSchema, tool } from 'ai'
+import { jsonSchema, Output, tool } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
@@ -25,6 +26,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
+import { mergeGatewayProviderOptions, parallelToolOptions } from './openAiRequestOptions'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
@@ -85,6 +87,42 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   return undefined
 }
 
+function documentBlockToFilePart(block: DocumentBlockParam): FileUIPart {
+  const source = block.source
+  let mediaType: string
+  let url: string
+  switch (source.type) {
+    case 'base64':
+      mediaType = source.media_type
+      url = `data:${mediaType};base64,${source.data}`
+      break
+    case 'url':
+      mediaType = 'application/pdf'
+      url = source.url
+      break
+    case 'text':
+      mediaType = source.media_type
+      url = `data:${mediaType};base64,${Buffer.from(source.data).toString('base64')}`
+      break
+    default:
+      throw new UnsupportedFunctionalityError({
+        functionality: 'Anthropic document source; supply PDF URL/base64 or plain text'
+      })
+  }
+  return {
+    type: 'file',
+    mediaType,
+    url,
+    providerMetadata: {
+      anthropic: {
+        ...cacheProviderOptions(block)?.anthropic,
+        ...(block.title != null && { title: block.title }),
+        ...(block.context != null && { context: block.context })
+      }
+    }
+  }
+}
+
 /** A tool_result split into the model-visible string output and relocated user parts. */
 interface ToolResultConversion {
   output: string
@@ -125,10 +163,13 @@ function toolResultToOutput(
       lines.push(block.text)
     } else if (block.type === 'tool_reference') {
       lines.push(`Tool available: ${toProviderToolName(block.tool_name)}`)
-    } else if (block.type === 'image') {
-      const file = imageBlockToFilePart(block.source)
+    } else if (block.type === 'image' || block.type === 'document') {
+      const file = block.type === 'document' ? documentBlockToFilePart(block) : imageBlockToFilePart(block.source)
       if (file) {
-        const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
+        const anchor =
+          block.type === 'image'
+            ? toolResultImageAnchor(toolCallId, ++imageIndex)
+            : `[tool-result attachment call_id=${JSON.stringify(toolCallId)} document=${++imageIndex}]`
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
       }
@@ -265,6 +306,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           if (part) {
             parts.push({ ...part, providerMetadata: cacheProviderOptions(block) })
           }
+        } else if (block.type === 'document') {
+          parts.push(documentBlockToFilePart(block))
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = {
@@ -303,6 +346,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           if (relocatedParts?.length) {
             parts.push(...relocatedParts)
           }
+        } else {
+          throw new UnsupportedFunctionalityError({ functionality: `Anthropic content block: ${block.type}` })
         }
       }
 
@@ -350,7 +395,9 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const rawSchema = toolDef.input_schema
       // Client tools always carry `input_schema`; without it this is a server tool
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
-      if (!rawSchema) continue
+      if (!rawSchema) {
+        throw new UnsupportedFunctionalityError({ functionality: `Anthropic built-in tool: ${toolDef.name}` })
+      }
       const schema = rawSchema as JsonSchemaLike
 
       const aiTool = tool({
@@ -432,6 +479,9 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       topP: params.top_p,
       topK: params.top_k,
       stopSequences: params.stop_sequences,
+      ...(params.output_config?.format?.type === 'json_schema'
+        ? { output: Output.object({ schema: jsonSchema(params.output_config.format.schema) }) }
+        : {}),
       ...(choice
         ? {
             toolChoice:
@@ -465,8 +515,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           params.output_config?.effort,
           maxOutputTokens
         )
-    if (model.endpointTypes?.[0] !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return reasoning
     const choice = params.tool_choice
+    if (model.endpointTypes?.[0] !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+      return mergeGatewayProviderOptions(
+        reasoning,
+        parallelToolOptions(
+          provider,
+          model,
+          choice && 'disable_parallel_tool_use' in choice && choice.disable_parallel_tool_use !== undefined
+            ? !choice.disable_parallel_tool_use
+            : undefined
+        )
+      )
+    }
     return {
       ...reasoning,
       anthropic: {

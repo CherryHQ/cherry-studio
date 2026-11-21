@@ -142,6 +142,10 @@
       "sources": ["src/main/ipc/handlers/translate.ts","src/main/services/translate/translateService.ts","src/renderer/pages/home/messages/homeMessageListAdapter.tsx","src/renderer/pages/translate/TranslateSettings.tsx","src/renderer/pages/translate/useTranslateReasoningEffort.ts","src/renderer/utils/translate/translateText.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/ipc/schemas/translate.ts"]
     },
     {
+      "path": "docs/dev/references/api-gateway/protocol-compatibility.md",
+      "sources": ["src/main/features/apiGateway/adapters","src/main/features/apiGateway/errors.ts","src/main/features/apiGateway/prepareGatewayMessage.ts"]
+    },
+    {
       "path": "docs/dev/references/api-gateway/README.md",
       "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
     },

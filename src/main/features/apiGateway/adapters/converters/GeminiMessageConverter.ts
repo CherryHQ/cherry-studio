@@ -104,6 +104,7 @@ interface GeminiGenerationConfig extends Pick<
   presencePenalty?: number
   frequencyPenalty?: number
   seed?: number
+  candidateCount?: number
   responseMimeType?: string
   responseSchema?: unknown
   responseJsonSchema?: JsonSchemaLike
@@ -401,6 +402,12 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
   /** Extract standard AI SDK generation and function-selection options. */
   extractStreamOptions(params: GeminiGenerateContentRequest): StreamTextOptions {
     const config = params.generationConfig ?? {}
+    if (config.candidateCount !== undefined && config.candidateCount !== 1) {
+      throw new UnsupportedFunctionalityError({ functionality: 'Multiple Gemini candidates' })
+    }
+    if (params.tools?.some((tool) => Object.keys(tool).some((key) => key !== 'functionDeclarations'))) {
+      throw new UnsupportedFunctionalityError({ functionality: 'Gemini built-in tools' })
+    }
     if (config.responseMimeType && !['text/plain', 'application/json'].includes(config.responseMimeType)) {
       throw new UnsupportedFunctionalityError({ functionality: `Gemini responseMimeType: ${config.responseMimeType}` })
     }

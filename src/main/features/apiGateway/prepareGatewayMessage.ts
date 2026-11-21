@@ -1,6 +1,8 @@
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { loggerService } from '@logger'
+import { resolveMediaCapabilities } from '@main/ai/messages/messageCapabilities'
 import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import type { CallOverrides, InProcessUsageContext } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -88,6 +90,19 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   const convertedMessages = converter.toUIMessages(
     responsesInstructions !== undefined ? { ...effectiveParams, instructions: undefined } : effectiveParams
   )
+  const media = resolveMediaCapabilities(model)
+  for (const message of convertedMessages) {
+    for (const part of message.parts) {
+      if (part.type !== 'file') continue
+      if (
+        (part.mediaType.startsWith('image/') && !media.image) ||
+        (part.mediaType.startsWith('audio/') && !media.audio) ||
+        (part.mediaType.startsWith('video/') && !media.video)
+      ) {
+        throw new UnsupportedFunctionalityError({ functionality: `Model input media: ${part.mediaType}` })
+      }
+    }
+  }
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
@@ -100,13 +115,31 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
+  if (
+    endpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    [streamOptions.seed, streamOptions.presencePenalty, streamOptions.frequencyPenalty].some(
+      (value) => value !== undefined
+    )
+  ) {
+    throw new UnsupportedFunctionalityError({ functionality: 'Seed/penalties on a Responses target' })
+  }
+  if (resolveAiSdkProviderId(provider, endpoint.endpointType) === 'open-responses' && streamOptions.output) {
+    const format = await streamOptions.output.responseFormat
+    if (format?.type === 'json' && !format.schema) {
+      throw new UnsupportedFunctionalityError({
+        functionality: 'JSON object mode in the pinned Open Responses adapter; supply a JSON schema'
+      })
+    }
+  }
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
     converter.extractProviderOptions(
       provider,
       model,
-      effectiveParams,
+      request.turnOptions.serviceTier !== undefined
+        ? { ...effectiveParams, service_tier: undefined, serviceTier: undefined }
+        : effectiveParams,
       streamOptions.maxOutputTokens,
       reasoning.success
     ) ?? {}

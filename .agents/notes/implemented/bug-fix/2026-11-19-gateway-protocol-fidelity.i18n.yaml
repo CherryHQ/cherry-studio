@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-gateway-protocol-fidelity.md
+2026-11-19-gateway-protocol-fidelity.md: c1790945530aeff3c0c3acc70b4d65ca7a353a2a
+2026-11-19-gateway-protocol-fidelity.zh.md: 7c9e92b2c019f97bc06ea3d7dae0a4b0c41f89c2

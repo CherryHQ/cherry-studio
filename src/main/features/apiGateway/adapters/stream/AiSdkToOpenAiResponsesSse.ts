@@ -26,6 +26,7 @@ import { loggerService } from '@logger'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
+import { readNativeLogprobs } from './nativeMetadata'
 
 const logger = loggerService.withContext('AiSdkToOpenAiResponsesSse')
 
@@ -56,6 +57,7 @@ type StreamingResponseFields = Pick<
  */
 type PartialStreamingResponse = StreamingResponseFields & {
   usage?: StreamingUsage
+  service_tier?: string
 }
 
 /**
@@ -114,6 +116,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+  private logprobs?: NonNullable<OpenAI.Responses.ResponseOutputText['logprobs']>
+  private serviceTier?: string
 
   override getMessageId(): string {
     return `resp_${this.state.messageId}`
@@ -152,6 +156,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       model: this.state.model,
       output: [],
       incomplete_details: this.buildIncompleteDetails(),
+      ...(this.serviceTier !== undefined && { service_tier: this.serviceTier }),
       usage: this.buildUsage()
     }
   }
@@ -323,6 +328,25 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+    const native = metadata.providerMetadata?.openai ?? metadata.providerMetadata?.azure
+    const logprobs = readNativeLogprobs(native?.logprobs)
+    if (logprobs !== undefined)
+      this.logprobs = logprobs.map((entry) => ({
+        ...entry,
+        bytes: entry.bytes ?? [],
+        top_logprobs: entry.top_logprobs.map((top) => ({ ...top, bytes: top.bytes ?? [] }))
+      }))
+    const tier = native?.serviceTier
+    if (
+      tier === 'auto' ||
+      tier === 'default' ||
+      tier === 'flex' ||
+      tier === 'priority' ||
+      tier === 'scale' ||
+      tier === 'fast' ||
+      tier === 'ultrafast'
+    )
+      this.serviceTier = tier
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
@@ -574,7 +598,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       output_index: outputIndex,
       content_index: this.contentPartIndex,
       text: this.textContent,
-      logprobs: [],
+      logprobs: this.logprobs ?? [],
       sequence_number: this.nextSequence()
     }
     this.emit(textDoneEvent)
@@ -588,7 +612,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       part: {
         type: 'output_text',
         text: this.textContent,
-        annotations: []
+        annotations: [],
+        ...(this.logprobs !== undefined && { logprobs: this.logprobs })
       },
       sequence_number: this.nextSequence()
     }
@@ -604,7 +629,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         {
           type: 'output_text',
           text: this.textContent,
-          annotations: []
+          annotations: [],
+          ...(this.logprobs !== undefined && { logprobs: this.logprobs })
         }
       ]
     }
@@ -645,6 +671,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       // (reasoning, function calls, message) has already landed in `outputItems`.
       output: this.buildOutputItems(),
       incomplete_details: this.buildIncompleteDetails(),
+      ...(this.serviceTier !== undefined && { service_tier: this.serviceTier }),
       usage: this.buildUsage()
     }
 

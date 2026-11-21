@@ -7,8 +7,10 @@
  * the target speaks the same dialect.
  */
 
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import * as z from 'zod'
 
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -118,6 +120,17 @@ function passThroughAnthropicReasoning(
   effort: GatewayReasoningEffort | null | undefined
 ): ProviderOptions | undefined {
   if (!config && effort == null) return undefined
+  const details = z
+    .object({
+      display: z.enum(['omitted', 'summarized', 'updates']).nullish(),
+      block_binding: z.object({ prefix_mismatch_behavior: z.enum(['error', 'drop_block']) }).nullish()
+    })
+    .parse(config ?? {})
+  if (config?.type !== 'adaptive' && (details.display != null || details.block_binding != null)) {
+    throw new UnsupportedFunctionalityError({
+      functionality: 'Non-adaptive Anthropic thinking display/block_binding in the pinned SDK'
+    })
+  }
   return {
     anthropic: {
       ...(config
@@ -125,7 +138,13 @@ function passThroughAnthropicReasoning(
             thinking:
               config.type === 'enabled'
                 ? { type: 'enabled', budgetTokens: config.budget_tokens }
-                : { type: config.type }
+                : {
+                    type: config.type,
+                    ...(details.display != null && { display: details.display }),
+                    ...(details.block_binding != null && {
+                      blockBinding: { prefixMismatchBehavior: details.block_binding.prefix_mismatch_behavior }
+                    })
+                  }
           }
         : {}),
       ...(effort != null ? { effort } : {})

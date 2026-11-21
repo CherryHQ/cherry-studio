@@ -5,10 +5,11 @@
  * Handles messages, tools, and extended features like reasoning_content.
  */
 
-import type { JSONValue } from '@ai-sdk/provider'
+import { UnsupportedFunctionalityError, type JSONValue } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
+import mime from 'mime'
 
 import type {
   ChatCompletionAssistantMessageParam,
@@ -23,6 +24,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
+import {
+  mergeGatewayProviderOptions,
+  nativeOpenAiOptions,
+  openAiOutput,
+  parallelToolOptions
+} from './openAiRequestOptions'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 import { isBlankToolName } from './toolName'
 
@@ -146,8 +153,32 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
           // Derive the MIME from a `data:` URL; fall back to `image/*` for remote
           // URLs so JPEG/WebP/etc. aren't mislabeled as PNG downstream.
           const mediaType = parseDataUrl(url)?.mediaType ?? 'image/*'
-          const p: FileUIPart = { type: 'file', mediaType, url }
+          const p: FileUIPart = {
+            type: 'file',
+            mediaType,
+            url,
+            ...(part.image_url.detail ? { providerMetadata: { openai: { imageDetail: part.image_url.detail } } } : {})
+          }
           parts.push(p)
+        } else if (part.type === 'input_audio') {
+          const mediaType = part.input_audio.format === 'wav' ? 'audio/wav' : 'audio/mpeg'
+          parts.push({ type: 'file', mediaType, url: `data:${mediaType};base64,${part.input_audio.data}` })
+        } else if (part.type === 'file') {
+          if (part.file.file_id || !part.file.file_data) {
+            throw new UnsupportedFunctionalityError({ functionality: 'Provider-bound Chat file_id; supply file_data' })
+          }
+          const mediaType =
+            parseDataUrl(part.file.file_data)?.mediaType ??
+            mime.getType(part.file.filename ?? '') ??
+            'application/octet-stream'
+          parts.push({
+            type: 'file',
+            mediaType,
+            filename: part.file.filename,
+            url: part.file.file_data.startsWith('data:')
+              ? part.file.file_data
+              : `data:${mediaType};base64,${part.file.file_data}`
+          })
         }
       }
       if (parts.length > 0) return { id: nextUIMessageId(), role: 'user', parts }
@@ -213,7 +244,9 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
     for (const [index, toolDef] of tools.entries()) {
-      if (toolDef.type !== 'function') continue
+      if (toolDef.type !== 'function') {
+        throw new UnsupportedFunctionalityError({ functionality: `Chat tool: ${toolDef.type}` })
+      }
       if (isBlankToolName(toolDef.function.name)) {
         droppedTools.push({
           index,
@@ -251,6 +284,15 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
    * Extract stream/generation options from OpenAI params
    */
   extractStreamOptions(params: ExtendedChatCompletionCreateParams): StreamTextOptions {
+    if (params.n != null && params.n !== 1) {
+      throw new UnsupportedFunctionalityError({ functionality: 'Multiple Chat completion candidates' })
+    }
+    if (params.modalities?.some((modality) => modality !== 'text') || params.audio) {
+      throw new UnsupportedFunctionalityError({ functionality: 'Chat audio output' })
+    }
+    if (typeof params.tool_choice === 'object' && params.tool_choice?.type !== 'function') {
+      throw new UnsupportedFunctionalityError({ functionality: 'Non-function Chat tool choice' })
+    }
     // OpenAI `stop` is `string | string[] | null`; normalize to `string[] | undefined`
     // so a single-string stop isn't passed through as a bogus array downstream.
     const stop = params.stop
@@ -263,7 +305,22 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       maxOutputTokens: params.max_completion_tokens ?? params.max_tokens ?? undefined,
       temperature: params.temperature ?? undefined,
       topP: params.top_p ?? undefined,
-      stopSequences
+      stopSequences,
+      seed: params.seed ?? undefined,
+      frequencyPenalty: params.frequency_penalty ?? undefined,
+      presencePenalty: params.presence_penalty ?? undefined,
+      toolChoice:
+        params.tool_choice && typeof params.tool_choice === 'object'
+          ? { type: 'tool', toolName: params.tool_choice.function.name }
+          : (params.tool_choice ?? undefined),
+      output: openAiOutput(
+        params.response_format?.type === 'json_schema'
+          ? {
+              type: 'json_schema',
+              ...params.response_format.json_schema
+            }
+          : params.response_format
+      )
     }
   }
 
@@ -278,8 +335,19 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     maxOutputTokens?: number,
     overrideReasoning = false
   ): ProviderOptions | undefined {
-    if (overrideReasoning) return undefined
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
+    const reasoning = overrideReasoning
+      ? undefined
+      : mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
+    const parallel = parallelToolOptions(provider, model, params.parallel_tool_calls)
+    const native = nativeOpenAiOptions(provider, model, {
+      ...(params.service_tier != null && { serviceTier: params.service_tier }),
+      ...(params.logprobs != null && { logprobs: params.logprobs ? (params.top_logprobs ?? true) : false }),
+      ...(params.response_format?.type === 'json_schema' &&
+        params.response_format.json_schema.strict != null && {
+          strictJsonSchema: params.response_format.json_schema.strict
+        })
+    })
+    return mergeGatewayProviderOptions(reasoning, parallel, native)
   }
 }
 
