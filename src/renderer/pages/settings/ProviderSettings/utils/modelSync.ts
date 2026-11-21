@@ -69,7 +69,8 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {})
   }
 }
 
@@ -137,6 +138,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
     for (const field of REGISTRY_FIELDS) {
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
+        continue
+      }
+      if ((field === 'contextWindow' || field === 'maxOutputTokens') && base[field] !== undefined) {
         continue
       }
       if (field === 'name' && keepFetchedName) {

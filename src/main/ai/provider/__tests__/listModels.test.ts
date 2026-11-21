@@ -287,7 +287,12 @@ describe('listModels — custom-channel model metadata (#20523)', () => {
 
   it('accepts the max_context_window and max_context_length aliases', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
-      value: { data: [{ id: 'm1', max_context_window: 64000 }, { id: 'm2', max_context_length: 32000 }] }
+      value: {
+        data: [
+          { id: 'm1', max_context_window: 64000 },
+          { id: 'm2', max_context_length: 32000 }
+        ]
+      }
     })
 
     const { models } = await listModels(makeCustomChannelProvider())

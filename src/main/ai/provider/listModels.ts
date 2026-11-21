@@ -150,7 +150,7 @@ function warnSkippedOpenAIModelEntries(
 const OPENAI_CONTEXT_LIMIT_KEYS = ['context_length', 'max_context_window', 'max_context_length'] as const
 
 function parsePositiveTokenLimit(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
 }
 
 /**
