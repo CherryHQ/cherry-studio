@@ -1,4 +1,7 @@
+import { dialog } from 'electron'
+
 import { application } from '@application'
+import { validateCustomCliExecutable } from '@main/services/codeCli/customCliExecutable'
 import type { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -27,5 +30,14 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
     // off the wire (the router does not re-parse handler output, so extra fields would leak).
     const terminals = await application.get('CodeCliService').getAvailableTerminalsForPlatform()
     return terminals.map(({ id, name }) => ({ id, name }))
+  },
+  'code_cli.validate_custom_executable': async (input) => {
+    return validateCustomCliExecutable(input.executable)
+  },
+  'code_cli.pick_custom_executable': async () => {
+    const picked = await dialog.showOpenDialog({ properties: ['openFile'] })
+    // Dismissing the dialog is normal use, not an error.
+    if (picked.canceled || !picked.filePaths[0]) return null
+    return picked.filePaths[0]
   }
 }

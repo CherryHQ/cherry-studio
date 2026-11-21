@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, CUSTOM_CLI_ERROR_CODES } from '@shared/types/codeCli'
 import { CLI_CONFIG_TARGET_IDS, FILE_CONFIGURED_CLI_TOOL_IDS } from '@shared/utils/cliConfig'
 
 import { defineRoute } from '../define'
@@ -101,5 +101,20 @@ export const codeCliRequestSchemas = {
   'code_cli.get_available_terminals': defineRoute({
     input: z.void(),
     output: z.array(terminalConfigSchema)
+  }),
+  // Validate a user-registered custom executable (issue #19966) for the Agent
+  // dialog's status line; the same validator gates save and launch in Main.
+  'code_cli.validate_custom_executable': defineRoute({
+    input: z.object({ executable: z.string() }),
+    output: z.object({
+      ok: z.boolean(),
+      resolvedPath: z.string().optional(),
+      code: z.enum(CUSTOM_CLI_ERROR_CODES).optional()
+    })
+  }),
+  // Native file picker for the custom executable path. Returns null on cancel.
+  'code_cli.pick_custom_executable': defineRoute({
+    input: z.void(),
+    output: z.string().nullable()
   })
 }
