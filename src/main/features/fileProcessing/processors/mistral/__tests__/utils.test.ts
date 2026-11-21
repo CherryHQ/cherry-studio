@@ -1,8 +1,14 @@
 import fs from 'node:fs/promises'
 
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildMarkdownConversionResult, buildTextExtractionResult, uploadDocument } from '../utils'
+import {
+  buildMarkdownConversionResult,
+  buildTextExtractionResult,
+  prepareDocumentPayload,
+  uploadDocument
+} from '../utils'
 
 describe('mistral utils', () => {
   beforeEach(() => {
@@ -41,6 +47,40 @@ describe('mistral utils', () => {
         signal: undefined
       }
     )
+  })
+
+  it('sends an image format outside the provider table as PNG', async () => {
+    const avif = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#ff0000' } })
+      .avif()
+      .toBuffer()
+    vi.spyOn(fs, 'readFile').mockResolvedValue(avif)
+
+    const document = await prepareDocumentPayload({
+      file: { path: '/tmp/photo.avif', name: 'photo', ext: 'avif' }
+    } as never)
+
+    const [, base64] = document.imageUrl.split(',') as [string, string]
+    expect(document.imageUrl.startsWith('data:image/png;base64,')).toBe(true)
+    await expect(sharp(Buffer.from(base64, 'base64')).metadata()).resolves.toMatchObject({ format: 'png' })
+  })
+
+  it('keeps the provider-native mime for a listed format', async () => {
+    vi.spyOn(fs, 'readFile').mockResolvedValue(Buffer.from('jpeg-data'))
+
+    await expect(
+      prepareDocumentPayload({ file: { path: '/tmp/photo.jpeg', name: 'photo', ext: 'jpeg' } } as never)
+    ).resolves.toEqual({
+      type: 'image_url',
+      imageUrl: `data:image/jpeg;base64,${Buffer.from('jpeg-data').toString('base64')}`
+    })
+  })
+
+  it('rejects image bytes no local decoder can read', async () => {
+    vi.spyOn(fs, 'readFile').mockResolvedValue(Buffer.from('not-an-image'))
+
+    await expect(
+      prepareDocumentPayload({ file: { path: '/tmp/photo.ico', name: 'photo', ext: 'ico' } } as never)
+    ).rejects.toThrow('Unsupported image type for Mistral OCR: .ico')
   })
 
   it('combines page markdown into markdown conversion output', () => {
