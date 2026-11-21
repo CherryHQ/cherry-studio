@@ -1,12 +1,13 @@
 import dayjs from 'dayjs'
 import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, use, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -21,6 +22,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import { CaptureProviderNamesContext } from './CaptureProviderNamesContext'
 import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
 
@@ -114,6 +116,18 @@ const MessageHeader: FC<Props> = memo(
     const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
+    const isAssistantMessage = message.role === 'assistant'
+    const providerId = isAssistantMessage && showModelIdentity && displayModelName ? displayModel?.provider : undefined
+    const captureProviderNames = use(CaptureProviderNamesContext)
+    const liveProviderName = useProviderDisplayName(captureProviderNames ? undefined : providerId)
+    const displayProviderName = captureProviderNames
+      ? (providerId && captureProviderNames.get(providerId)) || ''
+      : liveProviderName
+    const modelIdentityLabel = [displayModelName, displayProviderName].filter(Boolean).join(' | ')
+
+    // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
+    // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
+    // so editing/deleting the live entity never changes a past message's name or avatar.
     // Names remain historical; adapters may supply current avatars for authors that still exist.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
@@ -134,7 +148,6 @@ const MessageHeader: FC<Props> = memo(
       return userName || t('common.you')
     }, [authorName, displayModel, message.role, t, userName])
 
-    const isAssistantMessage = message.role === 'assistant'
     const delivery = message.delivery
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
@@ -181,7 +194,7 @@ const MessageHeader: FC<Props> = memo(
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
-          <div className="flex w-full min-w-0 items-center gap-1.5">
+          <div className="message-header-row flex w-full min-w-0 items-center gap-1.5">
             <span
               className="truncate text-sm leading-5 font-semibold"
               style={{
@@ -194,11 +207,23 @@ const MessageHeader: FC<Props> = memo(
               <GoalRoundBadge round={message.turnOrigin.round} />
             )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="text-foreground-tertiary flex min-w-0 shrink items-center gap-1 text-xs leading-5">
-                <span aria-hidden="true" className="shrink-0">
+              <span
+                className="message-model-identity flex min-w-0 shrink items-start gap-1 text-foreground-tertiary text-xs leading-5"
+                title={modelIdentityLabel}>
+                <span aria-hidden="true" className="mt-0.5 shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
-                <span className="truncate">{displayModelName}</span>
+                <span className="message-identity-label flex max-h-5 min-w-0 flex-wrap gap-x-1 overflow-hidden">
+                  <span className="min-w-0 truncate">{displayModelName}</span>
+                  {displayProviderName && (
+                    <span className="message-identity-provider flex max-w-36 shrink-0 gap-1">
+                      <span aria-hidden="true" className="shrink-0">
+                        |
+                      </span>
+                      <span className="min-w-0 truncate">{displayProviderName}</span>
+                    </span>
+                  )}
+                </span>
               </span>
             )}
             {isGroupContextMessage && (

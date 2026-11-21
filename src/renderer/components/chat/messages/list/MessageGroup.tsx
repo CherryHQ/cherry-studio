@@ -338,7 +338,8 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
-        showModelIdentity: !isMultiModelGroup || multiModelMessageStyle !== 'fold',
+        showModelIdentity:
+          multiModelMessageStyle !== 'fold' || messages.length === 1 || message.id === selectedMessageId,
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
@@ -398,7 +399,6 @@ const MessageGroup = ({
       actions.openBrowserUrl,
       isGrid,
       isGrouped,
-      isMultiModelGroup,
       isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,

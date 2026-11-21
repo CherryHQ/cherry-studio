@@ -5,6 +5,7 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import type { Provider } from '@shared/data/types/provider'
 import { sanitizeFilename } from '@shared/utils/file'
+import { canManageProvider } from '@shared/utils/provider'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 /**
@@ -119,6 +120,10 @@ export function getProviderDisplayNameById(providerId: string): string {
 export function getProviderDisplayName(provider: Pick<Provider, 'id' | 'name'> | undefined): string {
   if (!provider) return ''
   return isSystemProviderId(provider.id) ? getProviderDisplayNameById(provider.id) : provider.name
+}
+
+export function getProviderInstanceDisplayName(provider: Provider): string {
+  return canManageProvider(provider) ? provider.name : getProviderDisplayNameById(provider.id)
 }
 
 // \uFE0F = VS16 (emoji-presentation selector); \u20E3 = combining enclosing keycap (1️⃣);

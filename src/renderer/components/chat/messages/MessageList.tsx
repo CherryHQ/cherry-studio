@@ -1,5 +1,6 @@
 import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
@@ -9,12 +10,14 @@ import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { dataUrlToBlob } from '@renderer/utils/image'
+import { getProviderInstanceDisplayName } from '@renderer/utils/naming'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
+import { CaptureProviderNamesContext } from './frame/CaptureProviderNamesContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -40,7 +43,11 @@ import {
 import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
-import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
+import {
+  getDirectAssistantModelsByUserId,
+  getMessageListItemModel,
+  shareDirectAssistantModelsByUserId
+} from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
@@ -58,6 +65,7 @@ const RAIL_GUTTER_FADE_PX = 120
 const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
 const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
+const EMPTY_CAPTURE_PROVIDER_NAMES: ReadonlyMap<string, string> = new Map()
 
 interface ActiveMessageOutline {
   messageId: string
@@ -596,13 +604,46 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   }, [topic.id])
 
   const activeTopicImageCaptureAction = topicImageCaptureActions[0] ?? null
+  const captureHasProviders =
+    !!activeTopicImageCaptureAction &&
+    messages.some((message) => message.role === 'assistant' && getMessageListItemModel(message)?.provider)
+  const [captureProviders, setCaptureProviders] = useState<{
+    action: PendingTopicImageRuntimeAction
+    names: ReadonlyMap<string, string>
+  } | null>(null)
+  const captureProviderNames = captureHasProviders
+    ? captureProviders?.action === activeTopicImageCaptureAction
+      ? captureProviders.names
+      : null
+    : EMPTY_CAPTURE_PROVIDER_NAMES
 
   useEffect(() => {
     topicImageCaptureActionsRef.current = topicImageCaptureActions
   }, [topicImageCaptureActions])
 
   useEffect(() => {
-    if (!activeTopicImageCaptureAction || !topicImageCaptureRef.current) return
+    if (!activeTopicImageCaptureAction || !captureHasProviders) {
+      setCaptureProviders(null)
+      return
+    }
+
+    let cancelled = false
+    void dataApiService
+      .get('/providers')
+      .then(
+        (providers) => new Map(providers.map((provider) => [provider.id, getProviderInstanceDisplayName(provider)]))
+      )
+      .catch(() => EMPTY_CAPTURE_PROVIDER_NAMES)
+      .then((names) => {
+        if (!cancelled) setCaptureProviders({ action: activeTopicImageCaptureAction, names })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTopicImageCaptureAction, captureHasProviders])
+
+  useEffect(() => {
+    if (!activeTopicImageCaptureAction || !captureProviderNames || !topicImageCaptureRef.current) return
 
     let cancelled = false
     let secondFrame: number | undefined
@@ -634,7 +675,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         cancelAnimationFrame(secondFrame)
       }
     }
-  }, [activeTopicImageCaptureAction, executeTopicImageAction])
+  }, [activeTopicImageCaptureAction, captureProviderNames, executeTopicImageAction])
 
   useEffect(() => {
     scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
@@ -851,7 +892,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           )}
         </div>
       </SelectionContextMenu>
-      {topicImageCaptureActions.length > 0 && (
+      {activeTopicImageCaptureAction && captureProviderNames && (
         <div
           ref={topicImageCaptureRef}
           aria-hidden="true"
@@ -861,17 +902,19 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>
-          {groupedMessages.map(([key, groupMessages]) => (
-            <NarrowLayout key={key} narrowMode={messageListNarrowMode} withSidePadding>
-              <MessageGroup
-                captureMode
-                isLatestAssistantGroup={key === latestAssistantGroupKey}
-                directAssistantModelsByUserId={directAssistantModelsByUserId}
-                messages={groupMessages}
-                partsByMessageId={partsByMessageId}
-              />
-            </NarrowLayout>
-          ))}
+          <CaptureProviderNamesContext value={captureProviderNames}>
+            {groupedMessages.map(([key, groupMessages]) => (
+              <NarrowLayout key={key} narrowMode={messageListNarrowMode} withSidePadding>
+                <MessageGroup
+                  captureMode
+                  isLatestAssistantGroup={key === latestAssistantGroupKey}
+                  directAssistantModelsByUserId={directAssistantModelsByUserId}
+                  messages={groupMessages}
+                  partsByMessageId={partsByMessageId}
+                />
+              </NarrowLayout>
+            ))}
+          </CaptureProviderNamesContext>
         </div>
       )}
       {messageNavigation === 'anchor' && (

@@ -574,6 +574,31 @@
   flex-shrink: 0 !important;
 }
 
+[data-image-capturing] .message-header-row:has(> .message-model-identity) {
+  flex-wrap: wrap;
+}
+
+[data-image-capturing] .message-model-identity {
+  flex-basis: 100%;
+  order: 1;
+}
+
+[data-image-capturing] .message-identity-label {
+  max-height: none;
+}
+
+[data-image-capturing] .message-identity-provider {
+  max-width: 100%;
+  width: 100%;
+}
+
+[data-image-capturing] .message-header .message-identity-label .truncate {
+  width: 100% !important;
+  flex-shrink: 1 !important;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 [data-image-capturing] .message-header-info-wrap span {
   white-space: nowrap !important;
 }

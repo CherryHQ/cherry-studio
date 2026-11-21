@@ -1,13 +1,17 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
-import type * as Naming from '@renderer/utils/naming'
+import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
+import { useProviderMutations } from '@renderer/hooks/useProvider'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { MessageListMeta } from '../../types'
 import MessageHeader from '../MessageHeader'
+import MessageTokenDetailsCard from '../MessageTokenDetailsCard'
 
 const providerState = vi.hoisted(() => ({
   actions: {} as {
@@ -57,11 +61,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/utils/naming', async (original) => ({
-  firstLetter: (value: string) => value.slice(0, 1),
-  isEmoji: (await original<typeof Naming>()).isEmoji,
-  removeLeadingEmoji: (value: string) => value
-}))
+vi.unmock('@data/hooks/useDataApi')
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => providerState.actions,
@@ -80,6 +80,7 @@ vi.mock('../../MessageListProvider', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { resolvedLanguage: 'en-US' },
     t: (key: string, values?: { agent?: string; session?: string; round?: number }) => {
       if (key === 'agent.session_delivery.from') return `From ${values?.agent} / ${values?.session}`
       if (key === 'agent.session_turn_origin.goal_round') return `Goal round ${values?.round}`
@@ -102,6 +103,7 @@ describe('MessageHeader', () => {
     providerState.actions = {}
     providerState.selection = undefined
     providerState.meta = {}
+    MockDataApiUtils.resetMocks()
   })
 
   it('updates historical author avatars and restores the snapshot after deletion', () => {
@@ -210,6 +212,109 @@ describe('MessageHeader', () => {
     )
     expect(queryByText(/Goal round/)).toBeNull()
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
+  })
+
+  it('shows the current provider name beside the model', async () => {
+    MockDataApiUtils.setCustomResponse('/providers/my-relay', 'GET', { id: 'my-relay', name: 'My Relay' })
+    const { Wrapper } = createSWRTestWrapper()
+    render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'my-relay' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'my-relay' }
+          }
+        })}
+      />,
+      { wrapper: Wrapper }
+    )
+
+    expect(await screen.findByText('My Relay')).toBeVisible()
+    expect(screen.getByText('GPT-4')).toBeVisible()
+    expect(screen.getByTitle('GPT-4 | My Relay')).toBeInTheDocument()
+  })
+
+  it('uses the message provider and updates its name after a provider mutation', async () => {
+    MockDataApiUtils.setCustomResponse('/providers/message-relay', 'GET', {
+      id: 'message-relay',
+      name: 'Original relay'
+    })
+    const { Wrapper } = createSWRTestWrapper()
+    const message = createMessage('assistant', { modelId: 'message-relay::glm-5' })
+    const currentModel = { id: 'glm-5', name: 'glm-5', provider: 'current-relay', group: '' }
+    render(<MessageHeader showModelIdentity message={message} model={currentModel} />, { wrapper: Wrapper })
+    const mutation = renderHook(() => useProviderMutations('message-relay'), { wrapper: Wrapper })
+
+    expect(await screen.findByText('Original relay')).toBeVisible()
+    expect(screen.queryByText('Current relay')).not.toBeInTheDocument()
+
+    MockDataApiUtils.setCustomResponse('/providers/message-relay', 'GET', {
+      id: 'message-relay',
+      name: 'Renamed relay'
+    })
+    await act(() => mutation.result.current.updateProvider({ name: 'Renamed relay' }))
+
+    expect(await screen.findByText('Renamed relay')).toBeVisible()
+    expect(screen.queryByText('Original relay')).not.toBeInTheDocument()
+  })
+
+  it('shows a renamed preset variant in the header and token details after a change from Settings', async () => {
+    MockDataApiUtils.setCustomResponse('/providers/zai', 'GET', {
+      id: 'zai',
+      presetProviderId: 'zhipu',
+      name: 'Z.ai'
+    })
+    const { Wrapper } = createSWRTestWrapper()
+    const message = createMessage('assistant', {
+      modelId: 'zai::glm-5',
+      stats: { inputTokens: 25, outputTokens: 10, totalTokens: 35 }
+    })
+    render(
+      <>
+        <MessageHeader showModelIdentity message={message} />
+        <MessageTokenDetailsCard message={message} />
+      </>,
+      { wrapper: Wrapper }
+    )
+
+    expect(await screen.findByTitle('glm-5 | Z.ai')).toBeVisible()
+    expect(screen.getByTitle('Z.ai')).toBeVisible()
+
+    MockDataApiUtils.setCustomResponse('/providers/zai', 'GET', {
+      id: 'zai',
+      presetProviderId: 'zhipu',
+      name: 'Renamed Z.ai'
+    })
+    act(() =>
+      MockDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId', routeParams: { providerId: 'zai' } }])
+    )
+
+    expect(await screen.findByTitle('glm-5 | Renamed Z.ai')).toBeVisible()
+    expect(screen.getByTitle('Renamed Z.ai')).toBeVisible()
+    expect(screen.queryByTitle('Z.ai')).not.toBeInTheDocument()
+  })
+
+  it('keeps a deleted provider absent after a later lookup times out', async () => {
+    const providerId = 'deleted-provider'
+    const path = '/providers/deleted-provider'
+    const effects = [{ endpoint: '/providers/:providerId', routeParams: { providerId } }] as const
+    MockDataApiUtils.setCustomResponse(path, 'GET', { id: providerId, name: 'Old provider' })
+    const { Wrapper } = createSWRTestWrapper()
+    const message = createMessage('assistant', { modelId: 'deleted-provider::glm-5' })
+    render(<MessageHeader showModelIdentity message={message} />, { wrapper: Wrapper })
+    expect(await screen.findByTitle('glm-5 | Old provider')).toBeVisible()
+
+    MockDataApiUtils.setErrorResponse(path, 'GET', DataApiErrorFactory.notFound('Provider', providerId))
+    await act(async () => MockDataApiUtils.emitDataChange([...effects]))
+    expect(screen.getByTitle('glm-5')).toBeVisible()
+
+    MockDataApiUtils.setErrorResponse(path, 'GET', DataApiErrorFactory.timeout(path, 3000))
+    await act(async () => MockDataApiUtils.emitDataChange([...effects]))
+    expect(screen.getByTitle('glm-5')).toBeVisible()
+    expect(screen.queryByText('Old provider')).not.toBeInTheDocument()
   })
 
   it('shows durable sender attribution without transport status on a received message', () => {
