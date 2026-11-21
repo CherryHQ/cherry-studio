@@ -13,6 +13,7 @@ import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -37,6 +38,9 @@ function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
 }
 
 export class McpServerService {
+  private readonly _onChanged = new Emitter<string>()
+  readonly onChanged = this._onChanged.event
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -207,6 +211,7 @@ export class McpServerService {
       return rowToMcpServer(row)
     })
 
+    this._onChanged.fire(id)
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
     return result
@@ -253,6 +258,7 @@ export class McpServerService {
       })
     }
 
+    this._onChanged.fire(id)
     logger.info('Deleted MCP server', { id })
   }
 

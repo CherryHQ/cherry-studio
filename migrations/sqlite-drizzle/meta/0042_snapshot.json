@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "124f088d-8ccf-4b08-94d9-975bf5ec1cc4",
+  "id": "da0ca127-9aa9-4030-800b-b57b79ac14fb",
   "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
@@ -4772,6 +4772,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "skill_permissions": {
+          "name": "skill_permissions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "should_config": {
           "name": "should_config",
           "type": "integer",
@@ -6314,13 +6321,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "active_node_id": {
           "name": "active_node_id",
           "type": "text",
@@ -6399,13 +6399,6 @@
             "assistant_id"
           ],
           "isUnique": false
-        },
-        "topic_group_id_idx": {
-          "name": "topic_group_id_idx",
-          "columns": [
-            "group_id"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -6415,19 +6408,6 @@
           "tableTo": "assistant",
           "columnsFrom": [
             "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "topic_group_id_group_id_fk": {
-          "name": "topic_group_id_group_id_fk",
-          "tableFrom": "topic",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"

@@ -474,7 +474,7 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
-      listKey: resolvedAgentId,
+      listKey: topic.id,
       renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,

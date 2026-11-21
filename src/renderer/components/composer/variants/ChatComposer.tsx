@@ -59,12 +59,7 @@ import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { isVisionModel } from '@renderer/utils/model'
-import {
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  resolveReasoningEffortForModel
-} from '@renderer/utils/model'
+import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -78,6 +73,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
+import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
@@ -1822,6 +1818,7 @@ const ChatComposerInner = ({
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
+    assistantAvatarSrc: displayAssistant?.avatarSrc,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,
