@@ -45,6 +45,10 @@ when a later snapshot uses committed rather than live preview identities.
 Explicit removals persist with the checkpoint and hide those sources after reopen;
 absence from a compacted native view alone does not remove saved product history.
 
+Child model-response errors become `data-error` parts alongside any received content. Each attempt's error
+survives archive writes, later retries and reopening, including failures with no text. These message-local errors
+do not determine the child's task status, which follows the native run outcome.
+
 ## Publication
 
 `MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. New or changed mutable payloads are captured before publication; unchanged isolated messages and parts keep stable references in Main and the renderer. Immutable strings, including image bodies, are shared within copied mutable containers without serializing their contents.
