@@ -35,7 +35,70 @@ import {
   writeFileIntoKnowledgeBaseAtMock
 } from './jobHandlerTestUtils'
 
+// Real directory expansion creates files, never notes.
+function createExpandedFile(id: string, parent: string, status: 'processing' | 'deleting' = 'processing') {
+  const file = createFileItem(id, status)
+  return { ...file, groupId: parent, data: { ...file.data, source: `/${parent}/${id}.pdf` } }
+}
+
 describe('reindex-subtree job handler', () => {
+  it.each(['note', 'hidden-file', 'hidden-directory'])(
+    'preserves an independently added note before any reindex mutation: %s',
+    async (kind) => {
+      const root = createDirectoryItem('dir-1')
+      const note =
+        kind === 'note' ? createNoteItem('independent-note', 'dir-1') : createExpandedFile('independent-note', 'dir-1')
+      if (kind !== 'note')
+        note.data.source = kind === 'hidden-file' ? '/dir-1/.independent.md' : '/dir-1/.private/independent.md'
+      knowledgeItemGetSubtreeItemsMock.mockImplementation((_baseId, _rootIds, options = {}) =>
+        options.includeRoots ? [root, note] : [note]
+      )
+      const handler = createReindexSubtreeJobHandler(
+        knowledgeLockManager as never,
+        ingestionService,
+        new FileProcessingWaitManager()
+      )
+      await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }))).rejects.toThrow(
+        'independently added documents'
+      )
+      expect(deleteMaterialsMock).not.toHaveBeenCalled()
+      expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+      expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+      expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+      expect(note.type === 'note' ? note.data.content : note.data.source).toBe(
+        kind === 'note'
+          ? 'hello independent-note'
+          : kind === 'hidden-file'
+            ? '/dir-1/.independent.md'
+            : '/dir-1/.private/independent.md'
+      )
+    }
+  )
+
+  it('rechecks a note added between activation and the reset lock', async () => {
+    const root = createDirectoryItem('dir-1')
+    const note = createNoteItem('late-note', 'dir-1')
+    let activated = false
+    knowledgeItemUpdateStatusMock.mockImplementation(() => {
+      activated = true
+      return root
+    })
+    knowledgeItemGetSubtreeItemsMock.mockImplementation((_baseId, _rootIds, options = {}) =>
+      options.includeRoots ? [root] : activated ? [note] : []
+    )
+    const handler = createReindexSubtreeJobHandler(
+      knowledgeLockManager as never,
+      ingestionService,
+      new FileProcessingWaitManager()
+    )
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }))).rejects.toThrow(
+      'independently added documents'
+    )
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+  })
+
   it('clears old artifacts, resets selected roots, and schedules selected roots', async () => {
     const handler = createReindexSubtreeJobHandler(
       knowledgeLockManager as never,
@@ -43,7 +106,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.leafOnly) return [child]
@@ -70,7 +133,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.leafOnly) return [child]
@@ -97,7 +160,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.leafOnly) return [child]
@@ -126,7 +189,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1', 'deleting')
-    const child = createNoteItem('note-1', 'dir-1', 'deleting')
+    const child = createExpandedFile('note-1', 'dir-1', 'deleting')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([root, child])
 
@@ -148,11 +211,14 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
     knowledgeItemGetSubtreeItemsMock
       .mockReturnValueOnce([root, child])
-      .mockReturnValueOnce([createDirectoryItem('dir-1', 'deleting'), createNoteItem('note-1', 'dir-1', 'deleting')])
+      .mockReturnValueOnce([
+        createDirectoryItem('dir-1', 'deleting'),
+        createExpandedFile('note-1', 'dir-1', 'deleting')
+      ])
 
     await handler.execute(ctx)
 
@@ -170,7 +236,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
+    const deletingChild = createExpandedFile('note-1', 'dir-1', 'deleting')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
         options.includeRoots && !options.leafOnly ? [root, deletingChild] : [deletingChild]
@@ -191,7 +257,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
@@ -225,9 +291,9 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const presentRoot = createDirectoryItem('dir-1')
-    const presentChild = createNoteItem('note-1', 'dir-1')
+    const presentChild = createExpandedFile('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
-    const missingChild = createNoteItem('note-2', 'dir-2')
+    const missingChild = createExpandedFile('note-2', 'dir-2')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.includeRoots && options.leafOnly) return rootIds.includes('dir-1') ? [presentChild] : []
@@ -572,13 +638,13 @@ describe('reindex-subtree job handler', () => {
     )
     const firstRoot = createDirectoryItem('dir-1')
     const secondRoot = createDirectoryItem('dir-2')
-    const firstChild = createNoteItem('note-1', 'dir-1')
-    const secondChild = createNoteItem('note-2', 'dir-2')
+    const firstChild = createExpandedFile('note-1', 'dir-1')
+    const secondChild = createExpandedFile('note-2', 'dir-2')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
-      (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
-        if (options.leafOnly) return [firstChild, secondChild]
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
+        if (options.leafOnly) return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId))
         if (options.includeRoots) return [firstRoot, firstChild, secondRoot, secondChild]
-        return [firstChild, secondChild]
+        return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId))
       }
     )
     scheduleItemMock.mockResolvedValueOnce({ id: 'job-dir-1' }).mockRejectedValueOnce(new Error('enqueue failed'))
@@ -601,9 +667,9 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const presentRoot = createDirectoryItem('dir-1')
-    const presentChild = createNoteItem('note-1', 'dir-1')
+    const presentChild = createExpandedFile('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
-    const missingChild = createNoteItem('note-2', 'dir-2')
+    const missingChild = createExpandedFile('note-2', 'dir-2')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.includeRoots && options.leafOnly) return rootIds.includes('dir-1') ? [presentChild] : []
@@ -640,7 +706,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
+    const child = createExpandedFile('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
         if (options.leafOnly) return [child]

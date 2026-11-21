@@ -76,12 +76,15 @@ export interface KnowledgeConceptGrep {
  * carries the hierarchy without a recursive shape. `conceptId` is set only for a
  * readable leaf (a completed file/url/note) so it can be passed to kb_read
  * (read or grep mode); directories and not-yet-indexed leaves have none.
+ * `itemId` is the knowledge item id — for a directory it is the folder id a `kb_manage add`
+ * passes as `groupId` to place new documents inside it.
  */
 export interface KnowledgeTreeNode {
   depth: number
   title: string
   itemType: KnowledgeItemType
   status: KnowledgeItemStatus
+  itemId: string
   conceptId?: string
 }
 
@@ -360,6 +363,7 @@ export class KnowledgeConceptService {
           title: getKnowledgeItemDisplayTitle(item),
           itemType: item.type,
           status: item.status,
+          itemId: item.id,
           // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
           conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
         })

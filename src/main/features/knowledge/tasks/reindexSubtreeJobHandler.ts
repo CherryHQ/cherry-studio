@@ -25,6 +25,7 @@ import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanu
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
+import { assertDirectoryRebuildSafe } from './utils/directoryRebuildSafety'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 import { resolveLiveKnowledgeRoots } from './utils/liveItem'
 
@@ -107,6 +108,10 @@ export function createReindexSubtreeJobHandler(
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
 
+        for (const root of rebuildableRoots) {
+          assertDirectoryRebuildSafe(root, knowledgeItemService.getSubtreeItems(baseId, [root.id]))
+        }
+
         // Activate every root before anything destructive runs. `completed` is the one status no
         // recovery path revisits — not `onSettled`, not the boot sweep — so a root left there while
         // its bytes are replaced or its vectors deleted would keep claiming an index it no longer has.
@@ -149,6 +154,11 @@ export function createReindexSubtreeJobHandler(
             jobId: ctx.jobId
           })
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
+        }
+
+        // Recheck under the reset lock: an add may have landed after activation.
+        for (const root of rebuildableRoots) {
+          assertDirectoryRebuildSafe(root, knowledgeItemService.getSubtreeItems(baseId, [root.id]))
         }
 
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)

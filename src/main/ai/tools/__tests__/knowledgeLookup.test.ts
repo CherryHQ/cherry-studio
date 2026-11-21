@@ -1,19 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { kbTreeOutputSchema } from '@shared/ai/builtinTools'
+
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock, addItemsMock, createBaseMock } = vi.hoisted(() => ({
+const { knowledgeSearchMock, addItemsMock, createBaseMock, getOrganizationTreeMock } = vi.hoisted(() => ({
   knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
   addItemsMock: vi.fn<() => Promise<unknown>>(),
-  createBaseMock: vi.fn<() => Promise<unknown>>()
+  createBaseMock: vi.fn<() => Promise<unknown>>(),
+  getOrganizationTreeMock: vi.fn()
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') {
-        return { search: knowledgeSearchMock, addItems: addItemsMock, createBase: createBaseMock }
+        return {
+          search: knowledgeSearchMock,
+          addItems: addItemsMock,
+          createBase: createBaseMock,
+          getOrganizationTree: getOrganizationTreeMock
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     }
@@ -25,6 +33,7 @@ import {
   knowledgeManageModelOutput,
   knowledgeReadModelOutput,
   manageKnowledge,
+  listOrOutlineKnowledge,
   searchKnowledge
 } from '../knowledgeLookup'
 
@@ -128,6 +137,50 @@ describe('manageKnowledge add for file type', () => {
   })
 })
 
+// `groupId` places new sources inside a folder (a directory item's `itemId` from kb_list). The
+// single-source form and every `items` entry carry it; an entry's own groupId wins over the top level.
+describe('manageKnowledge add into a folder', () => {
+  it('passes the folder id to addItems for a single source', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        type: 'note',
+        content: 'hello',
+        groupId: '019a4000-0000-7000-8000-000000000001'
+      },
+      []
+    )
+
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [
+      expect.objectContaining({ type: 'note', groupId: '019a4000-0000-7000-8000-000000000001' })
+    ])
+  })
+
+  it('applies the top-level folder to batch items unless an item names its own', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        groupId: '019a4000-0000-7000-8000-000000000001',
+        items: [
+          { type: 'note', content: 'a' },
+          { type: 'note', content: 'b', groupId: '019a4000-0000-7000-8000-000000000002' }
+        ]
+      },
+      []
+    )
+
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [
+      expect.objectContaining({ groupId: '019a4000-0000-7000-8000-000000000001' }),
+      expect.objectContaining({ groupId: '019a4000-0000-7000-8000-000000000002' })
+    ])
+  })
+})
 // `create` builds a new BM25-only base by name. It is deliberately NOT run through the
 // `allowedIds` scope check: the ceiling governs which *existing* bases the assistant may
 // reach, and every create is user-approved like the other kb_manage actions.
@@ -218,5 +271,27 @@ describe('manageKnowledge batch add via items', () => {
 
     expect(result).toEqual({ error: expect.stringContaining('`baseId`') })
     expect(addItemsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('kb_list folder identity', () => {
+  it('forwards the folder itemId through the tool output schema', async () => {
+    getOrganizationTreeMock.mockReturnValue({
+      baseId: 'base-1',
+      totalItems: 1,
+      truncated: false,
+      nodes: [
+        {
+          depth: 0,
+          title: 'Docs',
+          itemType: 'directory',
+          status: 'completed',
+          itemId: '019a4000-0000-7000-8000-000000000001'
+        }
+      ]
+    })
+    const result = await listOrOutlineKnowledge({ baseId: 'base-1', limit: 100 }, [])
+    expect(kbTreeOutputSchema.safeParse(result).success).toBe(true)
+    expect(result).toMatchObject({ nodes: [{ itemId: '019a4000-0000-7000-8000-000000000001' }] })
   })
 })

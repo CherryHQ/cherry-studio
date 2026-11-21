@@ -308,6 +308,9 @@ export const kbTreeNodeSchema = z.object({
   // The item's indexing status. A node only carries a `conceptId` (readable by kb_read) once it is
   // `completed`; this field explains a missing `conceptId` (still indexing, failed, …).
   status: KnowledgeItemStatusSchema,
+  // The knowledge item id. For a folder (`type: "directory"`) it is the `groupId` that kb_manage add
+  // takes to place documents inside that folder.
+  itemId: z.string(),
   conceptId: z.string().optional()
 })
 
@@ -353,7 +356,15 @@ export const kbManageAddItemSchema = z.object({
     .trim()
     .min(1)
     .optional()
-    .describe('For type="note": optional display title (defaults to the note\'s first line).')
+    .describe('For type="note": optional display title (defaults to the note\'s first line).'),
+  groupId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Folder to place this source in: the `itemId` of a folder (type "directory") from kb_list. Omit for the base root.'
+    )
 })
 
 export type KbManageAddItem = z.infer<typeof kbManageAddItemSchema>
@@ -417,6 +428,15 @@ export const kbManageInputSchema = z.object({
     .min(1)
     .optional()
     .describe('For action="add", type="note": optional display title (defaults to the note\'s first line).'),
+  groupId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'For action="add": folder to place the source(s) in — the `itemId` of a folder (type "directory") from kb_list. ' +
+        'Omit for the base root. Applies to every source in `items`.'
+    ),
   conceptIds: z
     .array(z.string().trim().min(1))
     .optional()
