@@ -351,3 +351,10 @@ describe('imageGenerationToFields', () => {
     }
   })
 })
+
+it.each(['image-01', 'image-01-live'])('marks %s response delivery choices in the form contract', (modelId) => {
+  const support = ModelListSchema.parse(modelCatalog).models.find((model) => model.id === modelId)?.imageGeneration
+  const field = imageGenerationToFields(support).find((item) => item.key === 'outputFormat')
+  expect(field?.outputFormatKind).toBe('delivery')
+  expect(staticOptions(field).map((option) => option.value)).toEqual(['url', 'base64'])
+})

@@ -186,6 +186,29 @@ export const DMXAPI_WIRE_PROFILE: WireProfile = {
   forward: ['negativePrompt', 'seed', 'quality']
 }
 
+/** dmxapi's OpenAI-routed block (gpt-image / dall-e): the OpenAI image fields, delivered under `openai`. */
+export const DMXAPI_OPENAI_PROFILE: WireProfile = {
+  forward: ['quality', 'background', 'moderation'],
+  fields: {
+    // Transparency needs PNG or WebP. A transparent background with JPEG would be
+    // rejected or silently flattened, so drop the JPEG format and let the provider
+    // return its default (PNG) instead of sending the unsupported pair.
+    outputFormat: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        value === 'jpeg' && all.background === 'transparent' ? {} : { outputFormat: value as JSONValue }
+    },
+    // The OpenAI adapter takes the animation timing only with GIF output.
+    frameCount: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameCount: value as JSONValue } : {}
+    },
+    frameDurationMs: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameDurationMs: value as JSONValue } : {}
+    }
+  }
+}
+
 /** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
  *  field, not `size`) into `imageConfig`. Delivered under the `google` key via
  *  the registration's `also`. */
@@ -279,7 +302,15 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
+  // `gpt-image-*` / `dall-e-*` run on `@ai-sdk/openai`'s image model, which reads only `providerOptions.openai`
+  // (camelCase `outputFormat`, `quality`, …); the `dmxapi` body never reaches it.
+  dmxapi: {
+    profile: DMXAPI_WIRE_PROFILE,
+    also: [
+      { key: 'google', profile: DMXAPI_GOOGLE_PROFILE },
+      { key: 'openai', profile: DMXAPI_OPENAI_PROFILE }
+    ]
+  },
   ollama: { profile: OLLAMA_WIRE_PROFILE },
   minimax: { profile: MINIMAX_WIRE_PROFILE }
 }

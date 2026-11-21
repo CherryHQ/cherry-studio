@@ -195,6 +195,18 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
     }
     case 'enum': {
       const renderAsChips = spec.render === 'chips'
+      // MiniMax's canonical outputFormat values select response delivery
+      // (response_format on the wire), not an image encoding. Classify that
+      // vocabulary here so consumers do not present URL/BASE64 as file types.
+      const outputFormatKind =
+        key === 'outputFormat'
+          ? {
+              outputFormatKind:
+                spec.options.length > 0 && spec.options.every((value) => value === 'url' || value === 'base64')
+                  ? ('delivery' as const)
+                  : ('encoding' as const)
+            }
+          : {}
       // A sibling `size`-type spec lets the user pick arbitrary width × height.
       // Append the `'custom'` chip to whichever enum that widget gates on —
       // its `pairedEnumKey` (default `'size'`), the same key the size arm reads.
@@ -213,12 +225,13 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
           type: 'sizeChips',
           key,
           ...labels,
+          ...outputFormatKind,
           options,
           initialValue: spec.default,
           columns: spec.columns ?? 3
         }
       }
-      return { type: 'select', key, ...labels, options, initialValue: spec.default }
+      return { type: 'select', key, ...labels, ...outputFormatKind, options, initialValue: spec.default }
     }
     case 'size': {
       const pairedKey = spec.pairedEnumKey

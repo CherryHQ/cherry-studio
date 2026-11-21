@@ -114,6 +114,17 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
   })
 })
 
+describe('buildVendorProviderOptions — dmxapi OpenAI-routed GIF', () => {
+  it('forwards the frame timing only with GIF output', () => {
+    const gif = engine('dmxapi', { outputFormat: 'gif', frameCount: 9, frameDurationMs: 200 })
+    expect(JSON.stringify(gif)).toContain('"frameCount":9')
+    expect(JSON.stringify(gif)).toContain('"frameDurationMs":200')
+    const png = engine('dmxapi', { outputFormat: 'png', frameCount: 9, frameDurationMs: 200 })
+    expect(JSON.stringify(png)).not.toContain('frameCount')
+    expect(JSON.stringify(png)).not.toContain('frameDurationMs')
+  })
+})
+
 describe('buildVendorProviderOptions — New API image relay', () => {
   it('preserves OpenAI fields, diffusion fields and vendor extras under the SDK namespace', () => {
     expect(
@@ -282,6 +293,22 @@ describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google
     expect(engine('dmxapi', paramValues)).toEqual({
       dmxapi: { negative_prompt: 'no blur', seed: 7 },
       google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
+    })
+  })
+
+  it('delivers OpenAI image fields under `openai`, the only key the gpt-image model reads', () => {
+    expect(engine('dmxapi', { outputFormat: 'jpeg', quality: 'high', numImages: 1 })).toEqual({
+      dmxapi: { quality: 'high' },
+      openai: { outputFormat: 'jpeg', quality: 'high' }
+    })
+  })
+
+  it('does not send the unsupported transparent + jpeg pair', () => {
+    const out = engine('dmxapi', { outputFormat: 'jpeg', background: 'transparent', numImages: 1 }) as any
+    expect(out.openai.background).toBe('transparent')
+    expect(out.openai).not.toHaveProperty('outputFormat')
+    expect(engine('dmxapi', { outputFormat: 'webp', background: 'transparent', numImages: 1 })).toMatchObject({
+      openai: { outputFormat: 'webp', background: 'transparent' }
     })
   })
 

@@ -28,6 +28,8 @@ type CommonConfigItem = {
   key: string
   title?: string
   tooltip?: string
+  /** Whether outputFormat choices name image encodings or response delivery methods. */
+  outputFormatKind?: 'encoding' | 'delivery'
   disabled?: boolean | ((config: BaseConfigItem, painting: PaintingParams) => boolean)
   condition?: (painting: PaintingParams) => boolean
 }

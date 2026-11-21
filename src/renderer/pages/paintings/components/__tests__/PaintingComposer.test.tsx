@@ -197,6 +197,14 @@ describe('PaintingComposer params entry point', () => {
     expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
   })
 
+  it('stays reachable for a fieldless model that has registry support, so its output-format note shows', () => {
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { generate: { supports: {} } } })
+
+    renderComposer({ painting: makePainting({ providerId: 'dmxapi', model: 'doubao-seedream-5.0-lite' }) })
+
+    expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
+  })
+
   it('stays hidden for a fieldless model whose transport ignores the timeout', () => {
     renderComposer({ painting: makePainting({ providerId: 'dmxapi', model: 'doubao-seedream-5.0-lite' }) })
 
