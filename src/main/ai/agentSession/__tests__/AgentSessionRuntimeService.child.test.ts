@@ -382,6 +382,49 @@ it.each(['detach', 'destroy', 'close'] as const)(
   }
 )
 
+// Catches a transient first-connection failure leaving the open panel on saved output without live updates.
+it('retries one failed connection so the original attachment still receives live updates', async () => {
+  const f = fixture()
+  f.connect.mockImplementationOnce(() => Promise.reject(new Error('Pi configuration changed during startup')))
+  f.connect.mockImplementationOnce(() => Promise.resolve(f.connection))
+  const received: MessageProjectionUpdate[] = []
+  const view = await f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', (update) => received.push(update))
+  expect(view).toEqual(f.view)
+  expect(f.connect).toHaveBeenCalledTimes(2)
+  const update: AgentChildUpdate = {
+    kind: 'child',
+    contextId: f.context.id,
+    sessionId: f.context.sessionId,
+    canSubmit: false,
+    revision: 1,
+    patches: [{ type: 'append', messageId: replyId, part: 0, text: ' live' }],
+    order: [replyId],
+    active: true,
+    available: true
+  }
+  for (const listener of f.listeners) listener(update)
+  expect(received).toEqual([update])
+})
+
+// Catches the bounded retry multiplying connection attempts when startup keeps failing.
+it('stops after one retry and returns the saved child when every connection attempt fails', async () => {
+  const f = fixture()
+  f.connect.mockImplementation(() => Promise.reject(new Error('startup keeps failing')))
+  const view = await f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
+  expect(view).toMatchObject({ available: false })
+  expect(f.connect.mock.calls.length).toBeLessThanOrEqual(2)
+})
+
+// Catches the retry re-priming an owner while the service is stopping, outside the close sweep.
+it('does not retry a failed connection once the service is shutting down', async () => {
+  const f = fixture()
+  ;(f.service as unknown as { isShuttingDown: boolean }).isShuttingDown = true
+  f.connect.mockImplementation(() => Promise.reject(new Error('startup failed')))
+  const view = await f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
+  expect(view).toMatchObject({ available: false })
+  expect(f.connect).toHaveBeenCalledTimes(1)
+})
+
 // Catches losing readable persisted output when the native owner cannot be opened.
 it('returns the saved read-only child when connection fails', async () => {
   const f = fixture()

@@ -1075,6 +1075,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<boolean> {
     if (this.forks.edits.has(sessionId)) return false
+    let primedEntry: AgentSessionRuntimeEntry | undefined
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1127,12 +1128,16 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
+      primedEntry = entry
 
       const connected = await this.ensureConnection(entry)
       // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
+      // A live turn on the same entry owns it too; only drop a still-idle prime.
       if (this.entries.get(sessionId) !== entry) return true
       if (!connected) {
-        void this.closeSession(sessionId)
+        if (this.runtimeStatus(entry) === 'idle' && !this.liveTurn(entry)) {
+          await this.closeSession(sessionId)
+        }
         return false
       }
       // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
@@ -1142,6 +1147,16 @@ export class AgentSessionRuntimeService extends BaseService {
       return true
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
+      // A throw strands the entry inserted above with no connection and no idle timer; drop it
+      // so a later open rebuilds instead of reusing it — unless a turn has taken it over.
+      if (
+        primedEntry &&
+        this.entries.get(sessionId) === primedEntry &&
+        this.runtimeStatus(primedEntry) === 'idle' &&
+        !this.liveTurn(primedEntry)
+      ) {
+        await this.closeSession(sessionId)
+      }
       return false
     }
   }
@@ -2081,13 +2096,22 @@ export class AgentSessionRuntimeService extends BaseService {
       sender,
       id,
       async () => {
-        await this.primeConnection(sessionId)
-        const entry = this.entries.get(sessionId)
+        // A first connection can fail while Pi configuration is still settling, and priming then drops the
+        // idle entry. One bounded retry re-primes it so the open panel still attaches live.
+        let entry: AgentSessionRuntimeEntry | undefined
         let connection: AgentRuntimeConnection | undefined
-        try {
-          if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
-        } catch (error) {
-          logger.warn('Failed to connect child subscriber', { sessionId, error })
+        for (let attempt = 0; attempt < 2 && !connection; attempt += 1) {
+          await this.primeConnection(sessionId)
+          entry = this.entries.get(sessionId)
+          try {
+            if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
+          } catch (error) {
+            logger.warn('Failed to connect child subscriber', { sessionId, error, attempt })
+          }
+          if (entry && this.entries.get(sessionId) !== entry) return null
+          // Retry only when priming dropped its own idle entry (no entry left to connect), and never
+          // once the service is stopping: a retry would otherwise create an owner outside the close sweep.
+          if (entry || this.isShuttingDown) break
         }
         if (entry && this.entries.get(sessionId) !== entry) return null
         const child = await connection?.childProjection?.(toolCallId)
