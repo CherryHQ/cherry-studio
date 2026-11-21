@@ -47,7 +47,8 @@ export interface BaseMessageBlock {
   updatedAt?: string // 更新时间
   status: MessageBlockStatus // 块状态
   model?: Model // 使用的模型
-  metadata?: Record<string, any> // 通用元数据
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Legacy block metadata carries producer-owned extensions; individual block variants declare the fields they interpret.
+  metadata?: Record<string, unknown> // 通用元数据
   error?: SerializedError // Serializable error object instead of AISDKError
 }
 
@@ -106,7 +107,7 @@ export interface ToolMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.TOOL
   toolId: string
   toolName?: string
-  arguments?: Record<string, any>
+  arguments?: Exclude<NormalToolResponse['arguments'], string | unknown[] | undefined>
   content?: string | object
   metadata?: BaseMessageBlock['metadata'] & {
     rawMcpToolResponse?: McpToolResponse | NormalToolResponse
@@ -221,5 +222,5 @@ export interface Response {
   error?: ResponseError
 }
 
-// FIXME: Weak type safety. It may be a specific class instance which inherits Error in runtime.
-export type ResponseError = Record<string, any>
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Legacy responses retain native errors or unvalidated provider fields; consumers must narrow fields before interpreting them.
+export type ResponseError = Error | Record<string, unknown>
