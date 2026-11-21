@@ -29,6 +29,22 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   return AbsoluteFilePathSchema.parse(path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, '')))
 }
 
+/**
+ * OMP accepts `config.yaml` alongside `config.yml` (tried in order
+ * `["config.yml", "config.yaml"]`; see OMP 18.18.1 `OE` array and its
+ * `for (let t of OE)` loader). Its generic `ConfigFile` class derives the same
+ * `.yaml` fallback for every `.yml` path — including `models.yml` — and
+ * resolves `.yml` first, then `.yaml`. If only the `.yaml` variant exists,
+ * preserve it instead of creating a higher-priority `.yml` that would shadow
+ * the user's active configuration. When `.yml` exists (or neither exists), keep
+ * the declared `.yml` path.
+ *
+ * The fallback path is derived from the resolved primary path (same base dir,
+ * `.yml` → `.yaml`) so `hermes-home` vs `sys.home` resolution stays in one
+ * place (`resolveTargetPath`).
+ */
+const OMP_YAML_FALLBACK_TARGETS: ReadonlySet<CliConfigTarget> = new Set(['omp-config', 'omp-models'])
+
 async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
   try {
     return await read(absPath)
@@ -36,6 +52,25 @@ async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw err
   }
+}
+
+function resolveFallbackPath(primaryPath: AbsoluteFilePath): AbsoluteFilePath | null {
+  if (!primaryPath.endsWith('.yml')) return null
+  return AbsoluteFilePathSchema.parse(`${primaryPath.slice(0, -4)}.yaml`)
+}
+
+async function readActiveFile(
+  target: CliConfigTarget,
+  primaryPath: AbsoluteFilePath
+): Promise<{ path: AbsoluteFilePath; content: string | null }> {
+  if (!OMP_YAML_FALLBACK_TARGETS.has(target)) return { path: primaryPath, content: await readOrNull(primaryPath) }
+  const primaryContent = await readOrNull(primaryPath)
+  if (primaryContent !== null) return { path: primaryPath, content: primaryContent }
+  const fallbackPath = resolveFallbackPath(primaryPath)
+  if (!fallbackPath) return { path: primaryPath, content: null }
+  const fallbackContent = await readOrNull(fallbackPath)
+  if (fallbackContent !== null) return { path: fallbackPath, content: fallbackContent }
+  return { path: primaryPath, content: null }
 }
 
 /** One config file's read result for `code_cli.read_config`: `content === null` ⇔ the file does not exist. */
@@ -54,8 +89,9 @@ export interface CliConfigReadFile {
 export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
   return Promise.all(
     targets.map(async (target) => {
-      const path = await resolveTargetPath(target)
-      return { target, path, content: await readOrNull(path) }
+      const primaryPath = await resolveTargetPath(target)
+      const { path: activePath, content } = await readActiveFile(target, primaryPath)
+      return { target, path: activePath, content }
     })
   )
 }
@@ -87,8 +123,10 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
   const snapshots: FileSnapshot[] = []
   try {
     for (const file of files) {
-      const absPath = await resolveTargetPath(file.target)
-      const previousContent = await readOrNull(absPath)
+      const primaryPath = await resolveTargetPath(file.target)
+      // Single read decides both the active path and the snapshot content, so
+      // the path decision cannot go stale before the snapshot.
+      const { path: absPath, content: previousContent } = await readActiveFile(file.target, primaryPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
       if ('delete' in file) {
         await remove(absPath)

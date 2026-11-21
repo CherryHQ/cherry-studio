@@ -37,6 +37,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
     case CodeCli.KIMI_CODE:
       return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
     case CodeCli.PI:
+    case CodeCli.OMP:
       return hasAnyModelEndpoint(model, [
         ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,

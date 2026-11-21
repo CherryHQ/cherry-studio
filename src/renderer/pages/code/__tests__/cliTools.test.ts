@@ -59,6 +59,26 @@ describe('MiniMax Code provider support', () => {
   })
 })
 
+describe('OMP provider support', () => {
+  const provider = (partial: Record<string, unknown>): Provider =>
+    ({ id: 'provider', name: 'Provider', endpointConfigs: {}, ...partial }) as unknown as Provider
+
+  it('offers the Unified Gateway plus Anthropic, OpenAI-compatible and Gemini providers', () => {
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.OMP)).toBe(true)
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.OMP)).toBe(true)
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.OMP]([
+      provider({ id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } } }),
+      provider({
+        id: 'chat',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({ id: 'gemini', endpointConfigs: { 'google-generate-content': { baseUrl: 'https://api.example' } } })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['anthropic', 'chat', 'gemini'])
+  })
+})
+
 describe('Antigravity provider support', () => {
   it('matches Gemini-compatible providers and offers the Unified Gateway', () => {
     const providers = [

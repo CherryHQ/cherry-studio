@@ -20,6 +20,10 @@ export const PI_ENDPOINTS: readonly EndpointType[] = [
   'openai-chat-completions'
 ]
 
+// OMP is a fork of Pi and inherits its custom-provider schema, so it supports
+// the same endpoint set. Aliased (not duplicated) so endpoint fixes stay in sync.
+export const OMP_ENDPOINTS: readonly EndpointType[] = PI_ENDPOINTS
+
 export const HERMES_ENDPOINTS: readonly EndpointType[] = [
   'anthropic-messages',
   'openai-responses',

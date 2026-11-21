@@ -11,6 +11,7 @@ export enum CodeCli {
   QODER_CLI = 'qoder-cli',
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
   PI = 'pi',
+  OMP = 'omp',
   HERMES = 'hermes',
   MINIMAX_CODE = 'minimax-code'
 }
@@ -77,6 +78,7 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,
+  CodeCli.OMP,
   CodeCli.MINIMAX_CODE
 ])
 
@@ -117,6 +119,7 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,
+  CodeCli.OMP,
   CodeCli.HERMES,
   CodeCli.DEEPSEEK_HARNESS,
   CodeCli.MINIMAX_CODE
