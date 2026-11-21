@@ -1,4 +1,6 @@
+import type * as NodeFsPromises from 'node:fs/promises'
 import type * as NodeModule from 'node:module'
+import type * as NodeOs from 'node:os'
 import path from 'node:path'
 import type * as NodePath from 'node:path'
 
@@ -7,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as LifecycleModule from '@main/core/lifecycle'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
+const mockBitness = vi.hoisted(() => vi.fn(async (): Promise<32 | 64 | null> => null))
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false, isMac: false },
@@ -26,6 +29,9 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
   },
   mockFsp: {
     mkdir: vi.fn(async () => {}),
+    mkdtemp: vi.fn<(prefix: string) => Promise<string>>(async () => '/tmp/mise-backup-test'),
+    cp: vi.fn<(src: string, dest: string, options: { recursive: boolean }) => Promise<void>>(async () => {}),
+    rm: vi.fn<(file: string, options: { recursive: boolean; force: boolean }) => Promise<void>>(async () => {}),
     copyFile: vi.fn(async () => {}),
     chmod: vi.fn(async () => {}),
     writeFile: vi.fn(async () => {}),
@@ -81,6 +87,10 @@ vi.mock('node:fs', () => ({ default: mockFs }))
 
 vi.mock('node:fs/promises', () => ({ default: mockFsp }))
 
+vi.mock('@main/services/binaryManager/windowsExecutable', () => ({
+  readWindowsExecutableBitness: mockBitness
+}))
+
 vi.mock('node:os', () => ({
   default: { tmpdir: () => '/tmp' }
 }))
@@ -119,6 +129,7 @@ const { findCommandInShellEnv, findExecutable, findMiseExecutable } = await impo
 const { regionService } = await import('@main/services/RegionService')
 const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
+const { mockMainLoggerService } = await import('@test-mocks/MainLoggerService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
 const NODE_RUNTIME_BIN = path.join('/mock/mise/installs/node', '22.23.2', 'bin')
@@ -2856,6 +2867,507 @@ describe('BinaryManager', () => {
 
       expect(reinstalled).toBe(true)
       expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
+    })
+  })
+
+  describe('prefer64BitWindowsAsset (64-bit asset on 64-bit Windows, #24608)', () => {
+    const DWG_TOOL = 'github:LibreDWG/libredwg'
+    const X64_SPEC = `${DWG_TOOL}[matching_regex=(?i)(?:^|[^a-z0-9])(?:win64|x64|amd64|x86_64|x86-64|64bit|64-bit)(?:[^a-z0-9]|$)]@0.14`
+    const ARM64_SPEC = `${DWG_TOOL}[matching_regex=(?i)(?:^|[^a-z0-9])(?:win-arm64|arm64|aarch64)(?:[^a-z0-9]|$)]@0.14`
+    const makeService = () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      vi.spyOn(service as any, 'resolveRunnableShim').mockResolvedValue({
+        path: 'C:/shims/dwg2dxf.exe',
+        canonical: 'C:/mise/installs/dwg2dxf/dwg2dxf.exe'
+      })
+      return service
+    }
+    const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+    const miseUseCommands = () => miseArgs().filter((args: string[]) => args[0] === 'use')
+    const stubGithubToolchain = (failure?: 'use' | 'reshim' | 'restore', missingPath = false) => {
+      let reshims = 0
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify([
+              ...(missingPath ? [] : [{ version: '0.14', install_path: '/install/installs/libre-dwg-tool/0.14' }]),
+              { version: '0.14', active: true },
+              ...(missingPath ? [] : [{ version: 'latest', install_path: '/install/installs/libre-dwg-tool/0.14' }])
+            ]),
+            stderr: ''
+          }
+        if (args[0] === 'use' && args[2] === '--force') {
+          if (failure === 'restore' || (failure === 'use' && args.at(-1) === X64_SPEC)) {
+            throw new Error('no matching asset')
+          }
+        }
+        if (args[0] === 'reshim' && ++reshims === 2 && failure === 'reshim') throw new Error('reshim failed')
+        return { stdout: '', stderr: '' }
+      })
+    }
+    const installGithubTool = (service: InstanceType<typeof BinaryManager>, tool = DWG_TOOL, requested = 'latest') => {
+      manifestRef.value = [{ name: 'dwg2dxf', tool, requestedVersion: requested }]
+      return service.installByName({ name: 'dwg2dxf' })
+    }
+    const expectRestored = () => {
+      expect(miseUseCommands()).toEqual([
+        ['use', '-g', `${DWG_TOOL}@latest`],
+        ['use', '-g', '--force', X64_SPEC],
+        ['use', '-g', '--force', `${DWG_TOOL}@0.14`]
+      ])
+      const restoreIndex = miseArgs().findIndex((args) => args.at(-1) === `${DWG_TOOL}@0.14` && args[2] === '--force')
+      expect(miseArgs()[restoreIndex + 1]).toEqual(['reshim'])
+    }
+
+    const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+    beforeEach(() => {
+      platformMock.isWin = true
+      mockBitness.mockReset().mockResolvedValue(null)
+      Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
+      mockFsp.cp.mockImplementation(async (source) => {
+        if (String(source).includes('mise-backup-test')) throw new Error('local restore failed')
+      })
+      stubGithubToolchain()
+    })
+    afterEach(() => {
+      vi.restoreAllMocks()
+      mockFsp.mkdtemp.mockReset().mockResolvedValue('/tmp/mise-backup-test')
+      mockFsp.cp.mockReset().mockResolvedValue(undefined)
+      mockFsp.rm.mockReset().mockResolvedValue(undefined)
+      mockFsp.mkdir.mockReset().mockResolvedValue(undefined)
+      platformMock.isWin = false
+      mockExecFileAsync.mockReset()
+      mockBitness.mockReset().mockResolvedValue(null)
+      mockMainLoggerService.warn.mockReset()
+      mockMainLoggerService.info.mockReset()
+      Object.defineProperty(process, 'arch', originalArch)
+    })
+
+    it.each(['latest', '0'])(
+      'pins the narrowed reinstall to the installed version for request %s',
+      async (requested) => {
+        const service = makeService()
+        mockBitness.mockResolvedValueOnce(32).mockResolvedValueOnce(64)
+
+        await expect(installGithubTool(service, DWG_TOOL, requested)).resolves.toBeUndefined()
+
+        expect(miseUseCommands()).toEqual([
+          ['use', '-g', `${DWG_TOOL}@${requested}`],
+          ['use', '-g', '--force', X64_SPEC]
+        ])
+        const narrowedIndex = miseArgs().findIndex((args) => args.at(-1) === X64_SPEC)
+        expect(miseArgs()[narrowedIndex + 1]).toEqual(['reshim'])
+      }
+    )
+
+    it('uses only the arm64 asset tokens on arm64', async () => {
+      Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true })
+      mockBitness.mockResolvedValueOnce(32).mockResolvedValueOnce(64)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([
+        ['use', '-g', `${DWG_TOOL}@latest`],
+        ['use', '-g', '--force', ARM64_SPEC]
+      ])
+    })
+
+    it('restores the pinned plain spec once when the narrowed install rejects', async () => {
+      stubGithubToolchain('use')
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expectRestored()
+    })
+
+    it('restores deleted installation files locally when the narrowed install fails', async () => {
+      const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+      const realOs = await vi.importActual<typeof NodeOs>('node:os')
+      const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-rollback-test-'))
+      const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
+      const file = path.join(installPath, 'original.exe')
+      await realFs.mkdir(installPath, { recursive: true })
+      await realFs.writeFile(file, 'original executable')
+      const getPath = vi.mocked(application.getPath).getMockImplementation()!
+      vi.mocked(application.getPath).mockImplementation((key, filename) =>
+        key === 'app.temp' ? root : getPath(key, filename)
+      )
+      mockFsp.mkdtemp.mockImplementation(realFs.mkdtemp)
+      mockFsp.cp.mockImplementation(realFs.cp)
+      mockFsp.mkdir.mockImplementation(realFs.mkdir as typeof mockFsp.mkdir)
+      mockFsp.rm.mockImplementation(realFs.rm)
+      mockBitness.mockResolvedValueOnce(32)
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          const exists = await realFs.access(file).then(
+            () => true,
+            () => false
+          )
+          return {
+            stdout: JSON.stringify({
+              [DWG_TOOL]: exists ? [{ version: '0.14', active: true, install_path: installPath }] : []
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'use' && args[2] === '--force') {
+          await realFs.rm(installPath, { recursive: true, force: true })
+          throw new Error('download unavailable')
+        }
+        return { stdout: '', stderr: '' }
+      })
+      try {
+        const service = makeService()
+        const install = (service as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+        await expect(install).resolves.toBe('0.14')
+        expect(await realFs.readFile(file, 'utf8')).toBe('original executable')
+        expect(miseUseCommands()).toEqual([
+          ['use', '-g', `${DWG_TOOL}@latest`],
+          ['use', '-g', '--force', X64_SPEC]
+        ])
+        expect(miseArgs().filter((args: string[]) => args[0] === 'reshim')).toHaveLength(2)
+        await expect((service as any).getInstalledVersion(DWG_TOOL)).resolves.toBe('0.14')
+      } finally {
+        vi.mocked(application.getPath).mockImplementation(getPath)
+        await realFs.rm(root, { recursive: true, force: true })
+      }
+    })
+
+    it.each([false, true])(
+      'restores the install with an external marker (present before retry: %s)',
+      async (hadMarker) => {
+        const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+        const realOs = await vi.importActual<typeof NodeOs>('node:os')
+        const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-marker-test-'))
+        const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
+        const file = path.join(installPath, 'original.exe')
+        const marker = path.join(root, 'cache', 'libre-dwg-tool', '0.14', 'incomplete')
+        await realFs.mkdir(installPath, { recursive: true })
+        await realFs.mkdir(path.dirname(marker), { recursive: true })
+        await realFs.writeFile(file, 'original executable')
+        if (hadMarker) await realFs.writeFile(marker, '')
+        const getPath = vi.mocked(application.getPath).getMockImplementation()!
+        vi.mocked(application.getPath).mockImplementation((key, filename) =>
+          key === 'app.temp' || key === 'feature.binary.data' ? root : getPath(key, filename)
+        )
+        mockFsp.mkdtemp.mockImplementation(realFs.mkdtemp)
+        mockFsp.cp.mockImplementation(realFs.cp)
+        mockFsp.mkdir.mockImplementation(realFs.mkdir as typeof mockFsp.mkdir)
+        mockFsp.rm.mockImplementation(realFs.rm)
+        mockFsp.access.mockImplementation(realFs.access as typeof mockFsp.access)
+        mockBitness.mockResolvedValueOnce(32)
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            const exists = await realFs.access(file).then(
+              () => true,
+              () => false
+            )
+            return {
+              stdout: JSON.stringify({
+                LibreDWGTool: exists ? [{ version: '0.14', active: true, install_path: installPath }] : []
+              }),
+              stderr: ''
+            }
+          }
+          if (args[0] === 'use' && args[2] === '--force') {
+            await realFs.rm(installPath, { recursive: true, force: true })
+            await realFs.writeFile(marker, '')
+            throw new Error('install timed out')
+          }
+          return { stdout: '', stderr: '' }
+        })
+        try {
+          const service = makeService()
+          await expect(
+            (service as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+          ).resolves.toBe('0.14')
+          expect(await realFs.readFile(file, 'utf8')).toBe('original executable')
+          expect(
+            await realFs.access(marker).then(
+              () => true,
+              () => false
+            )
+          ).toBe(hadMarker)
+          expect(miseArgs().filter((args: string[]) => args[0] === 'reshim')).toHaveLength(2)
+          expect(miseUseCommands()).toEqual([
+            ['use', '-g', `${DWG_TOOL}@latest`],
+            ['use', '-g', '--force', X64_SPEC]
+          ])
+          await expect((service as any).getInstalledVersion(DWG_TOOL)).resolves.toBe('0.14')
+        } finally {
+          vi.mocked(application.getPath).mockImplementation(getPath)
+          mockFsp.access.mockReset().mockResolvedValue(undefined)
+          await realFs.rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it.each(['array', 'object'] as const)(
+      'stages and restores the install after a failed retry with %s-shaped listing',
+      async (shape) => {
+        const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+        const realOs = await vi.importActual<typeof NodeOs>('node:os')
+        const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-listing-test-'))
+        const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
+        const file = path.join(installPath, 'original.exe')
+        const marker = path.join(root, 'cache', 'libre-dwg-tool', '0.14', 'incomplete')
+        await realFs.mkdir(installPath, { recursive: true })
+        await realFs.mkdir(path.dirname(marker), { recursive: true })
+        await realFs.writeFile(file, 'original executable')
+        const getPath = vi.mocked(application.getPath).getMockImplementation()!
+        vi.mocked(application.getPath).mockImplementation((key, filename) =>
+          key === 'app.temp' || key === 'feature.binary.data' ? root : getPath(key, filename)
+        )
+        mockFsp.mkdtemp.mockImplementation(realFs.mkdtemp)
+        mockFsp.cp.mockImplementation(realFs.cp)
+        mockFsp.mkdir.mockImplementation(realFs.mkdir as typeof mockFsp.mkdir)
+        mockFsp.rm.mockImplementation(realFs.rm)
+        mockFsp.access.mockImplementation(realFs.access as typeof mockFsp.access)
+        mockBitness.mockResolvedValueOnce(32)
+        let staged = false
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+          if (args[0] === 'ls') {
+            const entries = [{ version: '0.14', active: true, installed: true, install_path: installPath }]
+            return { stdout: JSON.stringify(shape === 'array' ? entries : { [DWG_TOOL]: entries }), stderr: '' }
+          }
+          if (args.at(-1) === X64_SPEC) {
+            const backups = (await realFs.readdir(root)).filter((name) => name.startsWith('mise-backup-'))
+            staged =
+              backups.length === 1 &&
+              (await realFs.readFile(path.join(root, backups[0], 'install', 'original.exe'), 'utf8')) ===
+                'original executable'
+            await realFs.rm(installPath, { recursive: true, force: true })
+            await realFs.writeFile(marker, '')
+            throw new Error('install timed out')
+          }
+          return { stdout: '', stderr: '' }
+        })
+        try {
+          await expect(
+            (makeService() as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+          ).resolves.toBe('0.14')
+          expect(staged).toBe(true)
+          expect(await realFs.readFile(file, 'utf8')).toBe('original executable')
+          await expect(realFs.access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+          expect(miseUseCommands()).toEqual([
+            ['use', '-g', `${DWG_TOOL}@latest`],
+            ['use', '-g', '--force', X64_SPEC]
+          ])
+        } finally {
+          vi.mocked(application.getPath).mockImplementation(getPath)
+          mockFsp.access.mockReset().mockResolvedValue(undefined)
+          await realFs.rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it('removes the backup once the plain-spec restoration succeeds', async () => {
+      stubGithubToolchain('use')
+      mockFsp.cp.mockResolvedValue(undefined)
+      mockBitness.mockResolvedValueOnce(32)
+      const service = makeService()
+      vi.mocked((service as any).resolveRunnableShim)
+        .mockResolvedValueOnce({ path: 'shim', canonical: 'exe' })
+        .mockResolvedValueOnce(null)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expectRestored()
+      expect(mockFsp.rm.mock.calls.filter(([target]) => target === '/tmp/mise-backup-test')).toEqual([
+        ['/tmp/mise-backup-test', { recursive: true, force: true }]
+      ])
+    })
+
+    it('skips the 64-bit retry when the install path is missing', async () => {
+      stubGithubToolchain('use', true)
+      mockBitness.mockResolvedValueOnce(32)
+      const install = (makeService() as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+      await expect(install).resolves.toBe('0.14')
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+    })
+
+    it('skips the 64-bit retry when the backup copy fails', async () => {
+      mockFsp.cp.mockRejectedValueOnce(new Error('copy failed'))
+      mockBitness.mockResolvedValueOnce(32)
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify({
+              [DWG_TOOL]: [{ version: '0.14', active: true, install_path: '/install/installs/libre-dwg-tool/0.14' }]
+            }),
+            stderr: ''
+          }
+        if (args.at(-1) === X64_SPEC) throw new Error('download unavailable')
+        return { stdout: '', stderr: '' }
+      })
+      const install = (makeService() as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+      await expect(install).resolves.toBe('0.14')
+      expect(mockFsp.cp).toHaveBeenCalledOnce()
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+    })
+
+    it('restores the pinned plain spec when the narrowed install succeeds but reshim rejects', async () => {
+      stubGithubToolchain('reshim')
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expectRestored()
+    })
+
+    it('warns that the narrowed selection may remain when restoration fails', async () => {
+      stubGithubToolchain('restore')
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([
+        ['use', '-g', `${DWG_TOOL}@latest`],
+        ['use', '-g', '--force', X64_SPEC],
+        ['use', '-g', '--force', `${DWG_TOOL}@0.14`]
+      ])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('the narrowed asset selection may still be configured'),
+        expect.objectContaining({ name: 'dwg2dxf', tool: DWG_TOOL, version: '0.14' })
+      )
+    })
+
+    it.each([[], ['--minimum-release-age', '0s']])(
+      'preserves the original release-age arguments %j',
+      async (...releaseAgeArgs) => {
+        const service = makeService()
+        stubGithubToolchain('use')
+        mockBitness.mockResolvedValueOnce(32)
+
+        await expect(
+          (service as any).prefer64BitWindowsAsset(
+            { name: 'dwg2dxf', tool: DWG_TOOL },
+            'latest',
+            releaseAgeArgs.length > 0,
+            releaseAgeArgs
+          )
+        ).resolves.toBeUndefined()
+
+        expect(miseUseCommands()).toEqual([
+          ['use', '-g', '--force', ...releaseAgeArgs, X64_SPEC],
+          ['use', '-g', '--force', ...releaseAgeArgs, `${DWG_TOOL}@0.14`]
+        ])
+      }
+    )
+
+    it.each([64, null] as const)('leaves an executable of bitness %s untouched', async (bitness) => {
+      mockBitness.mockResolvedValueOnce(bitness)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+    })
+
+    it.each(['npm:foo', `${DWG_TOOL}[matching_regex=custom]`])('leaves recipe %s untouched', async (tool) => {
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(makeService(), tool)).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([['use', '-g', ...(tool === 'npm:foo' ? ['node@22'] : []), `${tool}@latest`]])
+    })
+
+    it.each(['null', 'throw'])('leaves the install successful when shim resolution returns %s', async (result) => {
+      const service = makeService()
+      const resolve = vi.mocked((service as any).resolveRunnableShim)
+      if (result === 'null') resolve.mockResolvedValueOnce(null)
+      else resolve.mockRejectedValueOnce(new Error('shim unavailable'))
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+    })
+
+    it('leaves the install successful when bitness lookup throws', async () => {
+      mockBitness.mockRejectedValue(new Error('unreadable'))
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+    })
+
+    it('warns and leaves the install successful when verification still reports 32-bit', async () => {
+      mockBitness.mockResolvedValue(32)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([
+        ['use', '-g', `${DWG_TOOL}@latest`],
+        ['use', '-g', '--force', X64_SPEC]
+      ])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Tool still does not run a 64-bit executable after the reinstall',
+        { name: 'dwg2dxf', tool: DWG_TOOL, version: '0.14' }
+      )
+    })
+
+    it.each(['throw', 'empty'])('falls back to the request when version resolution is %s', async (result) => {
+      const service = makeService()
+      const version = vi.spyOn(service as any, 'getInstalledVersion')
+      if (result === 'throw') version.mockRejectedValueOnce(new Error('version unavailable'))
+      else version.mockResolvedValueOnce('')
+      stubGithubToolchain('restore')
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([
+        ['use', '-g', `${DWG_TOOL}@latest`],
+        ['use', '-g', '--force', X64_SPEC.replace('@0.14', '@latest')],
+        ['use', '-g', '--force', `${DWG_TOOL}@latest`]
+      ])
+    })
+
+    it.each(['info', 'warn', 'errorMessage'])('fails open when %s throws inside the add-on', async (source) => {
+      const service = makeService()
+      mockBitness.mockResolvedValueOnce(32).mockResolvedValueOnce(64)
+      if (source === 'errorMessage') {
+        stubGithubToolchain('restore')
+        vi.spyOn(service as any, 'errorMessage').mockImplementation(() => {
+          throw new Error('format failed')
+        })
+      } else {
+        if (source === 'warn') stubGithubToolchain('use')
+        mockMainLoggerService[source].mockImplementationOnce(() => {
+          throw new Error('logging failed')
+        })
+      }
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to prefer a 64-bit Windows asset; keeping the successful install',
+        { name: 'dwg2dxf', tool: DWG_TOOL, error: source === 'errorMessage' ? 'format failed' : 'logging failed' }
+      )
+    })
+
+    it('fails open even when the outer warning throws', async () => {
+      mockBitness.mockResolvedValue(32)
+      mockMainLoggerService.warn.mockImplementation(() => {
+        throw new Error('logging unavailable')
+      })
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+    })
+
+    it.each(['ia32', 'non-Windows'])('skips the fix on %s', async (host) => {
+      if (host === 'ia32') Object.defineProperty(process, 'arch', { value: 'ia32', configurable: true })
+      else platformMock.isWin = false
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(makeService())).resolves.toBeUndefined()
+
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
     })
   })
 

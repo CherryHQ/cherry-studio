@@ -52,6 +52,7 @@ import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
 import { measureToolInstalledSize } from './toolInstalledSize'
+import { readWindowsExecutableBitness } from './windowsExecutable'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -123,6 +124,15 @@ const MISE_REQUIRED_PEERS = new Map(
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
   )
 )
+
+// Asset-name tokens for a 64-bit Windows build. `(?i)` is a Rust inline flag —
+// the pattern is compiled by mise, never by JS.
+const WINDOWS_64BIT_ASSET_TOKENS: Record<'x64' | 'arm64', readonly string[]> = {
+  x64: ['win64', 'x64', 'amd64', 'x86_64', 'x86-64', '64bit', '64-bit'],
+  arm64: ['win-arm64', 'arm64', 'aarch64']
+}
+const windows64BitAssetPattern = (arch: 'x64' | 'arm64') =>
+  `(?i)(?:^|[^a-z0-9])(?:${WINDOWS_64BIT_ASSET_TOKENS[arch].join('|')})(?:[^a-z0-9]|$)`
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -247,7 +257,7 @@ type FixedToolDefinition = {
 }
 type InstallableToolDefinition = CustomToolDefinition &
   Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
-type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
+type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string; installed?: boolean }
 
 // One build's env and the facts derived from it, so no caller can pair them
 // with another build's — see the `isolatedEnv` field comment.
@@ -1335,6 +1345,11 @@ export class BinaryManager extends BaseService {
     return null
   }
 
+  private parseMiseEntries(stdout: string): MiseInstallEntry[] {
+    const parsed = JSON.parse(stdout) as MiseInstallEntry[] | Record<string, MiseInstallEntry[]>
+    return (Array.isArray(parsed) ? parsed : Object.values(parsed)).flat()
+  }
+
   /** Whether a resolved target belongs to the recipe's own active install. */
   private async isWithinInstall(entry: MiseInstallEntry, canonical: string): Promise<boolean> {
     // When mise omits install_path there is nothing to attribute against, so the
@@ -1354,7 +1369,7 @@ export class BinaryManager extends BaseService {
    */
   private async isRecipeRunnable(name: string, tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = this.parseMiseEntries(stdout)
     const activeEntry = entries.find((entry) => entry.active)
     if (!activeEntry) return false
     const runnable = await this.resolveRunnableShim(name, tool)
@@ -1492,7 +1507,7 @@ export class BinaryManager extends BaseService {
     dependencies: readonly string[]
   ): Promise<void> {
     const { stdout } = await this.runMise(['ls', '--json', definition.tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = this.parseMiseEntries(stdout)
     const installPath = entries.find((entry) => entry.active)?.install_path
     if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
 
@@ -1619,14 +1634,205 @@ export class BinaryManager extends BaseService {
       })
     }
     await this.runMise(['reshim'])
+    await this.prefer64BitWindowsAsset(definition, requested, includePrerelease, releaseAgeArgs)
     return this.getInstalledVersion(definition.tool, requested)
+  }
+
+  /**
+   * mise reads win32/win64 as OS tokens only, so a release shipping both scores
+   * them equally and the tie-break installs the 32-bit build (#24608).
+   */
+  private async prefer64BitWindowsAsset(
+    definition: InstallableToolDefinition,
+    requested: string,
+    includePrerelease: boolean,
+    releaseAgeArgs: string[]
+  ): Promise<void> {
+    try {
+      const arch = process.arch
+      if (!isWin || (arch !== 'x64' && arch !== 'arm64')) return
+      if (!definition.tool.startsWith('github:') || definition.tool.includes('[')) return
+
+      let runnable: { path: string; canonical: string } | null
+      try {
+        runnable = await this.resolveRunnableShim(definition.name, definition.tool)
+      } catch {
+        return
+      }
+      if (!runnable) return
+
+      let bitness: 32 | 64 | null
+      try {
+        bitness = await readWindowsExecutableBitness(runnable.canonical)
+      } catch {
+        return
+      }
+      if (bitness !== 32) return
+
+      let version = requested
+      try {
+        version = (await this.getInstalledVersion(definition.tool, requested)) || requested
+      } catch {
+        // Version lookup must not invalidate the successful initial install.
+      }
+
+      const backup = await this.backupMiseInstall(definition.tool, version)
+      if (!backup) {
+        logger.warn('Skipped the 64-bit Windows asset retry because the current install could not be staged locally', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+        return
+      }
+      const narrowedSpec = `${definition.tool}[matching_regex=${windows64BitAssetPattern(arch)}]@${version}`
+      try {
+        await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, narrowedSpec], {
+          timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+          includePrerelease
+        })
+        await this.runMise(['reshim'])
+      } catch {
+        let restored = false
+        try {
+          await fsp.mkdir(backup.installPath, { recursive: true })
+          await fsp.cp(backup.copyPath, backup.installPath, { recursive: true })
+          if (!backup.hadMarker) await fsp.rm(backup.markerPath, { force: true })
+          await this.runMise(['reshim'])
+          const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+          const entries = this.parseMiseEntries(stdout)
+          restored =
+            entries.some((entry) => entry.version === version && entry.installed !== false) &&
+            !!(await this.resolveRunnableShim(definition.name, definition.tool))
+        } catch (error) {
+          logger.warn('Failed to restore the local mise installation', { name: definition.name, error })
+        }
+        if (restored) {
+          await this.removeMiseBackup(backup.tempDir)
+          logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
+            name: definition.name,
+            tool: definition.tool,
+            version
+          })
+          return
+        }
+        // Restore the plain selection when either reinstalling or reshim fails.
+        try {
+          await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, `${definition.tool}@${version}`], {
+            timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+            includePrerelease
+          })
+          await this.runMise(['reshim'])
+        } catch (restoreError) {
+          logger.warn(
+            'Failed to restore the original tool spec; the narrowed asset selection may still be configured',
+            {
+              name: definition.name,
+              tool: definition.tool,
+              version,
+              error: this.errorMessage(restoreError)
+            }
+          )
+          return
+        }
+        await this.removeMiseBackup(backup.tempDir)
+        logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+        return
+      }
+
+      await this.removeMiseBackup(backup.tempDir)
+      let verified = false
+      try {
+        const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
+        verified = rechecked !== null && (await readWindowsExecutableBitness(rechecked.canonical)) === 64
+      } catch {
+        verified = false
+      }
+      if (verified) {
+        logger.info('Reinstalled the managed tool from the 64-bit Windows asset', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+      } else {
+        logger.warn('Tool still does not run a 64-bit executable after the reinstall', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+      }
+    } catch (error) {
+      try {
+        logger.warn('Failed to prefer a 64-bit Windows asset; keeping the successful install', {
+          name: definition.name,
+          tool: definition.tool,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      } catch {
+        // Logging failures must also leave the successful install intact.
+      }
+    }
+  }
+
+  private async backupMiseInstall(
+    tool: string,
+    version: string
+  ): Promise<
+    { installPath: string; copyPath: string; tempDir: string; markerPath: string; hadMarker: boolean } | undefined
+  > {
+    let tempDir: string | undefined
+    try {
+      const { stdout } = await this.runMise(['ls', '--json', tool])
+      const match = this.parseMiseEntries(stdout).find((entry) => entry.version === version)
+      const installPath = match?.install_path
+      if (!installPath) return undefined
+      const short = path.basename(path.dirname(installPath))
+      if (short === 'installs') return undefined
+      const versionPathname = path.basename(installPath)
+      const markerPath = path.join(
+        application.getPath('feature.binary.data'),
+        'cache',
+        short,
+        versionPathname,
+        'incomplete'
+      )
+      let hadMarker = true
+      try {
+        await fsp.access(markerPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        hadMarker = false
+      }
+      tempDir = await fsp.mkdtemp(path.join(application.getPath('app.temp'), 'mise-backup-'))
+      const copyPath = path.join(tempDir, 'install')
+      await fsp.cp(installPath, copyPath, { recursive: true })
+      return { installPath, copyPath, tempDir, markerPath, hadMarker }
+    } catch (error) {
+      logger.warn('Failed to stage the mise installation backup', { tool, version, error })
+      if (tempDir) await this.removeMiseBackup(tempDir)
+      return undefined
+    }
+  }
+
+  private async removeMiseBackup(tempDir: string): Promise<void> {
+    try {
+      await fsp.rm(tempDir, { recursive: true, force: true })
+    } catch (error) {
+      try {
+        logger.warn('Failed to remove mise installation backup', { tempDir, error })
+      } catch {
+        // Cleanup must remain best-effort even if logging fails.
+      }
+    }
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(
-      JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-    ).flat()
+    const entries = this.parseMiseEntries(stdout)
     const requestedVersion = requested ? semverValid(requested) : null
     const matching = requestedVersion
       ? entries.find((entry) => semverValid(entry.version) === requestedVersion)
