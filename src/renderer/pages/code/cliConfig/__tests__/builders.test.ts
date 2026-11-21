@@ -24,7 +24,7 @@ describe('buildCodexConfig token limits', () => {
     expect(parse(stringify(result)).model_context_window).toBe(capacity)
     expect(result.model_auto_compact_token_limit).toBe(900000)
     expect(result.user_key).toBe('keep')
-    expect(result.model_providers.user.base_url).toBe('https://user.test')
+    expect(result).toHaveProperty('model_providers.user.base_url', 'https://user.test')
     expect(existing.model_context_window).toBe(800000)
   })
 
@@ -74,12 +74,31 @@ describe('buildOpenCodeConfig', () => {
       }
     )
 
-    expect(result.provider['cherry-DeepSeek'].options).toEqual({
+    expect(result).toHaveProperty('provider.cherry-DeepSeek.options', {
       apiKey: 'sk-test',
       baseURL: 'https://api.example.com/v1',
       headers: { 'X-Title': 'Cherry Studio' }
     })
   })
+
+  it.each([undefined, null, 0, -1, 1.5, '65536', true, NaN, Infinity])(
+    'omits invalid model limits read from a config draft: %s',
+    (limit) => {
+      const result = buildOpenCodeConfig(
+        {},
+        { id: 'deepseek', name: 'DeepSeek' },
+        {
+          npm: '@ai-sdk/openai-compatible',
+          providerType: 'openai-compatible',
+          endpointType: 'openai-chat-completions'
+        },
+        { apiKey: 'sk-test', baseUrl: 'https://api.example.com/v1', model: 'deepseek-chat' },
+        { contextWindow: limit, maxOutputTokens: limit }
+      )
+
+      expect(result).not.toHaveProperty('provider.cherry-DeepSeek.models.deepseek-chat.limit')
+    }
+  )
 
   it('adds model context and output limits from model metadata', () => {
     const result = buildOpenCodeConfig(
@@ -94,7 +113,7 @@ describe('buildOpenCodeConfig', () => {
       { contextWindow: 65536, maxOutputTokens: 8192 }
     )
 
-    expect(result.provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+    expect(result).toHaveProperty('provider.cherry-DeepSeek.models.deepseek-chat.limit', {
       context: 65536,
       output: 8192
     })
