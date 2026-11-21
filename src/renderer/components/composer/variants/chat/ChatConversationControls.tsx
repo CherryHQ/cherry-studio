@@ -1,5 +1,5 @@
 import { Bot, ChevronDown } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { type RefObject, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmojiIcon } from '@cherrystudio/ui'
@@ -42,6 +42,7 @@ export interface ChatConversationControlsProps {
   assistantTriggerAction?: 'select' | 'edit'
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  modelTriggerRef?: RefObject<HTMLButtonElement | null>
   onDialogCloseAutoFocus?: () => void
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
@@ -68,6 +69,7 @@ export function ChatConversationControls({
   assistantTriggerAction = 'select',
   side,
   iconOnly = false,
+  modelTriggerRef,
   onDialogCloseAutoFocus,
   onAssistantChange,
   onModelSelect,
@@ -165,6 +167,7 @@ export function ChatConversationControls({
       )}
       {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
         <SelectedModelsTrigger
+          ref={modelTriggerRef}
           className={mentionedModelTriggerClassName}
           disabled
           iconOnly={iconOnly}
@@ -193,6 +196,7 @@ export function ChatConversationControls({
           mountStrategy="lazy-keep"
           trigger={
             <SelectedModelsTrigger
+              ref={modelTriggerRef}
               className={mentionedModelTriggerClassName}
               disabled={modelPending}
               iconOnly={iconOnly}
@@ -218,7 +222,12 @@ export function ChatConversationControls({
           align="start"
           mountStrategy="lazy-keep"
           trigger={
-            <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
+            <Button
+              ref={modelTriggerRef}
+              variant="ghost"
+              size="sm"
+              className={modelTriggerClassName}
+              disabled={modelPending}>
               {model ? <ModelAvatar model={model} size={20} /> : null}
               <span className={cn('max-w-52', modelLabelClassName)} title={modelLabel}>
                 {modelLabel}

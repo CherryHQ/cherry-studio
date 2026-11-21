@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -13,6 +13,7 @@ import ConversationCenterState from '@renderer/components/chat/shell/Conversatio
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import { CherryCloudModelGuide } from '@renderer/components/cherryCloud/CherryCloudModelGuide'
 import {
   ChatConversationControls,
   type ChatConversationControlsProps
@@ -33,6 +34,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { Model } from '@shared/data/types/model'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
@@ -52,8 +54,24 @@ type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 
 
 function ChatTopBarControls(props: ChatTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const modelTriggerRef = useRef<HTMLButtonElement>(null)
+  const { onMentionedModelsSelect } = props
+  const handleGuideModelSelect = useCallback(
+    (model: Model) => onMentionedModelsSelect([model]),
+    [onMentionedModelsSelect]
+  )
 
-  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <>
+      <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} modelTriggerRef={modelTriggerRef} />
+      <CherryCloudModelGuide
+        anchorRef={modelTriggerRef}
+        ready={!props.modelPending}
+        currentModelId={props.model?.id}
+        onSelectModel={handleGuideModelSelect}
+      />
+    </>
+  )
 }
 
 interface Props {
