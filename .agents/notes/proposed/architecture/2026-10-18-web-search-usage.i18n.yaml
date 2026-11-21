@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-18-web-search-usage.md
+2026-10-18-web-search-usage.md: fe2da3bd92068ad5c5b0b2bd3639aa134ee97d5a
+2026-10-18-web-search-usage.zh.md: 00b06e110c666f83a039f53485ac9366308b8a4d
