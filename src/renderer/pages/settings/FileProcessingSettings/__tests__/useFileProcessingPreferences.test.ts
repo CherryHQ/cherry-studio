@@ -110,3 +110,74 @@ describe('useFileProcessingPreferences', () => {
     })
   })
 })
+
+describe('resetProcessorOptions (#20286)', () => {
+  it('drops capability and language overrides while keeping API keys', async () => {
+    overridesMock.value = {
+      paddleocr: {
+        apiKeys: ['paddle-key'],
+        capabilities: {
+          image_to_text: {
+            apiHost: 'https://ocr.example.com',
+            modelId: 'PP-OCRv5'
+          }
+        }
+      },
+      tesseract: {
+        options: { langs: ['eng', 'chi_sim'] }
+      }
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.resetProcessorOptions('paddleocr')
+
+    expect(setOverridesMock).toHaveBeenCalledWith({
+      paddleocr: { apiKeys: ['paddle-key'] },
+      tesseract: {
+        options: { langs: ['eng', 'chi_sim'] }
+      }
+    })
+  })
+
+  it('removes the override entry entirely when only options were set', async () => {
+    overridesMock.value = {
+      tesseract: {
+        options: { langs: ['eng'] }
+      }
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.resetProcessorOptions('tesseract')
+
+    expect(setOverridesMock).toHaveBeenCalledWith({})
+  })
+
+  it('does nothing for a processor without overrides', async () => {
+    overridesMock.value = {}
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.resetProcessorOptions('mistral')
+
+    expect(setOverridesMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('hasProcessorOptions (#20286)', () => {
+  it('is true when capability fields or language options are overridden', () => {
+    overridesMock.value = {
+      paddleocr: { capabilities: { image_to_text: { modelId: 'PP-OCRv5' } } },
+      tesseract: { options: { langs: ['eng'] } },
+      mistral: { apiKeys: ['key-only'] }
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    expect(result.current.hasProcessorOptions('paddleocr')).toBe(true)
+    expect(result.current.hasProcessorOptions('tesseract')).toBe(true)
+    expect(result.current.hasProcessorOptions('mistral')).toBe(false)
+    expect(result.current.hasProcessorOptions('system')).toBe(false)
+  })
+})

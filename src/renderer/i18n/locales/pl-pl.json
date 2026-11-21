@@ -6208,6 +6208,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Systemowy OCR wywołuje bezpośrednio natywny silnik systemu. Jest najszybszy, ale dokładność zależy od wersji systemu operacyjnego.",
   "settings.tool.file_processing.processors.tesseract.description": "Silnik OCR open source firmy Google, działający w pełni lokalnie.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.reset_options": "Reset to defaults",
+  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
   "settings.tool.websearch.blacklist": "Czarna lista",
   "settings.tool.websearch.blacklist_invalid_entries": "Nieprawidłowe wpisy czarnej listy: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Użyj następującego formatu (rozdzielając nowymi liniami)\nDopasowywanie wzorca: *://*.example.com/*\nWyrażenie regularne: /example\\.(net|org)/",
