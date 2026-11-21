@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import type { JSONValue } from '@ai-sdk/provider'
 import StreamZip from 'node-stream-zip'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -73,7 +74,7 @@ interface BaseMcpPackageManifest {
   }>
   keywords?: string[]
   license?: string
-  user_config?: Record<string, any>
+  user_config?: JSONValue
   compatibility?: {
     claude_desktop?: string
     platforms?: string[]
@@ -182,7 +183,8 @@ export function validateArgs(args: string[]): string[] {
 export function performVariableSubstitution(
   value: string,
   extractDir: string,
-  userConfig?: Record<string, any>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime substitutions may contain native values; preserve their existing truthiness and string coercion rather than claiming JSON validation.
+  userConfig?: Record<string, unknown>
 ): string {
   let result = value
 
@@ -208,7 +210,7 @@ export function performVariableSubstitution(
   // Replace ${user_config.KEY} with user-configured values
   if (userConfig) {
     result = result.replace(/\$\{user_config\.([^}]+)\}/g, (match, key) => {
-      return userConfig[key] || match // Keep original if not found
+      return `${userConfig[key] || match}` // Keep original if not found
     })
   }
 
@@ -233,7 +235,7 @@ const DXT_ENV_DENYLIST = ['NODE_OPTIONS', 'LD_PRELOAD', 'LD_LIBRARY_PATH']
 export function buildResolvedEnv(
   env: Record<string, string>,
   extractDir: string,
-  userConfig?: Record<string, any>
+  userConfig?: Parameters<typeof performVariableSubstitution>[2]
 ): Record<string, string> {
   const resolvedEnv: Record<string, string> = {}
 
@@ -304,7 +306,11 @@ export function validatePackageUploadPayload(
   return buffer
 }
 
-export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userConfig?: Record<string, any>): any {
+export function applyPlatformOverrides(
+  mcpConfig: any,
+  extractDir: string,
+  userConfig?: Parameters<typeof performVariableSubstitution>[2]
+): any {
   const platform = process.platform
   // Deep-copy the nested env so substitution never mutates the caller's manifest object.
   const resolvedConfig = { ...mcpConfig, env: mcpConfig.env ? { ...mcpConfig.env } : mcpConfig.env }
@@ -595,7 +601,10 @@ export class McpPackageService extends BaseService {
   /**
    * Get resolved MCP configuration for a package server with platform overrides and variable substitution
    */
-  public getResolvedMcpConfig(dxtPath: string, userConfig?: Record<string, any>): ResolvedMcpConfig | null {
+  public getResolvedMcpConfig(
+    dxtPath: string,
+    userConfig?: Parameters<typeof performVariableSubstitution>[2]
+  ): ResolvedMcpConfig | null {
     try {
       // Read the manifest from the package server directory
       const manifestPath = path.join(dxtPath, 'manifest.json')
