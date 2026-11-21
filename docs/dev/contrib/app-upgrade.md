@@ -2,6 +2,7 @@
 description: How clients check for updates through the managed release service, with channels and the release history feed
 sources:
   - src/main/services/AppUpdaterService.ts
+  - src/renderer/services/AppUpdateCheckService.ts
   - resources/cherry-studio/release-history.json
   - electron-builder.yml
   - electron-builder.cn.config.cjs
@@ -63,9 +64,19 @@ Both old and new version blockmap URLs must remain available through the existin
 
 ## Check Lifecycle
 
-Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.
+Manual checks are available in development and packaged, non-portable builds. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress reach the main window through IpcApi.
 
-The main process compares a `not_available` result's feed target with the installed version. When the two differ — a withdrawn or stale feed naming an older target, or a staged rollout not yet offered — the result is treated as withheld rather than current: the main process logs both versions, and a manual check offers the GitHub Releases download instead of the up-to-date message. Only `isCurrent` is sent to the renderer. A prerelease install is treated as current unless the feed advertises a newer version; missing or unparseable feed versions are treated as current. Background checks stay silent.
+A manual check has three entry points: the check button in About settings, the update button on a release notification in the notification center, and the check button in error details. All three run the same per-window `AppUpdateCheckService`; the checking, downloading, and downloaded state lives in the shared `app.dist.update_status` cache, so every window sees it, and they also share the inline result notice and the installation confirmation. A click while a check or download is in flight does nothing; a click after a download completes reopens the installation dialog instead of checking again. When a manual check receives no updater event for 20 seconds after the check request settles, it ends with an inline error. The error-details notice shows only checks made after the dialog opened. Opening error details also sends a check-only `app.updater.query_availability` request (`AppUpdaterService.queryUpdateAvailability`, which never downloads) unless Auto Update is off or a check or download is already under way; when a newer version exists, the banner offers "Update now", which runs the same manual check, so the download starts only after that click and installation still waits for the confirmation dialog. A background download that already finished gets the same banner. Concurrent dialogs share one query, a result is reused for an hour within one update channel until the updater reports a newer result, and failures stay silent and are not reused.
+
+Lightweight windows do not run the check themselves. Their click sends `app.updater.present_check`, and the main process forwards `app.updater.run_check` to the main window only after that window's update handler is mounted. The main window then runs the check and shows the installation dialog. When no main window can receive it, the request fails and the lightweight window shows an inline error; it does not open a browser.
+
+The main process serializes checks. A new check waits for the previous check to finish and for any in-flight download, including a canceled one, to settle, so electron-updater never hands it the previous request's download.
+
+Changing the test plan or its channel cancels the in-flight download and stops accepting events from the previous check, including its `update-cancelled` event. The main process then broadcasts `app.updater.channel_retired`, and every main window clears its update state and any downloaded build from the old channel, even when the change came from a detached settings window. The window that made the change ignores updater events until its preference write settles, and keeps an inline error if the write fails.
+
+Portable builds do not perform update checks. A check click there opens the official download page (`https://cherryai.com/download`, or `https://cherryai.com.cn/download` in the CN edition), which is the only update path for portable builds, and About settings hides the automatic-update and test-plan controls.
+
+The main process compares a `not_available` result's feed target with the installed version. When the two differ — a withdrawn or stale feed naming an older target, or a staged rollout not yet offered — the result is treated as withheld rather than current: the main process logs both versions, and a manual check shows an inline "not published" notice and toast instead of the up-to-date message; no confirmation popup opens. In error details, a failed or withheld result also shows an "Open download page" button, so the user can choose to open the same official download page; a failed check never opens it automatically. Only `isCurrent` is sent to the renderer. A prerelease install is treated as current unless the feed advertises a newer version; missing or unparseable feed versions are treated as current. Background checks stay silent.
 
 ## Upgrade Release Notes
 

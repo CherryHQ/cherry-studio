@@ -93,8 +93,18 @@ export const appRequestSchemas = {
   }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.present_check': defineRoute({ input: z.void(), output: z.void() }),
+  /** Check-only feed query; never starts a download. */
+  'app.updater.query_availability': defineRoute({
+    input: z.void(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('current'), currentVersion: z.string() }),
+      z.object({ status: z.literal('available'), currentVersion: z.string(), version: z.string() })
+    ])
+  }),
   'app.surface.receiver': defineRoute({
-    input: z.object({ kind: z.enum(['error']), ready: z.boolean() }),
+    input: z.object({ kind: z.enum(['error', 'update']), ready: z.boolean() }),
     output: z.void()
   }),
   'app.updater.release_notes.get': defineRoute({
@@ -135,5 +145,8 @@ export type AppEventSchemas = {
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.updater.run_check': void
+  /** Main dropped the previous channel's check and download; renderers forget their snapshot. */
+  'app.updater.channel_retired': void
   'app.error.open': AppErrorContext
 }
