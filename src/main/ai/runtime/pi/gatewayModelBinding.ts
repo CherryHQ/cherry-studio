@@ -16,6 +16,7 @@ import { getRawModelId } from '@shared/utils/model'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 
 const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
@@ -112,5 +113,10 @@ export async function createPiGatewayModelBinding(
   await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
-  return { modelRuntime, model: registered, ...(onRetry && { onRetry }) }
+  return {
+    modelRuntime,
+    model: registered,
+    compaction: resolvePiCompactionSettings(model),
+    ...(onRetry && { onRetry })
+  }
 }

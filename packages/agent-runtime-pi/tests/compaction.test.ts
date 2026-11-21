@@ -4,7 +4,11 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
-import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'
+import {
+  compactionReserveForPercent,
+  type CompactionSummarizer,
+  type CompactionSummaryRequest
+} from '../src/compaction'
 import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
@@ -368,5 +372,24 @@ describe('host summarizer', () => {
         error: 'compression model unavailable',
         aborted: true
       })
+  })
+})
+
+describe('compactionReserveForPercent', () => {
+  it('caps the task-pinned reserve at half a small window, keeping reserve and tail inside it', () => {
+    // 20,000-token reuse-target root session at the default 80% trigger: the native 16,384
+    // floor alone plus the 5,000 retained tail would exceed the window.
+    expect(compactionReserveForPercent(16_384, 20_000, 80)).toBe(10_000)
+  })
+
+  it('leaves large-window thresholds at the pinned percent', () => {
+    expect(compactionReserveForPercent(16_384, 200_000, 80)).toBe(40_000)
+    // A reused 100K-model session pinned at 20% keeps its 20,000-token boundary: the
+    // half-window cap applies to the native floor only, never to the task threshold.
+    expect(compactionReserveForPercent(16_384, 100_000, 20)).toBe(80_000)
+  })
+
+  it('keeps the native reserve when it is already the larger fitting value', () => {
+    expect(compactionReserveForPercent(30_000, 200_000, 90)).toBe(30_000)
   })
 })

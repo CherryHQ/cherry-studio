@@ -9,6 +9,7 @@ import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 
 const root = runtimeId<'thread'>('root')
 const child = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>('restored-child') }
@@ -96,10 +97,11 @@ describe('Pi behavior host model lookup', () => {
       input: { sessionId: 'session', agentId: 'agent', modelId: rootModel.id },
       root: () => root,
       model: rootModel,
-      binding,
+      binding: { ...binding, compaction: resolvePiCompactionSettings(rootModel) },
       rootModelKey: anthropicKey,
       bindModel: async (model: Model) => ({
         ...binding,
+        compaction: resolvePiCompactionSettings(model),
         model: { ...binding.model, id: model.id, provider: model.providerId }
       }),
       approval: {
