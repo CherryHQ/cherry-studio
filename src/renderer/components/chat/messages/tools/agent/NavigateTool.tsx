@@ -1,13 +1,14 @@
 export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
-interface NavigateToolInput {
-  path?: string
-  query?: Record<string, string>
-}
+const navigationInputSchema = z.object({
+  path: z.string(),
+  query: z.unknown().optional()
+})
 
 const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   // Top-level pages
@@ -65,11 +66,11 @@ const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - 
 
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first
-  if (ROUTE_LABELS[path]) return ROUTE_LABELS[path]
+  if (Object.hasOwn(ROUTE_LABELS, path)) return ROUTE_LABELS[path]
 
   // Strip query string for matching
   const cleanPath = path.split('?')[0]
-  if (ROUTE_LABELS[cleanPath]) return ROUTE_LABELS[cleanPath]
+  if (Object.hasOwn(ROUTE_LABELS, cleanPath)) return ROUTE_LABELS[cleanPath]
 
   // Longest prefix match
   for (const [route, info] of SORTED_ROUTES) {
@@ -83,31 +84,18 @@ function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: 
  * Inline navigate button rendered directly in message content.
  * Not a Collapse item — rendered as a simple clickable button.
  */
-export function NavigateToolInline({
-  input,
-  output
-}: {
-  input?: NavigateToolInput | Record<string, unknown>
-  output?: unknown
-}) {
-  const typedInput = input as NavigateToolInput | undefined
-  const basePath = typedInput?.path ?? ''
-  const queryObj = typedInput?.query
-
-  // Build full path with query params
-  let fullPath = basePath
-  if (queryObj && typeof queryObj === 'object' && Object.keys(queryObj).length > 0) {
-    const params = new URLSearchParams()
-    for (const [key, value] of Object.entries(queryObj)) {
-      if (typeof value === 'string') {
-        params.set(key, value)
-      }
-    }
-    const qs = params.toString()
-    if (qs) {
-      fullPath = `${basePath}?${qs}`
-    }
-  }
+export function NavigateToolInline({ input, output }: { input?: unknown; output?: unknown }) {
+  const parsedInput = navigationInputSchema.safeParse(input)
+  const basePath = parsedInput.success ? parsedInput.data.path : ''
+  const rawQuery = parsedInput.success ? parsedInput.data.query : undefined
+  const queryObj =
+    rawQuery && typeof rawQuery === 'object'
+      ? Object.fromEntries(
+          Object.entries(rawQuery).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        )
+      : undefined
+  const qs = queryObj ? new URLSearchParams(queryObj).toString() : ''
+  const fullPath = qs ? `${basePath}?${qs}` : basePath
 
   const routeInfo = getRouteInfo(fullPath)
   const { t } = useTranslation()
