@@ -422,13 +422,15 @@ describe('useLaunchDialogController', () => {
       getApiKey: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
       ensureRunning: ReturnType<typeof vi.fn<(...args: any[]) => any>> = vi.fn().mockResolvedValue(undefined),
-      selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
+      selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE,
+      claudeScopedSettings = false
     ) {
       const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)
       const setCurrentProvider = vi.fn().mockResolvedValue(undefined)
       const rendered = renderHook(() =>
         useLaunchDialogController({
           selectedCliTool,
+          claudeScopedSettings,
           toolName: 'Claude Code',
           directory: '/tmp/project',
           enabledProvider: gatewayProvider,
@@ -484,6 +486,29 @@ describe('useLaunchDialogController', () => {
       expect(setCurrentProvider).not.toHaveBeenCalled()
       expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
+    })
+
+    it('reconciles the scoped destination before a normal gateway launch', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const { result } = renderGatewayLaunch(
+        getApiKey,
+        gatewayModelsById,
+        vi.fn().mockResolvedValue(undefined),
+        CodeCli.CLAUDE_CODE,
+        true
+      )
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(mocks.readCliConfigFiles).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE, { claudeScopedSettings: true })
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          claudeScopedSettings: true,
+          gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
+        })
+      )
+      expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
     })
 
     it('re-verifies the gateway and rewrites the config with its key before running', async () => {

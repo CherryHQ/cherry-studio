@@ -11,6 +11,9 @@ import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
   clearCliConfig,
+  disableClaudeScopedSettings,
+  enableClaudeScopedSettings,
+  type ClaudeScopeTransitionContext,
   type CliConfigConnection,
   type CliConfigFileDraft,
   type CliConfigGatewayContext,
@@ -30,7 +33,9 @@ const logger = loggerService.withContext('useConfigPanelController')
 
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
+  claudeScopedSettings?: boolean
   toolName: string
+  launching?: boolean
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -54,11 +59,15 @@ interface ConfigPanelController {
   ownLoginConfigPanelProps?: OwnLoginConfigPanelProps
   openConfigurePanel: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
+  onToggleClaudeScopedSettings: (next: boolean) => void
+  claudeScopeBusy: boolean
 }
 
 export function useConfigPanelController({
   selectedCliTool,
+  claudeScopedSettings,
   toolName,
+  launching,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
@@ -74,6 +83,7 @@ export function useConfigPanelController({
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [panelSession, setPanelSession] = useState(0)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
+  const [claudeScopeBusy, setClaudeScopeBusy] = useState(false)
   const writesCliConfig = isFileConfiguredCli(selectedCliTool)
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
@@ -94,6 +104,67 @@ export function useConfigPanelController({
   // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
   // same tool could interleave the two operations' reads/writes and leave its config files inconsistent.
   const inFlightToolsRef = useRef<Set<CodeCli>>(new Set())
+
+  const onToggleClaudeScopedSettings = useCallback(
+    (next: boolean) => {
+      if (launching || inFlightToolsRef.current.has(CodeCli.CLAUDE_CODE)) {
+        toast.error(t('code.claude_scope.busy'))
+        return
+      }
+      if (next === (claudeScopedSettings === true)) return
+      inFlightToolsRef.current.add(CodeCli.CLAUDE_CODE)
+      setClaudeScopeBusy(true)
+      void (async () => {
+        try {
+          let selection: ClaudeScopeTransitionContext['selection'] = null
+          if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
+            selection = { kind: 'own-login', configBlob: providerConfigs[currentProviderId]?.config }
+          } else if (currentProviderId) {
+            const cfg = providerConfigs[currentProviderId]
+            const resolved = resolveCliConfigApplyContext(
+              CodeCli.CLAUDE_CODE,
+              currentProviderId,
+              cfg,
+              isApiGatewayProviderId(currentProviderId) ? gatewayModelsById : undefined
+            )
+            if (!resolved) throw new Error(t('code.launch.validation_error'))
+            const gateway = isApiGatewayProviderId(currentProviderId)
+              ? await resolveGatewayWriteContext(currentProviderId)
+              : undefined
+            if (isApiGatewayProviderId(currentProviderId) && !gateway)
+              throw new Error(t('code.launch.validation_error'))
+            selection = {
+              kind: 'provider',
+              modelId: resolved.modelId,
+              writePrimaryModel: resolved.writePrimaryModel,
+              configBlob: cfg?.config,
+              gateway
+            }
+          }
+          const ctx = { claudeScopedSettings, currentProviderId, selection }
+          await (next ? enableClaudeScopedSettings(ctx) : disableClaudeScopedSettings(ctx))
+          setPanelSession((current) => current + 1)
+          setCurrentCliConfigConnection(null)
+        } catch (err) {
+          logger.error('Failed to change Claude settings location:', err as Error)
+          toast.error(err instanceof Error ? err.message : String(err))
+        } finally {
+          inFlightToolsRef.current.delete(CodeCli.CLAUDE_CODE)
+          setClaudeScopeBusy(false)
+        }
+      })()
+    },
+    [
+      launching,
+      claudeScopedSettings,
+      currentProviderId,
+      providerConfigs,
+      gatewayModelsById,
+      resolveGatewayWriteContext,
+      setCurrentCliConfigConnection,
+      t
+    ]
+  )
 
   const openConfigurePanel = useCallback((provider: Provider) => {
     pendingEnableProviderIdRef.current = null
@@ -122,6 +193,7 @@ export function useConfigPanelController({
         const files = values.cliConfigFiles
         await writeCliConfigDraft({
           cliTool: selectedCliTool,
+          ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
           files
         })
         if (hasModelValue || hasConfigValue) {
@@ -191,6 +263,7 @@ export function useConfigPanelController({
           : undefined
         await writeCliConfigDraft({
           cliTool: selectedCliTool,
+          ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
           modelId: cliConfigModelId,
           configBlob: sanitizedConfig,
           files: values.cliConfigFiles,
@@ -229,6 +302,7 @@ export function useConfigPanelController({
     [
       editingProvider,
       selectedCliTool,
+      claudeScopedSettings,
       currentProviderId,
       providerConfigs,
       upsertProviderConfig,
@@ -255,11 +329,15 @@ export function useConfigPanelController({
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           try {
             if (writesCliConfig) {
-              await clearCliConfig({ cliTool: selectedCliTool })
+              await clearCliConfig({
+                cliTool: selectedCliTool,
+                ...(claudeScopedSettings ? { claudeScopedSettings } : {})
+              })
             }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
               await writeOwnLoginCliConfigDraft({
                 cliTool: selectedCliTool,
+                ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
                 configBlob: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID]?.config
               })
             }
@@ -276,7 +354,10 @@ export function useConfigPanelController({
         if (!isEnabling) {
           try {
             if (writesCliConfig) {
-              await clearCliConfig({ cliTool: selectedCliTool })
+              await clearCliConfig({
+                cliTool: selectedCliTool,
+                ...(claudeScopedSettings ? { claudeScopedSettings } : {})
+              })
             }
             // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
             // a file-configured provider disabled while its CLI files still retain managed credentials.
@@ -334,6 +415,7 @@ export function useConfigPanelController({
             : undefined
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
+            ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
             modelId: cliConfigContext.modelId,
             configBlob: cfg?.config,
             writePrimaryModel: cliConfigContext.writePrimaryModel,
@@ -353,6 +435,7 @@ export function useConfigPanelController({
     [
       currentProviderId,
       selectedCliTool,
+      claudeScopedSettings,
       providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,
@@ -377,6 +460,7 @@ export function useConfigPanelController({
         try {
           await writeOwnLoginCliConfigDraft({
             cliTool: selectedCliTool,
+            ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
             configBlob: sanitizedConfig,
             files: values.cliConfigFiles
           })
@@ -394,18 +478,31 @@ export function useConfigPanelController({
         setCurrentCliConfigConnection(null)
       }
     },
-    [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection]
+    [selectedCliTool, claudeScopedSettings, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection]
   )
+
+  const guardSubmit = async <T>(submit: (values: T) => Promise<void>, values: T) => {
+    if (inFlightToolsRef.current.has(selectedCliTool)) throw new Error(t('code.claude_scope.busy'))
+    inFlightToolsRef.current.add(selectedCliTool)
+    try {
+      await submit(values)
+    } finally {
+      inFlightToolsRef.current.delete(selectedCliTool)
+    }
+  }
 
   const isEditingOwnLogin = editingProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
 
   return {
-    configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}:${panelSession}` : undefined,
+    configPanelKey: editingProvider
+      ? `${selectedCliTool}:${editingProvider.id}:${panelSession}:${claudeScopedSettings === true}`
+      : undefined,
     configPanelProps:
       editingProvider && !isEditingOwnLogin
         ? {
             onClose: closePanel,
             cliTool: selectedCliTool,
+            claudeScopedSettings,
             provider: editingProvider,
             providerConfig: providerConfigs[editingProvider.id] ?? null,
             isCurrentProvider: currentProviderId === editingProvider.id,
@@ -417,7 +514,7 @@ export function useConfigPanelController({
                 : undefined,
             gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
             isGatewayModelsLoading: isApiGatewayProviderId(editingProvider.id) ? isGatewayModelsLoading : false,
-            onSubmit: handlePanelSubmit
+            onSubmit: (values) => guardSubmit(handlePanelSubmit, values)
           }
         : undefined,
     ownLoginConfigPanelProps:
@@ -425,12 +522,15 @@ export function useConfigPanelController({
         ? {
             onClose: closePanel,
             cliTool: selectedCliTool,
+            claudeScopedSettings,
             toolName,
             providerConfig: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID] ?? null,
-            onSubmit: handleOwnLoginSubmit
+            onSubmit: (values) => guardSubmit(handleOwnLoginSubmit, values)
           }
         : undefined,
     openConfigurePanel,
+    onToggleClaudeScopedSettings,
+    claudeScopeBusy,
     onToggleCurrent: handleToggleCurrent
   }
 }

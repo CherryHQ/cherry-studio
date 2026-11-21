@@ -1,4 +1,4 @@
-import { parse as jsoncParse } from 'jsonc-parser'
+import { parse as jsoncParse, type ParseError } from 'jsonc-parser'
 
 // Keys that don't represent functional configuration content
 export const NON_FUNCTIONAL_KEYS = ['$schema']
@@ -24,4 +24,12 @@ export function parseJSONC(content: string): Record<string, any> | null {
  */
 export function getFunctionalKeys(obj: Record<string, any>): string[] {
   return Object.keys(obj).filter((key) => !NON_FUNCTIONAL_KEYS.includes(key))
+}
+
+export function parseJSONCObject(content: string): Record<string, any> | null {
+  const errors: ParseError[] = []
+  const result: unknown = jsoncParse(content, errors, { allowTrailingComma: true, disallowComments: false })
+  return errors.length === 0 && result !== null && typeof result === 'object' && !Array.isArray(result)
+    ? (result as Record<string, any>)
+    : null
 }

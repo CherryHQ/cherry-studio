@@ -112,7 +112,8 @@ export async function createManagedConfigDraft({
   config,
   files,
   options = {},
-  gateway
+  gateway,
+  claudeScopedSettings
 }: {
   cliTool: CodeCli
   modelId: UniqueModelId | undefined
@@ -120,12 +121,14 @@ export async function createManagedConfigDraft({
   files?: CliConfigFileDraft[]
   options?: ManagedDraftOptions
   gateway?: CliConfigGatewayContext
+  claudeScopedSettings?: boolean
 }): Promise<ConfigDraft> {
   const cliConfigModelId = options.cliConfigModelId ?? modelId
   try {
     const nextFiles = cliConfigModelId
       ? await readCliConfigDraft({
           cliTool,
+          claudeScopedSettings,
           modelId: cliConfigModelId,
           configBlob: config,
           files,
@@ -163,7 +166,8 @@ export async function loadInitialConfigDraft({
   initialDraftSeed,
   connectionMatchesProvider,
   gateway,
-  gatewayModels
+  gatewayModels,
+  claudeScopedSettings
 }: {
   cliTool: CodeCli
   providerId: string
@@ -175,6 +179,7 @@ export async function loadInitialConfigDraft({
   connectionMatchesProvider: (connection: CliConfigConnection | null, expectedModelId?: UniqueModelId) => boolean
   gateway?: CliConfigGatewayContext
   gatewayModels?: Map<UniqueModelId, Model>
+  claudeScopedSettings?: boolean
 }): Promise<ConfigDraft> {
   const initialDraftOptions = resolveManagedDraftOptions(
     cliTool,
@@ -187,7 +192,10 @@ export async function loadInitialConfigDraft({
   let rawFiles: CliConfigFileDraft[] = []
 
   try {
-    rawFiles = await readCliConfigFiles(cliTool, { includeEmpty: true })
+    rawFiles = await readCliConfigFiles(cliTool, {
+      includeEmpty: true,
+      ...(claudeScopedSettings ? { claudeScopedSettings } : {})
+    })
 
     if (!initialModelId && !initialDraftOptions.cliConfigModelId) {
       return {
@@ -220,6 +228,7 @@ export async function loadInitialConfigDraft({
       config: initialConfig,
       files: rawFiles,
       options: initialDraftOptions,
+      claudeScopedSettings,
       gateway
     })
   } catch (error) {

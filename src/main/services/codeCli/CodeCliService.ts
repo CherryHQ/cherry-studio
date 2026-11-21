@@ -13,6 +13,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
+import { parseJSONCObject } from '@main/utils/jsonc'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -41,7 +42,7 @@ import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@sh
 import { REDACTED } from '@shared/utils/redaction'
 
 import { prepareAntigravityLaunch } from './antigravity'
-import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
+import { type CliConfigReadFile, readCliConfigFiles, resolveTargetPath, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -90,6 +91,7 @@ export class CodeCliService extends BaseService {
     timestamp: number
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private writeQueue: Promise<void> = Promise.resolve()
   private loginQuery: { controller: AbortController; promise: Promise<boolean>; users: number } | null = null
 
   protected async onInit(): Promise<void> {
@@ -467,12 +469,93 @@ export class CodeCliService extends BaseService {
     return []
   }
 
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.writeQueue.then(work)
+    this.writeQueue = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
-  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+  public async writeConfigFiles(
+    cliTool: FileConfiguredCli,
+    files: CliConfigWriteFile[],
+    claudeScopedSettings?: boolean,
+    expectedClaudeProviderId?: string | null
+  ): Promise<void> {
+    if (claudeScopedSettings !== undefined && cliTool !== CodeCli.CLAUDE_CODE) {
+      throw new Error('claudeScopedSettings is only valid for Claude Code')
+    }
+    if (
+      expectedClaudeProviderId !== undefined &&
+      (cliTool !== CodeCli.CLAUDE_CODE || claudeScopedSettings === undefined)
+    ) {
+      throw new Error('expectedClaudeProviderId requires a Claude Code transition')
+    }
     if (cliTool === CodeCli.HERMES) {
       return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
     }
-    return writeCliConfigFiles(cliTool, files)
+    if (cliTool !== CodeCli.CLAUDE_CODE) return writeCliConfigFiles(cliTool, files)
+    return this.enqueue(async () => {
+      if (claudeScopedSettings !== undefined) {
+        const configs = application.get('PreferenceService').get('feature.code_cli.configs')
+        if ((configs[CodeCli.CLAUDE_CODE]?.claudeScopedSettings === true) === claudeScopedSettings) {
+          logger.info('Ignoring duplicate Claude settings mode transition')
+          return
+        }
+        if (
+          expectedClaudeProviderId !== undefined &&
+          (configs[CodeCli.CLAUDE_CODE]?.current ?? null) !== expectedClaudeProviderId
+        ) {
+          throw new Error('Claude selection changed; reload and retry')
+        }
+      }
+      if (cliTool === CodeCli.CLAUDE_CODE && claudeScopedSettings === undefined) {
+        const configs = application.get('PreferenceService').get('feature.code_cli.configs')
+        const active =
+          configs[CodeCli.CLAUDE_CODE]?.claudeScopedSettings === true ? 'claude-scoped-settings' : 'claude-settings'
+        if (files.some((file) => file.target !== active)) {
+          throw new Error('Claude settings mode changed; reload the configuration and retry')
+        }
+      }
+      await writeCliConfigFiles(
+        cliTool,
+        files,
+        claudeScopedSettings === undefined
+          ? undefined
+          : async () => {
+              const preferences = application.get('PreferenceService')
+              const configs = preferences.get('feature.code_cli.configs')
+              const previousMode = configs[CodeCli.CLAUDE_CODE]?.claudeScopedSettings
+              const updated = {
+                ...configs,
+                [CodeCli.CLAUDE_CODE]: {
+                  providers: {},
+                  current: null,
+                  ...configs[CodeCli.CLAUDE_CODE],
+                  claudeScopedSettings
+                }
+              }
+              try {
+                await preferences.set('feature.code_cli.configs', updated)
+              } catch (error) {
+                if (
+                  preferences.get('feature.code_cli.configs')[CodeCli.CLAUDE_CODE]?.claudeScopedSettings !==
+                  previousMode
+                ) {
+                  await preferences
+                    .set('feature.code_cli.configs', configs)
+                    .catch((restoreError) =>
+                      logger.error('Failed to restore Claude settings preference', restoreError as Error)
+                    )
+                }
+                throw error
+              }
+            }
+      )
+    })
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
@@ -526,6 +609,29 @@ export class CodeCliService extends BaseService {
       return {
         success: false,
         message: errorMessage
+      }
+    }
+
+    let scopedPath: string | undefined
+    if (cliTool === CodeCli.CLAUDE_CODE && !isLoginFlow) {
+      try {
+        scopedPath = await this.enqueue(async () => {
+          const configs = application.get('PreferenceService').get('feature.code_cli.configs')
+          if (configs[CodeCli.CLAUDE_CODE]?.claudeScopedSettings !== true) return undefined
+          const resolved = await resolveTargetPath('claude-scoped-settings')
+          try {
+            const stat = await fs.promises.stat(resolved)
+            if (!stat.isFile()) throw new Error('not a regular file')
+            const value = parseJSONCObject(await fs.promises.readFile(resolved, 'utf8'))
+            if (!value) throw new Error('not a JSON object')
+          } catch {
+            throw new Error(`Claude scoped mode is on; create or fix the JSON settings file at ${resolved}`)
+          }
+          logger.debug(`Using Claude scoped settings at ${resolved}`)
+          return resolved
+        })
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
     }
 
@@ -714,6 +820,11 @@ export class CodeCliService extends BaseService {
           : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
       const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
       baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
+    }
+
+    if (scopedPath) {
+      const settingsArg = platform === 'win32' ? `"${scopedPath.replace(/%/g, '%%')}"` : posixQuote(scopedPath)
+      baseCommand = `${baseCommand} --settings ${settingsArg}`
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather

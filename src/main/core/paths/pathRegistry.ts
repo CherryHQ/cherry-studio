@@ -215,6 +215,7 @@ export function buildPathRegistry() {
       'antigravity-cli',
       'settings.json'
     ),
+    'feature.cli.claude.settings.file': path.join(appUserDataData, 'CodeCli', 'Claude', 'settings.json'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),

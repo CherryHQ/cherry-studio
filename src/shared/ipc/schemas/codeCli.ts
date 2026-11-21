@@ -79,23 +79,41 @@ export const codeCliRequestSchemas = {
     // Targets, not paths: the enum is the write allow-list, and main resolves
     // each target to its spec path itself — a compromised renderer cannot point
     // this route at an arbitrary file.
-    input: z.object({
-      cliTool: z.enum(FILE_CONFIGURED_CLI_TOOL_IDS),
-      files: z
-        .array(
-          z.union([
-            z.object({
-              target: z.enum(CLI_CONFIG_TARGET_IDS),
-              content: z.string().max(1024 * 1024)
-            }),
-            z.object({
-              target: z.literal('codex-auth'),
-              delete: z.literal(true)
-            })
-          ])
-        )
-        .min(1)
-    }),
+    input: z
+      .object({
+        cliTool: z.enum(FILE_CONFIGURED_CLI_TOOL_IDS),
+        // Commit this Claude-wide mode after file mutations succeed.
+        claudeScopedSettings: z.boolean().optional(),
+        expectedClaudeProviderId: z.string().nullable().optional(),
+        files: z
+          .array(
+            z.union([
+              z.object({
+                target: z.enum(CLI_CONFIG_TARGET_IDS),
+                content: z.string().max(1024 * 1024)
+              }),
+              z.object({
+                target: z.enum(['codex-auth', 'claude-scoped-settings']),
+                delete: z.literal(true)
+              })
+            ])
+          )
+          .min(1)
+      })
+      .refine((input) => input.claudeScopedSettings === undefined || input.cliTool === CodeCli.CLAUDE_CODE, {
+        message: 'claudeScopedSettings is only valid for Claude Code'
+      })
+      .refine(
+        (input) =>
+          input.expectedClaudeProviderId === undefined ||
+          (input.cliTool === CodeCli.CLAUDE_CODE && input.claudeScopedSettings !== undefined),
+        {
+          message: 'expectedClaudeProviderId requires a Claude Code transition'
+        }
+      )
+      .refine((input) => new Set(input.files.map((file) => file.target)).size === input.files.length, {
+        message: 'Duplicate config target'
+      }),
     output: operationResultSchema
   }),
   'code_cli.get_available_terminals': defineRoute({

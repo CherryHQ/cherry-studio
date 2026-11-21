@@ -5,7 +5,7 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
+import { FILE_CONFIGURED_CLI_TOOLS, getActiveCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
@@ -111,17 +111,21 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
 
 export async function readCliConfigFiles(
   cliTool: string,
-  options: { includeEmpty?: boolean } = {}
+  options: { includeEmpty?: boolean; claudeScopedSettings?: boolean } = {}
 ): Promise<CliConfigFileDraft[]> {
-  const targets = getCliConfigTargets(cliTool)
+  const targets = getActiveCliConfigTargets(cliTool, options.claudeScopedSettings === true)
   const read = await readConfigFiles(targets)
   const files = targets.map((target) => makeDraftFile(target, readDraftFileText(target, undefined, read), read))
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 
-export async function readCliConfigDraft(args: CliConfigDraftBuildArgs): Promise<CliConfigFileDraft[]> {
+export async function readCliConfigDraft(
+  args: CliConfigDraftBuildArgs,
+  validateCredentials = false
+): Promise<CliConfigFileDraft[]> {
   const context = await resolveContext(args)
   if (!context) return []
+  if (validateCredentials) assertCliConfigCredentials(args.cliTool, context)
   return buildCliConfigDraftFiles(args, context)
 }
 
@@ -149,11 +153,21 @@ export async function writeCliConfigDraft(args: {
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
   gateway?: CliConfigGatewayContext
+  claudeScopedSettings?: boolean
 }): Promise<unknown> {
   let files = args.files
+  if (
+    args.cliTool === CodeCli.CLAUDE_CODE &&
+    files?.some(
+      (file) => file.target !== getActiveCliConfigTargets(args.cliTool, args.claudeScopedSettings === true)[0]
+    )
+  ) {
+    throw new Error('Claude settings scope changed; reload and retry')
+  }
   if (args.modelId) {
     const writeArgs: CliConfigDraftBuildArgs = {
       cliTool: args.cliTool,
+      claudeScopedSettings: args.claudeScopedSettings,
       modelId: args.modelId,
       configBlob: args.configBlob,
       writePrimaryModel: args.writePrimaryModel,
@@ -209,13 +223,15 @@ export function isOwnLoginConfigurable(cliTool: string): boolean {
  */
 async function buildOwnLoginConfigDraftFiles(
   cliTool: string,
-  configBlob: Record<string, unknown>
+  configBlob: Record<string, unknown>,
+  claudeScopedSettings?: boolean,
+  files?: CliConfigFileDraft[]
 ): Promise<CliConfigFileDraft[]> {
   const adapter = getAdapter(cliTool)
   if (!adapter?.buildOwnLoginDraft) {
     throw new Error(`Own-login config is not supported for ${cliTool}`)
   }
-  return adapter.buildOwnLoginDraft(sanitizeCliConfigBlob(cliTool, configBlob))
+  return adapter.buildOwnLoginDraft(sanitizeCliConfigBlob(cliTool, configBlob), claudeScopedSettings, files)
 }
 
 /**
@@ -226,8 +242,10 @@ async function buildOwnLoginConfigDraftFiles(
 export async function readOwnLoginCliConfigDraft(args: {
   cliTool: string
   configBlob?: Record<string, unknown>
+  claudeScopedSettings?: boolean
+  files?: CliConfigFileDraft[]
 }): Promise<CliConfigFileDraft[]> {
-  return buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
+  return buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {}, args.claudeScopedSettings, args.files)
 }
 
 /**
@@ -241,9 +259,10 @@ export async function writeOwnLoginCliConfigDraft(args: {
   cliTool: string
   configBlob?: Record<string, unknown>
   files?: CliConfigFileDraft[]
+  claudeScopedSettings?: boolean
 }): Promise<void> {
   const files = args.files?.length
     ? args.files
-    : await buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
-  await writeCliConfigDraft({ cliTool: args.cliTool, files })
+    : await buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {}, args.claudeScopedSettings)
+  await writeCliConfigDraft({ cliTool: args.cliTool, files, claudeScopedSettings: args.claudeScopedSettings })
 }

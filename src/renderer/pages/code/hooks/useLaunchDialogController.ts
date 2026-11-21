@@ -30,6 +30,7 @@ const logger = loggerService.withContext('useLaunchDialogController')
 
 interface UseLaunchDialogControllerOptions {
   selectedCliTool: CodeCli
+  claudeScopedSettings?: boolean
   toolName: string
   directory?: string
   enabledProvider?: Provider
@@ -61,6 +62,7 @@ interface LaunchDialogController {
 
 export function useLaunchDialogController({
   selectedCliTool,
+  claudeScopedSettings,
   toolName,
   directory,
   enabledProvider,
@@ -178,7 +180,10 @@ export function useLaunchDialogController({
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
-          onDiskFiles = await readCliConfigFiles(selectedCliTool)
+          onDiskFiles = await readCliConfigFiles(
+            selectedCliTool,
+            claudeScopedSettings ? { claudeScopedSettings } : undefined
+          )
         } catch (err) {
           // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
           // config from preference so launch still uses the current gateway connection.
@@ -209,6 +214,7 @@ export function useLaunchDialogController({
         }
         await writeCliConfigDraft({
           cliTool: selectedCliTool,
+          ...(claudeScopedSettings ? { claudeScopedSettings } : {}),
           modelId,
           configBlob,
           ...(mergeFiles ? { files: mergeFiles } : {}),
@@ -247,6 +253,7 @@ export function useLaunchDialogController({
     isOwnLoginSelected,
     upsertProviderConfig,
     selectedCliTool,
+    claudeScopedSettings,
     effectiveTerminal,
     apiGatewayProvider,
     gatewayModelsById,

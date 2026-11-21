@@ -21,7 +21,10 @@ interface FileSnapshot {
 }
 
 /** Resolve a declarative target path against its base: the pinned Hermes home, or sys.home for `~/…` spec paths. */
-async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
+export async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
+  if (target === 'claude-scoped-settings') {
+    return AbsoluteFilePathSchema.parse(application.getPath('feature.cli.claude.settings.file'))
+  }
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
@@ -71,7 +74,11 @@ export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): P
  * unlink files that did not exist — never the trash, they may hold secrets) and
  * rethrows the ORIGINAL error; rollback failures are logged, never thrown.
  */
-export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+export async function writeCliConfigFiles(
+  cliTool: FileConfiguredCli,
+  files: CliConfigWriteFile[],
+  afterWrite?: () => Promise<void>
+): Promise<void> {
   const allowed = new Set(getCliConfigTargets(cliTool))
   const seen = new Set<CliConfigTarget>()
   for (const file of files) {
@@ -99,6 +106,7 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
         logger.info(`Applied ${cliTool} config to ${absPath}`)
       }
     }
+    await afterWrite?.()
   } catch (error) {
     for (const snapshot of snapshots.slice().reverse()) {
       if (snapshot.existed) {
