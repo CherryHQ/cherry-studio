@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-14T13:47:05.564Z
- * Total icons: 175
+ * Total icons: 176
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -76,6 +76,7 @@ import { GpustackIcon } from './gpustack'
 import { GrokIcon } from './grok'
 import { GroqIcon } from './groq'
 import { HigressIcon } from './higress'
+import { HostlinkuIcon } from './hostlinku/hostlinku'
 import { HuggingfaceIcon } from './huggingface'
 import { HyperbolicIcon } from './hyperbolic'
 import { IdeogramIcon } from './ideogram'
@@ -254,6 +255,7 @@ export const PROVIDER_ICON_CATALOG = {
   grok: GrokIcon,
   groq: GroqIcon,
   higress: HigressIcon,
+  hostlinku: HostlinkuIcon,
   huggingface: HuggingfaceIcon,
   hyperbolic: HyperbolicIcon,
   ideogram: IdeogramIcon,
