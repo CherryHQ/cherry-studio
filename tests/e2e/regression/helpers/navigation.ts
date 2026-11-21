@@ -59,7 +59,7 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
   await page.getByRole('button', { name, exact: true }).last().click()
 }
 
-async function openAccountMenu(page: Page): Promise<Locator> {
+export async function openAccountMenu(page: Page): Promise<Locator> {
   const accountMenu = page.locator('[aria-label="Account menu"], [aria-label="账户菜单"]')
   if (!(await accountMenu.isVisible())) {
     await page.locator('[data-ui~="app.sidebar"]').locator('button[data-notification-anchor="left"]').click()
