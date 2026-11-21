@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-06-openrouter-decisions-api.md
+2026-11-06-openrouter-decisions-api.md: 6085a25bfccba1ab77f4f701710a4496e2d4f2ec
+2026-11-06-openrouter-decisions-api.zh.md: 5595c56c50a20c9f5b4dae2d333da4d350dc9f2e
