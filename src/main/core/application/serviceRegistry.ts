@@ -89,6 +89,7 @@ import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
 import { UsageBudgetNotificationService } from '@main/services/UsageBudgetNotificationService'
 import { WebSearchService } from '@main/services/webSearch'
+import { BlacklistSubscriptionService } from '@main/services/webSearch/BlacklistSubscriptionService'
 import { WebviewService } from '@main/services/webview'
 
 /**
@@ -171,6 +172,7 @@ export const services = {
   PythonService,
   TrayService,
   WebSearchService,
+  BlacklistSubscriptionService,
   WebviewService,
   BrowserSessionService,
   OAuthRuntimeService,

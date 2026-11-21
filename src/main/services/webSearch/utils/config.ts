@@ -15,6 +15,7 @@ import type { WebSearchExecutionConfig, WebSearchResolvedConfig } from '@shared/
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 import { WebSearchConfigError } from '../WebSearchConfigError'
+import { mergeWebSearchBlacklist } from './blacklist'
 
 export interface WebSearchPreferenceReader {
   get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
@@ -130,16 +131,17 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
 }
 
 export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchExecutionConfig> {
-  const [maxResults, excludeDomains, method, cutoffLimit] = await Promise.all([
+  const [maxResults, excludeDomains, subscriptions, method, cutoffLimit] = await Promise.all([
     preferences.get('chat.web_search.max_results'),
     preferences.get('chat.web_search.exclude_domains'),
+    preferences.get('chat.web_search.blacklist_subscriptions'),
     preferences.get('chat.web_search.compression.method'),
     preferences.get('chat.web_search.compression.cutoff_limit')
   ])
 
   return {
     maxResults: Math.max(1, maxResults),
-    excludeDomains,
+    excludeDomains: mergeWebSearchBlacklist(excludeDomains, subscriptions),
     compression: {
       method,
       cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit)
