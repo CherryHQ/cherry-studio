@@ -33,7 +33,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { assertRuntimeAgentImageLimit } from '@shared/ai/agentImageLimits'
+import { assertRuntimeAgentImageLimit, isManualCompactParts } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -875,7 +875,14 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
-    this.assertTurnImageLimit(input.modelId, userMessage.data.parts, input.agentType)
+    // Manual `/compact` on Pi / Pi-Durable compacts without submitting images
+    // or replay (both drivers short-circuit when `systemReminder` is false,
+    // which `beginTurn` always is), so it never gates — matching `send`.
+    const isManualCompact =
+      (input.agentType === 'pi' || input.agentType === 'pi-durable') && isManualCompactParts(userMessage.data.parts)
+    if (!isManualCompact) {
+      this.assertTurnImageLimit(input.modelId, userMessage.data.parts, input.agentType)
+    }
     // oxlint-disable-next-line no-restricted-globals -- Capture per-turn model/settings metadata before asynchronous native dispatch.
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
@@ -3384,14 +3391,24 @@ export class AgentSessionRuntimeService extends BaseService {
     // PNGs gate even without live tokens), Claude counts native-block
     // candidates (routed managed + external workspace images, AVIF excluded),
     // and orphaned managed history passes for runtimes whose routing drops it.
+    // Manual `/compact` on Pi / Pi-Durable compacts without submitting replay
+    // (both drivers short-circuit when `systemReminder` is false), so it skips
+    // validation — matching `send`. Steers never skip: the drivers do not
+    // treat them as compact and still submit replay.
     // A rejection here fires before `connection.send`, so the composer draft
     // stays intact and no pending assistant row is left without a stream.
-    if (context?.length) {
-      this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {
-        routed: true
-      })
-    } else {
-      this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+    const isManualCompact =
+      (entry.agentType === 'pi' || entry.agentType === 'pi-durable') &&
+      turn.systemReminder !== true &&
+      isManualCompactParts(turn.userMessage.data.parts)
+    if (!isManualCompact) {
+      if (context?.length) {
+        this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {
+          routed: true
+        })
+      } else {
+        this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+      }
     }
     await connection.send({
       message: turn.userMessage,

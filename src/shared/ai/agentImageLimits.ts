@@ -407,6 +407,27 @@ export function assertClaudeAgentImageLimit(
 }
 
 /**
+ * Whether the turn carries a manual `/compact` instruction. Both Pi drivers
+ * recognize compaction from the current message text and return without
+ * using the replay payload (`PiRuntimeConnection.send` short-circuits on
+ * `parseManualCompactCommand`, `PiDurableRuntimeConnection.send` on
+ * `isCompactCommand`), so replay-inclusive image gates must not count history
+ * for these turns. Mirrors `^\/compact(?:\s|$)` on trimmed text; steers wrap
+ * text in a system reminder and never match, matching the drivers'
+ * `!systemReminder` guard.
+ */
+export function isManualCompactParts(parts: readonly unknown[] | undefined | null): boolean {
+  if (!parts) return false
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null) continue
+    const candidate = part as { type?: unknown; text?: unknown }
+    if (candidate.type !== 'text' || typeof candidate.text !== 'string') continue
+    if (/^\/compact(?:\s|$)/.test(candidate.text.trim())) return true
+  }
+  return false
+}
+
+/**
  * Runtime-specific pre-send gate for Agent turns.
  *
  * - Pi / Pi-Durable forward every `file://` attachment as a readable path
@@ -416,6 +437,12 @@ export function assertClaudeAgentImageLimit(
  *   native blocks — so the Claude-native count applies with or without history.
  * - Other runtimes keep the previous behavior: history-inclusive calls use the
  *   routed count (orphaned managed history passes), fresh sends use raw.
+ *
+ * Callers skip replay validation for manual `/compact` on Pi / Pi-Durable
+ * (see `isManualCompactParts`): both drivers compact without submitting
+ * replay when `systemReminder` is false. The gate itself stays
+ * system-reminder-agnostic so steers (which the drivers do not treat as
+ * compact) keep their existing validation.
  */
 export function assertRuntimeAgentImageLimit(
   parts: readonly unknown[] | undefined | null,

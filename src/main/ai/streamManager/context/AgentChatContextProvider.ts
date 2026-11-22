@@ -21,14 +21,15 @@ import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { AgentImageLimitError, assertAgentImageLimit } from '@shared/ai/agentImageLimits'
+import { AgentImageLimitError, assertRuntimeAgentImageLimit, isManualCompactParts } from '@shared/ai/agentImageLimits'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type Model, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
+import { readHistoryFilePartsForImageLimit } from '../../agentSession/sessionHistory'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -59,13 +60,23 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
  * submission never leaves a committed user row or a pending assistant row
  * without a stream to settle it. Unresolvable models keep the legacy
  * unlimited behavior instead of blocking on missing metadata.
+ *
+ * Fresh-send validation mirrors `admitTurn` without history; when `sessionId`
+ * and `parentMessageId` are supplied the replay payload is also validated
+ * (history files + new parts with the runtime-specific gate) so a text-only
+ * continuation that must replay two saved workspace PNGs rejects before
+ * committing. Manual `/compact` on Pi / Pi-Durable skips validation because
+ * both drivers compact without submitting replay when `systemReminder` is
+ * false (idle/edit dispatches always are). History lookup is fail-open: a
+ * read failure falls back to fresh-send validation only.
  */
 function assertDispatchImageLimit(
   uniqueModelId: UniqueModelId,
   parts: readonly CherryMessagePart[] | undefined,
-  agentType: string
+  agentType: string,
+  history?: { sessionId: string; parentMessageId: string; db?: DbOrTx }
 ): void {
-  let model: Parameters<typeof assertAgentImageLimit>[1]
+  let model: Model | undefined | null
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     model = modelService.getByKey(providerId, modelId)
@@ -73,7 +84,22 @@ function assertDispatchImageLimit(
     if (error instanceof AgentImageLimitError) throw error
     return
   }
-  assertAgentImageLimit(parts, model, { runtime: agentType })
+  // Pi / Pi-Durable `/compact` never submits images or replay (both drivers
+  // short-circuit before submission), so it never gates — matching `send`.
+  if ((agentType === 'pi' || agentType === 'pi-durable') && isManualCompactParts(parts)) return
+  assertRuntimeAgentImageLimit(parts, model, agentType)
+  if (!history) return
+  let historyFiles: readonly CherryMessagePart[] | undefined
+  try {
+    const db = history.db ?? application.get('DbService').getDb()
+    historyFiles = readHistoryFilePartsForImageLimit(db, history.sessionId, history.parentMessageId)
+  } catch {
+    // Fail-open: history lookup must never block an otherwise valid send.
+    return
+  }
+  // Native history owns the branch: fresh-send validation already ran.
+  if (historyFiles === undefined || historyFiles.length === 0) return
+  assertRuntimeAgentImageLimit([...historyFiles, ...(parts ?? [])], model, agentType, { routed: true })
 }
 
 export type ValidatedAgentDispatch = {
@@ -202,7 +228,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
     // Fail closed before any DB writes: an over-limit turn never commits a
     // user row or a pending assistant row without a stream to settle it.
-    assertDispatchImageLimit(uniqueModelId, userMessageParts, agent.type)
+    // History-inclusive: a text-only continuation that must replay saved
+    // workspace images rejects here, before rows are committed and the ack
+    // clears the draft.
+    assertDispatchImageLimit(uniqueModelId, userMessageParts, agent.type, {
+      sessionId,
+      parentMessageId
+    })
     return {
       sessionId,
       parentMessageId,
@@ -402,7 +434,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
           // model while preparing. Failing here rolls back the branch
           // replacement, so an over-limit edit leaves the original rows intact
           // instead of committing a replacement with no stream to settle it.
-          assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
+          // History-inclusive so a text-only edit that must replay workspace
+          // images also rolls back before committing.
+          assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, {
+            sessionId: validated.sessionId,
+            parentMessageId: validated.parentMessageId,
+            db: tx
+          })
           const result = this.persistDispatchTx(
             tx,
             validated,
@@ -496,8 +534,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     // Re-check after `await prepareBranch` for the same reason: fail before
-    // committing the user + pending assistant rows.
-    assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
+    // committing the user + pending assistant rows. History-inclusive so a
+    // text-only continuation that must replay saved workspace images rejects
+    // before the ack that would clear the draft.
+    assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, {
+      sessionId: validated.sessionId,
+      parentMessageId: validated.parentMessageId
+    })
     const persisted = application.get('DbService').withWriteTx((tx) => {
       ctx?.beforePersist?.()
       const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)

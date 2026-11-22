@@ -944,6 +944,40 @@ describe('AgentSessionRuntimeService', () => {
       expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'claude-code', { routed: true })).not.toThrow()
       expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'pi', { routed: true })).toThrow(AgentImageLimitError)
     })
+
+    it('permits manual /compact with replayed images on Pi without submitting replay (inv_dae5bb8beabb913b)', () => {
+      // Both Pi drivers short-circuit `/compact` before submission, so the
+      // image gates must not count replay for these turns. `beginTurn` (idle,
+      // systemReminder=false) skips; steers keep validation because the
+      // drivers do not treat them as compact.
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const compactWithImages = {
+        ...userMessage('user-compact'),
+        data: {
+          parts: [{ type: 'text', text: '/compact keep facts' }, imagePart('a.png'), imagePart('b.png')]
+        }
+      }
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        const handle = service.beginTurn({ ...baseTurnInput, agentType, userMessage: compactWithImages })
+        expect(handle.turnId).toBeTruthy()
+      }
+      // Claude has no manual-compact bypass: the same payload still gates.
+      BaseService.resetInstances()
+      const claudeService = new AgentSessionRuntimeService()
+      let error: unknown
+      try {
+        claudeService.beginTurn({
+          ...baseTurnInput,
+          agentType: 'claude-code',
+          userMessage: compactWithImages
+        })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(

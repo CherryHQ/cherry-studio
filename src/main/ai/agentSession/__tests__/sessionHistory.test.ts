@@ -17,7 +17,7 @@ import { prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 import { MessageDataSchema, type CherryMessagePart } from '@shared/data/types/message'
 
 import { applyNativeSubmissionResult, prepareNativeSubmission } from '../nativeSubmission'
-import { readSessionHistory } from '../sessionHistory'
+import { readHistoryFilePartsForImageLimit, readSessionHistory } from '../sessionHistory'
 
 const dbh = setupTestDatabase()
 let head: string
@@ -332,6 +332,25 @@ it('preserves native recovery when existing product history has a resume token',
     .run()
   const current = save('user', [{ type: 'text', text: 'Continue' }])
   expect(await readSessionHistory('session', current.id)).toBeUndefined()
+})
+
+it('collects history file parts for pre-send image validation without the new row', () => {
+  const file = {
+    type: 'file',
+    url: 'file:///workspace/a.png',
+    filename: 'a.png',
+    mediaType: 'image/png'
+  } as unknown as CherryMessagePart
+  const withFile = save('user', [file])
+  const files = readHistoryFilePartsForImageLimit(dbh.db, 'session', withFile.id)
+  expect(files).toContainEqual(file)
+  // Native-anchored branches skip history (admitTurn validates fresh-send only).
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ runtimeResumeToken: 'native-root' })
+    .where(eq(agentSessionMessageTable.id, withFile.id))
+    .run()
+  expect(readHistoryFilePartsForImageLimit(dbh.db, 'session', withFile.id)).toBeUndefined()
 })
 
 it.each(['pi', 'pi-durable', 'claude-code'] as const)(

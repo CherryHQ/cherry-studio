@@ -15,6 +15,7 @@ import {
   countClaudeNativeImageParts,
   countRoutedAgentImageFileParts,
   isAgentImagePart,
+  isManualCompactParts,
   normalizeAgentImageLimitFailure,
   parseUpstreamImageLimit,
   resolveMaxAgentImages
@@ -396,5 +397,17 @@ describe('runtime-specific replay gates (#20030 follow-up)', () => {
     expect(() => assertRuntimeAgentImageLimit(workspaceReplay, single, 'claude-code', { routed: true })).toThrow(
       AgentImageLimitError
     )
+  })
+
+  it('detects manual /compact instructions for Pi replay bypass (inv_dae5bb8beabb913b)', () => {
+    // Both Pi drivers short-circuit on `^/compact` with trimmed text and
+    // return without submitting replay — callers skip replay validation.
+    expect(isManualCompactParts([{ type: 'text', text: '/compact' }])).toBe(true)
+    expect(isManualCompactParts([{ type: 'text', text: '  /compact keep facts  ' }])).toBe(true)
+    expect(isManualCompactParts([{ type: 'text', text: '/compact\nnext' }])).toBe(true)
+    expect(isManualCompactParts([{ type: 'text', text: 'please /compact' }])).toBe(false)
+    expect(isManualCompactParts([{ type: 'text', text: 'hello' }])).toBe(false)
+    expect(isManualCompactParts([])).toBe(false)
+    expect(isManualCompactParts(undefined)).toBe(false)
   })
 })
