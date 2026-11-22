@@ -47,13 +47,19 @@ export function readActiveOverrideManifest(): CatalogManifest | null {
  * Resolve registry files while keeping provider routing bundled. Models and
  * provider-model metadata switch together only after a complete compatible
  * snapshot is present; a partial snapshot falls back to bundled metadata.
+ * While a snapshot is active the bundled provider-models file stays available
+ * as a fallback: a snapshot published before a provider existed has no rows
+ * for it, and that provider keeps its bundled ones (both preset seeding and
+ * the model list, which stale-model cleanup compares against, read them).
  */
 export function resolveRegistryPaths(): RegistryPaths {
   const bundled = 'feature.provider_registry.data' as const
-  const modelData = readActiveOverrideManifest() ? 'feature.provider_registry.override' : bundled
+  const snapshotActive = readActiveOverrideManifest() !== null
+  const modelData = snapshotActive ? 'feature.provider_registry.override' : bundled
   return {
     models: application.getPath(modelData, 'models.json'),
     providers: application.getPath(bundled, 'providers.json'),
-    providerModels: application.getPath(modelData, 'provider-models.json')
+    providerModels: application.getPath(modelData, 'provider-models.json'),
+    ...(snapshotActive ? { bundledProviderModels: application.getPath(bundled, 'provider-models.json') } : {})
   }
 }
