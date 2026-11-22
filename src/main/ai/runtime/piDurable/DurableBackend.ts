@@ -37,6 +37,7 @@ export interface DurableRoot {
     event(event: AgentRuntimeEvent): void
     behavior(event: BehaviorEvent): void
     usage: Parameters<typeof createPiGatewayModelBinding>[3]
+    retry: Parameters<typeof createPiGatewayModelBinding>[5]
     placed(input: string | undefined): void
   }
 }
@@ -113,6 +114,7 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
+          settings: { retry: { enabled: false } },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {
@@ -201,7 +203,8 @@ export class DurableBackend {
         desktop.snapshot.provider,
         desktop.snapshot.model,
         (...args) => host.sink?.usage?.(...args),
-        this.models
+        this.models,
+        (...args) => host.sink?.retry?.(...args)
       )
       this.models = binding.modelRuntime
       const behavior = await createPiBehaviorHost({
@@ -217,7 +220,8 @@ export class DurableBackend {
             providerService.getByProviderId(model.providerId),
             model,
             (...args) => host.sink?.usage?.(...args),
-            this.models
+            this.models,
+            (...args) => host.sink?.retry?.(...args)
           ),
         emit: (event) => host.sink?.event(event),
         observe: (event) => host.sink?.behavior(event),
@@ -324,8 +328,7 @@ export class DurableBackend {
     return {
       approvals: {
         facts: (call, tool) => host(call.thread).approvals.facts(call, tool),
-        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal),
-        outcomes: (thread, calls) => host(thread).approvals.outcomes(thread, calls)
+        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal)
       },
       questions: { ask: (request, signal) => host(request.call.thread).questions.ask(request, signal) },
       models: {

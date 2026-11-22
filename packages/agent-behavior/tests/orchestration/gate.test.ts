@@ -75,7 +75,6 @@ describe('tool gate', () => {
     await w.fake.settle()
     const [result] = toolResults(await w.read(t))
     expect(result).toMatchObject({ isError: true, text: expect.stringContaining(ASK_WITHDRAWN) })
-    expect(await w.host.approvals.outcomes(t, [])).toEqual([])
     expect(JSON.stringify(w.fake.persistentLog())).not.toContain(`cherry.approval:${result.callKey}`)
   })
 

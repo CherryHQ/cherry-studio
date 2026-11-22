@@ -25,7 +25,6 @@ type HostPortMethod = { [P in keyof HostPorts]: `${P}.${Extract<keyof HostPorts[
 const HOST_PORT_METHODS = [
   'approvals.facts',
   'approvals.ask',
-  'approvals.outcomes',
   'questions.ask',
   'models.find',
   'models.current',

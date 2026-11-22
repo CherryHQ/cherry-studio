@@ -23,6 +23,8 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { taskCompactionPercent } from '../taskCompaction'
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
   if (!value || typeof value !== 'object') return value
@@ -44,6 +46,7 @@ export interface PiConnectionSnapshot {
   linkedChannel: NotifyChannel | null
   effectiveLanguage: string | null
   mcpInstructions?: string
+  compactionPercent?: number
   signature: string
 }
 
@@ -67,7 +70,7 @@ export async function capturePiConnectionSnapshot(
   requestedModelId?: UniqueModelId,
   selectedKnowledgeBaseIds?: readonly string[]
 ): Promise<PiConnectionSnapshot> {
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   const agent = agentService.getAgent(agentId)
   // A cleared agent default still routes when the caller passes the session's
   // own override — only a session with no effective model is unroutable.
@@ -107,12 +110,14 @@ export async function capturePiConnectionSnapshot(
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const compactionPercent = taskCompactionPercent(session)
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
         stableValue({
           agent: { ...agent, updatedAt: undefined, configuration },
           session: { workspaceId: session.workspaceId, workspace: session.workspace },
+          compactionPercent,
           modelId,
           provider,
           model,
@@ -136,6 +141,7 @@ export async function capturePiConnectionSnapshot(
 
   return {
     agent,
+    compactionPercent,
     session,
     provider,
     model,

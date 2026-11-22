@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { oauthWithCherryIn } from '@renderer/services/oauth'
+import { CHERRYIN_API_KEY_URL, oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -68,7 +68,6 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const hasKeys = provider ? hasApiKeys(provider) : false
   const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
-  const isOAuthLoggedIn = hasKeys && hasOAuthToken
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
@@ -84,12 +83,12 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [])
 
   useEffect(() => {
-    if (isOAuthLoggedIn) {
+    if (hasOAuthToken) {
       void fetchData()
     } else {
       setBalanceInfo(null)
     }
-  }, [fetchData, isOAuthLoggedIn])
+  }, [fetchData, hasOAuthToken])
 
   useEffect(() => {
     if (oauthTokenOverride !== null && remoteHasOAuthToken !== null && remoteHasOAuthToken === oauthTokenOverride) {
@@ -117,7 +116,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     signInRequestIdRef.current = requestId
     setIsLoggingIn(true)
     try {
-      await oauthWithCherryIn(
+      const apiKeys = await oauthWithCherryIn(
         async (apiKeys: string) => {
           const keys = apiKeys
             .split(',')
@@ -126,18 +125,19 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
           await Promise.all(keys.map((key) => addApiKey(key, 'OAuth')))
           await updateProvider({ isEnabled: true })
-          setOauthTokenOverride(true)
-          void refreshHasToken()
-          await fetchData()
-          toast.success(t('auth.get_key_success'))
         },
         {
           oauthServer: CHERRYIN_OAUTH_SERVER,
           requestId
         }
       )
+      setOauthTokenOverride(true)
+      void refreshHasToken()
+      if (hasOAuthToken) void fetchData()
+      if (apiKeys) toast.success(t('auth.get_key_success'))
     } catch (error) {
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+      void refreshHasToken()
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
     } finally {
@@ -146,7 +146,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         setIsLoggingIn(false)
       }
     }
-  }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
+  }, [addApiKey, fetchData, hasOAuthToken, refreshHasToken, t, updateProvider])
 
   const handleCancelLogin = useCallback(async () => {
     const requestId = signInRequestIdRef.current
@@ -207,7 +207,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     return null
   }
 
-  if (remoteHasOAuthToken === null && hasKeys) {
+  if (remoteHasOAuthToken === null && oauthTokenOverride === null) {
     return (
       <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
@@ -219,7 +219,24 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     )
   }
 
-  if (!isOAuthLoggedIn) {
+  const authorizeActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant={hasOAuthToken ? 'outline' : 'emphasis'}
+        onClick={handleOAuthLogin}
+        disabled={isLoggingIn || isLoggingOut}>
+        {isLoggingIn ? <RefreshCw className="size-4 animate-spin" aria-hidden /> : null}
+        {t('settings.provider.oauth.cherryIn.login_button')}
+      </Button>
+      {isLoggingIn ? (
+        <Button variant="outline" onClick={handleCancelLogin} disabled={isCancellingLogin}>
+          {t('common.cancel')}
+        </Button>
+      ) : null}
+    </div>
+  )
+
+  if (!hasOAuthToken) {
     return (
       <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
@@ -235,17 +252,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="emphasis" onClick={handleOAuthLogin} disabled={isLoggingIn}>
-                {isLoggingIn ? <RefreshCw className="size-4 animate-spin" aria-hidden /> : null}
-                {t('settings.provider.oauth.cherryIn.login_button')}
-              </Button>
-              {isLoggingIn ? (
-                <Button variant="outline" onClick={handleCancelLogin} disabled={isCancellingLogin}>
-                  {t('common.cancel')}
-                </Button>
-              ) : null}
-            </div>
+            {authorizeActions}
           </div>
         </div>
       </div>
@@ -294,13 +301,24 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
             </Button>
             <Button
               className={cn(oauthCardClasses.logoutCompact, 'h-7 px-2 py-0 text-muted-foreground')}
-              disabled={isLoggingOut}
+              disabled={isLoggingOut || isLoggingIn}
               onClick={handleLogout}
               variant="ghost">
               {t('settings.provider.oauth.logout')}
             </Button>
           </div>
         </div>
+        {!hasKeys ? (
+          <div className="mt-3 flex flex-col items-start gap-2 border-border border-t pt-3">
+            <p className="text-sm">{t('settings.provider.oauth.cherryIn.missing_keys')}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => void openExternalWebsite(CHERRYIN_API_KEY_URL)}>
+                {t('settings.provider.get_api_key')}
+              </Button>
+              {authorizeActions}
+            </div>
+          </div>
+        ) : null}
         <p className={cn(oauthCardClasses.serviceAttribution, 'text-muted-foreground')}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"

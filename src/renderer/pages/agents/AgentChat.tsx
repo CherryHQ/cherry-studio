@@ -59,6 +59,7 @@ import {
   useAgentRightPaneActions
 } from './components/AgentRightPane'
 import { AgentSessionMetricsBar } from './components/AgentSessionMetricsBar'
+import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -101,12 +102,25 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
+  session?: Pick<AgentSessionEntity, 'id' | 'name'>
+}
 
-function AgentTopBarControls(props: AgentTopBarControlsProps) {
+function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <>
+      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+      {session && !iconOnly ? (
+        <AgentSessionNameControl
+          sessionId={session.id}
+          sessionName={session.name}
+          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
+        />
+      ) : null}
+    </>
+  )
 }
 
 interface AgentChatProps {
@@ -481,6 +495,7 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
+              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
