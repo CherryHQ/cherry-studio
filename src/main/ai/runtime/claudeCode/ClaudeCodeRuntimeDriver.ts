@@ -166,7 +166,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   /** Submitted native image-block counts for provider result-boundary normalization. */
   private pendingImageCounts: Array<{ inputId: string; count: number }> = []
-  /** Native placement signal (`input-boundary`): which submitted inputs the SDK has placed. */
+  /** Native placement signal (`input-boundary` steers + `placed` follow-ups): which submitted inputs the SDK has placed. */
   private placedImageInputIds = new Set<string>()
   /** Last submitted image count (legacy single-value view of the pending queue). */
   private lastImageCount?: number
@@ -394,9 +394,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /**
    * Record the actual submitted native image blocks (including replayed history)
    * so the provider `result` boundary can correlate a limit failure with native
-   * request membership. Queued so a text-only steer cannot overwrite a pending
+   * request membership. Queued so a text-only steer does not overwrite a pending
    * image count before native placement. Entries carry their product input id so
-   * `input-boundary` placement can retire exactly the placed requests.
+   * native placement (steer `input-boundary` + follow-up `placed` facts) can
+   * retire exactly the placed requests.
    */
   private recordSubmittedImageCount(
     content: SDKUserMessage['message']['content'],
@@ -415,12 +416,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   /**
    * Consume the pending image count that best matches a provider `result`
-   * failure using native placement membership (`input-boundary`).
+   * failure using native placement membership (steer `input-boundary` plus
+   * follow-up `placed` facts).
    * Only placed inputs can have failed: unplaced steers stay queued and the
    * provider's own limit text is kept when the placed count cannot explain the
    * failure (e.g. a text-only request that grew via tools after submission).
-   * Returns undefined when no pending submission exists or when attribution is
-   * unknown.
+   * Settled inputs are retired even when the count is unknown so stale counts
+   * are not reused. Returns undefined when no pending submission exists or
+   * when attribution is unknown.
    */
   private consumeImageCountForResult(failure: unknown): number | undefined {
     if (this.pendingImageCounts.length === 0) return this.lastImageCount
@@ -640,7 +643,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         const changed = await projection.accept(batch.events, refresh)
         for (const event of batch.events) {
           const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
-          for (const input of inputs) bindNativeInput(this.input.sessionId, contextId, input)
+          for (const input of inputs) {
+            const messageId = bindNativeInput(this.input.sessionId, contextId, input)
+            // Native placement for image attribution must include ordinary
+            // follow-up sends, not just steers: the adapter emits
+            // `input-boundary` only for steers, but every placed input carries
+            // the `placed` fact (see owner `requesting` membership). Track it
+            // here so a two-PNG follow-up failure attributes to its own count
+            // instead of falling back to a generic error.
+            const placedId = messageId ?? input.inputId
+            if (placedId && input.facts.includes('placed')) {
+              if (input.outcome) this.placedImageInputIds.delete(placedId)
+              else this.placedImageInputIds.add(placedId)
+            } else if (placedId && input.outcome) {
+              this.placedImageInputIds.delete(placedId)
+            }
+          }
         }
         const snapshot = batch.events.some((event) => event.type === 'snapshot')
         const live = changed.filter((message) => batch.live?.includes(message.id)).map((message) => message.id)
@@ -1223,15 +1241,20 @@ export function consumePendingImageCount(pending: number[], failure: unknown): n
 /**
  * Membership-aware result attribution for the Claude driver (#20030).
  * `pending` holds submitted inputs in order with their product input ids;
- * `placed` is the native `input-boundary` membership (0.3.311 `requesting`
- * signal): only placed inputs share the native response that failed.
+ * `placed` is native request membership: `input-boundary` steers plus
+ * ordinary follow-up sends observed via their `placed` fact (0.3.311
+ * `requesting` signal). Only placed inputs share the native response that
+ * failed.
  *
  * - Limit failures: the oldest placed over-limit entry wins and is retired;
- *   unplaced steers are never reported as sent. When the oldest placed entry
- *   cannot explain the failure (text-only `0` or within-limit images that may
- *   have grown via tools after submission), the actual sent count is unknown —
- *   preserve the queue and return `undefined` so the caller keeps the
- *   provider's own limit text.
+ *   unplaced steers are never reported as sent. When no placement has been
+ *   observed yet (e.g. the result arrives before the membership batch), fall
+ *   back to oldest-first over-limit attribution so an ordinary two-image
+ *   follow-up still yields typed detail. When the oldest placed entry cannot
+ *   explain the failure (text-only `0` or within-limit images that may have
+ *   grown via tools after submission), the actual sent count is unknown —
+ *   retire that settled input but return `undefined` so the caller keeps the
+ *   provider's own limit text while preserving unplaced steers.
  * - Unrelated failures (no parsed limit): settle the oldest placed entry
  *   (FIFO among placed, matching turn-complete), preserving unplaced steers
  *   for the next limit failure. With no placement observed, falls back to the
@@ -1256,7 +1279,28 @@ export function consumePlacedImageCount(
   const limit = parseUpstreamImageLimit(message)
   if (limit !== undefined) {
     const placedInOrder = pending.filter((entry) => placed.has(entry.inputId))
-    if (placedInOrder.length === 0) return undefined
+    if (placedInOrder.length === 0) {
+      // No native membership observed yet (ordinary follow-up before the
+      // `requesting` batch propagates): attribute oldest-first so a two-image
+      // follow-up with a one-image cap still yields typed after-send detail.
+      // A leading text-only `0` can never trip the cap, so skip it to reach
+      // the placed image request it precedes.
+      if (pending[0].count > limit) {
+        const [removed] = pending.splice(0, 1)
+        placed.delete(removed.inputId)
+        return removed.count
+      }
+      if (pending[0].count === 0) {
+        for (let i = 1; i < pending.length; i++) {
+          if (pending[i].count > limit) {
+            const [removed] = pending.splice(i, 1)
+            placed.delete(removed.inputId)
+            return removed.count
+          }
+        }
+      }
+      return undefined
+    }
     const first = placedInOrder[0]
     if (first.count > limit) {
       const index = pending.findIndex((entry) => entry.inputId === first.inputId)
@@ -1265,8 +1309,13 @@ export function consumePlacedImageCount(
       return removed.count
     }
     // Oldest placed cannot explain the cap (text-only that grew via tools, or
-    // within-limit images that grew): actual sent count unknown. Preserve the
-    // queue, notably any unplaced steer's count.
+    // within-limit images that grew): actual sent count unknown. Retire the
+    // settled input so a stale count is not reused, but preserve the queue
+    // (notably any unplaced steer's count) and return undefined so the caller
+    // keeps the provider's limit text.
+    const index = pending.findIndex((entry) => entry.inputId === first.inputId)
+    if (index !== -1) pending.splice(index, 1)
+    placed.delete(first.inputId)
     return undefined
   }
   const placedIndex = pending.findIndex((entry) => placed.has(entry.inputId))

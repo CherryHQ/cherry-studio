@@ -782,7 +782,8 @@ describe('Claude image-limit result boundary (#20030)', () => {
   it('retires by native placement so an unplaced steer is never reported as sent (inv_848be20f7e82a473)', async () => {
     // Text-only placed request grows via tools past a one-image cap while a
     // five-image steer awaits placement: pending [{0 placed}, {5 unplaced}]
-    // must preserve the queue and keep the provider text, not report five.
+    // must retire the settled placed input but keep the provider text (not
+    // report five), preserving the unplaced steer for the next limit.
     const { consumePlacedImageCount, normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
     const pending = [
       { inputId: 'a', count: 0 },
@@ -795,10 +796,8 @@ describe('Claude image-limit result boundary (#20030)', () => {
       new Error('At most 1 image(s) may be provided in one prompt')
     )
     expect(count).toBeUndefined()
-    expect(pending).toEqual([
-      { inputId: 'a', count: 0 },
-      { inputId: 'b', count: 5 }
-    ])
+    expect(pending).toEqual([{ inputId: 'b', count: 5 }])
+    expect(placed.has('a')).toBe(false)
     expect(
       normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
     ).toBeUndefined()
@@ -829,5 +828,55 @@ describe('Claude image-limit result boundary (#20030)', () => {
     const { consumePlacedImageCount: consume3 } = await import('../ClaudeCodeRuntimeDriver')
     expect(consume3(pending3, placed3, new Error('boom'))).toBe(5)
     expect(pending3).toEqual([{ inputId: 'b', count: 0 }])
+  })
+
+  it('attributes an ordinary follow-up via placed membership and retires unknown counts (inv_5330d70c89ab369d)', async () => {
+    // Ordinary follow-up (non-steer) sends carry no `input-boundary`: the
+    // driver learns placement from the `placed` fact. A two-PNG follow-up
+    // that fails with a one-image cap must yield typed after-send detail.
+    const { consumePlacedImageCount, normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+    const followup = [{ inputId: 'followup', count: 2 }]
+    const followupPlaced = new Set(['followup'])
+    const followupCount = consumePlacedImageCount(
+      followup,
+      followupPlaced,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(followupCount).toBe(2)
+    expect(followup).toEqual([])
+    expect(followupPlaced.has('followup')).toBe(false)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, followupCount)
+    ).toMatchObject({ limit: 1, count: 2, sent: true })
+
+    // Same follow-up when the membership batch has not propagated yet: fall
+    // back to oldest-first over-limit attribution instead of a generic error.
+    const late = [{ inputId: 'followup', count: 2 }]
+    const latePlaced = new Set<string>([])
+    expect(
+      consumePlacedImageCount(late, latePlaced, new Error('At most 1 image(s) may be provided in one prompt'))
+    ).toBe(2)
+    expect(late).toEqual([])
+
+    // Unknown exact count (placed request grew via tools after submission):
+    // retire the settled placed input but preserve the unplaced steer and
+    // keep the provider text.
+    const pending = [
+      { inputId: 'a', count: 1 },
+      { inputId: 'b', count: 5 }
+    ]
+    const placed = new Set(['a'])
+    const count = consumePlacedImageCount(
+      pending,
+      placed,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(count).toBeUndefined()
+    expect(pending).toEqual([{ inputId: 'b', count: 5 }])
+    expect(placed.has('a')).toBe(false)
+    expect(placed.has('b')).toBe(false)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
+    ).toBeUndefined()
   })
 })
