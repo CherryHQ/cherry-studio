@@ -65,7 +65,7 @@ const logger = loggerService.withContext('agentSessionWarmup')
 
 const claudeCodeEffortSchema = z
   .enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-  .transform((effort): Options['effort'] => (effort === 'ultra' ? 'max' : effort))
+  .transform((effort): Options['effort'] => (effort === 'ultra' ? undefined : effort))
   .optional()
 
 const claudeCodeThinkingSchema = z
