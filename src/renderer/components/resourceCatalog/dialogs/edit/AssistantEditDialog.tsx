@@ -29,6 +29,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CompressionWindowField } from '@renderer/components/CompressionWindowField'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -51,7 +52,7 @@ import {
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { isValidCompressionWindow, clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { AssistantAvatarPicker } from '../components/AssistantAvatarPicker'
@@ -105,6 +106,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
+  contextCompressWindow?: number | null
   contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
@@ -146,6 +148,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
+    contextCompressWindow: form.contextCompressWindow,
     contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
@@ -186,6 +189,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
+    contextCompressWindow: values.contextCompressWindow,
     contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
@@ -527,7 +531,7 @@ function AssistantBasicFields({
   }
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+    <div className="divide-y divide-border-subtle border-b border-border-subtle [&>*:first-child]:pt-0">
       <div className={editDialogFormRowClassName}>
         <span className={editDialogFormRowLabelClassName}>{t('common.avatar')}</span>
         <AssistantAvatarPicker
@@ -692,7 +696,7 @@ function AssistantToolsFields({
         render={() => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
+              <FormLabel className="text-[13px] font-normal">{mcpModeLabel}</FormLabel>
               <FormControl>
                 <SegmentedControl<AssistantFormState['mcpMode']>
                   size="sm"
@@ -755,6 +759,7 @@ function AssistantAdvancedFields({
   // an assistant that has none stored yet.
   const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
   const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const [globalCompressWindow] = usePreference('chat.context_settings.compress_window')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
@@ -771,7 +776,7 @@ function AssistantAdvancedFields({
   ]
 
   return (
-    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
+    <div className="divide-y divide-border-subtle [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
@@ -782,7 +787,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="temperature"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
+            <div className="mt-3 -mb-2 w-full">
               <Slider
                 min={0}
                 max={2}
@@ -807,7 +812,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="topP"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
+            <div className="mt-3 -mb-2 w-full">
               <Slider
                 min={0}
                 max={1}
@@ -923,6 +928,7 @@ function AssistantAdvancedFields({
           enabled: globalContextEnabled,
           compressEnabled: globalCompressEnabled,
           maxMessages: globalMaxMessages,
+          compressWindow: globalCompressWindow,
           truncateThreshold: globalTruncateThreshold,
           compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
@@ -964,6 +970,7 @@ function ContextManagementFields({
     compressEnabled: boolean
     truncateThreshold: number
     maxMessages: number | null
+    compressWindow: number | null
     compressThreshold: number
     compressModelId: string | null
   }
@@ -974,6 +981,9 @@ function ContextManagementFields({
   // override is customized — an ON→OFF→ON round trip on a stored override must
   // preserve the saved values.
   const hadStoredOverride = useRef(values.contextOverrideEnabled)
+  const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
+  const effectiveWindow =
+    values.contextCompressWindow === undefined ? globalDefaults.compressWindow : values.contextCompressWindow
 
   const onOverrideToggle = (checked: boolean) => {
     if (checked && !hadStoredOverride.current) {
@@ -992,8 +1002,18 @@ function ContextManagementFields({
         render={({ field }) => (
           <FormItem>
             <FieldLabelWithHelp
-              label={t('library.config.basic.context_count')}
-              help={t('library.config.basic.field.context_count.hint')}
+              label={
+                effectiveWindow == null ||
+                !isValidCompressionWindow(values.contextMaxMessages ?? globalDefaults.maxMessages, effectiveWindow)
+                  ? t('library.config.basic.context_count')
+                  : t('settings.models.context_management.window_recent')
+              }
+              help={
+                effectiveWindow == null ||
+                !isValidCompressionWindow(values.contextMaxMessages ?? globalDefaults.maxMessages, effectiveWindow)
+                  ? t('library.config.basic.field.context_count.hint')
+                  : t('settings.models.context_management.window_description')
+              }
             />
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
@@ -1006,13 +1026,36 @@ function ContextManagementFields({
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }
                 className="h-8 rounded-lg px-2.5"
-                value={field.value}
-                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
+                value={recentDraft === undefined ? field.value : recentDraft}
+                onBlur={(value) => {
+                  const next = value === null ? null : Math.floor(value)
+                  if (!isValidCompressionWindow(next ?? globalDefaults.maxMessages, effectiveWindow)) {
+                    setRecentDraft(next)
+                    form.setError('contextMaxMessages', {
+                      message: t('settings.models.context_management.window_invalid')
+                    })
+                    return
+                  }
+                  setRecentDraft(undefined)
+                  form.clearErrors('contextMaxMessages')
+                  field.onChange(next)
+                }}
               />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
+      />
+
+      <CompressionWindowField
+        value={values.contextCompressWindow}
+        recent={values.contextMaxMessages ?? globalDefaults.maxMessages}
+        inherited={globalDefaults.compressWindow ?? null}
+        onChange={(value) => {
+          form.clearErrors('contextMaxMessages')
+          setRecentDraft(undefined)
+          form.setValue('contextCompressWindow', value, { shouldDirty: true })
+        }}
       />
 
       <ToggleFieldGroup
@@ -1024,14 +1067,14 @@ function ContextManagementFields({
       {!globalDefaults.enabled ? (
         // Stored but inert while the global master switch is off — say so
         // rather than showing live-looking controls.
-        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+        <div className="-mt-2 text-xs leading-5 text-muted-foreground">
           {t('library.config.basic.context_globally_disabled')}
         </div>
       ) : null}
       {!values.contextOverrideEnabled && globalDefaults.enabled ? (
         // Name what is being inherited: the values only become visible once the
         // override is on, so without this the user overrides a blank.
-        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+        <div className="-mt-2 text-xs leading-5 text-muted-foreground">
           {t('library.config.basic.context_inherited', {
             compress: globalDefaults.compressEnabled
               ? t('library.config.basic.context_inherited_compress_on')
@@ -1181,7 +1224,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-xs text-muted-foreground">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
@@ -1378,7 +1421,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
+          {jsonInvalid ? <p className="mt-1 text-xs text-error">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>

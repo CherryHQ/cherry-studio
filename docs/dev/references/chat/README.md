@@ -136,7 +136,7 @@ live in `src/shared/data/preference/preferenceSchemas.ts`.
 | `chat.context_settings.enabled` | `true` | Master toggle for the context-build layer |
 | `chat.context_settings.truncate_threshold` | `50000` characters | Size above which eligible oversized tool-output text or codec fields are offloaded into stored-output references; outputs with an exemption, or an offload that fails, keep their full content |
 | `chat.context_settings.max_messages` | `null` (unlimited) | Selects the last N message rows, extending backward when the drop point would not begin on a user message, so the served history can exceed N; a valid compression window opts into round counting instead |
-| `chat.context_settings.compress_window` | `null` (off) | Backend-only total round window B; when greater than the positive integer `max_messages` A, summarize the middle rounds and retain the latest A rounds verbatim |
+| `chat.context_settings.compress_window` | `null` (off) | Optional total round window B; when greater than the positive integer `max_messages` A, summarize the middle rounds and retain the latest A rounds verbatim |
 | `chat.context_settings.compress.enabled` | `true` | Enables history compression when the context budget is exceeded |
 | `chat.context_settings.compress.model_id` | `null` | Uses the current request model; a blank string also means no explicit pick, not a disabled compressor |
 | `chat.context_settings.compress.threshold_percent` | `80` | Percentage of available input room used as the compaction trigger |
@@ -148,14 +148,19 @@ at merge time. `max_messages` is independent of the master toggle: it bounds how
 much history is sent, not what happens on overflow.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
 
-### Optional compression window, backend layer
+### Optional compression window
 
-The mode is off by default and has no Settings control yet. The global
-`compress_window` preference and per-assistant `contextSettings.compressWindow`
-use `null` to disable it. An absent or `undefined` assistant value inherits the
-global value; an explicit `null` disables a finite global window. Existing
-assistant-form context edits preserve that stored value until its own controls
-are delivered.
+The mode is off by default. General Settings exposes a compression-window switch and
+round input. Enabling requires a positive recent-round limit A and total window B > A.
+Invalid edits remain visible with an explicit error but are not persisted; changing or
+clearing A cannot invalidate an enabled B. The recent limit is labeled in rounds while
+the mode is active, and the description explains its per-request model cost and fallback.
+The window controls remain outside the overflow-policy master switch.
+
+The global `compress_window` preference and per-assistant `contextSettings.compressWindow`
+use `null` to disable it. The assistant editor offers Custom, Off and Follow global;
+these controls persist independently of the offload/compression override. An absent or
+`undefined` assistant value inherits the global value; explicit `null` disables it.
 
 With valid positive integer A = `maxMessages` and integer B = `compressWindow`
 greater than A, history is counted in rounds. Each user row starts a round,
@@ -179,7 +184,7 @@ the summary names files and stored outputs in the summarized middle. On fallback
 access is limited to the actually served A rounds. This is separate from ordinary
 budget-triggered compaction and does not apply to temporary Chat or Agent/Work
 sessions. The Settings controls and UI validation remain a later layer of
-[the proposed Spec](../../../../.agents/notes/proposed/feature/2026-11-17-content-compression-window.md).
+[the proposed Spec](../../../../.agents/notes/implemented/feature/2026-11-17-content-compression-window.md).
 
 ### Budget with a declared window
 

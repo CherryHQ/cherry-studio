@@ -56,6 +56,8 @@ export interface AssistantFormState {
    * not what happens when the context overflows, and it persists on its own.
    */
   contextMaxMessages: number | null
+  /** undefined inherits, null explicitly disables the global compression window. */
+  contextCompressWindow?: number | null
   /**
    * Compact once the prompt passes this percent of the available input context.
    * null = inherit the global trigger — same three-state contract as
@@ -100,6 +102,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
+    contextCompressWindow: ctx?.compressWindow,
     contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
@@ -152,6 +155,7 @@ export function diffAssistantUpdate(
     // Always compared: the scope control persists whether or not the
     // offload/compression override is on.
     baseline.contextMaxMessages !== form.contextMaxMessages ||
+    baseline.contextCompressWindow !== form.contextCompressWindow ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&
@@ -160,7 +164,7 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
-  const storedWindow = assistant.settings?.contextSettings?.compressWindow
+  const storedWindow = form.contextCompressWindow
   const scopeOverride = {
     ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
     ...(storedWindow !== undefined ? { compressWindow: storedWindow } : {})

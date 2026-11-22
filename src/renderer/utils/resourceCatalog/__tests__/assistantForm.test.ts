@@ -422,6 +422,26 @@ describe('context-management override (P2-D)', () => {
   })
 })
 
+describe('compression window edits', () => {
+  it('saves a custom window and explicit off without enabling overflow overrides', () => {
+    const assistant = createAssistant()
+    const baseline = initialAssistantFormState(assistant)
+    for (const value of [12, null]) {
+      const result = diffAssistantUpdate({ ...baseline, contextCompressWindow: value }, baseline, assistant)
+      expect(result?.dto.settings?.contextSettings).toEqual({ compressWindow: value })
+    }
+  })
+
+  it('removes the window override to resume global inheritance without losing the recent limit', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 3, compressWindow: null } }
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const result = diffAssistantUpdate({ ...baseline, contextCompressWindow: undefined }, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toEqual({ maxMessages: 3 })
+  })
+})
+
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })

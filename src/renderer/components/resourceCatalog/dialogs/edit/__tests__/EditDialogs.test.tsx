@@ -350,6 +350,15 @@ vi.mock('react-i18next', async (importOriginal) => {
       // an object resolves to the mapped value / key, never to itself.
       t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
         ({
+          'settings.models.context_management.window_enabled': 'Compression window',
+          'settings.models.context_management.window_rounds': 'Total retained rounds (B)',
+          'settings.models.context_management.window_recent': 'Recent verbatim rounds (A)',
+          'settings.models.context_management.window_inherit': 'Follow global',
+          'settings.models.context_management.window_off': 'Off',
+          'settings.models.context_management.window_custom': 'Custom',
+          'settings.models.context_management.window_invalid':
+            'Set a positive whole-number recent limit A and a whole-number window B greater than A.',
+
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           // Permission-mode titles intentionally absent: they fall through to the card
@@ -1947,6 +1956,51 @@ describe('edit dialogs', () => {
 
     expect(input).toHaveValue('5')
   })
+
+  // The three states must survive the real dialog's debounced PATCH boundary.
+  it('auto-saves custom, off, and inherited compression windows as distinct settings', async () => {
+    const previousRecent = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.max_messages')
+    const previousWindow = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.compress_window')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 3)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', 8)
+      const user = userEvent.setup()
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+      selectTab('Model')
+      const choose = async (name: string) => {
+        await user.click(screen.getByRole('combobox', { name: 'Compression window' }))
+        await user.click(await screen.findByRole('option', { name, exact: true }))
+      }
+      await choose('Custom')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: 8 } } }
+        })
+      )
+      const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+      await user.clear(rounds)
+      await user.type(rounds, '11')
+      await user.tab()
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: 11 } } }
+        })
+      )
+      await choose('Off')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: null } } }
+        })
+      )
+      await choose('Follow global')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { settings: { contextSettings: null } } })
+      )
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', previousRecent)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', previousWindow)
+    }
+  }, 10_000)
 
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)

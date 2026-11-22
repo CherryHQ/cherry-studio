@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -12,6 +12,7 @@ import {
   HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CompressionWindowField } from '@renderer/components/CompressionWindowField'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
@@ -31,7 +32,7 @@ import {
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { isValidCompressionWindow, clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
@@ -56,6 +57,13 @@ export const ContextManagementSettings = () => {
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const [compressWindow, setCompressWindow] = usePreference('chat.context_settings.compress_window')
+  const [invalidRecent, setInvalidRecent] = useState(false)
+  const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
+  const recentLabel =
+    compressWindow == null || !isValidCompressionWindow(maxMessages, compressWindow)
+      ? t('settings.models.context_management.max_messages')
+      : t('settings.models.context_management.window_recent')
   const [truncateThreshold, setTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [compressEnabled, setCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [compressModelId, setCompressModelId] = usePreference('chat.context_settings.compress.model_id')
@@ -84,22 +92,54 @@ export const ContextManagementSettings = () => {
       <SettingRow id="setting-general-context-max-messages" className="scroll-mt-6">
         <div className="min-w-0 flex-1">
           <SettingRowTitleWithTooltip
-            title={t('settings.models.context_management.max_messages')}
-            description={t('settings.models.context_management.max_messages_description')}
+            title={recentLabel}
+            description={
+              compressWindow == null || !isValidCompressionWindow(maxMessages, compressWindow)
+                ? t('settings.models.context_management.max_messages_description')
+                : t('settings.models.context_management.window_description')
+            }
           />
         </div>
-        <div className={settingsControlClasses.field}>
+        <div className="w-28 shrink-0 sm:w-60">
           <InputNumber
             min={1}
             step={1}
-            aria-label={t('settings.models.context_management.max_messages')}
+            aria-label={recentLabel}
+            aria-invalid={invalidRecent || undefined}
             placeholder={t('settings.models.context_management.max_messages_unlimited')}
             className="h-8 rounded-lg px-2.5"
-            value={maxMessages}
-            onBlur={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
+            value={recentDraft === undefined ? maxMessages : recentDraft}
+            onBlur={(value) => {
+              const next = value === null ? null : Math.floor(value)
+              if (!isValidCompressionWindow(next, compressWindow)) {
+                setInvalidRecent(true)
+                setRecentDraft(next)
+                return
+              }
+              setInvalidRecent(false)
+              setRecentDraft(undefined)
+              return setMaxMessages(next)
+            }}
           />
         </div>
       </SettingRow>
+      {invalidRecent && (
+        <p role="alert" className="text-xs text-destructive">
+          {t('settings.models.context_management.window_invalid')}
+        </p>
+      )}
+      <SettingDivider />
+      <div id="setting-general-context-compress-window" className="scroll-mt-6">
+        <CompressionWindowField
+          value={compressWindow}
+          recent={maxMessages}
+          onChange={(value) => {
+            setInvalidRecent(false)
+            setRecentDraft(undefined)
+            return setCompressWindow(value ?? null)
+          }}
+        />
+      </div>
       <SettingDivider />
       <SettingRow id="setting-general-context-enabled" className="scroll-mt-6">
         <div className="min-w-0 flex-1">

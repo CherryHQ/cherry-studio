@@ -75,6 +75,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['context count', '上下文数量']
   },
   {
+    anchorId: 'context-compress-window',
+    titleKey: 'settings.models.context_management.window_enabled',
+    groupKey: 'settings.models.context_management.title',
+    aliases: ['compression window', '压缩窗口']
+  },
+  {
     anchorId: 'context-enabled',
     titleKey: 'settings.models.context_management.enabled',
     groupKey: 'settings.models.context_management.title'

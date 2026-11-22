@@ -1,3 +1,5 @@
+import { isValidCompressionWindow } from '@shared/utils/contextSettings'
+
 function roundStart<T extends { role: string }>(messages: T[], rounds: number): number {
   let seen = 0
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -12,14 +14,7 @@ export function splitCompressionWindow<T extends { role: string }>(
   recentRounds: number | null | undefined,
   totalRounds: number | null | undefined
 ): { window: T[]; middle: T[]; recent: T[] } | null {
-  if (
-    recentRounds == null ||
-    totalRounds == null ||
-    !Number.isSafeInteger(recentRounds) ||
-    !Number.isSafeInteger(totalRounds) ||
-    recentRounds < 1 ||
-    totalRounds <= recentRounds
-  ) {
+  if (recentRounds == null || totalRounds == null || !isValidCompressionWindow(recentRounds, totalRounds)) {
     return null
   }
   const start = roundStart(messages, totalRounds)
