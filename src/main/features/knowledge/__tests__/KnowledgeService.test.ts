@@ -116,7 +116,7 @@ const {
 }))
 
 vi.mock('@data/services/KnowledgeChunkGovernanceService', () => ({
-  knowledgeChunkGovernanceService: { listByBase: vi.fn(() => []) }
+  knowledgeChunkGovernanceService: { listByBase: vi.fn(() => []), hasByBase: vi.fn(() => false) }
 }))
 
 vi.mock('@application', async () => {

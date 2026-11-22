@@ -5,8 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { groupTable } from '@data/db/schemas/group'
 import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import {
+  knowledgeChunkGovernanceTable,
+  knowledgeChunkGovernanceHistoryTable
+} from '@data/db/schemas/knowledgeChunkGovernance'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { knowledgeChunkGovernanceService } from '@data/services/KnowledgeChunkGovernanceService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { BaseService } from '@main/core/lifecycle'
 import {
@@ -16,8 +21,12 @@ import {
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
+import { KnowledgeBaseAdminService } from '../base/KnowledgeBaseAdminService'
+import { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
+import { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import type * as KnowledgeItemsModule from '../items'
 
 const {
@@ -160,6 +169,129 @@ describe('KnowledgeService integration', () => {
         error: null
       }
     ])
+  })
+
+  describe('governed base rebuild safety', () => {
+    const source = {
+      baseId: SOURCE_BASE_ID,
+      itemId: SOURCE_ROOT_ITEM_ID,
+      unitId: 'a'.repeat(64),
+      sourceContentHash: 'b'.repeat(64),
+      charStart: 0,
+      charEnd: 12,
+      originalText: 'root content'
+    }
+    const prepare = () => {
+      dbh.db
+        .update(knowledgeBaseTable)
+        .set({ status: 'completed', error: null })
+        .where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
+        .run()
+      dbh.db
+        .update(knowledgeItemTable)
+        .set({ status: 'completed' })
+        .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+        .run()
+    }
+    const dto = { sourceBaseId: SOURCE_BASE_ID, name: 'Rebuilt', embeddingModelId: null, dimensions: null }
+    // Rebuilding changes base/item identity. No accepted decision or its history may silently disappear.
+    it.each(['exclusion', 'label', 'correction', 'retired', 'neutral', 'failed-base'] as const)(
+      'refuses %s records without new rows, jobs or mutation of source evidence',
+      async (kind) => {
+        prepare()
+        const state = {
+          excluded: kind === 'exclusion' || kind === 'retired' || kind === 'failed-base',
+          labels: kind === 'label' ? ['retained'] : [],
+          overrideText: kind === 'correction' ? 'Corrected text' : null
+        }
+        const record = knowledgeChunkGovernanceService.create(source, state)
+        if (kind === 'retired')
+          knowledgeChunkGovernanceService.review({
+            baseId: SOURCE_BASE_ID,
+            itemId: SOURCE_ROOT_ITEM_ID,
+            governanceId: record.id,
+            expectedRevision: 1
+          })
+        if (kind === 'failed-base')
+          dbh.db
+            .update(knowledgeBaseTable)
+            .set({ status: 'failed', error: 'missing_vector_store' })
+            .where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
+            .run()
+        const bases = dbh.db.select().from(knowledgeBaseTable).all(),
+          items = dbh.db.select().from(knowledgeItemTable).all(),
+          records = dbh.db.select().from(knowledgeChunkGovernanceTable).all(),
+          history = dbh.db.select().from(knowledgeChunkGovernanceHistoryTable).all()
+        const service = new KnowledgeService()
+        await expect(service.restoreBase(dto)).rejects.toThrow(/original base and decisions are unchanged/)
+        expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual(bases)
+        expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(items)
+        expect(dbh.db.select().from(knowledgeChunkGovernanceTable).all()).toEqual(records)
+        expect(dbh.db.select().from(knowledgeChunkGovernanceHistoryTable).all()).toEqual(history)
+        expect(getIndexStoreMock).not.toHaveBeenCalled()
+        expect(enqueueMock).not.toHaveBeenCalled()
+        expect(enqueueTxMock).not.toHaveBeenCalled()
+        expect(deleteStoreMock).not.toHaveBeenCalled()
+      }
+    )
+    it('rechecks decisions after a real source mutation-lock wait', async () => {
+      prepare()
+      const lock = new KeyedMutex(),
+        waits = new FileProcessingWaitManager()
+      const admin = new KnowledgeBaseAdminService(lock, new KnowledgeIngestionService(lock, waits), waits)
+      const release = await lock.acquire(SOURCE_BASE_ID)
+      const restoring = admin.restoreBase(dto)
+      const rejected = expect(restoring).rejects.toThrow(/Cross-base decision transfer is not supported/)
+      knowledgeChunkGovernanceService.create(source, { excluded: true, labels: [], overrideText: null })
+      release()
+      await rejected
+      expect(dbh.db.select().from(knowledgeBaseTable).all()).toHaveLength(1)
+      expect(getIndexStoreMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+    it('fails closed if the durable eligibility read fails', async () => {
+      prepare()
+      const read = vi.spyOn(knowledgeChunkGovernanceService, 'hasByBase').mockImplementationOnce(() => {
+        throw new Error('decision read unavailable')
+      })
+      try {
+        await expect(new KnowledgeService().restoreBase(dto)).rejects.toThrow('decision read unavailable')
+        expect(dbh.db.select().from(knowledgeBaseTable).all()).toHaveLength(1)
+        expect(getIndexStoreMock).not.toHaveBeenCalled()
+        expect(enqueueMock).not.toHaveBeenCalled()
+        expect(enqueueTxMock).not.toHaveBeenCalled()
+      } finally {
+        read.mockRestore()
+      }
+    })
+    it('does not block an untouched base because another base owns history', async () => {
+      prepare()
+      const other = '55555555-5555-4555-8555-555555555555',
+        otherItem = '66666666-6666-4666-8666-666666666666'
+      dbh.db
+        .insert(knowledgeBaseTable)
+        .values({ id: other, name: 'Other', orderKey: 'a1', status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
+        .run()
+      dbh.db
+        .insert(knowledgeItemTable)
+        .values({
+          id: otherItem,
+          baseId: other,
+          type: 'note',
+          status: 'completed',
+          data: { source: 'Other', content: 'root content' }
+        })
+        .run()
+      knowledgeChunkGovernanceService.create(
+        { ...source, baseId: other, itemId: otherItem },
+        { excluded: true, labels: [], overrideText: null }
+      )
+      const result = await new KnowledgeService().restoreBase(dto)
+      expect(result.base.id).not.toBe(SOURCE_BASE_ID)
+      expect(knowledgeChunkGovernanceService.hasByBase(other)).toBe(true)
+      expect(knowledgeChunkGovernanceService.hasByBase(result.base.id)).toBe(false)
+      expect(enqueueMock).toHaveBeenCalled()
+    })
   })
 
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
