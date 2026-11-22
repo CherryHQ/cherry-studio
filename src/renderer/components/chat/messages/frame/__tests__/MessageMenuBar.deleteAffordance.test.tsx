@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
 import type { Topic } from '@renderer/types/topic'
+import * as messageFind from '@renderer/utils/message/find'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import {
@@ -45,7 +46,8 @@ const canDeleteMessage = (message: MessageListItem) => message.role !== 'assista
 function renderToolbar(
   role: MessageListItem['role'],
   policy?: MessageListActions['canDeleteMessage'],
-  confirm = false
+  confirm = false,
+  sourceOnly = false
 ) {
   const message: MessageListItem = {
     id: `${role}-1`,
@@ -56,12 +58,24 @@ function renderToolbar(
     status: 'success'
   }
   const deleteMessage = vi.fn().mockResolvedValue(undefined)
-  const actions: MessageListActions = { deleteMessage, canDeleteMessage: policy, copyText: vi.fn() }
+  const actions: MessageListActions = {
+    deleteMessage,
+    canDeleteMessage: policy,
+    copyText: vi.fn(),
+    saveTextFile: sourceOnly ? undefined : vi.fn()
+  }
   const value: MessageListProviderValue = {
     state: {
       topic: { id: 'topic-1', name: 'Topic', messages: [] } as unknown as Topic,
       messages: [message],
-      partsByMessageId: { [message.id]: [{ type: 'text', text: 'hello' }] },
+      partsByMessageId: {
+        [message.id]: sourceOnly
+          ? [
+              { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com' },
+              { type: 'text', text: 'Claim [cite:1].' }
+            ]
+          : [{ type: 'text', text: 'hello' }]
+      },
       hasOlder: false,
       messageNavigation: 'none',
       estimateSize: 0,
@@ -95,6 +109,25 @@ function renderToolbar(
 }
 
 describe('MessageMenuBar delete affordance', () => {
+  it('preserves the trigger when source copy is the only menu action', async () => {
+    renderToolbar('assistant', undefined, false, true)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More actions' }))
+    expect(await screen.findByRole('menuitem', { name: /export/i })).toBeTruthy()
+  })
+
+  it('defers source analysis until the More menu opens', async () => {
+    const lookup = vi.spyOn(messageFind, 'getCitedWebSources').mockReturnValue([])
+    try {
+      renderToolbar('assistant')
+      expect(lookup).not.toHaveBeenCalled()
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      await waitFor(() => expect(lookup).toHaveBeenCalled())
+    } finally {
+      lookup.mockRestore()
+    }
+  })
+
   it('offers no Delete button for a completed Agent assistant reply while keeping Copy', () => {
     const { actions, deleteMessage } = renderToolbar('assistant', canDeleteMessage)
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()

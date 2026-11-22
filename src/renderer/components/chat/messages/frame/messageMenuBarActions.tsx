@@ -72,6 +72,7 @@ export interface MessageMenuBarActionContext {
   isGrouped?: boolean
   isLastMessage: boolean
   isProcessing: boolean
+  sourceLookupEnabled?: boolean
   isTranslating: boolean
   hasTranslationBlocks: boolean
   isUserMessage: boolean
@@ -651,9 +652,9 @@ registerAction({
       label: ({ t }) => t('chat.topics.copy.web_sources'),
       group: 'copy',
       order: 105,
-      availability: ({ actions, isAssistantMessage, isProcessing, messageForExport }) => {
+      availability: ({ actions, isAssistantMessage, isProcessing, messageForExport, sourceLookupEnabled }) => {
         // The action cannot run during streaming. Defer citation analysis until it can be used.
-        if (isProcessing) return { visible: false, enabled: false }
+        if (isProcessing || sourceLookupEnabled === false) return { visible: false, enabled: false }
         const visible = isAssistantMessage && !!actions.copyText && getCitedWebSources(messageForExport).length > 0
         return { visible, enabled: visible && !isProcessing }
       }

@@ -258,6 +258,23 @@ describe('getWebSourcesMarkdown', () => {
     }
   })
 
+  it('reparses collapsed duplicate markers to preserve strict boundaries', () => {
+    const parse = vi.spyOn(Object.getPrototypeOf(unified), 'parse')
+    try {
+      const first = `${'First term\n: definition body\n\n'.repeat(1000)}Claim [cite:1] [cite:1].`
+      const second = `${'Second term\n: different body\n\n'.repeat(1000)}Other [cite:1] [cite:1].`
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+        { type: 'text', text: first },
+        { type: 'text', text: second }
+      ] as MessageExportView['parts'])
+      expect(getCitedWebSources(message)).toHaveLength(1)
+      expect(parse).toHaveBeenCalledTimes(4)
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
   it('skips the markdown parse when the message has no sources at all', () => {
     // The menu availability check runs this while streaming, even on large citation-free
     // messages; with neither references nor source parts no citation can resolve.
