@@ -2107,6 +2107,41 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })
 
+  it('does not reselect the recovered chat after switching chats during the workspace PUT', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-active' }
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    let resolve!: (session: unknown) => void
+    agentPageMocks.setSessionWorkspace.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select session workspace' }))
+    await waitFor(() => expect(agentPageMocks.setSessionWorkspace).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'Select session next' }))
+    const selected = agentPageMocks.activeSessionOptions?.activeSessionId
+    expect(selected).not.toBe('session-active')
+    const navigations = agentPageMocks.navigate.mock.calls.length
+    await act(async () => {
+      resolve({
+        ...agentPageMocks.persistedSession,
+        id: 'session-active',
+        workspaceId: 'workspace-next',
+        workspace: agentPageMocks.workspaceNext
+      })
+    })
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe(selected)
+    expect(agentPageMocks.navigate).toHaveBeenCalledTimes(navigations)
+  })
+
   it('updates the active modern-layout session workspace through the composer control', async () => {
     agentPageMocks.sessionDisplayMode = 'workdir'
     activeSessionMocks.session = {
