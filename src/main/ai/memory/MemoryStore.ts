@@ -857,6 +857,14 @@ export class MemoryStore {
         if (facts.some((text) => retiredFacts.has(text))) invalidEntries()
       }
       if (mode === 'clear') {
+        if (
+          oldEntries.length > 0 &&
+          oldEntries.every((entry) => entry.status === 'forgotten') &&
+          before.every((part) => typeof part !== 'string' || !part.trim())
+        ) {
+          change.after = change.before
+          continue
+        }
         after = oldEntries.flatMap((entry) => [
           entry.status === 'forgotten'
             ? entry
