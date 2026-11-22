@@ -25,13 +25,16 @@ import {
 } from '@earendil-works/pi-durable'
 
 import {
+  allowRequest,
+  behaviorHandlers,
   callKeyOf,
   encodeEntry,
   goalForRequest,
   TOOL_INTENT_GUIDE,
   createToolIntent,
   createToolPolicy,
-  install,
+  messageManagedChild,
+  stopManagedChild,
   offersToolIntent,
   type BoundPorts,
   type GateHandlers,
@@ -70,6 +73,9 @@ export type PiDurableBehaviorOptions = BehaviorOptions &
 /** Native ports are installed before opening the Harness; recovery runs before enabling its scheduler. */
 export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   const { folds } = options
+  const host = 'host' in options ? options.host : undefined
+  const handlers = host && behaviorHandlers(host)
+  const policy = host && createToolPolicy(host)
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
@@ -79,11 +85,11 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   let harness: Harness
   let closed = false
   let recovering = true
-  let lifecycle: LifecycleHandlers | undefined
-  let meter: Parameters<HarnessPorts['requestMeter']['register']>[0] | undefined
+  let lifecycle: LifecycleHandlers | undefined = handlers?.lifecycle
+  let customMeter: Parameters<HarnessPorts['requestMeter']['register']>[0] | undefined
   let customGate: GateHandlers | undefined
-  const tools: ToolDefinition[] = []
-  const jobs = new Map<JobKind, JobHandler>()
+  const tools: ToolDefinition[] = handlers?.tools ?? []
+  const jobs = handlers?.jobs ?? new Map<JobKind, JobHandler>()
   const context = BACKGROUND_CONTEXT
   const meterDoc = defineDoc({
     kind: 'cherry.request-meter',
@@ -114,7 +120,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       count.counts ??= count.run ? { [String(count.run)]: count.count } : {}
       const counts = count.counts
       const requests = counts[String(run)] ?? 0
-      const allowance = meter?.allow(thread, requests, record?.owner ? 'child' : 'root') ?? { ok: true as const }
+      const lineage = record?.owner ? 'child' : 'root'
+      const allowance = host
+        ? allowRequest(requests, lineage)
+        : (customMeter?.allow(thread, requests, lineage) ?? { ok: true as const })
       if (!allowance.ok) return allowance
       if (run) counts[String(run)] = requests + 1
       count.run = run
@@ -672,26 +681,6 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       clock: { now: () => Date.now() }
     }
   }
-  const registrations = {
-    tools: { register: (tool) => tools.push(tool) },
-    jobs: {
-      register: (kind, handler) => {
-        jobs.set(kind, handler)
-      }
-    },
-    lifecycle: {
-      register: (handlers) => {
-        lifecycle = handlers
-      }
-    },
-    requestMeter: {
-      register(handler) {
-        meter = handler
-      }
-    }
-  } satisfies Pick<HarnessPorts, 'tools' | 'jobs' | 'lifecycle' | 'requestMeter'>
-  const policy = 'host' in options ? createToolPolicy(options.host) : undefined
-  const entries = 'host' in options ? install(registrations, options.host).entries : undefined
   if ('install' in options)
     options.install({
       ...bound({
@@ -702,13 +691,28 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           throw new Error('Memory requires a call')
         }
       }),
-      ...registrations,
-      toolGate: {
-        register: (handlers) => {
-          customGate = handlers
+      tools: { register: (tool) => tools.push(tool) },
+      jobs: {
+        register: (kind, handler) => {
+          jobs.set(kind, handler)
         }
       },
-      contextFilter: { register() {} }
+      lifecycle: {
+        register: (installed) => {
+          lifecycle = installed
+        }
+      },
+      toolGate: {
+        register: (installed) => {
+          customGate = installed
+        }
+      },
+      contextFilter: { register() {} },
+      requestMeter: {
+        register: (installed) => {
+          customMeter = installed
+        }
+      }
     })
   const intent = createToolIntent()
   const extension: Extension = defineExtension({
@@ -881,9 +885,37 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       })
     ]
   })
+  const entries = handlers?.entries
+  const commands = host &&
+    entries && {
+      permissionModeChanged: (thread: ThreadId) =>
+        withCall(thread, (ports) => entries.permissionModeChanged(ports, thread)),
+      goal: (thread: ThreadId, text: string, inputId: InputId) =>
+        withCall(thread, (ports) => entries.goalCommand(ports, thread, text, inputId)),
+      messageChild: (parent: ThreadId, child: ThreadId, text: string, inputId: InputId) =>
+        withCall(
+          child,
+          (ports) =>
+            messageManagedChild(
+              { ports, host },
+              parent,
+              child,
+              text,
+              inputId,
+              context.abortSignal ?? new AbortController().signal
+            ),
+          { inputId }
+        ),
+      stop: (thread: ThreadId, requestKey: string, parent?: ThreadId) =>
+        withCall(thread, async (ports) => {
+          if (parent) await stopManagedChild({ ports, host }, parent, thread, requestKey)
+          else await entries.userStop(ports, thread, requestKey)
+        })
+    }
+
   return {
     extension,
-    entries,
+    commands,
     withCall,
     consumeRequest,
     providerThread,

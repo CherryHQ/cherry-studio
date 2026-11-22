@@ -160,13 +160,14 @@ of polling retained inputs or deriving completion from idle activity.
 
 ## Shared behavior
 
-The optional `behavior` factory option installs `agent-behavior` with Cherry's
-`HostPorts` and a `configureChild({ thread, parent, modelKey })` model-binding callback. Native tools, transactional
-records, hooks, memo, jobs and waits implement the harness ports. Product rules remain
-in `agent-behavior`; this adapter contains no second subagent or goal policy engine.
+The optional `behavior` factory option takes Cherry's `HostPorts` and a
+`configureChild({ thread, parent, modelKey })` model-binding callback. The native extension
+registers the tools and durable jobs, and consults the shared request-limit policy at the
+model boundary. Goal and subagent workflows still share the product decisions and their
+transactional behavior handlers.
 
-Managed child input calls the shared `messageSubagent` entry, so background continuation
-keeps the native child identity and creates the shared result job. Root `/goal` input
+Managed child input resolves its native parent and calls the shared continuation rules.
+It keeps the native child identity and creates the existing result job. Root `/goal` input
 uses the shared command entry. Explicit root `interrupt()` records user stop before
 cancelling; child interruption follows its current shared ownership. Opening installs
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
@@ -208,7 +209,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, run state,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only

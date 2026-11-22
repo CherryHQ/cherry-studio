@@ -610,8 +610,14 @@ export async function createPiDurableRuntime(
       if (!result.value.unloaded) return { status: 'confirmed', value: access(result.value) }
     }
   }
+  const managedParent = (id: ConversationId) =>
+    native.commit(async (tx) => {
+      const owner = (await tx.conversation(id))?.owner
+      if (owner && (await originOf(tx, id))) return refFor(owner.conversationId).id
+    }, context)
+
   function access(entry: Entry): PiDurableThreadHandle {
-    const behaviorEntries = behavior?.entries
+    const commands = behavior?.commands
     entry.handles++
     let released = false
     const observations = new Set<Observation>()
@@ -787,8 +793,7 @@ export async function createPiDurableRuntime(
         },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
-          if (behavior && behaviorEntries)
-            await behavior.withCall(entry.ref.id, (ports) => behaviorEntries.permissionModeChanged(ports, entry.ref.id))
+          await commands?.permissionModeChanged(entry.ref.id)
           return { status: 'confirmed', value: undefined }
         }
       },
@@ -853,24 +858,10 @@ export async function createPiDurableRuntime(
               return { ...rejected('submit', 'closed'), inputId: input.inputId }
             }
             try {
-              if (behavior && behaviorEntries) {
-                const origin = await native.commit(async (tx) => {
-                  const id = entry.conversation.id
-                  if ((await tx.conversation(id))?.owner) return originOf(tx, id)
-                }, context)
-                if (origin) {
-                  const receipt = await behavior.withCall(
-                    entry.ref.id,
-                    (ports) =>
-                      behaviorEntries.messageSubagent(
-                        ports,
-                        entry.ref.id,
-                        input.text,
-                        input.inputId,
-                        new AbortController().signal
-                      ),
-                    { inputId: input.inputId }
-                  )
+              if (commands) {
+                const parent = await managedParent(entry.conversation.id)
+                if (parent) {
+                  const receipt = await commands.messageChild(parent, entry.ref.id, input.text, input.inputId)
                   if (receipt.status === 'refused') {
                     return {
                       status: 'rejected',
@@ -886,14 +877,7 @@ export async function createPiDurableRuntime(
                   return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
                 }
                 if (/^\/goal(?:\s|$)/.test(input.text)) {
-                  await behavior.withCall(entry.ref.id, (ports) =>
-                    behaviorEntries.goalCommand(
-                      ports,
-                      entry.ref.id,
-                      input.text.slice('/goal'.length).trim(),
-                      input.inputId
-                    )
-                  )
+                  await commands.goal(entry.ref.id, input.text.slice('/goal'.length).trim(), input.inputId)
                   native.resume()
                   const state: InputState = { inputId: input.inputId, facts: ['locally-handled'], outcome: 'completed' }
                   entry.projection.input(state)
@@ -955,13 +939,8 @@ export async function createPiDurableRuntime(
       interrupt() {
         if (unavailable()) return Promise.resolve(rejected('interrupt', 'closed'))
         return track(
-          (behavior && behaviorEntries
-            ? behavior.withCall(entry.ref.id, async (ports) => {
-                const facts = await ports.ledger.read(entry.ref.id)
-                if (facts.lineage.kind === 'subagent')
-                  await behaviorEntries.stopSubagent(ports, entry.ref.id, randomUUID())
-                else await behaviorEntries.userStop(ports, entry.ref.id, randomUUID())
-              })
+          (commands
+            ? managedParent(entry.conversation.id).then((parent) => commands.stop(entry.ref.id, randomUUID(), parent))
             : entry.conversation.abort(context)
           ).then(
             () => ({ status: 'confirmed' as const, value: undefined }),

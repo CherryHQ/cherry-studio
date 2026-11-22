@@ -32,6 +32,28 @@
       "rules": { "import/first": "off" }
     },
     {
+      "files": ["packages/agent-runtime-pi-durable/src/runtime.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cherrystudio/agent-behavior",
+                "importNames": ["install", "Entries", "HarnessPorts", "BoundPorts"],
+                "message": "Route inputs through native ownership and the Durable behavior commands."
+              },
+              {
+                "name": "./behavior/history",
+                "importNames": ["readFacts"],
+                "message": "Read native ownership or run state. Keep complete facts inside the behavior rules."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "src/renderer/**/*.{ts,tsx}",
         "packages/ui/src/**/*.{ts,tsx}",

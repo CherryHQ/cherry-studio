@@ -67,6 +67,7 @@ export type { Key } from './core/keys'
 export { nativeSummaryKey } from './core/keys'
 export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'
+export { allowRequest } from './core/subagents/subagentDecisions'
 export type { DelegationStatus, SubagentResults } from './core/subagents/subagentLedger'
 export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
 export type { SubagentStop } from './core/driver/lifecycle'
@@ -116,7 +117,7 @@ export type {
   Settings,
   HostPorts
 } from './ports/host'
-export { install } from './orchestration/install'
+export { behaviorHandlers, install } from './orchestration/install'
 export { createToolPolicy } from './orchestration/gate'
 export {
   TOOL_INTENT_ARG,
@@ -127,7 +128,7 @@ export {
 } from './orchestration/toolIntent'
 export type { IntentTool } from './orchestration/toolIntent'
 export type { Installation } from './orchestration/install'
-export type { Entries } from './orchestration/entries'
+export { messageManagedChild, stopManagedChild, type Entries } from './orchestration/entries'
 export type { SubagentMessageReceipt } from './orchestration/tools/subagents'
 export { harnessContract } from './contract/cases'
 export type {

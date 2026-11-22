@@ -10,7 +10,7 @@ import { callKeyOf, type GoalNotice } from '../core/facts'
 import { decideGoalCommand } from '../core/goal/goalCommand'
 import type { BoundPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
-import { gatherInputs, step } from './step'
+import { gatherInputs, step, type Context } from './step'
 import { messageSubagent, type SubagentMessageReceipt } from './tools/subagents'
 
 /**
@@ -40,6 +40,27 @@ export type Entries = {
   ): Promise<SubagentMessageReceipt>
 }
 
+export async function stopManagedChild(context: Context, parent: ThreadId, child: ThreadId, requestKey: string) {
+  const inputs = gatherInputs(context, parent)
+  return (await step(context, parent, (facts) => decideStopSubagent(facts, inputs, child, requestKey))).result
+}
+
+export function messageManagedChild(
+  context: Context,
+  parent: ThreadId,
+  child: ThreadId,
+  text: string,
+  requestKey: string,
+  signal: AbortSignal
+): Promise<SubagentMessageReceipt> {
+  return messageSubagent(context, {
+    key: callKeyOf(`host-message:${JSON.stringify([parent, requestKey])}`),
+    thread: parent,
+    args: { id: child, message: text },
+    signal
+  })
+}
+
 export function entries(host: HostPorts): Entries {
   return {
     async goalCommand(ports, thread, text, requestKey) {
@@ -61,24 +82,12 @@ export function entries(host: HostPorts): Entries {
       const context = { ports, host }
       const { lineage } = await ports.ledger.read(child)
       if (lineage.kind !== 'subagent') return 'not-running'
-      const inputs = gatherInputs(context, lineage.parent)
-      const executed = await step(context, lineage.parent, (facts) =>
-        decideStopSubagent(facts, inputs, child, requestKey)
-      )
-      return executed.result
+      return stopManagedChild(context, lineage.parent, child, requestKey)
     },
     async messageSubagent(ports, child, text, requestKey, signal) {
       const { lineage } = await ports.ledger.read(child)
       if (lineage.kind !== 'subagent') return { status: 'refused', reason: 'The conversation is not a subagent.' }
-      return messageSubagent(
-        { ports, host },
-        {
-          key: callKeyOf(`host-message:${JSON.stringify([lineage.parent, requestKey])}`),
-          thread: lineage.parent,
-          args: { id: child, message: text },
-          signal
-        }
-      )
+      return messageManagedChild({ ports, host }, lineage.parent, child, text, requestKey, signal)
     }
   }
 }
