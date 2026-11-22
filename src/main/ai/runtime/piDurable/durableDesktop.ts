@@ -189,7 +189,8 @@ export async function prepareDurableDesktop(
           {
             key: 'agent_identity',
             async render() {
-              const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+              const migrated = application.get('MemoryMigrationService').isMigrated(agent.id)
+              const { text, resources } = await builder.buildMemoriesContext(agentDataPath, !migrated)
               return { text, source: { kind: 'memory-files', resources } }
             }
           },

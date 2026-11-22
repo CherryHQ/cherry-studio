@@ -474,6 +474,22 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest).not.toContain('Sibling banana')
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
+  it.each([false, true])(
+    'sends legacy FACT only before private migration completes (migrated=%s)',
+    async (migrated) => {
+      vi.spyOn(application.get('MemoryMigrationService'), 'isMigrated').mockReturnValue(migrated)
+      const memoryDir = join(application.getPath('feature.agents.data', input.agentId), 'memory')
+      mkdirSync(memoryDir, { recursive: true })
+      writeFileSync(join(memoryDir, 'FACT.md'), 'Retained legacy fact')
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Recall my preference') })
+      await done(events)
+      const prompt = script.calls[0].systemPrompt
+      expect(prompt).toContain(`MEMORY_ENTRY_${input.sessionId}`)
+      expect(prompt?.includes('Retained legacy fact')).toBe(!migrated)
+    }
+  )
+
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
     mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
