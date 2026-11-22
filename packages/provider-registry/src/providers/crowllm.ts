@@ -58,6 +58,7 @@ export default openaiCompatible({
       ownedBy: 'moonshot',
       limits: { contextWindow: 256000, maxOutputTokens: 32768 },
       inputModalities: ['text', 'image'],
+      capabilities: { remove: ['video-recognition'] },
       pricing: {
         input: { currency: 'USD', perMillionTokens: 2.49 },
         output: { currency: 'USD', perMillionTokens: 12.99 },
@@ -73,6 +74,7 @@ export default openaiCompatible({
       ownedBy: 'anthropic',
       limits: { contextWindow: 200000, maxOutputTokens: 32000 },
       inputModalities: ['text', 'image'],
+      capabilities: { remove: ['video-recognition'] },
       pricing: {
         input: { currency: 'USD', perMillionTokens: 4 },
         output: { currency: 'USD', perMillionTokens: 20 },
@@ -88,6 +90,7 @@ export default openaiCompatible({
       ownedBy: 'google',
       limits: { contextWindow: 1000000, maxOutputTokens: 65536 },
       inputModalities: ['text', 'image'],
+      capabilities: { remove: ['video-recognition'] },
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.75 },
         output: { currency: 'USD', perMillionTokens: 3.75 },

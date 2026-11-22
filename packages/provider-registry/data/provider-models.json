@@ -45445,6 +45445,9 @@
     },
     {
       "apiModelId": "claude-opus-4-7",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "family": "claude",
       "inputModalities": ["text", "image"],
       "limits": {
@@ -45507,6 +45510,9 @@
     },
     {
       "apiModelId": "gemini-3.7-flash",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "family": "gemini",
       "inputModalities": ["text", "image"],
       "limits": {
@@ -45569,6 +45575,9 @@
     },
     {
       "apiModelId": "kimi-k3",
+      "capabilities": {
+        "remove": ["video-recognition"]
+      },
       "family": "kimi",
       "inputModalities": ["text", "image"],
       "limits": {
@@ -45599,5 +45608,5 @@
       "providerId": "crowllm"
     }
   ],
-  "version": "a40dff34d916d9eb"
+  "version": "3b1a91419ce2bb53"
 }
