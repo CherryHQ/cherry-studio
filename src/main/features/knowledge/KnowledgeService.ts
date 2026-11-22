@@ -13,7 +13,7 @@ import type {
   RestoreKnowledgeBaseDto,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
-import type { KnowledgeChunkBatchInput } from '@shared/data/types/knowledgeChunkGovernance'
+import type { KnowledgeChunkBatchInput, KnowledgeChunkReviewInput } from '@shared/data/types/knowledgeChunkGovernance'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { KeyedMutex } from '@shared/utils/async'
 
@@ -154,6 +154,14 @@ export class KnowledgeService extends BaseService {
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     return await this.queryService.search(baseId, query)
+  }
+
+  listChunkGovernanceReviews(baseId: string, itemId: string) {
+    return this.chunkGovernance.listReviews(baseId, itemId)
+  }
+
+  reviewChunkGovernance(input: KnowledgeChunkReviewInput) {
+    return this.chunkGovernance.review(input)
   }
 
   async applyChunkGovernance(input: KnowledgeChunkBatchInput): Promise<void> {

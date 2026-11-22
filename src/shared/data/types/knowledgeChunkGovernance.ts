@@ -62,3 +62,43 @@ export const KnowledgeChunkBatchInputSchema = z.strictObject({
   action: KnowledgeChunkBatchActionSchema
 })
 export type KnowledgeChunkBatchInput = z.infer<typeof KnowledgeChunkBatchInputSchema>
+
+export const KnowledgeChunkReviewActionSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('discard') }),
+  z.strictObject({
+    kind: z.literal('rebind'),
+    targetUnitId: hashSchema,
+    expectedTargetRevision: z.number().int().nonnegative()
+  })
+])
+export const KnowledgeChunkReviewInputSchema = z.strictObject({
+  baseId: z.uuid(),
+  itemId: z.uuid(),
+  governanceId: z.uuid(),
+  expectedRevision: z.number().int().positive(),
+  currentSourceContentHash: hashSchema.nullable(),
+  action: KnowledgeChunkReviewActionSchema
+})
+export type KnowledgeChunkReviewInput = z.infer<typeof KnowledgeChunkReviewInputSchema>
+export const KnowledgeChunkReviewListSchema = z.strictObject({
+  currentSourceContentHash: hashSchema.nullable(),
+  records: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      unitId: hashSchema,
+      revision: z.number().int().positive(),
+      sourceContentHash: hashSchema,
+      charStart: z.number().int().nonnegative(),
+      charEnd: z.number().int().positive(),
+      originalText: z.string(),
+      state: KnowledgeChunkGovernanceStateSchema,
+      reason: z.enum(['source-unavailable', 'source-changed', 'chunk-changed'])
+    })
+  )
+})
+export type KnowledgeChunkReviewList = z.infer<typeof KnowledgeChunkReviewListSchema>
+
+/** Existing target decisions must never be silently merged by a rebind. */
+export function hasKnowledgeChunkDecision(state: KnowledgeChunkGovernanceState): boolean {
+  return state.excluded || state.labels.length > 0 || state.overrideText !== null
+}

@@ -13,6 +13,7 @@ export const knowledgeChunkGovernanceTable = sqliteTable(
     baseId: text().notNull(),
     itemId: text().notNull(),
     unitId: text().notNull(),
+    retired: integer({ mode: 'boolean' }).notNull().default(false),
     sourceContentHash: text().notNull(),
     charStart: integer().notNull(),
     charEnd: integer().notNull(),
@@ -39,6 +40,10 @@ export const knowledgeChunkGovernanceHistoryTable = sqliteTable(
   'knowledge_chunk_governance_history',
   {
     id: uuidPrimaryKey(),
+    operation: text({ enum: ['edit', 'discard', 'rebind-away', 'rebind-from'] })
+      .notNull()
+      .default('edit'),
+    relatedGovernanceId: text(),
     governanceId: text()
       .notNull()
       .references(() => knowledgeChunkGovernanceTable.id, { onDelete: 'cascade' }),

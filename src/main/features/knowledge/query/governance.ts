@@ -1,6 +1,6 @@
 import { knowledgeChunkGovernanceService } from '@data/services/KnowledgeChunkGovernanceService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { KnowledgeChunkGovernanceView } from '@shared/data/types/knowledgeChunkGovernance'
+import { type KnowledgeChunkGovernanceView } from '@shared/data/types/knowledgeChunkGovernance'
 
 import { hashContentText } from '../pipeline/vectorstore/indexStore/hashing'
 import type { KnowledgeIndexStore } from '../pipeline/vectorstore/indexStore/KnowledgeIndexStore'
@@ -27,7 +27,7 @@ export function readKnowledgeGovernanceSearchSnapshot(
       `Knowledge base '${baseId}' index store was closed during search; retry the operation`
     )
   }
-  const records = knowledgeChunkGovernanceService.listByBase(baseId)
+  const records = knowledgeChunkGovernanceService.listByBase(baseId).filter((record) => !record.retired)
   const exclusions = records.length
     ? store.resolveGovernanceExclusions(
         records.map((record) => ({

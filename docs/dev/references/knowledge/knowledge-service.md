@@ -38,7 +38,7 @@ The current implementation is split into four responsibility areas:
    - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, mirrors the progress of the file-processing tasks items wait on (see [Knowledge Workflow Architecture](./workflow-architecture.md)), and delegates every public method to `base/`, `ingestion/`, `governance/`, and `query/`.
    - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, `governance/`, and the job handlers.
    - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
-   - `governance/` authenticates source/unit/revision selections and applies exclusion/label batches under that shared lock, with one Main write transaction for all decisions and history.
+   - `governance/` authenticates source/unit/revision selections and applies exclusion/label batches and explicit source-review transfers under that shared lock, with one Main write transaction for all decisions and history.
    - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves
      search, source preview, document read/grep, tree browsing, and Concept
      ID-addressed delete/reindex.
@@ -168,6 +168,8 @@ reindex-items(baseId, itemIds)
 - `knowledge.get_file_path`
 - `knowledge.list_item_chunks`
 - `knowledge.apply_chunk_governance`
+- `knowledge.list_chunk_governance_reviews`
+- `knowledge.review_chunk_governance`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
@@ -344,7 +346,7 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 7. Apply `threshold` only to results whose `scoreKind` is `relevance`; BM25/hybrid `ranking` scores pass through.
 8. Assign ranks.
 
-The [chunk governance reference](./chunk-governance-storage.md) describes retrieval guards and confirmed inspector exclusion/label batches. Unmatched records pause their material and disable editing with a visible review state; pending corrections suppress their unit until effective revision publication exists. Correction editing/publication and explicit rebind/discard are not exposed. Explicit source reads and chunk inspection still return original text.
+The [chunk governance reference](./chunk-governance-storage.md) describes retrieval guards, confirmed inspector exclusion/label batches and explicit review/rebind/discard. Non-retired unmatched records pause their material and disable ordinary editing; review also works without current chunks. Pending corrections suppress their unit until effective revision publication exists. Correction editing/publication is not exposed. Explicit source reads and chunk inspection still return original text.
 
 Current `KnowledgeSearchResult` includes:
 

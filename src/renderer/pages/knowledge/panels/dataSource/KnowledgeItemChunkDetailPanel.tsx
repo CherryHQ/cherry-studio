@@ -13,6 +13,7 @@ import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import type { KnowledgeChunkBatchAction, KnowledgeChunkBatchInput } from '@shared/data/types/knowledgeChunkGovernance'
 
+import KnowledgeChunkReviewPanel from './KnowledgeChunkReviewPanel'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
 const logger = loggerService.withContext('KnowledgeItemChunkDetailPanel')
@@ -177,10 +178,8 @@ const KnowledgeItemChunkDetailPanel = ({
           {t('common.refresh')}
         </Button>
       </div>
-      {chunks.some((chunk) => chunk.governance?.status === 'review-needed') ? (
-        <p role="status" className="border-b border-border px-4 py-2 text-sm text-warning-subtle-foreground">
-          {t('knowledge.governance.review_hint')}
-        </p>
+      {loadedScope === scope && !isLoading && !error && !itemError ? (
+        <KnowledgeChunkReviewPanel baseId={baseId} itemId={itemId} chunks={chunks} onChanged={loadChunks} />
       ) : null}
       {selected.size > 0 && !error && loadedScope === scope && !isLoading ? (
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">

@@ -12,6 +12,9 @@ import { createFileItem } from './testUtils'
 const mockIpcRequest = vi.fn()
 const mockUseQuery = vi.fn()
 
+// Review persistence and real controls have their own focused integration suite.
+vi.mock('../KnowledgeChunkReviewPanel', () => ({ default: () => null }))
+
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: ({
     list,
@@ -366,7 +369,6 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     mockIpcRequest.mockResolvedValue(initial)
     renderPanel()
     expect(await screen.findByRole('button', { name: 'Select 1' })).toBeDisabled()
-    expect(screen.getByRole('status')).toHaveTextContent('Source changed')
     expect(screen.getByText('Pending correction')).toBeInTheDocument()
     expect(screen.getByText('retained')).toBeInTheDocument()
     expect(mutations()).toHaveLength(0)

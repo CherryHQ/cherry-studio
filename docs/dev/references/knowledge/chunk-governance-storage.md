@@ -10,13 +10,14 @@ sources:
   - src/main/features/knowledge/pipeline/vectorstore/indexStore
   - src/shared/ipc/schemas/knowledge.ts
   - src/renderer/pages/knowledge/panels/dataSource/KnowledgeItemChunkDetailPanel.tsx
+  - src/renderer/pages/knowledge/panels/dataSource/KnowledgeChunkReviewPanel.tsx
 ---
 
 # Knowledge Chunk Governance Storage
 
 English | [中文](chunk-governance-storage.zh.md)
 
-These layers implement durable decisions, retrieval safety and exclusion/label controls from the [proposed chunk-governance feature](../../../../.agents/notes/proposed/feature/2026-11-22-knowledge-chunk-governance.md). They do not complete text corrections, source-review resolution, citations or backup/restore. The Spec remains proposed and issue #19001 remains open.
+These layers implement durable decisions, retrieval safety, exclusion/label controls and explicit source review from the [proposed chunk-governance feature](../../../../.agents/notes/proposed/feature/2026-11-22-knowledge-chunk-governance.md). They do not complete text corrections, citations or backup/restore. The Spec remains proposed and issue #19001 remains open.
 
 ## Ownership
 
@@ -42,7 +43,15 @@ Open a completed source's chunk inspector and select the chunks to change, up to
 
 Exclusion affects retrieval, not source access or secure deletion. Labels are organizational metadata, never model prompts, search text or embeddings. These actions make no provider call. Re-enabling a chunk with an unpublished correction does not publish that correction; its pending state remains out of retrieval.
 
-After success the inspector reloads committed state. On conflict/error it clears the pending intent and requires Refresh and a new selection, with no automatic retry. Switching sources clears selection and late list/save responses cannot overwrite the new source's state, including switching away and back. Changed-source decisions with current indexed chunks show a review banner and disable editing. A material-level review view for a source with no current chunks is still pending. Existing corrections are visible as pending but cannot be edited or published here.
+After success the inspector reloads committed state. On conflict/error it clears the pending intent and requires Refresh and a new selection, with no automatic retry. Switching sources clears selection and late list/save responses cannot overwrite the new source's state, including switching away and back. Changed-source decisions show a review view and disable ordinary batch editing, including when the source has no current chunks. Existing corrections are visible as pending but cannot be edited or published here.
+
+## Reviewing changed sources
+
+The review view retains the previous original, source hash/range, labels, exclusion and pending correction. It remains available when the indexed material is missing or has no chunks, provided the owning item and base are completed. A closed index requires refresh rather than pretending the source is empty.
+
+Select one unmatched record. Discard removes its decisions from reconciliation, not its original evidence or history. Rebind previews the previous and current originals and transfers the decisions only to the explicitly selected chunk in the same source. A target with existing decisions is refused rather than silently merged. Source hashes, old revision and target revision are rechecked under the shared mutation lock. Both transfer sides and linked audit entries commit atomically. No provider call runs, and transferred corrections remain pending and suppressed.
+
+Discard and rebind retire the previous binding with a new revision. History records `discard`, `rebind-away` and `rebind-from`, including the related record identity. Retired bindings do not revive when old source bytes reappear; a new explicit edit or reviewed transfer can reactivate them with another revision. Ordinary neutral records are not auto-retired. Retrieval stays paused until every non-retired unmatched record is resolved. Opening or cancelling a review changes nothing.
 
 ## Retrieval authority
 
@@ -50,7 +59,7 @@ Before search, `KnowledgeQueryService` reads durable record IDs/revisions and de
 
 - Exact excluded units are suppressed in every lane.
 - Non-null corrections remain pending and suppressed until effective-text/embedding publication exists.
-- Any unmatched record pauses its material and retains evidence/history; other materials remain searchable. Same-content, same-identity rebuilds reuse decisions. Explicit rebind/discard is still unavailable.
+- Any non-retired unmatched record pauses its material and retains evidence/history; other materials remain searchable. Same-content, same-identity rebuilds reuse decisions. Confirmed rebind/discard resolves only the selected record.
 - BM25 MATCH, relaxed short-term search, short-token LIKE, vector and both hybrid lanes filter before SQL limits and RRF. Shared embedding hashes do not suppress unrelated units. Bound JSON avoids per-ID SQL variable limits and interpolation.
 
 Main revalidates revisions and exact-index reconciliation before reranking and before returning results. Concurrent changes return conflict without repeating a possibly paid provider call. Failed policy reads and closed indexes fail closed. The two databases are not treated as one transaction, renderer policy is not cached, and original/correction text is not logged.
@@ -58,7 +67,7 @@ Main revalidates revisions and exact-index reconciliation before reranking and b
 ## Boundaries Still Pending
 
 - Effective-text/embedding jobs, complete lexical/vector publication, crash recovery and correction editing/removal.
-- Explicit review, rebind and discard of unmatched records.
+- Viewing/restoring retired history and an Undo action for discarded decisions.
 - Base backup/restore of durable decisions and history.
 - Original/corrected citation revisions and historical references.
 - Provider-cost disclosure for future correction work and native Electron acceptance.
@@ -71,4 +80,4 @@ Storage tests use `setupTestDatabase()` and production migrations for original e
 
 Main integration uses the migrated database, file-backed SQLite index, production FTS/vector/query/rerank paths and the real batch workflow. Provider methods alone are mocked. Scenarios include candidate-cap safety, all lanes/fallbacks, shared hashes, thousands of IDs, UTF-16, exact rebuild/reopen, source mismatch, original inspection, in-flight conflicts, atomic later-entry/history failures, competing windows, lifecycle/ownership validation and preserved pending corrections.
 
-Inspector tests cover confirmation-only writes, exact selection/revision delivery, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or restore acceptance.
+Review tests additionally cover actual rebind/discard transactions, both audit links, source/target conflicts, empty/missing material, retirement across rebuilds and rollback after a transfer-side history failure. Inspector tests cover confirmation-only writes, exact selection/revision delivery, real shared-control keyboard/focus behavior, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or restore acceptance.
