@@ -432,14 +432,8 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
   private async commitOnce(): Promise<PathVersion> {
     let version: PathVersion
     try {
-      const fd = await fsOpen(this.tmp, 'r+')
-      try {
-        await fd.sync()
-        const s = await fd.stat()
-        version = { mtime: Math.floor(s.mtimeMs), size: s.size }
-      } finally {
-        await fd.close()
-      }
+      const s = await fsStat(this.tmp)
+      version = { mtime: Math.floor(s.mtimeMs), size: s.size }
       await rename(this.tmp, this.target)
     } catch (err) {
       await bestEffortUnlinkTmp(this.tmp)
@@ -472,6 +466,7 @@ export async function prepareAtomicWrite(
   try {
     try {
       await tmpHandle.writeFile(bytes)
+      await tmpHandle.sync()
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
       await bestEffortUnlinkTmp(tmp)
@@ -511,10 +506,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
     this.target = target
     this.tmp = tmpNameFor(target)
     this.onPrepared = onPrepared
-    this.underlying =
-      options?.mode !== undefined
-        ? nodeCreateWriteStream(this.tmp, { mode: options.mode })
-        : nodeCreateWriteStream(this.tmp)
+    this.underlying = nodeCreateWriteStream(this.tmp, { mode: options?.mode, flush: true })
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
@@ -535,8 +527,11 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   }
 
   override _final(callback: (err?: Error | null) => void): void {
-    this.underlying.end(async () => {
+    void (async () => {
       try {
+        const closed = finished(this.underlying, { cleanup: true })
+        this.underlying.end()
+        await closed
         const prepared = new PreparedAtomicWriteImpl(
           AbsoluteFilePathSchema.parse(this.target),
           this.tmp,
@@ -561,7 +556,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         await bestEffortUnlinkTmp(this.tmp)
         callback(err as Error)
       }
-    })
+    })()
   }
 
   override _destroy(err: Error | null, callback: (err: Error | null) => void): void {
@@ -575,11 +570,11 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       // cleanup outcome.
       void bestEffortUnlinkTmp(this.tmp).finally(() => callback(err))
     }
-    if (this.underlying.destroyed) {
+    if (this.underlying.closed) {
       cleanup()
     } else {
       this.underlying.once('close', cleanup)
-      this.underlying.destroy()
+      if (!this.underlying.destroyed) this.underlying.destroy()
     }
   }
 
