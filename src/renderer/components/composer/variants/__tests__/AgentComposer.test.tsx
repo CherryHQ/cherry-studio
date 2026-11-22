@@ -1617,6 +1617,73 @@ describe('AgentComposer', () => {
     expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
   })
 
+  it('blocks PNG+.jpe on Claude with zero copy calls under a one-image native cap (inv_cd0875c7798b05bd)', async () => {
+    // The MIME-less `.jpe` resolves to `image/jpeg` after the file bridge, and
+    // main rejects the two-image send. The composer pre-send guard must agree
+    // before creating managed entries, so the pair rejects with zero copy
+    // calls instead of leaving unreferenced copies for every retry.
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpe',
+        origin_name: 'b.jpe',
+        path: '/tmp/b.jpe',
+        ext: '.jpe',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpe', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    mocks.createInternalEntry.mockClear()
+    const claudeAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'claude-code',
+      model: 'test::claude-model',
+      modelName: 'Claude',
+      instructions: 'Follow instructions',
+      knowledgeBaseIds: [],
+      configuration: {}
+    } as unknown as NonNullable<ComponentProps<typeof AgentComposerImpl>['resolvedAgent']>
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={claudeAgent}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.image_limit_exceeded')
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+  })
+
   it('sends manual /compact with images on Pi without hitting the image cap (inv_151778bef122ee04)', async () => {
     // Both Pi drivers compact without submitting images or replay, so the
     // composer idle and drain gates must skip the cap for genuine `/compact`.

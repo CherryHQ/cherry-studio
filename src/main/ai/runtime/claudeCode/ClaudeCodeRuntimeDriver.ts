@@ -165,7 +165,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
   /** Submitted native image-block counts for provider result-boundary normalization. */
-  private pendingImageCounts: number[] = []
+  private pendingImageCounts: Array<{ inputId: string; count: number }> = []
+  /** Native placement signal (`input-boundary`): which submitted inputs the SDK has placed. */
+  private placedImageInputIds = new Set<string>()
   /** Last submitted image count (legacy single-value view of the pending queue). */
   private lastImageCount?: number
   private readonly currentSources = new Set<string>()
@@ -323,16 +325,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     const merged = withAgentContext(input.message, input.context)
+    // Prefer the host-admitted capability when present (even `undefined` for
+    // uncapped): a cap published while the accepted turn opens must not reject
+    // after persistence/ack. Absence (pre-existing callers) falls back to a
+    // fresh lookup.
+    const admittedMaxImages = 'admittedMaxImages' in input ? input.admittedMaxImages : undefined
+    const hasAdmitted = 'admittedMaxImages' in input
     const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId),
-      maxImages: resolveModelImageLimit(this.input.modelId)
+      maxImages: hasAdmitted ? admittedMaxImages : resolveModelImageLimit(this.input.modelId)
     })
     // Remember for the provider result boundary: a later `result` failure
     // names only the limit, so the count must come from the submitted turn.
     // Record actual native image blocks (including replayed history) and keep
     // a queue so a text-only steer does not overwrite a pending image count.
-    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged, input.message.id)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -362,12 +370,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
     const merged = withAgentContext(input.message, input.context)
+    const hasAdmitted = 'admittedMaxImages' in input
+    const admittedMaxImages = hasAdmitted ? input.admittedMaxImages : undefined
     const sdkMessage = await toSdkUserMessage(merged, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId),
-      maxImages: resolveModelImageLimit(this.input.modelId)
+      maxImages: hasAdmitted ? admittedMaxImages : resolveModelImageLimit(this.input.modelId)
     })
-    this.recordSubmittedImageCount(sdkMessage.message.content, merged)
+    this.recordSubmittedImageCount(sdkMessage.message.content, merged, input.message.id)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -385,41 +395,36 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * Record the actual submitted native image blocks (including replayed history)
    * so the provider `result` boundary can correlate a limit failure with native
    * request membership. Queued so a text-only steer cannot overwrite a pending
-   * image count before native placement.
+   * image count before native placement. Entries carry their product input id so
+   * `input-boundary` placement can retire exactly the placed requests.
    */
   private recordSubmittedImageCount(
     content: SDKUserMessage['message']['content'],
-    merged: AgentSessionMessageEntity
+    merged: AgentSessionMessageEntity,
+    inputId?: string
   ): void {
     const blocks = Array.isArray(content) ? content.filter((part) => part.type === 'image').length : 0
     // Fall back to merged file-part count when no native blocks were produced
     // (e.g. vision disabled or all images took the path fallback) so a later
     // limit failure still carries the attached count.
     const count = blocks > 0 ? blocks : countAgentImageFileParts(merged.data.parts)
-    this.pendingImageCounts.push(count)
+    const key = typeof inputId === 'string' && inputId ? inputId : `anon:${this.pendingImageCounts.length}`
+    this.pendingImageCounts.push({ inputId: key, count })
     this.lastImageCount = count
   }
 
   /**
    * Consume the pending image count that best matches a provider `result`
-   * failure (oldest over-limit wins; a leading text-only zero is skipped).
-   * Submission order matters: when a two-image request fails while a
-   * five-image steer is still queued unplaced, the failure belongs to the
-   * earlier submission — reporting the queued maximum would misattribute the
-   * count and drop the steer's entry. When the oldest carries images but stays
-   * within the parsed limit, the request may have grown via tools after
-   * submission, so the actual count is unknown and the queue is preserved so
-   * the caller keeps the provider's own text. Returns undefined when no
-   * pending submission exists or when attribution is unknown.
-   *
-   * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
-   * `requesting` membership from the 0.3.311 adapter) instead of order when
-   * placement tracking is available. The current FIFO heuristic preserves
-   * unplaced counts but cannot prove which UUID was placed.
+   * failure using native placement membership (`input-boundary`).
+   * Only placed inputs can have failed: unplaced steers stay queued and the
+   * provider's own limit text is kept when the placed count cannot explain the
+   * failure (e.g. a text-only request that grew via tools after submission).
+   * Returns undefined when no pending submission exists or when attribution is
+   * unknown.
    */
   private consumeImageCountForResult(failure: unknown): number | undefined {
     if (this.pendingImageCounts.length === 0) return this.lastImageCount
-    const count = consumePendingImageCount(this.pendingImageCounts, failure)
+    const count = consumePlacedImageCount(this.pendingImageCounts, this.placedImageInputIds, failure)
     if (count !== undefined) this.lastImageCount = count
     return count
   }
@@ -758,6 +763,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async handleControl(control: ClaudeControl, contextId: string): Promise<AgentRuntimeEvent | undefined> {
     if (control.type === 'input-boundary') {
+      // Native placement signal (0.3.311 `requesting` membership): these inputs
+      // share the next response. Retire result attribution by membership so an
+      // unplaced steer's count is never reported as sent.
+      for (const inputId of control.inputIds) this.placedImageInputIds.add(inputId)
       this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
@@ -808,10 +817,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         return { type: 'error', error }
       }
       if (!control.terminal) return
-      // Turn complete: drop one pending image count (the settled submission).
+      // Turn complete: retire the placed submissions that share this response,
+      // preserving unplaced steers for the next result. Falls back to the
+      // oldest submission when no placement was observed.
       if (this.pendingImageCounts.length > 0) {
-        this.pendingImageCounts.shift()
-        this.lastImageCount = this.pendingImageCounts[this.pendingImageCounts.length - 1]
+        const placed = this.placedImageInputIds
+        if (this.pendingImageCounts.some((entry) => placed.has(entry.inputId))) {
+          this.pendingImageCounts = this.pendingImageCounts.filter((entry) => !placed.has(entry.inputId))
+          for (const inputId of [...placed]) {
+            if (!this.pendingImageCounts.some((entry) => entry.inputId === inputId)) placed.delete(inputId)
+          }
+        } else {
+          this.pendingImageCounts.shift()
+        }
+        this.lastImageCount = this.pendingImageCounts[this.pendingImageCounts.length - 1]?.count
       }
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
@@ -1199,6 +1218,66 @@ export function consumePendingImageCount(pending: number[], failure: unknown): n
     return undefined
   }
   return pending.shift()
+}
+
+/**
+ * Membership-aware result attribution for the Claude driver (#20030).
+ * `pending` holds submitted inputs in order with their product input ids;
+ * `placed` is the native `input-boundary` membership (0.3.311 `requesting`
+ * signal): only placed inputs share the native response that failed.
+ *
+ * - Limit failures: the oldest placed over-limit entry wins and is retired;
+ *   unplaced steers are never reported as sent. When the oldest placed entry
+ *   cannot explain the failure (text-only `0` or within-limit images that may
+ *   have grown via tools after submission), the actual sent count is unknown —
+ *   preserve the queue and return `undefined` so the caller keeps the
+ *   provider's own limit text.
+ * - Unrelated failures (no parsed limit): settle the oldest placed entry
+ *   (FIFO among placed, matching turn-complete), preserving unplaced steers
+ *   for the next limit failure. With no placement observed, falls back to the
+ *   oldest submission.
+ *
+ * Mutates `pending` and `placed` in place.
+ */
+export function consumePlacedImageCount(
+  pending: Array<{ inputId: string; count: number }>,
+  placed: Set<string>,
+  failure: unknown
+): number | undefined {
+  if (pending.length === 0) return undefined
+  const message =
+    typeof failure === 'string'
+      ? failure
+      : failure instanceof Error
+        ? failure.message
+        : typeof (failure as { message?: unknown }).message === 'string'
+          ? String((failure as { message?: unknown }).message)
+          : undefined
+  const limit = parseUpstreamImageLimit(message)
+  if (limit !== undefined) {
+    const placedInOrder = pending.filter((entry) => placed.has(entry.inputId))
+    if (placedInOrder.length === 0) return undefined
+    const first = placedInOrder[0]
+    if (first.count > limit) {
+      const index = pending.findIndex((entry) => entry.inputId === first.inputId)
+      const [removed] = pending.splice(index, 1)
+      placed.delete(first.inputId)
+      return removed.count
+    }
+    // Oldest placed cannot explain the cap (text-only that grew via tools, or
+    // within-limit images that grew): actual sent count unknown. Preserve the
+    // queue, notably any unplaced steer's count.
+    return undefined
+  }
+  const placedIndex = pending.findIndex((entry) => placed.has(entry.inputId))
+  if (placedIndex === -1) {
+    const [entry] = pending.splice(0, 1)
+    if (entry) placed.delete(entry.inputId)
+    return entry?.count
+  }
+  const [entry] = pending.splice(placedIndex, 1)
+  placed.delete(entry.inputId)
+  return entry.count
 }
 
 /**

@@ -778,4 +778,56 @@ describe('Claude image-limit result boundary (#20030)', () => {
     )
     expect(normalized).toBeUndefined()
   })
+
+  it('retires by native placement so an unplaced steer is never reported as sent (inv_848be20f7e82a473)', async () => {
+    // Text-only placed request grows via tools past a one-image cap while a
+    // five-image steer awaits placement: pending [{0 placed}, {5 unplaced}]
+    // must preserve the queue and keep the provider text, not report five.
+    const { consumePlacedImageCount, normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+    const pending = [
+      { inputId: 'a', count: 0 },
+      { inputId: 'b', count: 5 }
+    ]
+    const placed = new Set(['a'])
+    const count = consumePlacedImageCount(
+      pending,
+      placed,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(count).toBeUndefined()
+    expect(pending).toEqual([
+      { inputId: 'a', count: 0 },
+      { inputId: 'b', count: 5 }
+    ])
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
+    ).toBeUndefined()
+
+    // Two-image placed request fails with a one-image limit while a five-image
+    // steer is unplaced: report two and preserve the steer.
+    const pending2 = [
+      { inputId: 'a', count: 2 },
+      { inputId: 'b', count: 5 }
+    ]
+    const placed2 = new Set(['a'])
+    const count2 = consumePlacedImageCount(
+      pending2,
+      placed2,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(count2).toBe(2)
+    expect(pending2).toEqual([{ inputId: 'b', count: 5 }])
+    expect(placed2.has('a')).toBe(false)
+    expect(placed2.has('b')).toBe(false)
+
+    // Unrelated failure settles the oldest placed entry, preserving the steer.
+    const pending3 = [
+      { inputId: 'a', count: 5 },
+      { inputId: 'b', count: 0 }
+    ]
+    const placed3 = new Set(['a'])
+    const { consumePlacedImageCount: consume3 } = await import('../ClaudeCodeRuntimeDriver')
+    expect(consume3(pending3, placed3, new Error('boom'))).toBe(5)
+    expect(pending3).toEqual([{ inputId: 'b', count: 0 }])
+  })
 })

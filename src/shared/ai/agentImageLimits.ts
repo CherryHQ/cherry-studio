@@ -57,7 +57,20 @@ import { isVisionModel } from '@shared/utils/model'
  * MIME-aware and forward-compatible, so the Agent guard uses this superset
  * while routing stays untouched.
  */
-export const AGENT_IMAGE_EXTS: readonly string[] = [...sharedImageExts, '.avif', '.heic', '.heif', '.tif', '.tiff']
+export const AGENT_IMAGE_EXTS: readonly string[] = [
+  ...sharedImageExts,
+  '.avif',
+  '.heic',
+  '.heif',
+  '.tif',
+  '.tiff',
+  // JPEG aliases the MIME database resolves to `image/jpeg` after the file
+  // bridge copies bytes (notably `.jpe` from cameras/scanners). Counting must
+  // agree with main's MIME-aware count before managed entries are created, so
+  // a PNG + `.jpe` pair rejects with zero copy calls under a one-image cap.
+  '.jpe',
+  '.jfif'
+]
 
 /** Structural subset read by the image predicate. Covers `FileUIPart`,
  *  `CherryMessagePart` file parts and renderer `ComposerAttachment`s. */
@@ -364,7 +377,7 @@ export function toClaudeNativeMediaType(value: string | undefined | null): strin
  * cap. Otherwise the filename/URL extension decides among the four natively
  * supported types.
  */
-const CLAUDE_NATIVE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'] as const
+const CLAUDE_NATIVE_EXTS = ['.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.gif', '.webp'] as const
 export function canBeClaudeNativeImagePart(part: AgentImagePartLike | null | undefined): boolean {
   if (!part || typeof part !== 'object') return false
   const url = typeof part.url === 'string' ? part.url : undefined

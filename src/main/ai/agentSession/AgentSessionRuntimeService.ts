@@ -291,6 +291,15 @@ type PendingAgentSessionTurn = {
    * See `AgentSessionTurn.admittedMaxImages`.
    */
   admittedMaxImages?: number
+  /**
+   * Model the enqueue-time admission was resolved against. `handleAgentUpdated`
+   * mutates `entry.modelId` before the host queue drains, so comparing the
+   * drain-time effective model against `entry.modelId` alone would reuse a stale
+   * uncapped snapshot after an agent-default switch (A uncapped -> B capped).
+   * The drain compares against this captured model and re-resolves when it
+   * differs, so B's cap governs B's dispatch.
+   */
+  admittedModelId?: UniqueModelId
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
@@ -1462,7 +1471,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const pending = (entry.pendingInputs ??= new Map())
       if (pending.has(message.id)) return true
       pending.set(message.id, { input, generation: entry.connectionGeneration })
-      if (submit({ message: input.message, systemReminder: true })) return true
+      // Carry the enqueue-time admission so a mid-turn catalog refresh cannot
+      // re-gate the steer against a new cap after the draft was cleared.
+      if (submit({ message: input.message, systemReminder: true, admittedMaxImages })) return true
       pending.delete(message.id)
       return false
     }
@@ -1490,6 +1501,7 @@ export class AgentSessionRuntimeService extends BaseService {
         fastMode,
         steer: true,
         admittedMaxImages,
+        admittedModelId: entry.modelId,
         ...(headless ? { headless } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
@@ -2715,6 +2727,8 @@ export class AgentSessionRuntimeService extends BaseService {
               knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
               fastMode: this.currentTurn(entry)?.fastMode ?? false,
               steer: true,
+              admittedMaxImages: this.resolveTurnImageLimit(entry.modelId),
+              admittedModelId: entry.modelId,
               ...(input.headless ? { headless: true } : {}),
               ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
             }
@@ -3489,7 +3503,13 @@ export class AgentSessionRuntimeService extends BaseService {
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,
-      ...(context && { context })
+      ...(context && { context }),
+      // Carry the admitted capability into the driver's native-block guard so
+      // a cap published while the accepted turn opens cannot reject after
+      // persistence/ack. Presence (even `undefined` for uncapped) reuses the
+      // acceptance value; absence (pre-existing turns) lets the driver fall
+      // back to a fresh lookup.
+      ...('admittedMaxImages' in turn ? { admittedMaxImages: turn.admittedMaxImages } : {})
     })
   }
 
@@ -3766,8 +3786,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // Keep the admitted capability when the model is unchanged: a cap
     // published while queued must not reject after the draft was cleared.
     // When the model itself changed, the new model governs — resolve fresh.
+    // Compare against the enqueue-time admitted model, not `entry.modelId`
+    // alone: `handleAgentUpdated` mutates `entry.modelId` before the drain,
+    // which would otherwise hide an A (uncapped) -> B (capped) switch and
+    // reuse A's stale snapshot for B's dispatch.
+    const admittedModelId = 'admittedModelId' in pending ? pending.admittedModelId : undefined
+    const modelChangedSinceAdmission = admittedModelId ? admittedModelId !== effectiveModel : modelChanged
     const admittedMaxImages =
-      !modelChanged && 'admittedMaxImages' in pending
+      !modelChangedSinceAdmission && 'admittedMaxImages' in pending
         ? pending.admittedMaxImages
         : this.resolveTurnImageLimit(entry.modelId)
     const turn = createSessionTurn({

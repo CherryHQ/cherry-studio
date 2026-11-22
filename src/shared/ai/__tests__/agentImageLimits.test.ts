@@ -484,4 +484,31 @@ describe('runtime-specific replay gates (#20030 follow-up)', () => {
     expect(countClaudeNativeFileParts(parts)).toBe(2)
     expect(() => assertClaudeAgentImageLimit(parts, single)).toThrow(AgentImageLimitError)
   })
+
+  it('counts MIME-less .jpe/.jfif like main does after the file bridge (inv_cd0875c7798b05bd)', () => {
+    // Renderer attachments carry only ext/name; the file bridge adds
+    // `image/jpeg` after copying, and main rejects the two-image send. The
+    // composer pre-send guard must agree before creating managed entries, so
+    // a PNG + `.jpe` pair rejects with zero copy calls under a one-image cap.
+    expect(isAgentImagePart({ type: 'file', filename: 'photo.jpe' })).toBe(true)
+    expect(isAgentImagePart({ type: 'image', ext: '.jpe', name: 'photo' })).toBe(true)
+    expect(isAgentImagePart({ type: 'file', filename: 'photo.jfif' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'photo.jpe' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'image', ext: '.jpe', name: 'photo' })).toBe(true)
+    const attachments = [
+      { type: 'image', ext: '.png', name: 'a' },
+      { type: 'image', ext: '.jpe', name: 'b' }
+    ]
+    expect(countAgentImageAttachments(attachments)).toBe(2)
+    expect(countClaudeNativeImageAttachments(attachments)).toBe(2)
+    const fileParts = [
+      { type: 'file', filename: 'a.png' },
+      { type: 'file', filename: 'b.jpe' }
+    ]
+    expect(countAgentImageFileParts(fileParts)).toBe(2)
+    expect(countClaudeNativeFileParts(fileParts)).toBe(2)
+    expect(() => assertClaudeAgentImageLimit(fileParts, single)).toThrow(
+      expect.objectContaining({ limit: 1, count: 2 })
+    )
+  })
 })

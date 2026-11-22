@@ -104,6 +104,14 @@ export interface AgentRuntimeUserInput {
 export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'> & {
   /** Model-only context; the original product message remains unchanged. */
   context?: CherryUIMessage['parts']
+  /**
+   * Image-limit admitted when the turn was accepted (before persistence/ack).
+   * Presence (even as `undefined` for uncapped) means the host already gated
+   * the turn — drivers must reuse it instead of a fresh catalog lookup, so a
+   * cap published while the accepted turn opens cannot reject after the draft
+   * was cleared. Absence (pre-existing callers) falls back to a fresh lookup.
+   */
+  admittedMaxImages?: number
 }
 
 /**
