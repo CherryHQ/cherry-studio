@@ -276,6 +276,8 @@ export interface MessageRenderConfig {
   collapseCompletedToolHistory: boolean
   /** Open tool groups and the finished process by default, so each step reads without a click. */
   expandToolSteps: boolean
+  /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
+  expandLiveToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -298,6 +300,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
   expandToolSteps: false,
+  expandLiveToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,

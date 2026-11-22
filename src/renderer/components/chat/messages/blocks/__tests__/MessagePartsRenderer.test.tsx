@@ -2040,32 +2040,86 @@ describe('MessagePartsRenderer', () => {
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
+      const agentConfig = {
+        ...defaultMessageRenderConfig,
+        expandToolSteps: false,
+        expandLiveToolSteps: true,
+        keepIntermediateAssistantText: true
+      }
       const initialParts = [
         toolPart('read'),
         { type: 'text', text: 'answer in progress' }
       ] as unknown as CherryMessagePart[]
-      const { rerender } = renderParts(initialParts, pendingMessage)
+      const { rerender } = renderParts(initialParts, pendingMessage, {}, agentConfig)
 
       const answer = screen.getByText('answer in progress')
       expect(answer.closest('[data-live-process-run]')).toBeNull()
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      // Live turns stay expanded while running so earlier steps remain visible.
+      // Agent live turns stay expanded while running so earlier steps remain visible.
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
 
       const laterParts = [...initialParts, toolPart('edit', 'input-available')] as CherryMessagePart[]
-      rerender(renderPartsTree(laterParts, pendingMessage))
+      rerender(renderPartsTree(laterParts, pendingMessage, {}, agentConfig))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(2)
+      // Agent keeps intermediate text in the response lane, so both tool calls fold into one live group.
+      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(1)
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
       expect(screen.getByText('answer in progress')).toBeInTheDocument()
-      expect(screen.getByText('answer in progress')).not.toBe(answer)
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
     })
 
+    it('keeps regular chat live steps folded behind the group header until clicked', () => {
+      activateTurn()
+      const pendingMessage = msg({ status: 'pending' })
+      const initialParts = [
+        toolPart('read'),
+        { type: 'text', text: 'answer in progress' }
+      ] as unknown as CherryMessagePart[]
+      renderParts(initialParts, pendingMessage)
+
+      expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
+      expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
+      expect(screen.getByText('answer in progress')).toBeInTheDocument()
+
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+    })
+
     it('renders DeepSeek provider webSearch parts as tools instead of reasoning-only rows', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Finding current sources', state: 'done' },
+          {
+            type: 'tool-webSearch',
+            toolCallId: 'provider-search',
+            state: 'output-available',
+            input: {},
+            output: { action: { type: 'search' } },
+            providerExecuted: true
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: false,
+          expandLiveToolSteps: true,
+          keepIntermediateAssistantText: true
+        }
+      )
+
+      expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
+      // Agent live nested groups default to expanded so the running step is visible without a click.
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
+    })
+
+    it('keeps regular chat live webSearch steps folded until clicked', () => {
       activateTurn('streaming')
       renderParts(
         [
@@ -2083,7 +2137,9 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
-      // Live nested groups default to expanded so the running step is visible without a click.
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+      expandCollapsedChildToolGroups()
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
     })
 
@@ -2416,21 +2472,42 @@ describe('MessagePartsRenderer', () => {
         [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' }),
         {},
-        { ...defaultMessageRenderConfig, expandToolSteps: true }
+        { ...defaultMessageRenderConfig, expandToolSteps: true, expandLiveToolSteps: true }
       )
 
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
     })
 
-    it('lists every step of a running turn without a click when completed steps stay collapsed', () => {
+    it('lists every step of a running Agent turn without a click when completed steps stay collapsed', () => {
       activateTurn()
       renderParts(
         [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' }),
         {},
-        { ...defaultMessageRenderConfig, expandToolSteps: false }
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: false,
+          expandLiveToolSteps: true,
+          keepIntermediateAssistantText: true
+        }
       )
 
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    })
+
+    it('keeps regular chat running steps folded when completed steps stay collapsed', () => {
+      activateTurn()
+      renderParts(
+        [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: false, expandLiveToolSteps: false }
+      )
+
+      expect(screen.getByTestId('mock-tool-group-header')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+      expandCollapsedChildToolGroups()
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
     })
 

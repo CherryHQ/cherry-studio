@@ -365,6 +365,7 @@ interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandToolGroups?: boolean
+  expandLiveToolGroups?: boolean
   thoughtAutoCollapse?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   messageCitations?: MessageCitations
@@ -1289,15 +1290,19 @@ function renderNestedHistory(
     const visibleEntries = groupPartEntries(item.entries).filter(
       (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
     )
-    // Live turns keep their steps visible while the turn runs: the completed
-    // `expandToolSteps` default only gates finished histories. Completed
-    // histories also stay open when the thought preference asks for visible
-    // reasoning, so a mixed reasoning + tool turn does not hide the thought
-    // behind a closed child group.
+    // Live and completed histories have separate defaults: Agent keeps running
+    // steps visible while the turn runs, while ordinary chat keeps them folded
+    // behind the group header until clicked. The completed `expandToolSteps`
+    // default only gates finished histories. Both live and completed histories
+    // also stay open when the thought preference asks for visible reasoning,
+    // so a mixed reasoning + tool turn does not hide the thought behind a
+    // closed child group.
     const isLiveNested = liveProcessMode !== undefined
     const containsReasoning = item.entries.some((entry) => isReasoningMessagePart(entry.part))
     const keepReasoningVisible = options.thoughtAutoCollapse === false && containsReasoning && showsReasoning
-    const nestedDefaultExpanded = isLiveNested ? true : (options.expandToolGroups ?? false) || keepReasoningVisible
+    const nestedDefaultExpanded = isLiveNested
+      ? (options.expandLiveToolGroups ?? false) || keepReasoningVisible
+      : (options.expandToolGroups ?? false) || keepReasoningVisible
 
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
@@ -1682,7 +1687,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { expandToolSteps, subagentListTitle, thoughtAutoCollapse, userMessageDefaultExpanded } =
+  const { expandLiveToolSteps, expandToolSteps, subagentListTitle, thoughtAutoCollapse, userMessageDefaultExpanded } =
     useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
@@ -1866,6 +1871,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => ({
       citationProjectionByPart,
       expandToolGroups: expandToolSteps,
+      expandLiveToolGroups: expandLiveToolSteps,
       thoughtAutoCollapse,
       expandedTextPartIds,
       messageCitations,
@@ -1876,6 +1882,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
+      expandLiveToolSteps,
       expandToolSteps,
       thoughtAutoCollapse,
       expandedTextPartIds,
