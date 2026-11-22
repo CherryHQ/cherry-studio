@@ -45453,6 +45453,20 @@
       "modelId": "claude-opus-4-7",
       "name": "Claude Opus 4.7",
       "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.35
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
       "providerId": "crowllm"
     },
     {
@@ -45465,6 +45479,20 @@
       "modelId": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
       "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.55
+        }
+      },
       "providerId": "crowllm"
     },
     {
@@ -45477,6 +45505,20 @@
       "modelId": "gemini-3.7-flash",
       "name": "Gemini 3.7 Flash",
       "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.09
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
       "providerId": "crowllm"
     },
     {
@@ -45489,6 +45531,20 @@
       "modelId": "glm-5.3",
       "name": "GLM 5.3",
       "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.149395
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5976
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.09155
+        }
+      },
       "providerId": "crowllm"
     },
     {
@@ -45501,30 +45557,22 @@
       "modelId": "kimi-k3",
       "name": "Kimi K3",
       "ownedBy": "moonshot",
-      "providerId": "crowllm"
-    },
-    {
-      "apiModelId": "qwen-3.8-27b:free",
-      "family": "qwen",
-      "limits": {
-        "contextWindow": 131072,
-        "maxOutputTokens": 16384
-      },
-      "modelId": "qwen-3.8-27b:free",
-      "name": "Qwen 3.8 27B (free)",
-      "ownedBy": "alibaba",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.223
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 2.49
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 12.99
         }
       },
       "providerId": "crowllm"
     }
   ],
-  "version": "93a76c006f389cea"
+  "version": "b663b4550ae7fb3e"
 }

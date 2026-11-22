@@ -5,8 +5,8 @@ import { openaiCompatible } from './types'
  * model, with a zero-rated `:free` shelf next to the paid ids.
  *
  * The provider is not in models.dev yet, so the served models this preset
- * exposes are declared as standalone overrides (name + limits). Prices are
- * intentionally omitted; the live table is at https://crowllm.com/pricing.
+ * exposes are declared as standalone overrides (name, limits and the gateway's
+ * live per-million-token rates from https://crowllm.com/api/pricing).
  */
 export default openaiCompatible({
   id: 'crowllm',
@@ -26,7 +26,12 @@ export default openaiCompatible({
       name: 'DeepSeek V4 Flash',
       family: 'deepseek',
       ownedBy: 'deepseek',
-      limits: { contextWindow: 128000, maxOutputTokens: 16384 }
+      limits: { contextWindow: 128000, maxOutputTokens: 16384 },
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.14 },
+        output: { currency: 'USD', perMillionTokens: 0.55 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.014 }
+      }
     },
     {
       modelId: 'glm-5.3',
@@ -34,7 +39,12 @@ export default openaiCompatible({
       name: 'GLM 5.3',
       family: 'glm',
       ownedBy: 'zhipu',
-      limits: { contextWindow: 200000, maxOutputTokens: 32768 }
+      limits: { contextWindow: 200000, maxOutputTokens: 32768 },
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.5976 },
+        output: { currency: 'USD', perMillionTokens: 2.09155 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.149395 }
+      }
     },
     {
       modelId: 'kimi-k3',
@@ -42,7 +52,12 @@ export default openaiCompatible({
       name: 'Kimi K3',
       family: 'kimi',
       ownedBy: 'moonshot',
-      limits: { contextWindow: 256000, maxOutputTokens: 32768 }
+      limits: { contextWindow: 256000, maxOutputTokens: 32768 },
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2.49 },
+        output: { currency: 'USD', perMillionTokens: 12.99 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.223 }
+      }
     },
     {
       modelId: 'claude-opus-4-7',
@@ -50,7 +65,12 @@ export default openaiCompatible({
       name: 'Claude Opus 4.7',
       family: 'claude',
       ownedBy: 'anthropic',
-      limits: { contextWindow: 200000, maxOutputTokens: 32000 }
+      limits: { contextWindow: 200000, maxOutputTokens: 32000 },
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 4 },
+        output: { currency: 'USD', perMillionTokens: 20 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.35 }
+      }
     },
     {
       modelId: 'gemini-3.7-flash',
@@ -58,18 +78,11 @@ export default openaiCompatible({
       name: 'Gemini 3.7 Flash',
       family: 'gemini',
       ownedBy: 'google',
-      limits: { contextWindow: 1000000, maxOutputTokens: 65536 }
-    },
-    {
-      modelId: 'qwen-3.8-27b:free',
-      apiModelId: 'qwen-3.8-27b:free',
-      name: 'Qwen 3.8 27B (free)',
-      family: 'qwen',
-      ownedBy: 'alibaba',
-      limits: { contextWindow: 131072, maxOutputTokens: 16384 },
+      limits: { contextWindow: 1000000, maxOutputTokens: 65536 },
       pricing: {
-        input: { currency: 'USD', perMillionTokens: 0 },
-        output: { currency: 'USD', perMillionTokens: 0 }
+        input: { currency: 'USD', perMillionTokens: 0.75 },
+        output: { currency: 'USD', perMillionTokens: 3.75 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.09 }
       }
     }
   ]
