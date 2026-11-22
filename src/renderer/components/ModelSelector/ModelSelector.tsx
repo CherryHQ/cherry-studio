@@ -52,6 +52,7 @@ import { getProviderDisplayName } from './utils'
 const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
+const GROUP_HEADER_HEIGHT = 28
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
@@ -451,7 +452,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     startTransition(() => _setFocusedItemKey(key))
   }, [])
   const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const [virtualList, setVirtualList] = useState<DynamicVirtualListRef | null>(null)
   const skipNextFocusScroll = useRef(false)
   const ignoreNextMultiSelectCloseRef = useRef(false)
   const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -661,11 +662,11 @@ export function ModelSelector(props: ModelSelectorProps) {
         }
         focusScrollFrameRef.current = window.requestAnimationFrame(() => {
           focusScrollFrameRef.current = null
-          listRef.current?.scrollToIndex(index, { align })
+          virtualList?.scrollToIndex(index, { align })
         })
       }
     },
-    [setFocusedItemKey]
+    [setFocusedItemKey, virtualList]
   )
 
   const focusItemBeforePaint = useCallback(
@@ -678,9 +679,9 @@ export function ModelSelector(props: ModelSelectorProps) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
         focusScrollFrameRef.current = null
       }
-      listRef.current?.scrollToIndex(index, { align })
+      virtualList?.scrollToIndex(index, { align })
     },
-    [setFocusedItemKey]
+    [setFocusedItemKey, virtualList]
   )
 
   const handleSelectItem = useCallback(
@@ -925,6 +926,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
             <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
+            {item.titleAction}
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -1147,14 +1149,15 @@ export function ModelSelector(props: ModelSelectorProps) {
               aria-multiselectable={multiple && multiSelectMode}
               style={{ height: visibleListHeight }}>
               <DynamicVirtualList
-                ref={listRef}
+                ref={setVirtualList}
+                enabled={open}
                 list={listItems}
                 size={virtualListHeight}
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
                 keepMountedIndexes={keepMountedIndexes}
-                scrollPaddingStart={ITEM_HEIGHT}
+                scrollPaddingStart={GROUP_HEADER_HEIGHT}
                 onScroll={handleListScroll}
                 autoHideScrollbar
                 overscan={6}>

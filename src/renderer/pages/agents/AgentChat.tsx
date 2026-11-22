@@ -27,6 +27,9 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import PermissionRequestComposer, {
+  type PermissionRequestComposerProps
+} from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -49,7 +52,13 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
-import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import {
+  type AgentFileNavigationRequest,
+  AgentRightPane,
+  AgentTaskProgressCapsule,
+  useAgentRightPaneActions
+} from './components/AgentRightPane'
+import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -57,6 +66,20 @@ import type { AgentConversationBootstrap } from './useAgentConversationBootstrap
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+
+function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
+  const { openAgentToolFlow, canOpenAgentToolFlow } = useAgentRightPaneActions()
+  return (
+    <PermissionRequestComposer
+      {...props}
+      onOpenSource={
+        canOpenAgentToolFlow
+          ? (source) => openAgentToolFlow({ toolCallId: source.toolCallId, title: source.title })
+          : undefined
+      }
+    />
+  )
+}
 
 interface ModelSwitchTarget {
   sessionId: string
@@ -78,12 +101,25 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
+  session?: Pick<AgentSessionEntity, 'id' | 'name'>
+}
 
-function AgentTopBarControls(props: AgentTopBarControlsProps) {
+function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <>
+      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+      {session && !iconOnly ? (
+        <AgentSessionNameControl
+          sessionId={session.id}
+          sessionName={session.name}
+          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
+        />
+      ) : null}
+    </>
+  )
 }
 
 interface AgentChatProps {
@@ -256,6 +292,8 @@ const AgentChat = ({
     sessionId: sessionSnapshot?.id ?? '',
     modelId: activeModel?.id,
     agentType: activeAgent?.type,
+    agentName: activeAgent?.name,
+    permissionRequestComponent: AgentPermissionRequestComposer,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -456,6 +494,7 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
+              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}

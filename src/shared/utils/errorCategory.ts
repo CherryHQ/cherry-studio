@@ -61,6 +61,7 @@ function isQuotaExhaustionMessage(message: string): boolean {
     message.includes('insufficient balance') ||
     message.includes('insufficient_credit') ||
     message.includes('insufficient credit') ||
+    message.includes('credit balance is running low') ||
     message.includes('billing_hard_limit_reached') ||
     message.includes('余额不足')
   )
@@ -295,6 +296,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // anchors the diagnostics scanner already recognizes (see network.ts).
   if (
     msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('und_err_socket') ||
+    msg.includes('err_incomplete_chunked_encoding') ||
+    msg.includes('err_connection_closed') ||
+    msg.includes('err_connection_reset') ||
+    msg.includes('err_empty_response') ||
     msg.includes('etimedout') ||
     msg.includes('timeout') ||
     msg.includes('timed out') ||
@@ -392,5 +399,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  return status === 400 ? 'bad_request' : 'unknown'
+  // A provider's validation type marks a rejected request when no structured status survived
+  // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
+  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
 }

@@ -30,6 +30,23 @@ vi.mock('electron', () => ({
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 import { CherryInOAuthService } from '../CherryInOAuthService'
 import { OAuthTransientError } from '../errors'
+import { cherryInOAuthProvider } from '../runtime/providers/cherryin'
+
+describe('CherryIN sign-in key retrieval', () => {
+  it('keeps successful authorization when the server returns no API keys', async () => {
+    netMocks.fetch.mockResolvedValueOnce(Response.json({ success: true, data: [] }))
+
+    await expect(cherryInOAuthProvider.afterPersistTokens({ access_token: 'oauth-access' }, {})).resolves.toEqual({
+      apiKeys: ''
+    })
+  })
+
+  it('rejects a failed response even when the key list is empty', async () => {
+    netMocks.fetch.mockResolvedValueOnce(Response.json({ success: false, data: [] }))
+
+    await expect(cherryInOAuthProvider.afterPersistTokens({ access_token: 'oauth-access' }, {})).rejects.toThrow()
+  })
+})
 
 describe('CherryInOAuthService', () => {
   let cherryInOAuthService: CherryInOAuthService
