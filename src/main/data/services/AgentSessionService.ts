@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync, lstatSync, readdirSync } from 'node:fs'
-import { access as accessAsync, lstat as lstatAsync, readdir as readdirAsync } from 'node:fs/promises'
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
+import {
+  access as accessAsync,
+  lstat as lstatAsync,
+  readFile as readFileAsync,
+  readdir as readdirAsync
+} from 'node:fs/promises'
 import path from 'node:path'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
@@ -212,6 +217,25 @@ type NativeHistoryProbe =
       nativeThreadId: string | null
     }
   | { kind: 'pi'; sessionDir: string; suffix: string; required: boolean }
+  | { kind: 'pi-durable'; storePath: string }
+
+/**
+ * A restored Pi archive must hold complete JSONL records: a slim backup can copy the expected
+ * filename with a truncated record, and the pinned loader throws on it the next turn. An empty
+ * file stays valid; Pi persists lazily, so a session may legitimately have no records yet.
+ */
+function hasCompleteJsonlRecords(content: string): boolean {
+  for (const line of content.split('\n')) {
+    const record = line.trim()
+    if (!record) continue
+    try {
+      JSON.parse(record)
+    } catch {
+      return false
+    }
+  }
+  return true
+}
 
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
@@ -1232,7 +1256,7 @@ export class AgentSessionService {
             }
           ]
         }
-        if (locator.kind === 'pi' && nativeThreadId) {
+        if (locator.kind === 'pi' || locator.kind === 'pi-durable') {
           // Pi opens an archive for a bound branch and for a pending one that already has input.
           const [input] = db
             .select({ id: agentSessionMessageTable.id })
@@ -1246,7 +1270,18 @@ export class AgentSessionService {
             .limit(1)
             .all()
           const required = bindingState === 'bound' || Boolean(input)
-          return required
+          if (!required) return []
+          if (locator.kind === 'pi-durable') {
+            // A slim backup can carry the binding without its native store; the next turn would
+            // fail to open it, so recovery must refuse instead of clearing the warning.
+            return [
+              {
+                kind: 'pi-durable',
+                storePath: application.getPath('feature.agents.durable.stores', locator.fileName)
+              }
+            ]
+          }
+          return nativeThreadId
             ? [{ kind: 'pi', sessionDir: piSessionDir, suffix: `_${nativeThreadId}.jsonl`, required }]
             : []
         }
@@ -1267,9 +1302,18 @@ export class AgentSessionService {
         return false
       }
     }
+    if (probe.kind === 'pi-durable') {
+      try {
+        return lstatSync(probe.storePath).isFile()
+      } catch {
+        return false
+      }
+    }
     try {
       const files = readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix))
-      return files.length === 1 && lstatSync(path.join(probe.sessionDir, files[0])).isFile()
+      if (files.length !== 1) return false
+      const archive = path.join(probe.sessionDir, files[0])
+      return lstatSync(archive).isFile() && hasCompleteJsonlRecords(readFileSync(archive, 'utf8'))
     } catch {
       return false
     }
@@ -1295,11 +1339,21 @@ export class AgentSessionService {
         return false
       }
     }
+    if (probe.kind === 'pi-durable') {
+      try {
+        return (await withProbeTimeout(lstatAsync(probe.storePath))).isFile()
+      } catch {
+        return false
+      }
+    }
     try {
       const files = (await withProbeTimeout(readdirAsync(probe.sessionDir))).filter((file) =>
         file.endsWith(probe.suffix)
       )
-      return files.length === 1 && (await withProbeTimeout(lstatAsync(path.join(probe.sessionDir, files[0])))).isFile()
+      if (files.length !== 1) return false
+      const archive = path.join(probe.sessionDir, files[0])
+      if (!(await withProbeTimeout(lstatAsync(archive))).isFile()) return false
+      return hasCompleteJsonlRecords(await withProbeTimeout(readFileAsync(archive, 'utf8')))
     } catch {
       return false
     }
@@ -1307,9 +1361,11 @@ export class AgentSessionService {
 
   private describeHistoryProblem(probe: NativeHistoryProbe, reachable: boolean): string | undefined {
     if (reachable) return undefined
-    return probe.kind === 'claude-code'
-      ? "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
-      : "this conversation's Pi history file is missing from this data directory and cannot be continued here; start a new conversation or restore the original data directory"
+    if (probe.kind === 'claude-code')
+      return "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
+    return probe.kind === 'pi-durable'
+      ? "this conversation's Pi history store is missing from this data directory and cannot be continued here; start a new conversation or restore the original data directory"
+      : "this conversation's Pi history file is missing or incomplete in this data directory and cannot be continued here; start a new conversation or restore the original data directory"
   }
 
   /**

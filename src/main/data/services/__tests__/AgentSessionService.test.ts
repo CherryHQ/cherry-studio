@@ -1410,6 +1410,71 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('rejects recovery when a bound Pi Durable branch has no native store', async () => {
+    const durableStores = workspacePath('durable-stores-empty')
+    await rm(durableStores, { recursive: true, force: true })
+    await mkdir(durableStores, { recursive: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.durable.stores' ? path.join(durableStores, ...rest) : original?.(key, ...rest)
+    )
+    try {
+      const { session, missing, replacement } = await createMessagedSessionWithBackend('pi-durable-missing', {
+        version: 1,
+        kind: 'pi-durable',
+        fileName: 'native-thread-1.store'
+      })
+      expect(
+        captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+
+      await writeFile(path.join(durableStores, 'native-thread-1.store'), '')
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+    } finally {
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
+  it('rejects recovery when a bound Pi archive holds a truncated record, and accepts a complete one', async () => {
+    const piSessions = workspacePath('pi-sessions-truncated')
+    await rm(piSessions, { recursive: true, force: true })
+    await mkdir(piSessions, { recursive: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.pi.sessions' ? path.join(piSessions, ...rest) : original?.(key, ...rest)
+    )
+    try {
+      const { session, missing, replacement } = await createMessagedSessionWithBackend('pi-truncated', {
+        version: 1,
+        kind: 'pi'
+      })
+      const archive = path.join(piSessions, '2026-01-01T00-00-00-000Z_native-thread-1.jsonl')
+      await writeFile(archive, '{"type":"session","id":"native-th')
+      expect(
+        captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+
+      await writeFile(archive, '{"type":"session","id":"native-thread-1"}\n')
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+    } finally {
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
   it('moves subagent archives with the recovered parent', async () => {
     const missing = await createWorkspace('child-missing')
     const replacement = await createWorkspace('child-replacement')
