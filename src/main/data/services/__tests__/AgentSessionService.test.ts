@@ -1308,6 +1308,19 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('does not waive backend validation for an unused cross-home Claude Login reservation', async () => {
+    const { session, replacement, missing } = await createMessagedSessionWithBackend(
+      'claude-unused-login',
+      { version: 1, kind: 'claude-code', configDir: '/old/home/.claude' },
+      'pending'
+    )
+    await expect(
+      agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+    expect(recoveryMocks.recover).not.toHaveBeenCalled()
+  })
+
   it('allows unused pending Claude reservations without requiring a transcript', async () => {
     const { session, replacement } = await createMessagedSessionWithBackend(
       'claude-unused-pending',

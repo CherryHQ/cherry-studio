@@ -16,7 +16,7 @@ export async function forkClaudeSession(input: RuntimeForkInput): Promise<Runtim
 
 async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parseClaudeForkCheckpoint(input.checkpoint)
-  const file = await findClaudeSessionArchive(checkpoint.configDir, checkpoint.runtimeSessionId)
+  const file = await findClaudeSessionArchive(checkpoint.configDir, checkpoint.runtimeSessionId, input.targetCwd)
   const bytes = await readForkPrefix(file)
   const entries: SessionStoreEntry[] = []
   let start = 0

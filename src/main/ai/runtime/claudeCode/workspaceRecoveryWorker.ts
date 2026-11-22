@@ -149,10 +149,21 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     throw new Error('Invalid Claude recovery record directory')
   const temporary = path.join(records, `${input.nativeThreadId}.${randomUUID()}.tmp`)
   try {
-    await writeFile(temporary, JSON.stringify({ version: 1, sessionId: input.nativeThreadId, projectKey }), {
-      flag: 'wx',
-      mode: 0o600
-    })
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        version: 1,
+        sessionId: input.nativeThreadId,
+        projectKey,
+        sourceProjectKey: sourceKey,
+        sourceCwd: path.resolve(input.sourceCwd),
+        targetCwd: path.resolve(input.targetCwd)
+      }),
+      {
+        flag: 'wx',
+        mode: 0o600
+      }
+    )
     await rename(temporary, path.join(records, `${input.nativeThreadId}.json`))
   } finally {
     await rm(temporary, { force: true })

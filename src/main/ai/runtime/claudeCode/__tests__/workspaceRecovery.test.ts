@@ -153,6 +153,47 @@ it('forks a completed native reply after renamed-workspace recovery retains the 
   expect(await readFile(f.target, 'utf8')).toBe(content)
 })
 
+it('forks a later original reply when recovery copied history but the workspace rebind was rejected', async () => {
+  const f = await fixture()
+  const messageUuid = randomUUID()
+  const user = JSON.parse(f.content)
+  const assistant = {
+    type: 'assistant',
+    sessionId: f.nativeThreadId,
+    uuid: messageUuid,
+    parentUuid: user.uuid,
+    timestamp: '2026-01-01T00:00:01.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'Retained reply' }] }
+  }
+  const content = f.content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, content)
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  // Recovery has already published its record, but the final service probe rejects B.
+  // A remains bound and receives another reply after that copy was verified.
+  assistant.uuid = randomUUID()
+  const later = content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, later)
+  const checkpoint = {
+    runtime: 'claude-code',
+    runtimeSessionId: f.nativeThreadId,
+    messageUuid: assistant.uuid,
+    configDir: f.configDir
+  }
+  const fork = await forkClaudeSession({
+    sourceSessionId: 'source',
+    targetSessionId: 'fork',
+    checkpoint,
+    checkpoints: [checkpoint],
+    targetCwd: f.sourceCwd,
+    artifactDirectory: path.join(f.configDir, 'fork-test'),
+    signal: AbortSignal.timeout(15_000)
+  })
+  expect(fork.resumeToken).not.toBe(f.nativeThreadId)
+  expect(fork.checkpoints).toHaveLength(1)
+  expect(await readFile(f.source, 'utf8')).toBe(later)
+  expect(await readFile(f.target, 'utf8')).toBe(content)
+})
+
 it('retries an interrupted child copy when existing child bytes match the retained source', async () => {
   const f = await fixture()
   const suffix = path.join(f.nativeThreadId, 'subagents', 'agent-child.jsonl')

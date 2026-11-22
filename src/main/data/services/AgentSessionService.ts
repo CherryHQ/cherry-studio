@@ -1288,7 +1288,23 @@ export class AgentSessionService {
               )
               .limit(1)
               .get()
-            if (!input) return []
+            if (!input) {
+              // No transcript exists yet, but the reserved branch still needs a backend
+              // that this profile can run. Only managed roots can be remapped safely.
+              if (!configDirs.has(path.resolve(locator.configDir)) && !isManagedClaudeConfigDir(locator.configDir)) {
+                return [
+                  {
+                    kind: 'claude-code',
+                    configDir: locator.configDir,
+                    foreignConfigDir: true,
+                    relocatable: false,
+                    managedRoot: application.getPath('feature.agents.claude.root'),
+                    nativeThreadId: null
+                  }
+                ]
+              }
+              return []
+            }
           }
           return [
             {
