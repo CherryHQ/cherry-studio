@@ -219,7 +219,10 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
     const normalized = normalizeCitationMarks(part.text ?? '', new Map(legacy.map((c) => [c.number, c])), source)
     const numbers = new Set<number>()
     mapMarkdownOutsideCode(normalized, (text) => {
-      for (const match of text.matchAll(CITATION_MARKER_PATTERN)) numbers.add(Number(match[2]))
+      // Only canonical ids count: the renderer looks markers up as exact strings, so `01` is not `1`.
+      for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+        if (String(Number(match[2])) === match[2]) numbers.add(Number(match[2]))
+      }
       return text
     })
     // A number shared by several references resolves to the last one, like the renderer's marker lookup.
@@ -241,7 +244,10 @@ const needsPercentEncoding = (character: string): boolean => {
 const escapeLinkDestination = (url: string): string =>
   Array.from(url, (character) =>
     needsPercentEncoding(character)
-      ? `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+      ? encodeURIComponent(character).replace(
+          /^[^%]$/,
+          (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+        )
       : character
   )
     .join('')

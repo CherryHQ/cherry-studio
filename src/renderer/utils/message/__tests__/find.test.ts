@@ -388,6 +388,40 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [https://example.org](https://example.org)')
   })
 
+  it('ends a list-nested fence at its container so the next paragraph still resolves', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '- Example\n  ~~~text\n  sample\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('does not treat a zero-padded id as the numeric reference', () => {
+    expect(getCitedWebSources(legacyMessage('Claim [cite:01].'))).toEqual([])
+  })
+
+  it('encodes a non-breaking space as its UTF-8 bytes', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'A', url: 'https://a.example/x\u00a0y', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://a.example/x%C2%A0y)')
+  })
+
   it('keeps literal HTML-like text in titles', () => {
     const message = createExportView([
       {

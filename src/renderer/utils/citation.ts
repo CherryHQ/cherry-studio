@@ -16,9 +16,12 @@ import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-// A tilde fence is a block construct: it must open at the start of a line (any indent, so list-nested fences count)
-// and runs to a closing line of at least as many tildes as the opener, or to the end of the text.
-const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|^[ \t]*(~{3,})[^\n]*(?:\n[\s\S]*?^[ \t]*\1~*[ \t]*$|[\s\S]*)|`[^`\n]*`/gm
+// A tilde fence is a block construct: it opens at the start of a line (any indent, so list-nested
+// fences count). Its body is every following blank line or line indented at least as far as the
+// opener, so a fence inside a list item ends where the item does. It ends early at a closing line of
+// at least as many tildes as the opener, and an unclosed top-level fence runs to the end of the text.
+const MARKDOWN_CODE_PATTERN =
+  /```[\s\S]*?```|^([ \t]*)(~{3,})[^\n]*(?:\n(?!\1[ \t]*\2~*[ \t]*$)(?:[ \t]*$|\1[^\n]*))*(?:\n\1[ \t]*\2~*[ \t]*$)?|`[^`\n]*`/gm
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
 export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
