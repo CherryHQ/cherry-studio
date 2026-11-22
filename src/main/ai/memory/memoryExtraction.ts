@@ -6,6 +6,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
 import { MemoryCandidateSchema, type MemoryExtractionRange } from '@shared/types/memory'
@@ -70,10 +71,12 @@ export function readExtractionSource(input: ExtractionInput, allowOversized = fa
       !response ||
       user.sessionId !== session.id ||
       response.sessionId !== session.id ||
-      response.parentId !== user.id ||
+      !agentSessionMessageService.inputsForReply(session.id, response.id).includes(user.id) ||
       user.delivery ||
       response.messageSnapshot?.id !== session.agentId
     )
+      throw new InvalidExtractionSource()
+    if (response.parentId !== user.id && !extractionBranch(input, user.id).has(user.id))
       throw new InvalidExtractionSource()
   }
   if (
@@ -148,14 +151,6 @@ export function readExtractionRange(
 ) {
   const source = readExtractionSource(range.source)
   const db = application.get('DbService').getDb()
-  if (range.source.kind === 'agent') {
-    const response = db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.id, range.source.responseId))
-      .get()
-    if (response?.parentId !== source.messageId) throw new DreamingError('unavailable')
-  }
   const messages: {
     id: string
     role: string
@@ -184,6 +179,29 @@ export function readExtractionRange(
         Buffer.from(JSON.stringify({ source: source.hash, messages, leftContextIncomplete, contextGaps, windowHash }))
       )
     }
+  }
+  // Walk the real tree for membership, then place admitted Agent replies beside their inputs.
+  const pairAgentReplies = () => {
+    if (range.source.kind !== 'agent' || !admissions) return
+    const replies = new Map(
+      messages.filter((message) => message.role === 'assistant').map((message) => [message.id, message])
+    )
+    const paired = new Map<string, (typeof messages)[number]>()
+    for (const user of messages) {
+      const ticket = admissionsByUser.get(user.id)
+      if (!ticket) continue
+      const reply = replies.get(ticket.input.responseId)
+      if (reply && ticket.hash === turnHash(rows.get(user.id)!, rows.get(reply.id)!, source.entityKey)) {
+        paired.set(user.id, reply)
+        replies.delete(reply.id)
+      }
+    }
+    const ordered = messages.flatMap((message) => {
+      if (message.role === 'assistant' && !replies.has(message.id)) return []
+      const reply = paired.get(message.id)
+      return reply ? [message, reply] : [message]
+    })
+    messages.splice(0, messages.length, ...ordered)
   }
   while (id && messages.length < (recent ? 16 : 64)) {
     source.authority.assertAuthorized()
@@ -246,6 +264,7 @@ export function readExtractionRange(
     })
     if (row.id === range.fromMessageId) {
       if (row.role !== 'user') throw new DreamingError('unavailable')
+      pairAgentReplies()
       if (!recent && admissions) {
         for (let index = 0; index < messages.length; index += 2) {
           const user = messages[index]
@@ -255,7 +274,8 @@ export function readExtractionRange(
           const hash = reply ? turnHash(rows.get(user.id)!, rows.get(reply.id)!, source.entityKey) : source.hash
           if (
             user.role !== 'user' ||
-            (reply && (reply.role !== 'assistant' || reply.parentId !== user.id)) ||
+            (reply &&
+              (reply.role !== 'assistant' || (range.source.kind === 'assistant' && reply.parentId !== user.id))) ||
             ticket?.messageId !== user.id ||
             ticket.hash !== hash
           )
@@ -269,12 +289,18 @@ export function readExtractionRange(
   if (recent) {
     leftContextIncomplete ||= id !== null
     windowHash = memoryHash(Buffer.from(JSON.stringify(messages)))
+    pairAgentReplies()
     while (messages[0]?.role === 'assistant') messages.shift()
     const turns: (typeof messages)[] = []
     for (let index = 0; index < messages.length;) {
       const user = messages[index]
       const response = messages[index + 1]
-      const paired = user.role === 'user' && response?.role === 'assistant' && response.parentId === user.id
+      const paired =
+        user.role === 'user' &&
+        response?.role === 'assistant' &&
+        (range.source.kind === 'agent'
+          ? admissions?.get(response.id)?.messageId === user.id
+          : response.parentId === user.id)
       const count = paired ? 2 : 1
       if (
         paired &&

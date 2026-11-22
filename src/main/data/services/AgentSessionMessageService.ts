@@ -432,6 +432,22 @@ export class AgentSessionMessageService {
     )
   }
 
+  /** Queued inputs may share a reply whose tree parent is a later input. */
+  inputsForReply(sessionId: string, replyId: string): string[] {
+    const db = application.get('DbService').getDb()
+    const users = db.all<{ id: string }>(sql`
+      SELECT id FROM agent_session_message
+      WHERE session_id = ${sessionId} AND role = 'user' AND reply_id = ${replyId}
+    `)
+    if (users.length) return users.map((user) => user.id)
+    const parent = db.get<{ id: string }>(sql`
+      SELECT u.id FROM agent_session_message r JOIN agent_session_message u ON u.id = r.parent_id
+      WHERE r.id = ${replyId} AND r.role = 'assistant' AND r.session_id = ${sessionId}
+        AND u.session_id = r.session_id AND u.role = 'user' AND u.reply_id IS NULL
+    `)
+    return parent ? [parent.id] : []
+  }
+
   /** Records the reply Main opened for each input; a regenerated reply replaces the previous one. */
   linkReply(sessionId: string, inputIds: readonly string[], replyId: string): void {
     if (!inputIds.length) return

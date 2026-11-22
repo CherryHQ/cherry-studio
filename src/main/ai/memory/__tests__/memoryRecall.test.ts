@@ -22,6 +22,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { registerAutonomyTools } from '@main/ai/mcp/servers/cherryAutonomyTools'
 import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
 import { createPiIdentityExtension } from '@main/ai/runtime/pi/identityExtension'
@@ -29,6 +30,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { serializeMemoryEntries } from '../memoryEntries'
+import { readExtractionRange, readExtractionSource } from '../memoryExtraction'
 import { agentMemoryReference, assistantMemoryReference } from '../memoryPrompt'
 import { conversationRecallReference, memorySearchInputSchema } from '../memoryRecall'
 import { MemoryService } from '../MemoryService'
@@ -189,6 +191,38 @@ describe('FTS conversation recall in memory references', () => {
   function excerpts(prompt: string): { messageId: string; role: string; matchRank?: number }[] {
     return JSON.parse(prompt.split('\n').find((line) => line.startsWith('{"items":'))!).items
   }
+
+  it('pairs a queued Agent input with its linked reply instead of the later branch tip', async () => {
+    const { id, ids } = conversation('agent', ['Earlier needle', 'Current needle B', 'Queued needle C', 'Answer B'])
+    const [, b, c, reply] = ids
+    dbh.db.update(agentSessionMessageTable).set({ role: 'user' }).where(eq(agentSessionMessageTable.id, b)).run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({
+        messageSnapshot: { id: agentId, name: 'A', model: { id: 'test', name: 'Test', provider: 'test' } }
+      })
+      .where(eq(agentSessionMessageTable.id, reply))
+      .run()
+    agentSessionMessageService.linkReply(id, [b], reply)
+    const owner = { sessionId: id, assistantMessageId: reply }
+    const hits = excerpts(await conversationRecallReference(owner, 'needle', turn)).map((item) => item.messageId)
+    expect(hits).toContain(ids[0])
+    expect(hits).not.toContain(b)
+    expect(excerpts(await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: b }))).toEqual(
+      []
+    )
+    const input = { kind: 'agent' as const, sessionId: id, responseId: reply, userMessageId: b }
+    const source = readExtractionSource(input)
+    expect(() => readExtractionSource({ ...input, userMessageId: c })).toThrow()
+    const batch = readExtractionRange(
+      { source: input, fromMessageId: '' },
+      0,
+      true,
+      undefined,
+      new Map([[reply, source]])
+    )
+    expect(batch.messages.map((message) => message.id)).toEqual([b, reply])
+  })
 
   it.each(['assistant', 'agent'] as const)(
     'ranks partial short-keyword %s matches by coverage before the candidate limit',
