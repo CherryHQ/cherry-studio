@@ -192,6 +192,34 @@ describe('FTS conversation recall in memory references', () => {
     return JSON.parse(prompt.split('\n').find((line) => line.startsWith('{"items":'))!).items
   }
 
+  it('recalls a pre-link native input only with an unclaimed successful reply on the selected branch', async () => {
+    const {
+      id,
+      ids: [user, reply]
+    } = conversation('agent', ['Legacy needle', 'Historical answer'])
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ nativeInputId: 'legacy-input' })
+      .where(eq(agentSessionMessageTable.id, user))
+      .run()
+    const owner = { sessionId }
+    const lookup = async () =>
+      Promise.all([
+        conversationRecallReference(owner, 'needle', turn),
+        conversationRecallReference(owner, '', turn, { conversationId: id, messageId: user })
+      ]).then((results) => results.map((result) => excerpts(result).some((item) => item.messageId === user)))
+    expect(await lookup()).toEqual([true, true])
+    dbh.db.update(agentSessionTable).set({ activeNodeId: user }).where(eq(agentSessionTable.id, id)).run()
+    expect(await lookup()).toEqual([false, false])
+    dbh.db.update(agentSessionTable).set({ activeNodeId: reply }).where(eq(agentSessionTable.id, id)).run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ status: 'pending' })
+      .where(eq(agentSessionMessageTable.id, reply))
+      .run()
+    expect(await lookup()).toEqual([false, false])
+  })
+
   it('pairs a queued Agent input with its linked reply instead of the later branch tip', async () => {
     const { id, ids } = conversation('agent', ['Earlier needle', 'Current needle B', 'Queued needle C', 'Answer B'])
     const [, b, c, reply] = ids

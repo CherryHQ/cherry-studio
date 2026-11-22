@@ -113,12 +113,20 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         SELECT min(fts_rowid) FROM agent_session_message WHERE session_id = ${owner.sessionId} AND id IN (${inputIds})
       ))`
       : sql``
-  const eligibleInput = sql`
+  const eligibleInput = (onSelectedBranch: boolean) => sql`
     ${currentInputs.length ? sql`AND m.id NOT IN (${inputIds})` : sql``}
     ${
       agent
         ? sql`AND NOT (m.role = 'user' AND m.reply_id IS NULL
-      AND (m.input_context_id IS NOT NULL OR m.native_input_id IS NOT NULL ${pendingAfterCurrent}))`
+      AND (m.input_context_id IS NOT NULL OR m.native_input_id IS NOT NULL ${pendingAfterCurrent})
+      AND NOT EXISTS (
+        SELECT 1 FROM agent_session_message r
+        WHERE r.session_id = m.session_id AND r.parent_id = m.id AND r.role = 'assistant' AND r.status = 'success'
+          ${onSelectedBranch ? sql`AND r.id IN (SELECT id FROM branch)` : sql``}
+          AND NOT EXISTS (
+            SELECT 1 FROM agent_session_message u WHERE u.session_id = r.session_id AND u.reply_id = r.id
+          )
+      ))`
         : sql``
     }
   `
@@ -129,7 +137,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
     JOIN ${conversations} c ON c.id = ${conversationId}
     WHERE ${condition} AND ${ownerCondition} AND c.deleted_at IS NULL
       AND ${target?.messageId ? sql`m.role IN ('user', 'assistant')` : sql`m.role = 'user'`} AND m.status = 'success'
-      ${eligibleInput}
+      ${eligibleInput(false)}
     ORDER BY ${order}, m.id DESC LIMIT 64
   `)
   const branches = new Map<string, string[]>()
@@ -150,7 +158,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         SELECT b.id, b.parent_id AS parentId,
           (${ownerCondition} AND m.status = 'success' AND m.role IN ('user', 'assistant')
             AND length(trim(m.searchable_text)) > 0
-            ${eligibleInput}
+            ${eligibleInput(true)}
           ) AS eligible
         FROM branch b JOIN ${table} m ON m.id = b.id
         JOIN ${conversations} c ON c.id = ${conversationId}
