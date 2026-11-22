@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { application } from '@application'
-import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { agentDataDirectoryPath, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, type Disposable, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { MemoryScope } from '@shared/types/memory'
@@ -267,7 +267,7 @@ export class MemoryService extends BaseService {
     if (scope.kind === 'private') {
       const agentsRoot = application.getPath('feature.agents.data')
       root = agentDataDirectoryPath(agentsRoot, scope.agentId)
-      await assertAgentStorageDirectory(agentsRoot, root)
+      await ensureAgentStorageDirectory(agentsRoot, root)
     } else {
       root = application.getPath('feature.memory.data')
     }
