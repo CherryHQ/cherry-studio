@@ -22,7 +22,7 @@ vi.mock('../SelectionActionIconPicker', async () => {
     return mounted
   }
   return {
-    default: ({
+    default: function MockSelectionActionIconPicker({
       value,
       onChange,
       onRoll
@@ -30,7 +30,7 @@ vi.mock('../SelectionActionIconPicker', async () => {
       value: string
       onChange: (icon: string) => void
       onRoll?: (roll: Promise<string | null>) => void
-    }) => {
+    }) {
       const mounted = useMountedFlag()
       return (
         <div>
