@@ -313,7 +313,7 @@ export class ServiceContainer {
   /**
    * Get a summary of registered services for logging
    */
-  public getRegistrationSummary(): { total: number; excluded: number; byPhase: Record<string, number> } {
+  public getRegistrationSummary() {
     const byPhase: Record<string, number> = {}
     for (const entry of this.services.values()) {
       const phase = entry.provider.metadata.phase

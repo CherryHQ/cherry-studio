@@ -139,10 +139,7 @@ const formatCitationLines = (citations: Citation[]): string =>
  * be derived here — the text with each marker rewritten to a plain `[N]`, and the
  * matching sources list, which {@link getCitationContent} cannot produce.
  */
-export const getToolCitationExport = (
-  message: ExportableMessage,
-  content: string
-): { content: string; citation: string } => {
+export const getToolCitationExport = (message: ExportableMessage, content: string) => {
   // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
   // their `[N]` markers from the stored references, so resolving them here would
   // renumber the text by first appearance and drift from that sources list.

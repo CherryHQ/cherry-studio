@@ -151,7 +151,7 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): { flush: () => Promise<void>; getPendingSave: () => Promise<void> | undefined } {
+}) {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
   const saveTaskRef = useRef(new CoalescingTask())

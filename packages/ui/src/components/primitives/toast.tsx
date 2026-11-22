@@ -307,7 +307,7 @@ const createToastUtilities = (labels?: ToastLabelsInput, store = defaultToastSto
     closeAll: store.closeAll,
     closeToast: (key: string) => store.remove(key),
     error: createToast('error', store),
-    getToastQueue: (): { toasts: ToastRecord[] } => ({ toasts: store.getSnapshot() }),
+    getToastQueue: () => ({ toasts: store.getSnapshot() }),
     info: createToast('info', store),
     loading: createLoadingToast(labels, store),
     success: createToast('success', store),
@@ -329,7 +329,7 @@ export const closeAll = () => {
   defaultToastStore.closeAll()
 }
 
-export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: defaultToastStore.getSnapshot() })
+export const getToastQueue = () => ({ toasts: defaultToastStore.getSnapshot() })
 
 export const getToastUtilities = (labels?: ToastLabelsInput) => createToastUtilities(labels)
 
