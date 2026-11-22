@@ -39,8 +39,8 @@ through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
 Required workspace packages are built before typechecks and tests. CI setup marks a
 successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
-reuse those exports in the same job. Unprepared local validation still builds them;
-main tests still rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
+reuse those exports in the same job. Unprepared local validation still builds them.
+Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.

@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { CircleSlash, Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Maximize2, Minimize2, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -51,12 +52,15 @@ import { getProviderDisplayName } from './utils'
 const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
+const GROUP_HEADER_HEIGHT = 28
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
 const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
+const MODEL_SELECTOR_DIALOG_WIDTH = 560
+const MODEL_SELECTOR_DIALOG_HEIGHT = 560
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
@@ -414,6 +418,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     contentClassName,
     portalContainer,
     mountStrategy = 'destroy',
+    allowPresentationSwitch = false,
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
@@ -422,6 +427,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     composition
   } = props
   const { t } = useTranslation()
+  const [savedPresentation, setPresentation] = usePersistCache('ui.model_selector.presentation')
+  const presentation = allowPresentationSwitch ? savedPresentation : 'popover'
+  const isDialog = presentation === 'dialog'
   const listboxId = useId()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
@@ -444,7 +452,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     startTransition(() => _setFocusedItemKey(key))
   }, [])
   const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const [virtualList, setVirtualList] = useState<DynamicVirtualListRef | null>(null)
   const skipNextFocusScroll = useRef(false)
   const ignoreNextMultiSelectCloseRef = useRef(false)
   const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -654,11 +662,11 @@ export function ModelSelector(props: ModelSelectorProps) {
         }
         focusScrollFrameRef.current = window.requestAnimationFrame(() => {
           focusScrollFrameRef.current = null
-          listRef.current?.scrollToIndex(index, { align })
+          virtualList?.scrollToIndex(index, { align })
         })
       }
     },
-    [setFocusedItemKey]
+    [setFocusedItemKey, virtualList]
   )
 
   const focusItemBeforePaint = useCallback(
@@ -671,9 +679,9 @@ export function ModelSelector(props: ModelSelectorProps) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
         focusScrollFrameRef.current = null
       }
-      listRef.current?.scrollToIndex(index, { align })
+      virtualList?.scrollToIndex(index, { align })
     },
-    [setFocusedItemKey]
+    [setFocusedItemKey, virtualList]
   )
 
   const handleSelectItem = useCallback(
@@ -918,6 +926,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
             <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
+            {item.titleAction}
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -1101,14 +1110,31 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
-        width={MODEL_SELECTOR_WIDTH}
+        presentation={presentation}
+        dialogLabel={t('button.select_model')}
+        width={isDialog ? MODEL_SELECTOR_DIALOG_WIDTH : MODEL_SELECTOR_WIDTH}
+        footerEnd={
+          allowPresentationSwitch ? (
+            <Tooltip content={t(isDialog ? 'models.action.switch_to_dropdown' : 'models.action.switch_to_dialog')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                aria-label={t(isDialog ? 'models.action.switch_to_dropdown' : 'models.action.switch_to_dialog')}
+                onClick={() => setPresentation(isDialog ? 'popover' : 'dialog')}>
+                {isDialog ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+              </Button>
+            </Tooltip>
+          ) : undefined
+        }
         side={side}
         align={align}
         sideOffset={sideOffset}
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
+        contentHeight={isDialog ? MODEL_SELECTOR_DIALOG_HEIGHT : MODEL_SELECTOR_CONTENT_HEIGHT}
         bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
@@ -1123,14 +1149,15 @@ export function ModelSelector(props: ModelSelectorProps) {
               aria-multiselectable={multiple && multiSelectMode}
               style={{ height: visibleListHeight }}>
               <DynamicVirtualList
-                ref={listRef}
+                ref={setVirtualList}
+                enabled={open}
                 list={listItems}
                 size={virtualListHeight}
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
                 keepMountedIndexes={keepMountedIndexes}
-                scrollPaddingStart={ITEM_HEIGHT}
+                scrollPaddingStart={GROUP_HEADER_HEIGHT}
                 onScroll={handleListScroll}
                 autoHideScrollbar
                 overscan={6}>

@@ -20,11 +20,11 @@ afterEach(() => {
 
 describe('nine-runner full validation', () => {
   it('uses seven Linux runners and one runner per native platform', () => {
-    const jobs = Object.values(workflow.jobs) as {
+    const jobs = Object.values<{
       'runs-on': string
       steps: { uses?: string }[]
       strategy?: { matrix: { os?: string[]; shard?: number[] } }
-    }[]
+    }>(workflow.jobs)
     const runners = jobs
       .filter((job) => job.steps.some((step) => step.uses === './.github/actions/setup-validation'))
       .flatMap((job) => {

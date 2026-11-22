@@ -46,6 +46,7 @@
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
 | [IPC Transport](./references/ai/ipc-transport.md) | Desktop AI commands and shared root/child message projection subscriptions over IpcApi |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
+| [MCP Skills Client](./references/ai/mcp-skills-client.md) | On-demand MCP Skills discovery, verified file reads, and ordinary tool approval in Agent sessions |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
@@ -136,7 +137,7 @@
 | [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
 | [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
 | [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
-| [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
+| [Upgrading v1 Data](./references/data/v2-migration-guide.md) | Upgrade old profiles through a fixed migration-capable release before starting the current application |
 
 ### Diagnostics
 
@@ -154,6 +155,7 @@
 | [File Editing Sessions](./references/file/file-editing.md) | Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery |
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
+| [File Observation](./references/file/file-observation.md) | Native file observation ownership, invalidation subscriptions, directory leases, and renderer recovery |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
 | [Upload Integrity](./references/file/upload-integrity.md) | Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks |
 
