@@ -401,6 +401,7 @@
   "agent.session.metrics.scope": "Wartości dotyczą tylko aktywnej gałęzi. Inne gałęzie nie są uwzględnione.",
   "agent.session.metrics.steps": "{{value}} kroków",
   "agent.session.metrics.turns": "{{value}} tur",
+  "agent.session.metrics.usage_incomplete": "Niektóre tury w tej gałęzi nie mają zapisanego zużycia (np. skopiowana historia forka), więc wartości tokenów są dolnymi granicami.",
   "agent.session.model_switch_confirm.confirm": "Przełącz model",
   "agent.session.model_switch_confirm.description": "Różne modele mogą inaczej rozumieć i przetwarzać kontekst. Przełączenie może wpłynąć na ciągłość lub jakość kolejnych odpowiedzi. Czy chcesz kontynuować?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Nie pytaj ponownie do momentu zamknięcia aplikacji",

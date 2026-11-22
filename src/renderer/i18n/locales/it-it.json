@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "I valori riguardano solo il ramo attivo. Gli altri rami non sono inclusi.",
   "agent.session.metrics.steps": "{{value}} passaggi",
   "agent.session.metrics.turns": "{{value}} turni",
+  "agent.session.metrics.usage_incomplete": "Alcuni turni di questo ramo non hanno un utilizzo registrato (ad esempio la cronologia copiata da un fork), quindi i valori dei token sono minimi.",
   "agent.session.model_switch_confirm.confirm": "Cambia modello",
   "agent.session.model_switch_confirm.description": "Modelli diversi possono interpretare ed elaborare il contesto in modo diverso. Il cambio può influire sulla coerenza o sulla qualità delle risposte successive. Vuoi continuare?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Non chiedere più fino alla chiusura dell'app",

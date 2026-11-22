@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "Les chiffres ne concernent que la branche active. Les autres branches ne sont pas incluses.",
   "agent.session.metrics.steps": "{{value}} étapes",
   "agent.session.metrics.turns": "{{value}} tours",
+  "agent.session.metrics.usage_incomplete": "Certains tours de cette branche n'ont aucune utilisation enregistrée (par exemple l'historique copié d'un fork), les chiffres de tokens sont donc des minimums.",
   "agent.session.model_switch_confirm.confirm": "Changer de modèle",
   "agent.session.model_switch_confirm.description": "Les différents modèles peuvent comprendre et traiter le contexte différemment. Changer de modèle peut affecter la continuité ou la qualité des réponses suivantes. Ce changement s’applique uniquement à cette session et n’affecte pas les autres sessions du même agent. Voulez-vous continuer ?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Ne me demande plus jusqu'à ce que je quitte l'application.",

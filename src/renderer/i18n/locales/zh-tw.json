@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "數據僅涵蓋目前分支，不包含其他分支。",
   "agent.session.metrics.steps": "{{value}} 步",
   "agent.session.metrics.turns": "{{value}} 輪",
+  "agent.session.metrics.usage_incomplete": "此分支中有些回合沒有使用量記錄（例如複製的分叉歷史），因此 token 數據為下限值。",
   "agent.session.model_switch_confirm.confirm": "切換模型",
   "agent.session.model_switch_confirm.description": "不同的模型可能會以不同的方式理解和處理上下文。切換模型可能會影響後續回應的連續性或品質。此變更僅適用於目前的工作階段，不會影響同一代理的其他工作階段。您確定要繼續嗎？",
   "agent.session.model_switch_confirm.skip_for_app_run": "在我退出應用程式之前不要再詢問",

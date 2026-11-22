@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "Die Werte gelten nur für den aktiven Zweig. Andere Zweige sind nicht enthalten.",
   "agent.session.metrics.steps": "{{value}} Schritte",
   "agent.session.metrics.turns": "{{value}} Runden",
+  "agent.session.metrics.usage_incomplete": "Einige Durchläufe in diesem Zweig haben keine erfasste Nutzung (z. B. kopierter Fork-Verlauf), daher sind die Token-Werte Untergrenzen.",
   "agent.session.model_switch_confirm.confirm": "Modell wechseln",
   "agent.session.model_switch_confirm.description": "Verschiedene Modelle können den Kontext unterschiedlich verstehen und verarbeiten. Ein Wechsel kann die Kontinuität oder Qualität nachfolgender Antworten beeinträchtigen. Diese Änderung gilt nur für diese Sitzung und betrifft keine anderen Sitzungen desselben Agenten. Möchten Sie fortfahren?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Nicht erneut fragen, bis ich die App beende",

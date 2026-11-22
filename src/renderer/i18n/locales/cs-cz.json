@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "Hodnoty zahrnují pouze aktivní větev. Ostatní větve nejsou započteny.",
   "agent.session.metrics.steps": "{{value}} kroků",
   "agent.session.metrics.turns": "{{value}} kol",
+  "agent.session.metrics.usage_incomplete": "Některá kola v této větvi nemají zaznamenanou spotřebu (například zkopírovanou historii forku), proto jsou hodnoty tokenů dolní hranice.",
   "agent.session.model_switch_confirm.confirm": "Přepnout model",
   "agent.session.model_switch_confirm.description": "Různé modely mohou kontext chápat a zpracovávat různě. Přepnutí může ovlivnit návaznost nebo kvalitu následujících odpovědí. Chcete pokračovat?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Neptat se znovu, dokud neukončím aplikaci",

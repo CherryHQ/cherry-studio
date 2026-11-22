@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "Figures cover the active branch only. Other branches are not included.",
   "agent.session.metrics.steps": "{{value}} steps",
   "agent.session.metrics.turns": "{{value}} turns",
+  "agent.session.metrics.usage_incomplete": "Some turns in this branch have no recorded usage (for example copied fork history), so token figures are lower bounds.",
   "agent.session.model_switch_confirm.confirm": "Switch model",
   "agent.session.model_switch_confirm.description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. This change applies only to this session and does not affect other sessions of the same agent. Do you want to continue?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Don't ask again until I quit the app",

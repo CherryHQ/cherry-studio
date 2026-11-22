@@ -9,6 +9,8 @@ export interface AgentSessionMetrics {
   cacheReadTokens?: number
   cacheWriteTokens?: number
   cacheHitRate?: number
+  /** A completed turn in the branch has no recorded stats (e.g. copied fork history), so usage sums are lower bounds. */
+  usageIncomplete: boolean
   timeFirstTokenMs?: number
   tokensPerSecond?: number
 }
@@ -38,12 +40,14 @@ export function buildAgentSessionMetrics(
   // persistence keeps those stats on the message. Completion eligibility (above) only
   // gates the turn/tool-step counts, never the recorded usage.
   const statsList: MessageStats[] = []
+  let usageIncomplete = false
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const stats = message.metadata?.stats
     if (stats) statsList.push(stats)
     if (message.metadata?.status === 'success') {
       turns.push({ id: message.id, stats })
+      if (!stats) usageIncomplete = true
     }
   }
 
@@ -57,6 +61,10 @@ export function buildAgentSessionMetrics(
   const cacheReportingStats = statsList.filter(
     (stats) => stats.inputTokens !== undefined && stats.inputTokenDetails?.cacheReadTokens !== undefined
   )
+  // A call with input but no cache breakdown makes the rate a sample, so show it as unavailable.
+  const cacheCoverageComplete = statsList.every(
+    (stats) => stats.inputTokens === undefined || stats.inputTokenDetails?.cacheReadTokens !== undefined
+  )
   const cacheReportedInput = sumDefined(cacheReportingStats.map((stats) => stats.inputTokens))
   const cacheReportedRead = sumDefined(cacheReportingStats.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
   const samples = statsList.map(getMessageGenerationSample).filter((sample) => sample !== undefined)
@@ -67,6 +75,7 @@ export function buildAgentSessionMetrics(
   const generatedDurationMs = sumDefined(samples.map((sample) => sample.durationMs))
 
   return {
+    usageIncomplete,
     turns: turns.length,
     toolSteps: turns.reduce(
       (count, turn) => count + (partsByMessageId[turn.id] ?? []).filter((part) => isToolPart(part.type)).length,
@@ -77,7 +86,10 @@ export function buildAgentSessionMetrics(
     cacheReadTokens,
     cacheWriteTokens: sumDefined(statsList.map((stats) => stats.inputTokenDetails?.cacheWriteTokens)),
     cacheHitRate:
-      cacheReportedRead !== undefined && cacheReportedInput !== undefined && cacheReportedInput > 0
+      cacheCoverageComplete &&
+      cacheReportedRead !== undefined &&
+      cacheReportedInput !== undefined &&
+      cacheReportedInput > 0
         ? cacheReportedRead / cacheReportedInput
         : undefined,
     timeFirstTokenMs:

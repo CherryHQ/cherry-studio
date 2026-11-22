@@ -41,8 +41,12 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
   const unavailable = t('chat.message.token_details.unavailable')
   // While older history is unloaded the sums are lower bounds, so mark them as such.
   const atLeast = partial ? '≥' : ''
+  // Token sums are lower bounds too when some completed turns carry no recorded usage.
+  const tokenAtLeast = partial || metrics.usageIncomplete ? '≥' : ''
   const formatTokens = (value?: number) =>
-    value === undefined ? unavailable : `${atLeast}${(partial ? exactFormatter : compactFormatter).format(value)}`
+    value === undefined
+      ? unavailable
+      : `${tokenAtLeast}${(partial || metrics.usageIncomplete ? exactFormatter : compactFormatter).format(value)}`
   // Rates and timings average over the loaded messages only; mark them approximate while history is partial.
   const approx = partial ? '~' : ''
   const formatFirstToken = (ms?: number) =>
@@ -63,6 +67,14 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
     formatThroughput(metrics.tokensPerSecond)
   ].join(' · ')
 
+  const tooltip = [
+    t('agent.session.metrics.scope'),
+    partial ? t('agent.session.metrics.partial') : undefined,
+    metrics.usageIncomplete ? t('agent.session.metrics.usage_incomplete') : undefined
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   const details = [
     { label: t('chat.message.token_details.output'), value: formatTokens(metrics.outputTokens) },
     { label: t('chat.message.token_details.cache_read'), value: formatTokens(metrics.cacheReadTokens) },
@@ -79,14 +91,10 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
         <button
           type="button"
           aria-expanded={expanded}
-          title={
-            partial
-              ? `${t('agent.session.metrics.scope')} ${t('agent.session.metrics.partial')}`
-              : t('agent.session.metrics.scope')
-          }
-          aria-label={
+          title={tooltip}
+          aria-label={`${summary}. ${
             expanded ? t('chat.message.token_details.less_details') : t('chat.message.token_details.more_details')
-          }
+          }`}
           onClick={() => setExpanded((value) => !value)}
           className="flex min-w-0 items-center gap-2 tabular-nums">
           <span className="truncate text-muted-foreground">{summary}</span>
@@ -108,6 +116,9 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
           <span className="w-full text-muted-foreground">{t('agent.session.metrics.scope')}</span>
           <span className="w-full text-muted-foreground">{t('agent.session.metrics.note')}</span>
           {partial && <span className="w-full text-muted-foreground">{t('agent.session.metrics.partial')}</span>}
+          {metrics.usageIncomplete && (
+            <span className="w-full text-muted-foreground">{t('agent.session.metrics.usage_incomplete')}</span>
+          )}
         </ComposerFloatingCapsule>
       )}
     </div>

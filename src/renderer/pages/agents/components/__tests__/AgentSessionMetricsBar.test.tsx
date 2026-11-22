@@ -92,6 +92,27 @@ describe('AgentSessionMetricsBar', () => {
     expect(screen.getByText(zhCn['agent.session.metrics.scope'])).toBeInTheDocument()
   })
 
+  it('exposes the figures in the accessible name while collapsed', () => {
+    render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
+
+    const button = screen.getByRole('button')
+    expect(button.getAttribute('aria-label')).toContain(button.textContent ?? '')
+  })
+
+  it('marks token sums as lower bounds when a completed turn has no recorded usage', () => {
+    const forked = [
+      { id: 'c', role: 'assistant', parts: [], metadata: { status: 'success' } },
+      ...messages
+    ] as unknown as CherryUIMessage[]
+    render(<AgentSessionMetricsBar messages={forked} partsByMessageId={{}} />)
+
+    expect(screen.getByRole('button').textContent).toContain('≥1,000')
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'title',
+      expect.stringContaining(zhCn['agent.session.metrics.usage_incomplete'])
+    )
+  })
+
   it('shows no partial-history note when the whole session is loaded', () => {
     render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
 

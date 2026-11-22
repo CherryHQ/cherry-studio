@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "Değerler yalnızca etkin dalı kapsar. Diğer dallar dahil değildir.",
   "agent.session.metrics.steps": "{{value}} adım",
   "agent.session.metrics.turns": "{{value}} tur",
+  "agent.session.metrics.usage_incomplete": "Bu daldaki bazı turların kayıtlı kullanımı yok (ör. kopyalanan fork geçmişi), bu yüzden token değerleri alt sınırdır.",
   "agent.session.model_switch_confirm.confirm": "Modeli değiştir",
   "agent.session.model_switch_confirm.description": "Farklı modeller bağlamı farklı şekillerde anlayıp işleyebilir. Modeli değiştirmek, sonraki yanıtların sürekliliğini veya kalitesini etkileyebilir. Bu değişiklik yalnızca bu oturuma uygulanır ve aynı ajanın diğer oturumlarını etkilemez. Devam edilsin mi?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Uygulamadan çıkana kadar bir daha sorma",

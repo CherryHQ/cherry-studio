@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "ตัวเลขครอบคลุมเฉพาะสาขาที่ใช้งานอยู่ ไม่รวมสาขาอื่น",
   "agent.session.metrics.steps": "{{value}} ขั้นตอน",
   "agent.session.metrics.turns": "{{value}} รอบ",
+  "agent.session.metrics.usage_incomplete": "บางเทิร์นในสาขานี้ไม่มีบันทึกการใช้งาน (เช่น ประวัติ fork ที่คัดลอกมา) ตัวเลขโทเค็นจึงเป็นค่าขั้นต่ำ",
   "agent.session.model_switch_confirm.confirm": "สลับโมเดล",
   "agent.session.model_switch_confirm.description": "โมเดลที่แตกต่างกันอาจเข้าใจและประมวลผลคอนเท็กซ์ต่างกัน การสลับอาจส่งผลต่อความต่อเนื่องหรือคุณภาพของการตอบสนองที่ตามมา ต้องการดำเนินการต่อหรือไม่?",
   "agent.session.model_switch_confirm.skip_for_app_run": "ไม่ถามอีกจนกว่าจะออกจากแอป",

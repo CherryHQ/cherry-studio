@@ -395,6 +395,7 @@
   "agent.session.metrics.scope": "수치는 현재 브랜치만 기준이며 다른 브랜치는 포함되지 않습니다.",
   "agent.session.metrics.steps": "단계 {{value}}개",
   "agent.session.metrics.turns": "턴 {{value}}개",
+  "agent.session.metrics.usage_incomplete": "이 브랜치에는 사용량이 기록되지 않은 턴(예: 복사된 포크 기록)이 있어 토큰 수치는 하한값입니다.",
   "agent.session.model_switch_confirm.confirm": "모델 전환",
   "agent.session.model_switch_confirm.description": "모델마다 컨텍스트를 이해하고 처리하는 방식이 다를 수 있습니다. 전환하면 이후 응답의 연속성이나 품질에 영향을 줄 수 있습니다. 이 변경은 현재 세션에만 적용되며 같은 에이전트의 다른 세션에는 영향을 주지 않습니다. 계속하시겠습니까?",
   "agent.session.model_switch_confirm.skip_for_app_run": "앱을 종료할 때까지 다시 묻지 않기",

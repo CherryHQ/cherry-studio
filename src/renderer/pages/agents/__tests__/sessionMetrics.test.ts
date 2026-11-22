@@ -69,11 +69,31 @@ describe('buildAgentSessionMetrics', () => {
   it('excludes calls without a cache breakdown from the hit rate denominator', () => {
     const cached = { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 900 } }
     const metrics = buildAgentSessionMetrics(
-      [assistant('a', cached), assistant('b', cached), assistant('live', { inputTokens: 10000 }, 'pending')],
+      [assistant('a', cached), assistant('b', cached), assistant('live', { outputTokens: 10 }, 'pending')],
       {}
     )
 
     expect(metrics.cacheHitRate).toBeCloseTo(0.9)
+  })
+
+  it('shows no hit rate when some calls lack a cache breakdown', () => {
+    const metrics = buildAgentSessionMetrics(
+      [
+        assistant('a', { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 900 } }),
+        assistant('b', { inputTokens: 9000 })
+      ],
+      {}
+    )
+
+    expect(metrics.cacheHitRate).toBeUndefined()
+  })
+
+  it('flags usage as incomplete when a completed turn has no recorded stats', () => {
+    const forked = buildAgentSessionMetrics([assistant('copied'), assistant('new', { inputTokens: 5 })], {})
+    const whole = buildAgentSessionMetrics([assistant('new', { inputTokens: 5 })], {})
+
+    expect(forked.usageIncomplete).toBe(true)
+    expect(whole.usageIncomplete).toBe(false)
   })
 
   it('returns undefined rather than zero when source data is missing', () => {
