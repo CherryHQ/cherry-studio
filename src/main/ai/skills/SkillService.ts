@@ -1471,8 +1471,17 @@ export class SkillService {
         // differently even though no user edited anything. Healing here turns a
         // one-time format migration into `up_to_date` instead of a false overwrite
         // prompt; the next real source change then reports clean `localChanges`.
+        // Heal under the mutation lock with a fresh revalidation so a concurrent
+        // Apply that published replacement files but has not yet committed (or that
+        // will roll back) cannot have its replacement hash persisted by this Check.
         try {
-          agentGlobalSkillService.update(skillId, { contentHash: remoteHash })
+          await this.mutationLock.runExclusive(async () => {
+            const fresh = agentGlobalSkillService.getById(skillId)
+            if (!fresh || fresh.contentHash !== skill.contentHash) return
+            const freshCurrentHash = await this.installer.computeContentHash(this.getSkillStoragePath(fresh.folderName))
+            if (freshCurrentHash !== remoteHash) return
+            agentGlobalSkillService.update(skillId, { contentHash: remoteHash })
+          })
         } catch (error) {
           logger.warn('Failed to heal skill baseline after format migration', {
             skillId,

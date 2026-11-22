@@ -174,8 +174,28 @@ export class SkillInstaller {
     ])
 
     if (destHash === baselineHash) {
-      if (backupExists) await this.safeRemoveDirectory(backupPath, 'committed skill backup')
+      // The replacement is committed and matches the baseline: both markers hold
+      // obsolete trees. Delete the backup via the cleanup marker first so a partial
+      // deletion leaves a `.cleanup` (swept by deletion) rather than a `.bak`
+      // (which the generic sweep would restore over the good replacement).
       if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      if (backupExists) {
+        try {
+          await fs.promises.rename(backupPath, cleanupPath)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            logger.warn('Failed to stage committed backup for cleanup; removing in place', {
+              destPath,
+              backupPath,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            await this.safeRemoveDirectory(backupPath, 'committed skill backup')
+            logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
+            return
+          }
+        }
+        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      }
       logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
       return
     }
@@ -288,7 +308,21 @@ export class SkillInstaller {
     ignored: ReadonlySet<string>
   ): Promise<void> {
     const entries = await fs.promises.readdir(directory, { withFileTypes: true })
-    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    // Sort by the canonical hash path so a top-level `skill.md` and its normalized
+    // `SKILL.md` snapshot share the same order. Sorting by the raw name would place
+    // `scripts` before lowercase `skill.md` but after uppercase `SKILL.md`, making a
+    // stable source fail snapshot validation on case-sensitive filesystems.
+    const canonicalSortKey = (name: string): string =>
+      relativeDirectory === '' && name.toLowerCase() === 'skill.md' ? 'SKILL.md' : name
+    entries.sort((a, b) => {
+      const aKey = canonicalSortKey(a.name)
+      const bKey = canonicalSortKey(b.name)
+      if (aKey < bKey) return -1
+      if (aKey > bKey) return 1
+      if (a.name < b.name) return -1
+      if (a.name > b.name) return 1
+      return 0
+    })
 
     for (const entry of entries) {
       const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
@@ -312,11 +346,14 @@ export class SkillInstaller {
         // Include executability so a mode-only source change is an update and a managed
         // mode edit requires explicit overwrite. Non-executable files hash exactly as
         // before, so existing baselines without executable helpers need no migration.
-        if ((stats.mode & 0o111) !== 0) {
+        // The exact exec-bit value is hashed (not just a boolean) so removing only the
+        // owner execute bit (0755 -> 0655) still changes the fingerprint.
+        const execBits = stats.mode & 0o111
+        if (execBits !== 0) {
           hash
             .update(`F:${Buffer.byteLength(hashPath)}:`)
             .update(hashPath)
-            .update(`:exec:${content.byteLength}:`)
+            .update(`:exec-${execBits.toString(8)}:${content.byteLength}:`)
             .update(content)
         } else {
           hash
