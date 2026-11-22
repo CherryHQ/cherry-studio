@@ -4,7 +4,9 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import type { InputState } from '@cherrystudio/agent-runtime'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
+import { agentPlanService } from '@data/services/AgentPlanService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
@@ -61,6 +63,7 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { ReplaceAgentPlanDto } from '@shared/data/api/schemas/agentPlans'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -445,6 +448,25 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       throw new AgentSessionEditError('busy')
     }
+  }
+
+  replaceHostPlan(sessionId: string, input: ReplaceAgentPlanDto) {
+    const streams = application.get('AiStreamManager')
+    const topicId = buildAgentSessionTopicId(sessionId)
+    return streams.withDispatchLock(topicId, async () => {
+      if (streams.isWriteQuiesced || streams.hasUnsettledTopicWork(topicId)) throw new AgentSessionEditError('busy')
+      // No await between the runtime guard and commit: autonomous launches cannot interleave.
+      const result = application.get('DbService').withWriteTx((tx) => {
+        this.assertSessionEditable(sessionId)
+        return agentPlanService.replaceTx(tx, sessionId, input)
+      })
+      if (result.changed)
+        notifyDataApiDataChange([
+          { endpoint: '/agent-sessions/:sessionId/plan', routeParams: { sessionId } },
+          { endpoint: '/agent-sessions/:sessionId/plan/history', kind: 'membership', routeParams: { sessionId } }
+        ])
+      return result.plan
+    })
   }
 
   getHistoryActions(sessionId: string, messageIds: readonly string[]) {
