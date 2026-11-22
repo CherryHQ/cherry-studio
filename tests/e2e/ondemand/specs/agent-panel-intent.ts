@@ -22,10 +22,11 @@ export default async function agentPanelIntent(context: ScenarioContext): Promis
   }))
   const providerId = `panel-intent-${Date.now()}`
   const server = await startMockChatServer()
-  const directory = await mkdtemp(join(tmpdir(), 'cherry-panel-intent-'))
+  let directory: string | undefined
   let agentId: string | undefined
   let workspaceId: string | undefined
   try {
+    directory = await mkdtemp(join(tmpdir(), 'cherry-panel-intent-'))
     await page.evaluate(() =>
       window.api.preference.setMultiple({
         'agent.session.display_mode': 'time',
@@ -194,31 +195,33 @@ export default async function agentPanelIntent(context: ScenarioContext): Promis
     }
     await context.runSteps([{ verb: 'expectVisible', selector: '[data-ui~="agent.view"]' }])
   } finally {
-    if (agentId)
+    try {
+      if (agentId)
+        await page.evaluate(
+          (agentId) =>
+            window.api.ipcApi.request('ai.agent.delete_permanently', {
+              agentId,
+              deleteSessions: true
+            }),
+          agentId
+        )
+      if (workspaceId)
+        await page.evaluate(
+          (workspaceId) => window.api.ipcApi.request('ai.agent.workspace.delete', { workspaceId }),
+          workspaceId
+        )
       await page.evaluate(
-        (agentId) =>
-          window.api.ipcApi.request('ai.agent.delete_permanently', {
-            agentId,
-            deleteSessions: true
+        (providerId) =>
+          window.api.dataApi.request({
+            id: crypto.randomUUID(),
+            method: 'DELETE',
+            path: `/providers/${providerId}`
           }),
-        agentId
+        providerId
       )
-    if (workspaceId)
-      await page.evaluate(
-        (workspaceId) => window.api.ipcApi.request('ai.agent.workspace.delete', { workspaceId }),
-        workspaceId
-      )
-    await page.evaluate(
-      (providerId) =>
-        window.api.dataApi.request({
-          id: crypto.randomUUID(),
-          method: 'DELETE',
-          path: `/providers/${providerId}`
-        }),
-      providerId
-    )
-    await page.evaluate((values) => window.api.preference.setMultiple(values), preferences)
-    await server.close()
-    await rm(directory, { recursive: true, force: true })
+      await page.evaluate((values) => window.api.preference.setMultiple(values), preferences)
+    } finally {
+      await Promise.all([server.close(), directory && rm(directory, { recursive: true, force: true })])
+    }
   }
 }

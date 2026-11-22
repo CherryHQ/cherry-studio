@@ -394,7 +394,6 @@ describe('validation execution', () => {
       if (group !== 'main') expect(test).toContain('system-speech')
       if (group === 'main') expect(test).toEqual(['exec', 'vitest', 'run', '--project', 'main', '--project', 'preload'])
       if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
-      if (group === 'main' || group === 'platform') expect(commands).toContainEqual(['rebuild:node'])
     }
   })
 

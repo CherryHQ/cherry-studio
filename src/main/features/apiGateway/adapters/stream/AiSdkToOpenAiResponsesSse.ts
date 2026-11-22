@@ -55,7 +55,7 @@ type StreamingResponseFields = Pick<
  * During streaming, we only emit a subset of fields.
  */
 type PartialStreamingResponse = StreamingResponseFields & {
-  usage?: Partial<ResponseUsage>
+  usage?: StreamingUsage
 }
 
 /**
@@ -63,8 +63,10 @@ type PartialStreamingResponse = StreamingResponseFields & {
  * The SDK's ResponseUsage requires input_tokens_details and output_tokens_details,
  * but the details are only present when the usage projection carries them.
  */
-type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> &
-  Partial<Pick<ResponseUsage, 'input_tokens_details' | 'output_tokens_details'>>
+type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> & {
+  input_tokens_details?: Partial<ResponseUsage['input_tokens_details']> & { cache_write_tokens?: number }
+  output_tokens_details?: ResponseUsage['output_tokens_details']
+}
 
 /**
  * OpenAI Responses finish reasons
@@ -164,8 +166,13 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
       total_tokens: this.state.inputTokens + this.state.outputTokens,
-      ...(this.state.cacheReadTokens !== undefined
-        ? { input_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+      ...(this.state.cacheReadTokens !== undefined || this.state.cacheWriteTokens !== undefined
+        ? {
+            input_tokens_details: {
+              ...(this.state.cacheReadTokens !== undefined ? { cached_tokens: this.state.cacheReadTokens } : {}),
+              ...(this.state.cacheWriteTokens !== undefined ? { cache_write_tokens: this.state.cacheWriteTokens } : {})
+            }
+          }
         : {}),
       ...(this.state.reasoningTokens !== undefined
         ? { output_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
@@ -320,6 +327,9 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.inputTokenDetails?.cacheWriteTokens !== undefined) {
+      this.state.cacheWriteTokens = metadata.stats.inputTokenDetails.cacheWriteTokens
     }
     if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
       this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
@@ -525,23 +535,20 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private handleFinish(chunk: { finishReason?: FinishReason; messageMetadata?: unknown }): void {
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
-    if (!this.finishReason) {
-      switch (chunk.finishReason) {
-        case 'stop':
-          this.finishReason = 'stop'
-          break
-        case 'length':
-          this.finishReason = 'max_output_tokens'
-          break
-        case 'tool-calls':
-          this.finishReason = 'tool_calls'
-          break
-        case 'content-filter':
-          this.finishReason = 'content_filter'
-          break
-        default:
-          this.finishReason = 'stop'
-      }
+    switch (chunk.finishReason) {
+      case 'length':
+        this.finishReason = 'max_output_tokens'
+        break
+      case 'tool-calls':
+        this.finishReason = 'tool_calls'
+        break
+      case 'content-filter':
+        this.finishReason = 'content_filter'
+        break
+      case 'stop':
+      case 'other':
+      default:
+        this.finishReason = this.toolCalls.size > 0 ? 'tool_calls' : 'stop'
     }
 
     this.state.stopReason = this.finishReason

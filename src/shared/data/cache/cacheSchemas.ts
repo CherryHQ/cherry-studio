@@ -439,6 +439,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover' | 'dialog'
+  'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
@@ -502,6 +503,7 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
+  'feature.marketplace.skill_catalog': CacheValueTypes.CacheMarketplaceSkillCatalog
   // Last successful external-open target per directory or file-extension scope.
   'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
@@ -521,6 +523,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover',
+  'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
@@ -564,6 +567,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
+  'feature.marketplace.skill_catalog': null,
   'external_app.target.preferences': {},
   'ui.emoji.recently_used': [],
   'ui.screenshot.color_mode': 'hex',
@@ -593,6 +597,7 @@ export type MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Last processed Cherry Cloud notification position per account id; losing one only rebuilds that baseline.
   'cherry_cloud.notification_cursors': Record<string, string>
+  'cherryin.models.last_attempt_at': number | null
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -609,6 +614,7 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'cherry_cloud.notification_cursors': {},
+  'cherryin.models.last_attempt_at': null,
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

@@ -560,8 +560,12 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (remaining.length > 0) {
     throw new Error(`Owned Cherry Studio processes did not exit after SIGTERM: ${remaining.join(', ')}`)
   }
-  if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
-    throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
+  // Windows can still report a CDP listener after the verified processes exit.
+  if (!(await waitForPortRelease(record.platform, record.cdpPort, 60_000))) {
+    const listenerPid = findListeningPid(record.platform, record.cdpPort)
+    throw new Error(
+      `CDP port ${record.cdpPort} was not released after stopping the owned application (listener PID: ${listenerPid ?? 'none'})`
+    )
   }
   if (!(await waitForPortRelease(record.platform, MAIN_INSPECTOR_PORT))) {
     throw new Error(
@@ -625,7 +629,7 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
 
 export async function stopApp(paths: RunPaths): Promise<void> {
   const current = readOwnedRecord(paths)
-  if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
+  if (current.electronPid && isAlive(current.electronPid)) {
     const { requestOwnedAppQuit } = await import('./debugBridge')
     const app = readAppRecord(paths)
     await requestOwnedAppQuit(app)

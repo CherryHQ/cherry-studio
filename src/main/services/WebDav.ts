@@ -13,7 +13,10 @@ import type {
 import { createClient } from 'webdav'
 
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
+import { classifyStorageFailure } from '@main/services/remoteStorage/failureFacts'
 import { BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE, type WebDavConfig } from '@shared/types/backup'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 
 const logger = loggerService.withContext('WebDav')
 
@@ -60,7 +63,7 @@ export default class WebDav {
         })
       }
     } catch (error) {
-      logger.error('Error creating directory on WebDAV:', error as Error)
+      logFailure(logger, 'Error creating directory on WebDAV:', error, 'storage.webdav', classifyStorageFailure(error))
       throw error
     }
 
@@ -77,9 +80,17 @@ export default class WebDav {
     try {
       return await this.instance.putFileContents(remoteFilePath, data, requestOptions)
     } catch (error) {
-      logger.error('Error putting file contents on WebDAV:', error as Error)
+      logFailure(
+        logger,
+        'Error putting file contents on WebDAV:',
+        error,
+        'storage.webdav',
+        classifyStorageFailure(error)
+      )
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 413) {
-        throw new Error(`${BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE}: HTTP 413`, { cause: error })
+        const reported = new Error(`${BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE}: HTTP 413`, { cause: error })
+        markReportingHandled(reported)
+        throw reported
       }
       throw error
     }
@@ -95,7 +106,13 @@ export default class WebDav {
     try {
       return await this.instance.getFileContents(remoteFilePath, options)
     } catch (error) {
-      logger.error('Error getting file contents on WebDAV:', error as Error)
+      logFailure(
+        logger,
+        'Error getting file contents on WebDAV:',
+        error,
+        'storage.webdav',
+        classifyStorageFailure(error)
+      )
       throw error
     }
   }
@@ -116,7 +133,13 @@ export default class WebDav {
     try {
       return await this.instance.getDirectoryContents(this.webdavPath, { signal })
     } catch (error) {
-      logger.error('Error getting directory contents on WebDAV:', error as Error)
+      logFailure(
+        logger,
+        'Error getting directory contents on WebDAV:',
+        error,
+        'storage.webdav',
+        classifyStorageFailure(error)
+      )
       throw error
     }
   }
@@ -129,7 +152,7 @@ export default class WebDav {
     try {
       return await this.instance.exists('/')
     } catch (error) {
-      logger.error('Error checking connection:', error as Error)
+      logFailure(logger, 'Error checking connection:', error, 'storage.webdav', classifyStorageFailure(error))
       throw error
     }
   }
@@ -142,7 +165,7 @@ export default class WebDav {
     try {
       return await this.instance.createDirectory(path, options)
     } catch (error) {
-      logger.error('Error creating directory on WebDAV:', error as Error)
+      logFailure(logger, 'Error creating directory on WebDAV:', error, 'storage.webdav', classifyStorageFailure(error))
       throw error
     }
   }
@@ -157,7 +180,7 @@ export default class WebDav {
     try {
       return await this.instance.deleteFile(remoteFilePath, { signal })
     } catch (error) {
-      logger.error('Error deleting file on WebDAV:', error as Error)
+      logFailure(logger, 'Error deleting file on WebDAV:', error, 'storage.webdav', classifyStorageFailure(error))
       throw error
     }
   }
