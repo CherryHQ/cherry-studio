@@ -6,6 +6,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 
 import {
   determineCitationSource,
+  findMarkdownCodeRanges,
   generateCitationTag,
   isLinkableCitationUrl,
   mapCitationMarksToTags,
@@ -647,6 +648,33 @@ Numbered list:
       // Chunk 0 (citation 1) is referenced in 5 of 6 segments
       const sup1Matches = result.match(/data-citation='[^']*'>1<\/sup>/g) || []
       expect(sup1Matches).toHaveLength(5)
+    })
+  })
+
+  describe('findMarkdownCodeRanges', () => {
+    const codeOf = (text: string) => findMarkdownCodeRanges(text).map(({ start, end }) => text.slice(start, end))
+
+    it('keeps unindented lines inside a top-level fence opened with indentation', () => {
+      const text = 'Intro\n\n  ~~~text\nsample [cite:2]\n~~~\n\nClaim [cite:1].'
+      expect(codeOf(text)).toEqual(['  ~~~text\nsample [cite:2]\n~~~'.trimStart()])
+      expect(text.slice(findMarkdownCodeRanges(text)[0].end)).toBe('\n\nClaim [cite:1].')
+    })
+
+    it('closes a list-contained fence at a closer indented relative to its item', () => {
+      const text = '- item\n\n  ~~~text\n  sample\n    ~~~\n\n  Claim [cite:1].'
+      const [range] = findMarkdownCodeRanges(text)
+      expect(text.slice(range.end)).toContain('Claim [cite:1].')
+    })
+
+    it('treats inline code and unrelated text separately', () => {
+      expect(codeOf('a `x` b `y [cite:1]` c')).toEqual(['`x`', '`y [cite:1]`'])
+    })
+
+    it('stays near-linear on many inline code spans', () => {
+      const text = 'word `code` '.repeat(3200)
+      const started = performance.now()
+      findMarkdownCodeRanges(text)
+      expect(performance.now() - started).toBeLessThan(1000)
     })
   })
 })

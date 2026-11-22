@@ -11,57 +11,60 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
+import type { Root, RootContent } from 'mdast'
+import { fromMarkdown } from 'mdast-util-from-markdown'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-// Backtick fences and inline code. Tilde fences are block constructs and need line context, so
-// `findMarkdownCodeRanges` scans them separately.
-const BACKTICK_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/g
-const TILDE_OPENER_PATTERN = /^([ \t]*)(~{3,})[^\n]*$/gm
+type CodeRange = { start: number; end: number }
+
+let cachedRangesContent: string | undefined
+let cachedRanges: CodeRange[] = []
 
 /**
- * End offset of a tilde fence whose opener line starts at `start`. The fence closes at a line of at
- * least as many tildes (any indent up to 3, so an outdented closer counts), or ends where its
- * container does: a non-blank line indented less than the opener. A fence opened at column 0 that
- * is never closed runs to the end of the text.
+ * Whether a parsed code node hides citation markers. Indented code blocks and backtick fences that
+ * never close are plain prose here (assistant text often carries stray indentation or a lone fence);
+ * inline code, closed fences and tilde fences are code.
  */
-function findTildeFenceEnd(content: string, start: number, indent: number, tildes: number): number {
-  let lineStart = content.indexOf('\n', start)
-  while (lineStart !== -1) {
-    const bodyStart = lineStart + 1
-    const nextBreak = content.indexOf('\n', bodyStart)
-    const lineEnd = nextBreak === -1 ? content.length : nextBreak
-    const line = content.slice(bodyStart, lineEnd)
-    const closer = /^( {0,3})(~{3,})[ \t]*$/.exec(line)
-    if (closer && closer[2].length >= tildes) return lineEnd
-    if (line.trim() !== '' && indent > 0 && line.length - line.trimStart().length < indent) return lineStart
-    lineStart = nextBreak
-  }
-  return content.length
+function isCitationOpaqueCode(node: Root | RootContent, content: string, start: number, end: number): boolean {
+  if (node.type === 'inlineCode') return true
+  const raw = content.slice(start, end)
+  const opener = /^[ \t]*(`{3,}|~{3,})/.exec(raw)
+  if (!opener) return false
+  if (opener[1][0] === '~') return true
+  const lastLine = raw.slice(raw.lastIndexOf('\n') + 1)
+  return raw.includes('\n') && /^[ \t]*`{3,}[ \t]*$/.test(lastLine) && lastLine.trim().length >= opener[1].length
 }
 
-/** Ranges of code (fenced or inline) that citation markers must not be read from. */
-export function findMarkdownCodeRanges(content: string): Array<{ start: number; end: number }> {
-  const ranges: Array<{ start: number; end: number }> = []
-  let position = 0
-  while (position < content.length) {
-    BACKTICK_CODE_PATTERN.lastIndex = position
-    TILDE_OPENER_PATTERN.lastIndex = position
-    const backtick = BACKTICK_CODE_PATTERN.exec(content)
-    const tilde = TILDE_OPENER_PATTERN.exec(content)
-    if (!backtick && !tilde) break
-    if (tilde && (!backtick || tilde.index <= backtick.index)) {
-      const indent = tilde[1].replace(/\t/g, '    ').length
-      const end = findTildeFenceEnd(content, tilde.index, indent, tilde[2].length)
-      ranges.push({ start: tilde.index, end })
-      position = Math.max(end, tilde.index + 1)
-    } else if (backtick) {
-      ranges.push({ start: backtick.index, end: backtick.index + backtick[0].length })
-      position = backtick.index + Math.max(backtick[0].length, 1)
+/**
+ * Ranges of code (fenced, indented or inline) that citation markers must not be read from. They come
+ * from a CommonMark parse, so fence openers, closers, list containers and lazy continuations follow
+ * the same rules the renderer applies. One parse per text, cached for repeated lookups.
+ */
+export function findMarkdownCodeRanges(content: string): CodeRange[] {
+  if (content === cachedRangesContent) return cachedRanges
+  const ranges: CodeRange[] = []
+  const stack: Array<Root | RootContent> = [fromMarkdown(content)]
+  while (stack.length > 0) {
+    const node = stack.pop()!
+    if ((node.type === 'code' || node.type === 'inlineCode') && node.position) {
+      const { start, end } = node.position
+      if (
+        start.offset !== undefined &&
+        end.offset !== undefined &&
+        isCitationOpaqueCode(node, content, start.offset, end.offset)
+      ) {
+        ranges.push({ start: start.offset, end: end.offset })
+      }
+      continue
     }
+    if ('children' in node) stack.push(...node.children)
   }
+  ranges.sort((left, right) => left.start - right.start)
+  cachedRangesContent = content
+  cachedRanges = ranges
   return ranges
 }
 
