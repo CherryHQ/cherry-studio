@@ -407,7 +407,7 @@
     },
     {
       "path": "docs/dev/references/knowledge/chunk-governance-storage.md",
-      "sources": ["src/main/data/db/schemas/knowledgeChunkGovernance.ts","src/main/data/services/KnowledgeChunkGovernanceService.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query/KnowledgeQueryService.ts","src/main/features/knowledge/query/governance.ts","src/shared/data/types/knowledgeChunkGovernance.ts"]
+      "sources": ["src/main/data/db/schemas/knowledgeChunkGovernance.ts","src/main/data/services/KnowledgeChunkGovernanceService.ts","src/main/features/knowledge/governance","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query/KnowledgeQueryService.ts","src/main/features/knowledge/query/governance.ts","src/renderer/pages/knowledge/panels/dataSource/KnowledgeItemChunkDetailPanel.tsx","src/shared/data/types/knowledgeChunkGovernance.ts","src/shared/ipc/schemas/knowledge.ts"]
     },
     {
       "path": "docs/dev/references/knowledge/experiment/knowledge-technical-design.md",

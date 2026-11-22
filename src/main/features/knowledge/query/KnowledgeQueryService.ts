@@ -22,7 +22,11 @@ import {
   toKnowledgeBaseId,
   toKnowledgeItemId
 } from '../types'
-import { assertKnowledgeGovernanceSearchSnapshot, readKnowledgeGovernanceSearchSnapshot } from './governance'
+import {
+  assertKnowledgeGovernanceSearchSnapshot,
+  readKnowledgeGovernanceSearchSnapshot,
+  createKnowledgeChunkGovernanceViewReader
+} from './governance'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './search'
 import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
@@ -119,12 +123,15 @@ export class KnowledgeQueryService {
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
-    const chunkGroups = await runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () =>
-      leafItems.map((leafItem) => {
+    const chunkGroups = await runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () => {
+      const readViews = createKnowledgeChunkGovernanceViewReader(knowledgeBaseId, store)
+      return leafItems.map((leafItem) => {
         const units = store.listMaterialUnits(leafItem.id)
+        const views = readViews(leafItem.id, units)
         return units.map(
           (unit): KnowledgeItemChunk => ({
             id: unit.unitId,
+            ...(views.has(unit.unitId) ? { governance: views.get(unit.unitId)! } : {}),
             itemId: leafItem.id,
             content: unit.text,
             metadata: {
@@ -137,7 +144,7 @@ export class KnowledgeQueryService {
           })
         )
       })
-    )
+    })
 
     return chunkGroups.flat()
   }

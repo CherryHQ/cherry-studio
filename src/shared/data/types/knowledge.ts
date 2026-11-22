@@ -4,6 +4,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { PosixRelativeFilePathSchema, resolvePosixRelativeSegments, sanitizeFilename } from '@shared/utils/file'
 
 import { GroupIdSchema } from './group'
+import { KnowledgeChunkGovernanceViewSchema } from './knowledgeChunkGovernance'
 
 /**
  * Knowledge domain types.
@@ -579,6 +580,7 @@ export const KnowledgeSearchResultSchema = z.strictObject({
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 
 export const KnowledgeItemChunkSchema = z.strictObject({
+  governance: KnowledgeChunkGovernanceViewSchema.optional(),
   id: z.string(),
   itemId: KnowledgeItemIdSchema,
   content: z.string(),

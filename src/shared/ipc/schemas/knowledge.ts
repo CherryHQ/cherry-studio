@@ -13,6 +13,7 @@ import {
   RestoreKnowledgeBaseResultSchema,
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
+import { KnowledgeChunkBatchInputSchema } from '@shared/data/types/knowledgeChunkGovernance'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
@@ -80,6 +81,10 @@ export const knowledgeRequestSchemas = {
   'knowledge.get_file_path': defineRoute({
     input: z.strictObject({ itemId: z.string().trim().min(1) }),
     output: AbsoluteFilePathSchema
+  }),
+  'knowledge.apply_chunk_governance': defineRoute({
+    input: KnowledgeChunkBatchInputSchema,
+    output: z.void()
   }),
   'knowledge.list_item_chunks': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, itemId: z.string().trim().min(1) }),

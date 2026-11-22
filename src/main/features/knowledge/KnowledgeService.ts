@@ -13,11 +13,13 @@ import type {
   RestoreKnowledgeBaseDto,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { KnowledgeChunkBatchInput } from '@shared/data/types/knowledgeChunkGovernance'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { KeyedMutex } from '@shared/utils/async'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import { KnowledgeChunkGovernanceWorkflow } from './governance/KnowledgeChunkGovernanceWorkflow'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -55,6 +57,7 @@ export class KnowledgeService extends BaseService {
     this.fileProcessingWaits
   )
   private readonly queryService = new KnowledgeQueryService()
+  private readonly chunkGovernance = new KnowledgeChunkGovernanceWorkflow(this.knowledgeLockManager)
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
 
   protected onInit(): void {
@@ -151,6 +154,10 @@ export class KnowledgeService extends BaseService {
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     return await this.queryService.search(baseId, query)
+  }
+
+  async applyChunkGovernance(input: KnowledgeChunkBatchInput): Promise<void> {
+    await this.chunkGovernance.apply(input)
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {

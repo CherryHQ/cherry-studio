@@ -1,62 +1,74 @@
 ---
-description: Durable Knowledge chunk decisions and fail-closed retrieval guards, with remaining workflow boundaries
+description: Durable Knowledge chunk decisions, retrieval guards and atomic inspector batches, with remaining correction and restore boundaries
 sources:
   - src/main/data/db/schemas/knowledgeChunkGovernance.ts
   - src/main/data/services/KnowledgeChunkGovernanceService.ts
   - src/shared/data/types/knowledgeChunkGovernance.ts
+  - src/main/features/knowledge/governance
   - src/main/features/knowledge/query/governance.ts
   - src/main/features/knowledge/query/KnowledgeQueryService.ts
   - src/main/features/knowledge/pipeline/vectorstore/indexStore
+  - src/shared/ipc/schemas/knowledge.ts
+  - src/renderer/pages/knowledge/panels/dataSource/KnowledgeItemChunkDetailPanel.tsx
 ---
 
 # Knowledge Chunk Governance Storage
 
 English | [中文](chunk-governance-storage.zh.md)
 
-This is the storage and retrieval-safety foundation for the [proposed chunk-governance feature](../../../../.agents/notes/proposed/feature/2026-11-22-knowledge-chunk-governance.md). No user mutation endpoint or inspector control calls this service yet. Committed internal exclusions now affect search, but this is not the complete editing, correction, review or restore workflow.
+These layers implement durable decisions, retrieval safety and exclusion/label controls from the [proposed chunk-governance feature](../../../../.agents/notes/proposed/feature/2026-11-22-knowledge-chunk-governance.md). They do not complete text corrections, source-review resolution, citations or backup/restore. The Spec remains proposed and issue #19001 remains open.
 
 ## Ownership
 
-`KnowledgeChunkGovernanceService` owns the main-database `knowledge_chunk_governance` and `knowledge_chunk_governance_history` tables. The per-base derived index remains disposable. No filesystem, provider or embedding work runs in this data service.
+`KnowledgeChunkGovernanceService` owns the main-database `knowledge_chunk_governance` and `knowledge_chunk_governance_history` tables. The per-base index remains disposable. No filesystem, provider or embedding work runs in this data service.
 
-A record binds a base/item and exact unit ID to source content hash, original UTF-16 offsets, original text and its SHA-256 hash. The create operation checks that the source item belongs to the base, is a completed non-directory item, and has a completed base. The composite foreign key preserves base/item ownership even outside the service. Permanent item/base deletion cascades through the records and their history.
+A record binds a base/item and exact unit ID to source content hash, original UTF-16 offsets, original text and its SHA-256 hash. The source item and base must be completed, and the item must belong to that base and not be a directory. A composite foreign key preserves ownership. Permanent item/base deletion cascades through records and history.
 
-The future mutation workflow must obtain and validate the indexed source snapshot before calling `create`, coordinate writes with the per-base mutation lock, and validate complete batch selections. Matching offset length alone does not authenticate supplied source text. The retrieval guard independently checks stored evidence against the current index; it does not authorize or expose a mutation endpoint.
+`KnowledgeChunkGovernanceWorkflow` authenticates selected IDs against actual indexed units, the current source hash, the original source slice and its derived unit identity. The caller cannot supply replacement source evidence or a correction. It uses the same per-base `KeyedMutex` as indexing, reindexing and deletion. Runtime orchestration uses `knowledge.apply_chunk_governance` IPC; the database service remains internal.
 
 ## Revisions and history
 
-Create writes revision 1 and its state history in one synchronous write transaction. State contains an exclusion flag, labels, and an optional text correction. Labels are trimmed, non-empty, deduplicated and sorted. `null` removes a correction; an empty correction is rejected. Original source evidence is not overwritten by a state change.
+Create writes revision 1 and history in one synchronous write transaction. State contains exclusion, labels and an optional correction. Labels are trimmed, non-empty, deduplicated and sorted. Original source evidence is never overwritten by a state change.
 
-`updateState` requires the exact stored source hash and expected revision. A stale source/revision fails without changing either table. A changed state increments the revision and appends history atomically. An identical normalized state is a no-op. A history write failure rolls back the corresponding current-state write as well. Read/history queries are scoped to base, item and unit; `listByBase` reads only the requested base in deterministic record-ID order. These are internal database rows, not a published cross-process entity endpoint.
+`updateState` requires the exact stored source hash and expected revision. A stale source/revision changes neither table. A changed normalized state increments the revision and appends history atomically; an identical state is a no-op. History failure rolls back current state too. Reads are scoped by base, item and unit. `listByBase` orders records deterministically.
 
-The additive migration leaves existing sources untouched and creates no synthetic governance records. These tables live in the normal database, not a replaceable index. Tests read stored records through an independent file-backed connection and reopen the derived index. Full application restart, base import/export and restore workflows have not been verified for this feature.
+`applyBatch` performs every selected change and its history in one `withWriteTx` transaction. Revision 0 means no record existed when selected. An include on an untouched chunk, or removal of an absent label from one, does not invent a record. Re-enable changes only exclusion and preserves labels/corrections. A later stale selection or history failure rolls back earlier writes in the same batch.
+
+The additive migration creates no synthetic decisions. Tests read records through an independent connection and reopen the derived index. Full application restart, base import/export and restore remain unverified for this feature.
+
+## Inspector workflow
+
+Open a completed source's chunk inspector and select the chunks to change, up to 500 per batch. Each card retains original text, source identity, labels and active/excluded/pending/review-needed state. Choose exclude/include, or enter one label of up to 80 characters and choose add/remove. The preview identifies the count and action. Only Save submits the captured identities, hashes and revisions; opening, selecting, previewing and Cancel do not write.
+
+Exclusion affects retrieval, not source access or secure deletion. Labels are organizational metadata, never model prompts, search text or embeddings. These actions make no provider call. Re-enabling a chunk with an unpublished correction does not publish that correction; its pending state remains out of retrieval.
+
+After success the inspector reloads committed state. On conflict/error it clears the pending intent and requires Refresh and a new selection, with no automatic retry. Switching sources clears selection and late list/save responses cannot overwrite the new source's state, including switching away and back. Changed-source decisions with current indexed chunks show a review banner and disable editing. A material-level review view for a source with no current chunks is still pending. Existing corrections are visible as pending but cannot be edited or published here.
 
 ## Retrieval authority
 
-`KnowledgeQueryService` reads a synchronous Main-owned snapshot of durable record IDs/revisions and derived exclusion sets before searching. `KnowledgeIndexStore.resolveGovernanceExclusions` checks each binding against the actual unit ID, material ID, material/current content hashes, offsets and original body text. It never matches by title, ordinal alone or text similarity.
+Before search, `KnowledgeQueryService` reads durable record IDs/revisions and derives exclusions from the actual index. Exact unit/material IDs, source/content hashes, offsets and body text must match. There is no title, ordinal-only or similarity matching.
 
-- An exact excluded unit is suppressed in every retrieval lane. Re-enabling removes only its exclusion; stored labels/corrections remain unchanged.
-- A non-null correction is pending and its unit stays suppressed. This layer cannot prepare or publish corrected lexical text/embeddings, so neither old text nor an unprepared override is advertised as the current retrieval view.
-- Any unmatched record pauses its entire material, retaining original evidence and history. Other materials remain searchable. Same-content, same-identity rebuilds can reuse decisions without copying them into the index. There is no rebind/discard or visible review workflow yet.
-- BM25 MATCH, its short-term relaxation, the short-token LIKE fallback, vector search and both hybrid lanes apply the exclusion predicate before their SQL limits and RRF candidate selection. Unit-level filtering does not suppress allowed units that share an embedding hash. Bound JSON arrays avoid per-ID SQL variable limits and SQL interpolation.
+- Exact excluded units are suppressed in every lane.
+- Non-null corrections remain pending and suppressed until effective-text/embedding publication exists.
+- Any unmatched record pauses its material and retains evidence/history; other materials remain searchable. Same-content, same-identity rebuilds reuse decisions. Explicit rebind/discard is still unavailable.
+- BM25 MATCH, relaxed short-term search, short-token LIKE, vector and both hybrid lanes filter before SQL limits and RRF. Shared embedding hashes do not suppress unrelated units. Bound JSON avoids per-ID SQL variable limits and interpolation.
 
-After index search settles, Main revalidates the durable revisions and exact-index reconciliation before calling the reranker. It repeats the check after reranking and before returning results. A concurrent decision change or a rebuild that changes a governed binding returns a retryable conflict, without an automatic repeat of a possibly paid provider call. Failed policy reads and a closed governed index fail closed. Main does not treat the business database and index database as one transaction, cache a renderer policy, or log decision text.
-
-Exclusion is not deletion or access control. Chunk inspection and explicit original-source reads retain original text and offsets; citations and source files are not rewritten. Labels do not enter query text, model prompts or embeddings.
+Main revalidates revisions and exact-index reconciliation before reranking and before returning results. Concurrent changes return conflict without repeating a possibly paid provider call. Failed policy reads and closed indexes fail closed. The two databases are not treated as one transaction, renderer policy is not cached, and original/correction text is not logged.
 
 ## Boundaries Still Pending
 
-- Mutation endpoints, per-base serialized writes, batch previews and atomic selection validation.
-- Visible review-needed state and explicit rebind/discard after source/chunk identity changes.
-- Effective-text/embedding jobs, matching lexical/vector revision publication and crash recovery.
-- Base backup/restore integration for durable decisions and history.
+- Effective-text/embedding jobs, complete lexical/vector publication, crash recovery and correction editing/removal.
+- Explicit review, rebind and discard of unmatched records.
+- Base backup/restore of durable decisions and history.
 - Original/corrected citation revisions and historical references.
-- Inspector controls, user confirmation, cost disclosure and native acceptance.
+- Provider-cost disclosure for future correction work and native Electron acceptance.
 
-Do not expose editing or describe a correction as indexed/effective until the remaining workflow enforces the Spec. Keep the Spec proposed. These layers provide partial AC1/AC2/AC3/AC4 foundations, not complete acceptance or resolution of issue #19001.
+Do not expose correction editing or call a pending correction indexed/effective before those paths enforce the Spec. Current evidence is partial AC1/AC2/AC3/AC4/AC6, not full issue resolution.
 
 ## Verification
 
-Storage tests use `setupTestDatabase()` with production migrations. They cover original evidence, independent connection reads, normalized changes, stale revision/source conflicts, removal/no-op semantics, injected history-write failures, scope guards and ownership cascades. The migrate-forward test starts before the additive migration with populated Knowledge rows and checks that those rows are preserved with no invented decisions.
+Storage tests use `setupTestDatabase()` and production migrations for original evidence, independent reads, normalization, stale revisions, ownership cascades, no-ops and history rollback. Migration tests preserve populated existing Knowledge rows without inventing decisions.
 
-Retrieval integration tests use the real migrated Main database, file-backed per-base SQLite, production FTS/vector engine, query service and rerank path. Only configured provider methods are mocked. Scenarios cover exclusions beyond the candidate cap, all search lanes and fallbacks, shared embedding hashes, thousands of bound IDs, UTF-16 evidence, reversible inclusion, pending corrections, exact rebuild/reopen, conservative source/chunk mismatch handling, forged bindings, original inspection, and revision/index changes before reranking and return. No live provider, native Electron, correction publication, restore or inspector acceptance is claimed.
+Main integration uses the migrated database, file-backed SQLite index, production FTS/vector/query/rerank paths and the real batch workflow. Provider methods alone are mocked. Scenarios include candidate-cap safety, all lanes/fallbacks, shared hashes, thousands of IDs, UTF-16, exact rebuild/reopen, source mismatch, original inspection, in-flight conflicts, atomic later-entry/history failures, competing windows, lifecycle/ownership validation and preserved pending corrections.
+
+Inspector tests cover confirmation-only writes, exact selection/revision delivery, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or restore acceptance.
