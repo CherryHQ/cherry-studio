@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCommandMenuPresentationMode } from '@renderer/hooks/command'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
@@ -57,6 +58,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     onSelectContext,
     variant = 'footer'
   } = props
+  const nativeMenu = useCommandMenuPresentationMode() === 'native'
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const handleMenuOpenChange = useCallback(
     (open: boolean) => {
@@ -118,7 +120,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isGrouped,
       isLastMessage,
       isProcessing,
-      sourceLookupEnabled: moreMenuOpen,
+      sourceLookupEnabled: nativeMenu || moreMenuOpen,
       isTranslating,
       hasTranslationBlocks,
       isUserMessage,
@@ -134,6 +136,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     [
       actions,
       moreMenuOpen,
+      nativeMenu,
       copied,
       hasTranslationBlocks,
       isAssistantMessage,
@@ -195,7 +198,7 @@ const MessageMenuBar: FC<Props> = (props) => {
             actionContext={actionContext}
             executeAction={executeAction}
             menuActions={menuActions}
-            onMenuOpenChange={handleMenuOpenChange}
+            onMenuOpenChange={action.id === 'more-menu' ? handleMenuOpenChange : onMenuOpenChange}
             softHoverBg={softHoverBg}
             translationItems={translationItems}
           />
