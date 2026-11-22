@@ -275,3 +275,35 @@ it('rotates a reset-bound edit fork instead of reusing its dead identity', () =>
   expect(rotated.nativeThreadId).not.toBe(deadId)
   expect(rotated.bindingState).toBe('pending')
 })
+
+it('marks an edit fork below a reset boundary as having handled the reset', () => {
+  prepareClaudeBranch(sessionId, '/test/claude')
+  const parent = messages.saveMessage({
+    sessionId,
+    runtimeResumeToken: 'healthy-parent',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const staleChild = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'stale-id',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  messages.clearRuntimeResumeTokens(sessionId, 'stale-id')
+  messages.markStaleResumeResetBoundary(sessionId, staleChild.id)
+  // Recover first so a healthy binding exists at the reset anchor.
+  const recovered = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  expect(recovered.anchorMessageId).toBe(staleChild.id)
+  const edited = messages.saveMessage({
+    sessionId,
+    parentId: staleChild.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Edited below reset' }] } }
+  })
+  const nativeId = randomUUID()
+  const reserved = application
+    .get('DbService')
+    .withWriteTx((tx) => reserveClaudeBranchTx(tx, sessionId, edited.id, nativeId))
+  expect(reserved.anchorMessageId).toBe(edited.id)
+  expect(reserved.nativeThreadId).toBe(nativeId)
+  expect(reserved.checkpointMapping).toMatchObject({ staleResetHandled: staleChild.id })
+})

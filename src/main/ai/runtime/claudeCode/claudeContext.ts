@@ -111,10 +111,16 @@ export function reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: str
   const parent = contexts.branchTx(tx, sessionId, anchor)
   if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'claude-code')
     throw new Error('Claude edit requires an existing native backend')
+  // An edit published at or below a stale-reset boundary must record the
+  // boundary it has handled; otherwise first dispatch re-reserves the same
+  // native id on the assistant child and hits
+  // `Native context already belongs to another branch` (#23519 review).
+  const resetBoundaryId = contexts.lastStaleResetBoundaryTx(tx, sessionId, anchor)
   return contexts.reserveBranchTx(tx, {
     sessionId,
     backendId: parent.backendId,
     anchorMessageId: anchor,
-    nativeThreadId: nativeId
+    nativeThreadId: nativeId,
+    ...(resetBoundaryId !== undefined ? { checkpointMapping: { staleResetHandled: resetBoundaryId } } : {})
   })
 }
