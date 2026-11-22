@@ -14,6 +14,9 @@ const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
   'gemini-4-argon',
+  'gemini-4-hydrogen',
+  'gemini-4-carbon',
+  'gemini-4-neon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
