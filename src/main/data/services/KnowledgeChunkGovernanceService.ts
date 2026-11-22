@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -227,6 +227,51 @@ export class KnowledgeChunkGovernanceService {
           state: cleared.state,
           operation: target ? 'rebind-away' : 'discard',
           relatedGovernanceId: target?.id ?? null
+        })
+        .run()
+    })
+  }
+
+  getDiscardedState(row: KnowledgeChunkGovernanceRow, tx: DbOrTx = this.dbService.getDb()) {
+    if (!row.retired) return null
+    const [latest, previous] = tx
+      .select()
+      .from(knowledgeChunkGovernanceHistoryTable)
+      .where(eq(knowledgeChunkGovernanceHistoryTable.governanceId, row.id))
+      .orderBy(desc(knowledgeChunkGovernanceHistoryTable.revision))
+      .limit(2)
+      .all()
+    return latest?.revision === row.revision &&
+      latest.operation === 'discard' &&
+      previous?.revision === row.revision - 1
+      ? KnowledgeChunkGovernanceStateSchema.parse(previous.state)
+      : null
+  }
+
+  restoreDiscard(input: { baseId: string; itemId: string; governanceId: string; expectedRevision: number }): void {
+    this.dbService.withWriteTx((tx) => {
+      this.assertItem(tx, input.baseId, input.itemId)
+      const old = tx
+        .select()
+        .from(tables)
+        .where(and(eq(tables.id, input.governanceId), eq(tables.baseId, input.baseId), eq(tables.itemId, input.itemId)))
+        .get()
+      if (!old || !old.retired || old.revision !== input.expectedRevision)
+        throw DataApiErrorFactory.conflict('Discard changed; refresh before restoring')
+      const state = this.getDiscardedState(old, tx)
+      if (!state) throw DataApiErrorFactory.conflict('Only the latest unchanged discard can be restored')
+      const restored = tx
+        .update(tables)
+        .set({ state, retired: false, revision: old.revision + 1 })
+        .where(eq(tables.id, old.id))
+        .returning()
+        .get()!
+      tx.insert(knowledgeChunkGovernanceHistoryTable)
+        .values({
+          governanceId: old.id,
+          revision: restored.revision,
+          state: restored.state,
+          operation: 'restore-discard'
         })
         .run()
     })

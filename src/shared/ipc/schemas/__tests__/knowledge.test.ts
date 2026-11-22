@@ -54,4 +54,9 @@ describe('source review IPC authority', () => {
   ])('rejects unversioned review or caller-supplied source/correction evidence: %j', (change) => {
     expect(schema.safeParse({ ...valid, ...change }).success).toBe(false)
   })
+  it('accepts only a versioned restore action with no caller-supplied recovered state', () => {
+    expect(schema.safeParse({ ...valid, action: { kind: 'restore' } }).success).toBe(true)
+    expect(schema.safeParse({ ...valid, action: { kind: 'restore', state: { excluded: false } } }).success).toBe(false)
+    expect(schema.safeParse({ ...valid, expectedRevision: 0, action: { kind: 'restore' } }).success).toBe(false)
+  })
 })

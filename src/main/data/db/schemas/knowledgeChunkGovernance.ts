@@ -40,7 +40,7 @@ export const knowledgeChunkGovernanceHistoryTable = sqliteTable(
   'knowledge_chunk_governance_history',
   {
     id: uuidPrimaryKey(),
-    operation: text({ enum: ['edit', 'discard', 'rebind-away', 'rebind-from'] })
+    operation: text({ enum: ['edit', 'discard', 'rebind-away', 'rebind-from', 'restore-discard'] })
       .notNull()
       .default('edit'),
     relatedGovernanceId: text(),

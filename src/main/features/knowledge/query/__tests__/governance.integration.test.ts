@@ -768,7 +768,7 @@ describe('Knowledge governance retrieval authority', () => {
       expect(view.currentSourceContentHash).toBe(state === 'empty' ? hashContentText('') : null)
       const dto = { ...reviewInput(id, old.id), action: { kind: 'discard' as const } }
       await workflow.review(dto)
-      expect(workflow.listReviews(baseId, id).records).toEqual([])
+      expect(workflow.listReviews(baseId, id).records).toMatchObject([{ id: old.id, retired: true, state: old.state }])
       expect(governance.listHistory(baseId, id, old.unitId)).toMatchObject([
         { revision: 1, state: old.state },
         { revision: 2, operation: 'discard' }
@@ -787,7 +787,12 @@ describe('Knowledge governance retrieval authority', () => {
       two = save(id, 1)
     index(id, ['target current'])
     await workflow.review({ ...reviewInput(id, one.id), action: { kind: 'discard' } })
-    expect(workflow.listReviews(baseId, id).records.map((row) => row.id)).toEqual([two.id])
+    expect(
+      workflow
+        .listReviews(baseId, id)
+        .records.filter((row) => !row.retired)
+        .map((row) => row.id)
+    ).toEqual([two.id])
     expect(await service.search(baseId, 'target')).toEqual([])
     await workflow.review({ ...reviewInput(id, two.id), action: { kind: 'discard' } })
     expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['target current'])
@@ -926,5 +931,150 @@ describe('Knowledge governance retrieval authority', () => {
     expect(governance.get(baseId, id, moved.unitId)?.retired).toBe(true)
     expect(workflow.listReviews(baseId, id).records).toEqual([])
     expect(await service.search(baseId, 'target')).toEqual([])
+  })
+
+  // Undo must recover only the latest discard, retain immutable evidence, and pause changed sources again.
+  it.each(['changed', 'same', 'unavailable'] as const)(
+    'restores discarded intent safely with %s source evidence',
+    async (source) => {
+      const id = material(['old target'])
+      const old = save(id, 0, { excluded: true, labels: ['private'], overrideText: 'Pending correction' })
+      index(id, ['new target'])
+      await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+      if (source === 'same') index(id, ['old target'])
+      if (source === 'unavailable') await store.deleteMaterials([id])
+      const dto = { ...reviewInput(id, old.id), action: { kind: 'restore' as const } }
+      const content = store.readMaterialContent(id)
+      const units = store.listMaterialUnits(id)
+      await workflow.review(dto)
+      expect(governance.get(baseId, id, old.unitId)).toMatchObject({
+        retired: false,
+        revision: 3,
+        originalText: old.originalText,
+        sourceContentHash: old.sourceContentHash,
+        state: old.state
+      })
+      expect(governance.listHistory(baseId, id, old.unitId)).toMatchObject([
+        { revision: 1, state: old.state },
+        { revision: 2, operation: 'discard' },
+        { revision: 3, operation: 'restore-discard', state: old.state }
+      ])
+      expect(workflow.listReviews(baseId, id).records.filter((row) => !row.retired)).toHaveLength(
+        source === 'same' ? 0 : 1
+      )
+      expect(await service.search(baseId, 'target')).toEqual([])
+      const exclusions = readKnowledgeGovernanceSearchSnapshot(baseId, store).exclusions
+      for (const mode of ['bm25', 'vector', 'hybrid'] as const)
+        expect(store.search({ queryText: 'target', queryEmbedding: [1, 0, 0], mode, topK: 10, exclusions })).toEqual([])
+      expect(store.readMaterialContent(id)).toBe(content)
+      expect(store.listMaterialUnits(id)).toEqual(units)
+      expect(embedMany).not.toHaveBeenCalled()
+      await expect(workflow.review(dto)).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    }
+  )
+
+  it('refuses stale restore evidence, source ownership and edits that have superseded a discard', async () => {
+    const id = material(['old target']),
+      old = save(id)
+    index(id, ['new target'])
+    await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+    const dto = { ...reviewInput(id, old.id), action: { kind: 'restore' as const } }
+    index(id, ['newer target'])
+    await expect(workflow.review(dto)).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    const current = { ...reviewInput(id, old.id), action: { kind: 'restore' as const } }
+    const foreign = material(['foreign target'])
+    await expect(workflow.review({ ...current, itemId: foreign })).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    index(id, ['old target'])
+    await workflow.apply({
+      baseId,
+      selection: await selection(id),
+      action: { kind: 'label', operation: 'add', label: 'new intent' }
+    })
+    await expect(workflow.review(current)).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(workflow.listReviews(baseId, id).records).toEqual([])
+    expect(governance.get(baseId, id, old.unitId)?.state.labels).toEqual(['new intent'])
+  })
+
+  it('never offers Undo for a transfer and refuses direct restoration of transfer history', async () => {
+    const id = material(['old target']),
+      old = save(id)
+    index(id, ['new target'])
+    await workflow.review({
+      ...reviewInput(id, old.id),
+      action: { kind: 'rebind', targetUnitId: store.listMaterialUnits(id)[0].unitId, expectedTargetRevision: 0 }
+    })
+    expect(workflow.listReviews(baseId, id).records).toEqual([])
+    expect(() => governance.restoreDiscard({ baseId, itemId: id, governanceId: old.id, expectedRevision: 2 })).toThrow(
+      'Only the latest unchanged discard can be restored'
+    )
+    expect(governance.get(baseId, id, old.unitId)?.retired).toBe(true)
+  })
+
+  it('rolls back restored state if appending its history fails', async () => {
+    const id = material(['old target']),
+      old = save(id)
+    index(id, ['new target'])
+    await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+    const before = governance.listByBase(baseId)
+    dbh.sqlite.exec(`CREATE TEMP TRIGGER fail_restore_history BEFORE INSERT ON knowledge_chunk_governance_history
+      WHEN NEW.revision = 3 BEGIN SELECT RAISE(ABORT, 'restore history failure'); END`)
+    try {
+      await expect(workflow.review({ ...reviewInput(id, old.id), action: { kind: 'restore' } })).rejects.toThrow()
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER fail_restore_history')
+    }
+    expect(governance.listByBase(baseId)).toEqual(before)
+    expect(governance.listHistory(baseId, id, old.unitId)).toHaveLength(2)
+  })
+
+  it('rechecks lifecycle under the real mutation lock before restoring', async () => {
+    const id = material(['old target']),
+      old = save(id)
+    index(id, ['new target'])
+    await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+    const dto = { ...reviewInput(id, old.id), action: { kind: 'restore' as const } }
+    let release!: () => void, entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const held = lock.runExclusive(baseId, async () => {
+      entered()
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+    })
+    await started
+    const pending = workflow.review(dto)
+    dbh.db.update(knowledgeItemTable).set({ status: 'deleting' }).where(eq(knowledgeItemTable.id, id)).run()
+    release()
+    await held
+    await expect(pending).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.get(baseId, id, old.unitId)?.retired).toBe(true)
+  })
+
+  it('keeps immutable history through repeated discard/restore without affecting another material', async () => {
+    const id = material(['old target']),
+      old = save(id)
+    const other = material(['other target'])
+    dbh.db.update(knowledgeBaseTable).set({ documentCount: 10 }).where(eq(knowledgeBaseTable.id, baseId)).run()
+    index(id, ['new target'])
+    for (let cycle = 0; cycle < 2; cycle++) {
+      await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+      expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent).sort()).toEqual([
+        'new target',
+        'other target'
+      ])
+      await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'restore' } })
+      expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['other target'])
+    }
+    expect(governance.get(baseId, id, old.unitId)).toMatchObject({ revision: 5, retired: false, state: old.state })
+    expect(governance.listHistory(baseId, id, old.unitId).map((row) => row.operation)).toEqual([
+      'edit',
+      'discard',
+      'restore-discard',
+      'discard',
+      'restore-discard'
+    ])
+    expect(governance.listByBase(baseId).some((row) => row.itemId === other)).toBe(false)
   })
 })
