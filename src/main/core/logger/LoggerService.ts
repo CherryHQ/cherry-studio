@@ -52,15 +52,24 @@ const MAX_ERROR_STACK_CHARS = 4000
 const MAX_SAFE_ERROR_TAG_CHARS = 100
 const MAX_NESTED_SANITIZE_DEPTH = 5
 
+type SafeLogError = Pick<Error, 'name' | 'message' | 'stack'> & {
+  reportingHandled?: true
+  code?: string
+  statusCode?: number
+  status?: number
+  reason?: string
+  isRetryable?: boolean
+}
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error instances can carry overwritten message values; coerce and redact only within toSafeError's guarded serialization.
 function safeErrorText(value: unknown): string {
   const redacted = redactSecretText(String(value ?? ''))
   return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
 }
 
-function toSafeError(error: Error): Record<string, Serializable> {
+function toSafeError(error: Error): SafeLogError {
   try {
-    const safe: Record<string, Serializable> = {
+    const safe: SafeLogError = {
       name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
       message: safeErrorText(error.message)
     }
@@ -117,6 +126,7 @@ const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 export class LoggerService {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Context loggers share mutable registration and reentrancy state; the optional observer is installed after construction.
   private readonly reporting: { observer?: (observation: ErrorObservation) => void; active: boolean } = {
     active: false
   }
