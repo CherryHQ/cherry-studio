@@ -25,6 +25,8 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
     () => new Intl.NumberFormat(i18n.resolvedLanguage, { notation: 'compact', maximumFractionDigits: 1 }),
     [i18n.resolvedLanguage]
   )
+  // Compact rounding can overstate a lower bound (25,960 reads as 26K), so a partial history shows exact counts.
+  const exactFormatter = useMemo(() => new Intl.NumberFormat(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const decimalFormatter = useMemo(
     () => new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 1 }),
     [i18n.resolvedLanguage]
@@ -40,13 +42,17 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
   // While older history is unloaded the sums are lower bounds, so mark them as such.
   const atLeast = partial ? '≥' : ''
   const formatTokens = (value?: number) =>
-    value === undefined ? unavailable : `${atLeast}${compactFormatter.format(value)}`
-  const formatFirstToken = (ms?: number) => (ms === undefined ? unavailable : `${decimalFormatter.format(ms / 1000)}s`)
+    value === undefined ? unavailable : `${atLeast}${(partial ? exactFormatter : compactFormatter).format(value)}`
+  // Rates and timings average over the loaded messages only; mark them approximate while history is partial.
+  const approx = partial ? '~' : ''
+  const formatFirstToken = (ms?: number) =>
+    ms === undefined ? unavailable : `${approx}${decimalFormatter.format(ms / 1000)}s`
   const formatThroughput = (value?: number) =>
     value === undefined
       ? unavailable
-      : t('chat.message.token_details.tokens_per_second_value', { value: decimalFormatter.format(value) })
-  const formatCacheHit = (value?: number) => (value === undefined ? unavailable : percentFormatter.format(value))
+      : t('chat.message.token_details.tokens_per_second_value', { value: `${approx}${decimalFormatter.format(value)}` })
+  const formatCacheHit = (value?: number) =>
+    value === undefined ? unavailable : `${approx}${percentFormatter.format(value)}`
 
   const summary = [
     t('agent.session.metrics.turns', { value: `${atLeast}${metrics.turns}` }),
