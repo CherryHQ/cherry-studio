@@ -29,7 +29,12 @@ const SelectionActionIconGrid = ({ value, onSelect }: { value: string; onSelect:
         aria-label={t('common.search')}
         placeholder={t('common.search')}
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          // A new result set starts at its first row, not at the previous scroll position.
+          if (scrollElement) scrollElement.scrollTop = 0
+          virtualizer.scrollToOffset(0)
+        }}
       />
       <div
         ref={setScrollElement}
@@ -57,7 +62,7 @@ const SelectionActionIconGrid = ({ value, onSelect }: { value: string; onSelect:
                       aria-label={icon}
                       aria-pressed={value === icon}
                       title={icon}
-                      className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                       onClick={() => onSelect(icon)}>
                       <DynamicIcon name={icon} size={18} />
                     </button>

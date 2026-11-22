@@ -10,9 +10,11 @@ const SelectionActionIconGrid = lazy(() => import('./SelectionActionIconGrid'))
 interface SelectionActionIconPickerProps {
   value: string
   onChange: (icon: string) => void
+  /** Reports a dice roll that is still loading, resolving to the rolled icon or null if superseded. */
+  onRoll?: (roll: Promise<string | null>) => void
 }
 
-const SelectionActionIconPicker = ({ value, onChange }: SelectionActionIconPickerProps) => {
+const SelectionActionIconPicker = ({ value, onChange, onRoll }: SelectionActionIconPickerProps) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const portalContainer = usePortalContainer()
@@ -23,11 +25,17 @@ const SelectionActionIconPicker = ({ value, onChange }: SelectionActionIconPicke
     onChange(icon)
     setOpen(false)
   }
-  const selectRandomIcon = async () => {
-    const choice = ++choiceRef.current
+  const rollIcon = async (choice: number): Promise<string | null> => {
     const { iconNames } = await import('lucide-react/dynamic')
-    if (choice !== choiceRef.current) return
-    selectIcon(iconNames[Math.floor(Math.random() * iconNames.length)])
+    if (choice !== choiceRef.current) return null
+    const icon = iconNames[Math.floor(Math.random() * iconNames.length)]
+    selectIcon(icon)
+    return icon
+  }
+  const selectRandomIcon = () => {
+    const roll = rollIcon(++choiceRef.current)
+    onRoll?.(roll)
+    return roll
   }
 
   return (

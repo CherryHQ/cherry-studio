@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,9 +10,30 @@ import SelectionActionUserModal from '../SelectionActionUserModal'
 
 // Persistence is owned by the modal; picker interactions are covered with real UI in its own suite.
 vi.mock('../SelectionActionIconPicker', () => ({
-  default: ({ value, onChange }: { value: string; onChange: (icon: string) => void }) => (
+  default: ({
+    value,
+    onChange,
+    onRoll
+  }: {
+    value: string
+    onChange: (icon: string) => void
+    onRoll?: (roll: Promise<string | null>) => void
+  }) => (
     <div>
       <output data-testid="saved-icon">{value}</output>
+      <button
+        onClick={() =>
+          onRoll?.(
+            new Promise<string | null>((resolve) => {
+              ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll = () => {
+                onChange('dice-icon')
+                resolve('dice-icon')
+              }
+            })
+          )
+        }>
+        start slow roll
+      </button>
       <button onClick={() => onChange('heart-pulse')}>pick heart-pulse</button>
       <button onClick={() => onChange('')}>use default icon</button>
     </div>
@@ -108,6 +129,20 @@ describe('SelectionActionUserModal', () => {
     rerender(<SelectionActionUserModal isModalOpen={false} editingAction={saved} onOk={onOk} onCancel={vi.fn()} />)
     rerender(<SelectionActionUserModal isModalOpen editingAction={saved} onOk={onOk} onCancel={vi.fn()} />)
     expect(await screen.findByTestId('saved-icon')).toBeEmptyDOMElement()
+  })
+
+  it('waits for a dice roll that is still loading before saving', async () => {
+    const onOk = vi.fn()
+    render(<SelectionActionUserModal isModalOpen editingAction={null} onOk={onOk} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Roll' } })
+    fireEvent.change(screen.getAllByRole('textbox').at(-1)!, { target: { value: 'prompt' } })
+    fireEvent.click(screen.getByText('start slow roll'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    expect(onOk).not.toHaveBeenCalled()
+
+    ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll?.()
+    await waitFor(() => expect(onOk).toHaveBeenCalledTimes(1))
+    expect(onOk.mock.calls[0][0]).toMatchObject({ icon: 'dice-icon' })
   })
 
   it('submits the complete long prompt', () => {

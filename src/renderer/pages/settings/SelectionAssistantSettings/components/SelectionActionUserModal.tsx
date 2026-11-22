@@ -1,7 +1,7 @@
 import { CircleHelp } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -90,10 +90,16 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleOk = () => {
+  // A dice roll that is still loading the icon list must land before the form is saved.
+  const pendingRollRef = useRef<Promise<string | null> | null>(null)
+
+  const handleOk = async () => {
     if (!validateForm()) {
       return
     }
+    const pendingRoll = pendingRollRef.current
+    pendingRollRef.current = null
+    const rolledIcon = pendingRoll ? await pendingRoll.catch(() => null) : null
 
     // 构建完整的 ActionItem
     const actionItem: CustomSelectionAction = {
@@ -101,7 +107,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       name: formData.name || 'USER',
       enabled: editingAction?.enabled || false,
       isBuiltIn: false,
-      icon: formData.icon,
+      icon: rolledIcon ?? formData.icon,
       prompt: formData.prompt,
       runner,
       assistantId: formData.assistantId,
@@ -161,6 +167,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <SelectionActionIconPicker
                     value={formData.icon || ''}
                     onChange={(icon) => handleInputChange('icon', icon)}
+                    onRoll={(roll) => {
+                      pendingRollRef.current = roll
+                    }}
                   />
                 </Suspense>
               </div>
