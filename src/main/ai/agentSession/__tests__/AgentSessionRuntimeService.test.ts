@@ -895,6 +895,55 @@ describe('AgentSessionRuntimeService', () => {
         ).assertTurnImageLimit(baseTurnInput.modelId, orphanedParts as never, 'claude-code', { routed: true })
       ).not.toThrow()
     })
+
+    it('rejects replayed workspace PNGs without live tokens for Pi and Claude', async () => {
+      // Regression for inv_51dc347acbf34330: the file bridge stamps composer
+      // source IDs onto accessible-path parts (no fileEntryId), and replay
+      // omits live tokens. The routed gate used to count zero and let Pi send
+      // both paths (and Claude send both native blocks) after the ack that
+      // clears the draft. Runtime-specific gates now reject before dispatch.
+      const { withCherryMeta } = await import('@shared/data/types/uiParts')
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const workspacePng = (filename: string, sourceId: string) =>
+        withCherryMeta(
+          { type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename } as never,
+          { fileTokenSourceId: sourceId } as never
+        )
+      const replay = [
+        { type: 'text', text: 'Previous conversation history (reference only)' },
+        workspacePng('a.png', 'source-a'),
+        workspacePng('b.png', 'source-b'),
+        { type: 'text', text: 'continuation' }
+      ]
+      type AssertFn = (modelId: unknown, parts: unknown, agentType: string, opts?: { routed?: boolean }) => void
+      const assert = (service as unknown as { assertTurnImageLimit: AssertFn }).assertTurnImageLimit.bind(service)
+      for (const agentType of ['pi', 'pi-durable', 'claude-code']) {
+        let error: unknown
+        try {
+          assert(baseTurnInput.modelId, replay, agentType, { routed: true })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+        expect(error).toMatchObject({ limit: 1, count: 2 })
+      }
+      // Claude still permits orphaned managed history (routing drops it) while
+      // Pi rejects the same replay (every file:// path is forwarded).
+      const orphanedManaged = [
+        { type: 'text', text: 'Previous conversation history' },
+        withCherryMeta(
+          { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' } as never,
+          { fileEntryId: 'entry-a', fileTokenSourceId: 'source-a' } as never
+        ),
+        withCherryMeta(
+          { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' } as never,
+          { fileEntryId: 'entry-b', fileTokenSourceId: 'source-b' } as never
+        )
+      ]
+      expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'claude-code', { routed: true })).not.toThrow()
+      expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'pi', { routed: true })).toThrow(AgentImageLimitError)
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(

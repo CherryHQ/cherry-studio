@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Reduzir Zoom",
   "backup.restore.failed": "Restauração falhou",
   "backup.restore.retry": "A cópia de segurança não foi restaurada. Os seus dados anteriores foram mantidos. Tente restaurar novamente.",
+  "channel.agent_image_limit_exceeded": "As imagens anexadas excedem o que o modelo de agente selecionado aceita num único pedido. Remova algumas imagens e tente novamente — nada foi enviado. Limite do modelo: {{limit}} imagem(ns); anexadas: {{count}} imagem(ns).",
+  "channel.agent_image_limit_exceeded_after_send": "As imagens anexadas excedem o que o modelo de agente selecionado aceita num único pedido. Remova algumas imagens e tente novamente — o pedido já foi enviado. Limite do modelo: {{limit}} imagem(ns); anexadas: {{count}} imagem(ns).",
   "chat.cherryai.sign_in_required": "Inicie sessão no Cherry AI para usar este modelo",
   "chat.conversation.new": "Nova conversa",
   "command_approval.builtin-destructive-command": "Este agente integrado não pode efetuar operações destrutivas. Para eliminar ficheiros confirmados, utilize a reciclagem. (mcp__assistant-files__move_to_trash)",

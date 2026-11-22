@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Oddálit",
   "backup.restore.failed": "Obnovení selhalo",
   "backup.restore.retry": "Záloha nebyla obnovena. Předchozí data byla zachována. Zkuste obnovení znovu.",
+  "channel.agent_image_limit_exceeded": "Přiložené obrázky překračují limit, který vybraný model agenta přijme v jednom promptu. Odeberte některé obrázky a zkuste to znovu — nic nebylo odesláno. Limit modelu: {{limit}} obrázků; přiloženo: {{count}}.",
+  "channel.agent_image_limit_exceeded_after_send": "Přiložené obrázky překračují limit, který vybraný model agenta přijme v jednom promptu. Odeberte některé obrázky a zkuste to znovu — požadavek již byl odeslán. Limit modelu: {{limit}} obrázků; přiloženo: {{count}}.",
   "chat.cherryai.sign_in_required": "Pro použití tohoto modelu se přihlaste k Cherry AI",
   "chat.conversation.new": "Nový chat",
   "command_approval.builtin-destructive-command": "Tento vestavěný agent nemůže provádět destruktivní operace. K potvrzenému smazání souborů použijte nástroj koše. (mcp__assistant-files__move_to_trash)",

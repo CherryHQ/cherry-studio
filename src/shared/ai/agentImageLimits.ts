@@ -168,6 +168,11 @@ export function collectActiveAgentFileTokenIds(parts: readonly unknown[] | undef
  * Orphaned managed parts (a `fileTokenSourceId` with no live `file:` token)
  * are dropped by `prepareChatMessages` before native blocks or path fallbacks
  * are built, so pre-send admission must not count them.
+ *
+ * Workspace/external parts carry no `fileEntryId` (accessible-path `file://`
+ * refs, gateway/legacy parts): routing keeps them as file parts and Agent
+ * runtimes forward them via local paths, so they are always routed even when
+ * their composer token is absent from a replay wrapper.
  */
 export function isRoutedAgentImagePart(
   part: AgentImagePartLike | null | undefined,
@@ -175,9 +180,17 @@ export function isRoutedAgentImagePart(
 ): boolean {
   if (!isAgentImagePart(part)) return false
   if (!part || typeof part !== 'object') return false
-  const meta = readCherryMeta(part as CherryMessagePart) as { fileTokenSourceId?: unknown } | undefined
+  const meta = readCherryMeta(part as CherryMessagePart) as
+    | {
+        fileTokenSourceId?: unknown
+        fileEntryId?: unknown
+      }
+    | undefined
   const sourceId = typeof meta?.fileTokenSourceId === 'string' ? meta.fileTokenSourceId : undefined
   if (!sourceId) return true
+  // External/workspace refs have no managed entry to orphan: Pi forwards every
+  // `file://` path and Claude counts them as external native candidates.
+  if (typeof meta?.fileEntryId !== 'string' || !meta.fileEntryId) return true
   if (!activeTokenIds) return true
   return activeTokenIds.has(`file:${sourceId}`)
 }
@@ -293,6 +306,10 @@ export function assertAgentImageLimit(
  * `prepareChatMessages` would actually send. A text-only continuation with
  * only orphaned history therefore passes, while two actually routed images
  * still fail before the paid call.
+ *
+ * Workspace/external refs (no `fileEntryId`) are always routed: Pi forwards
+ * every `file://` path and Claude counts them as external native candidates,
+ * so replayed workspace PNGs gate even without live tokens.
  */
 export function assertRoutedAgentImageLimit(
   parts: readonly unknown[] | undefined | null,
@@ -303,6 +320,122 @@ export function assertRoutedAgentImageLimit(
   if (limit === undefined) return
   const count = countRoutedAgentImageFileParts(parts)
   if (count > limit) throw new AgentImageLimitError({ limit, count, runtime: opts?.runtime })
+}
+
+/**
+ * Claude native-block media mapping. Mirrors the runtime driver's
+ * `toClaudeImageMediaType`: only JPEG/PNG/GIF/WebP can become Anthropic image
+ * blocks. Anything else (AVIF, HEIC, TIFF, BMP …) takes the local-path
+ * fallback and must not count toward the native image cap.
+ */
+export function toClaudeNativeMediaType(value: string | undefined | null): string | null {
+  switch (value?.toLowerCase()) {
+    case 'image/jpg':
+    case 'image/jpeg':
+      return 'image/jpeg'
+    case 'image/png':
+      return 'image/png'
+    case 'image/gif':
+      return 'image/gif'
+    case 'image/webp':
+      return 'image/webp'
+    default:
+      return null
+  }
+}
+
+/**
+ * Whether the part could become a Claude native image block. Mirrors
+ * `canBeClaudeImage` in the Claude Code runtime driver: unknown or
+ * `application/octet-stream` defers to materialization (counts), declared
+ * image media types must map to a Claude-supported block type, otherwise the
+ * filename/URL extension decides among the four natively supported types.
+ */
+export function canBeClaudeNativeImagePart(part: AgentImagePartLike | null | undefined): boolean {
+  if (!part || typeof part !== 'object') return false
+  const url = typeof part.url === 'string' ? part.url : undefined
+  const inlineType = url?.startsWith('data:') ? dataUrlImageMediaType(url) : undefined
+  const mediaType = (inlineType ?? normalizedLower(part.mediaType))?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream') return true
+  if (mediaType.startsWith('image/')) return toClaudeNativeMediaType(mediaType) !== null
+  const filename = normalizedLower(part.filename) ?? normalizedLower(part.name)
+  const ext = normalizedLower(part.ext)
+  if (ext && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) return true
+  const path = url && !url.startsWith('data:') ? urlPath(url) : undefined
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
+    (extension) => filename?.endsWith(extension) || path?.endsWith(extension)
+  )
+}
+
+/**
+ * Count the images Claude would actually send as native blocks: routed managed
+ * images (with `fileEntryId` + live token) plus external/workspace images (no
+ * `fileEntryId`) that can become native blocks. Orphaned managed images are
+ * dropped by `prepareChatMessages` and excluded; AVIF/HEIC/TIFF take the
+ * path fallback via `canBeClaudeNativeImagePart` and are excluded.
+ */
+export function countClaudeNativeImageParts(parts: readonly unknown[] | undefined | null): number {
+  if (!parts) return 0
+  const tokenIds = collectActiveAgentFileTokenIds(parts)
+  let count = 0
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null) continue
+    const candidate = part as AgentImagePartLike
+    if (candidate.type !== 'file') continue
+    if (!isRoutedAgentImagePart(candidate, tokenIds)) continue
+    if (!canBeClaudeNativeImagePart(candidate)) continue
+    count += 1
+  }
+  return count
+}
+
+/**
+ * Throw when Claude's native image-block count exceeds the turn model's limit.
+ * Workspace PNGs replayed without live tokens still count (external refs);
+ * orphaned managed history does not (routing drops it); AVIF/HEIC fall back
+ * to paths and do not count.
+ */
+export function assertClaudeAgentImageLimit(
+  parts: readonly unknown[] | undefined | null,
+  model: Model | undefined | null,
+  opts?: { runtime?: string; maxImages?: number }
+): void {
+  const limit = opts?.maxImages ?? resolveMaxAgentImages(model)
+  if (limit === undefined) return
+  const count = countClaudeNativeImageParts(parts)
+  if (count > limit) throw new AgentImageLimitError({ limit, count, runtime: opts?.runtime ?? 'claude-code' })
+}
+
+/**
+ * Runtime-specific pre-send gate for Agent turns.
+ *
+ * - Pi / Pi-Durable forward every `file://` attachment as a readable path
+ *   (`buildAgentUserContent`), regardless of composer tokens — so history
+ *   replay must count raw, not routed.
+ * - Claude Code sends routed managed images plus external/workspace images as
+ *   native blocks — so the Claude-native count applies with or without history.
+ * - Other runtimes keep the previous behavior: history-inclusive calls use the
+ *   routed count (orphaned managed history passes), fresh sends use raw.
+ */
+export function assertRuntimeAgentImageLimit(
+  parts: readonly unknown[] | undefined | null,
+  model: Model | undefined | null,
+  runtime: string | undefined,
+  opts?: { routed?: boolean; maxImages?: number }
+): void {
+  if (runtime === 'pi' || runtime === 'pi-durable') {
+    assertAgentImageLimit(parts, model, { runtime, maxImages: opts?.maxImages })
+    return
+  }
+  if (runtime === 'claude-code') {
+    assertClaudeAgentImageLimit(parts, model, { runtime, maxImages: opts?.maxImages })
+    return
+  }
+  if (opts?.routed === true) {
+    assertRoutedAgentImageLimit(parts, model, { runtime, maxImages: opts?.maxImages })
+    return
+  }
+  assertAgentImageLimit(parts, model, { runtime, maxImages: opts?.maxImages })
 }
 
 /** Extract the limit from an upstream rejection such as

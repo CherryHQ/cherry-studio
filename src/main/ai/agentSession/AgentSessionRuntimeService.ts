@@ -33,7 +33,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { assertAgentImageLimit, assertRoutedAgentImageLimit } from '@shared/ai/agentImageLimits'
+import { assertRuntimeAgentImageLimit } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -436,6 +436,12 @@ export class AgentSessionRuntimeService extends BaseService {
    * combinations pass through untouched and receive every image in order.
    * Unresolvable models keep the legacy unlimited behavior instead of
    * blocking on missing metadata.
+   *
+   * Runtime-specific payloads differ, so the gate branches: Pi/Durable forward
+   * every `file://` path (raw count over history + new parts), Claude counts
+   * only native-block candidates (routed managed + external workspace images,
+   * AVIF/HEIC excluded via the path fallback), and other runtimes keep the
+   * routed/history distinction.
    */
   private assertTurnImageLimit(
     modelId: UniqueModelId | undefined,
@@ -452,11 +458,7 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Failed to resolve model for agent image-limit validation; skipping', { modelId, error })
       return
     }
-    if (opts?.routed === true) {
-      assertRoutedAgentImageLimit(parts, model, { runtime: agentType })
-      return
-    }
-    assertAgentImageLimit(parts, model, { runtime: agentType })
+    assertRuntimeAgentImageLimit(parts, model, agentType, { routed: opts?.routed })
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
@@ -3377,11 +3379,13 @@ export class AgentSessionRuntimeService extends BaseService {
     // captured model, not the entry's latest default. The connection targets
     // `turn.modelId` while live (see `connectionTarget`), so an agent-default
     // change during connection opening must not re-gate the opening turn.
-    // Include replayed history, but count only routed images: orphaned managed
-    // history (saved files whose composer tokens are absent from the replay
-    // wrapper) is dropped by routing and must not reject a text-only
-    // continuation. Two actually routed images still fail here with the typed
-    // limit before the paid call.
+    // Include replayed history with the runtime-specific payload in mind: Pi /
+    // Durable forward every `file://` path (raw count, so replayed workspace
+    // PNGs gate even without live tokens), Claude counts native-block
+    // candidates (routed managed + external workspace images, AVIF excluded),
+    // and orphaned managed history passes for runtimes whose routing drops it.
+    // A rejection here fires before `connection.send`, so the composer draft
+    // stays intact and no pending assistant row is left without a stream.
     if (context?.length) {
       this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {
         routed: true

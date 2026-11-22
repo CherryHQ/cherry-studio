@@ -40,6 +40,7 @@ import { probeReadable } from '@main/utils/file'
 import {
   AgentImageLimitError,
   AGENT_IMAGE_EXTS,
+  canBeClaudeNativeImagePart,
   countAgentImageFileParts,
   normalizeAgentImageLimitFailure,
   parseUpstreamImageLimit,
@@ -1468,18 +1469,12 @@ function isImageFilePart(part: FileUIPart): boolean {
  * Whether the part can become one of Claude's image blocks at all. A declared image type the
  * blocks cannot carry (TIFF, AVIF, HEIC …) answers here, before its bytes are converted: the
  * conversion can only fail, and the local-path fallback delivers the file either way.
+ *
+ * Delegates to the shared `canBeClaudeNativeImagePart` so the pre-send
+ * `admitTurn` gate and this driver count the same candidates.
  */
 function canBeClaudeImage(part: FileUIPart): boolean {
-  const inlineType = part.url?.startsWith('data:') ? parseDataUrl(part.url)?.mediaType : undefined
-  const mediaType = (inlineType ?? part.mediaType)?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream') return true
-  if (mediaType.startsWith('image/')) return toClaudeImageMediaType(mediaType) !== null
-
-  const filename = part.filename?.toLowerCase()
-  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
-    (extension) => filename?.endsWith(extension) || url?.endsWith(extension)
-  )
+  return canBeClaudeNativeImagePart(part)
 }
 
 function toClaudeImageMediaType(value: string | undefined) {

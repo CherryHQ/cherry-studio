@@ -455,13 +455,22 @@ export class ChannelMessageHandler {
       if (!streamStarted) {
         // Capability-driven multi-image guard (#20030): preserve the actual
         // limit/count instead of a generic processing error so channel users see
-        // why the turn was rejected before any paid provider call.
-        const messageText =
-          error instanceof AgentImageLimitError
-            ? error.message
-            : isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError
-              ? error.message
-              : t('common.channel_message_processing_error')
+        // why the turn was rejected before any paid provider call. The reply is
+        // localized through the main-process catalog (not the error's hardcoded
+        // English text) so non-English apps render both numbers in their language.
+        let messageText: string
+        if (error instanceof AgentImageLimitError) {
+          messageText = error.sent
+            ? t('channel.agent_image_limit_exceeded_after_send', {
+                limit: error.limit,
+                count: error.count
+              })
+            : t('channel.agent_image_limit_exceeded', { limit: error.limit, count: error.count })
+        } else if (isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError) {
+          messageText = error.message
+        } else {
+          messageText = t('common.channel_message_processing_error')
+        }
         await adapter.sendMessage(message.chatId, messageText, responseOptionsFor(message)).catch(() => {})
       }
       const context = {

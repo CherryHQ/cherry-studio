@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Zoom Out",
   "backup.restore.failed": "Restore failed",
   "backup.restore.retry": "The backup was not restored. Your previous data has been kept. Please try restoring again.",
+  "channel.agent_image_limit_exceeded": "The attached images exceed what the selected Agent model accepts in one prompt. Remove some images and retry — nothing was sent. Model limit: {{limit}} image(s); attached: {{count}} image(s).",
+  "channel.agent_image_limit_exceeded_after_send": "The attached images exceed what the selected Agent model accepts in one prompt. Remove some images and retry — the request was already sent. Model limit: {{limit}} image(s); attached: {{count}} image(s).",
   "chat.cherryai.sign_in_required": "Sign in to Cherry AI to use this model",
   "chat.conversation.new": "New Chat",
   "command_approval.builtin-destructive-command": "This built-in Agent cannot perform destructive operations. Use the trash tool for confirmed file deletion. (mcp__assistant-files__move_to_trash)",

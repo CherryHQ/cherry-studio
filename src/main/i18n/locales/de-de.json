@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Herauszoomen",
   "backup.restore.failed": "Wiederherstellung fehlgeschlagen",
   "backup.restore.retry": "Die Sicherung wurde nicht wiederhergestellt. Ihre bisherigen Daten wurden beibehalten. Bitte versuchen Sie die Wiederherstellung erneut.",
+  "channel.agent_image_limit_exceeded": "Die angehängten Bilder überschreiten die Menge, die das ausgewählte Agent-Modell in einem Prompt akzeptiert. Entfernen Sie einige Bilder und versuchen Sie es erneut — es wurde nichts gesendet. Modelllimit: {{limit}} Bild(er); angehängt: {{count}} Bild(er).",
+  "channel.agent_image_limit_exceeded_after_send": "Die angehängten Bilder überschreiten die Menge, die das ausgewählte Agent-Modell in einem Prompt akzeptiert. Entfernen Sie einige Bilder und versuchen Sie es erneut — die Anfrage wurde bereits gesendet. Modelllimit: {{limit}} Bild(er); angehängt: {{count}} Bild(er).",
   "chat.cherryai.sign_in_required": "Melde dich bei Cherry AI an, um dieses Modell zu nutzen",
   "chat.conversation.new": "Neuer Chat",
   "command_approval.builtin-destructive-command": "Dieser integrierte Agent darf keine destruktiven Aktionen ausführen. Verwenden Sie für bestätigte Dateilöschungen den Papierkorb. (mcp__assistant-files__move_to_trash)",

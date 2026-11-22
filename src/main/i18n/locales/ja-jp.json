@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "ズームアウト",
   "backup.restore.failed": "復元に失敗しました",
   "backup.restore.retry": "バックアップを復元できませんでした。元のデータは保持されています。復元を再試行してください。",
+  "channel.agent_image_limit_exceeded": "添付画像の数が、選択したエージェントモデルが1回のプロンプトで受け付け可能な上限を超えています。画像を減らして再試行してください — リクエストは送信されていません。 モデルの上限: {{limit}}枚、添付: {{count}}枚。",
+  "channel.agent_image_limit_exceeded_after_send": "添付画像の数が、選択したエージェントモデルが1回のプロンプトで受け付け可能な上限を超えています。画像を減らして再試行してください — リクエストは既に送信されました。 モデルの上限: {{limit}}枚、添付: {{count}}枚。",
   "chat.cherryai.sign_in_required": "このモデルを使うには CherryAI にサインインしてください",
   "chat.conversation.new": "新しいチャット",
   "command_approval.builtin-destructive-command": "この組み込みエージェントは破壊的な操作を実行できません。確認済みのファイル削除にはゴミ箱ツールを使用してください。 (mcp__assistant-files__move_to_trash)",

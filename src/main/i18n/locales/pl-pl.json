@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Pomniejsz",
   "backup.restore.failed": "Przywracanie nie powiodło się",
   "backup.restore.retry": "Kopia zapasowa nie została przywrócona. Poprzednie dane zostały zachowane. Spróbuj przywrócić ponownie.",
+  "channel.agent_image_limit_exceeded": "Załączone obrazy przekraczają limit wybranego modelu agenta dla jednego zapytania. Usuń część obrazów i spróbuj ponownie — nic nie zostało wysłane. Limit modelu: {{limit}} obrazów; załączono: {{count}}.",
+  "channel.agent_image_limit_exceeded_after_send": "Załączone obrazy przekraczają limit wybranego modelu agenta dla jednego zapytania. Usuń część obrazów i spróbuj ponownie — żądanie zostało już wysłane. Limit modelu: {{limit}} obrazów; załączono: {{count}}.",
   "chat.cherryai.sign_in_required": "Zaloguj się do Cherry AI, aby korzystać z tego modelu",
   "chat.conversation.new": "Nowy czat",
   "command_approval.builtin-destructive-command": "Ten wbudowany agent nie może wykonywać operacji destrukcyjnych. Do potwierdzonego usuwania plików użyj narzędzia kosza. (mcp__assistant-files__move_to_trash)",

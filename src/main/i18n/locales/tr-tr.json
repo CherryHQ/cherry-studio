@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Uzaklaştır",
   "backup.restore.failed": "Geri yükleme başarısız",
   "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Lütfen geri yüklemeyi yeniden deneyin.",
+  "channel.agent_image_limit_exceeded": "Ekli görseller, seçili ajan modelinin tek komutta kabul ettiği sınırı aşıyor. Bazı görselleri kaldırıp tekrar deneyin — hiçbir şey gönderilmedi. Model sınırı: {{limit}} görsel; ekli: {{count}} görsel.",
+  "channel.agent_image_limit_exceeded_after_send": "Ekli görseller, seçili ajan modelinin tek komutta kabul ettiği sınırı aşıyor. Bazı görselleri kaldırıp tekrar deneyin — istek zaten gönderildi. Model sınırı: {{limit}} görsel; ekli: {{count}} görsel.",
   "chat.cherryai.sign_in_required": "Bu modeli kullanmak için Cherry AI'da oturum açın",
   "chat.conversation.new": "Yeni Sohbet",
   "command_approval.builtin-destructive-command": "Bu yerleşik aracı yıkıcı işlemler yapamaz. Onaylanan dosya silme işlemleri için çöp kutusu aracını kullanın. (mcp__assistant-files__move_to_trash)",

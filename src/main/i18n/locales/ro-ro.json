@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Micșorează",
   "backup.restore.failed": "Restaurare eșuată",
   "backup.restore.retry": "Copia de rezervă nu a fost restaurată. Datele anterioare au fost păstrate. Încercați din nou restaurarea.",
+  "channel.agent_image_limit_exceeded": "Imaginile atașate depășesc limita acceptată de modelul de agent selectat într-un singur prompt. Eliminați câteva imagini și încercați din nou — nu a fost trimis nimic. Limita modelului: {{limit}} imagini; atașate: {{count}} imagini.",
+  "channel.agent_image_limit_exceeded_after_send": "Imaginile atașate depășesc limita acceptată de modelul de agent selectat într-un singur prompt. Eliminați câteva imagini și încercați din nou — cererea a fost deja trimisă. Limita modelului: {{limit}} imagini; atașate: {{count}} imagini.",
   "chat.cherryai.sign_in_required": "Conectează-te la Cherry AI pentru a folosi acest model",
   "chat.conversation.new": "Conversație nouă",
   "command_approval.builtin-destructive-command": "Acest agent încorporat nu poate efectua operații distructive. Pentru ștergerea confirmată a fișierelor, utilizați coșul de gunoi. (mcp__assistant-files__move_to_trash)",

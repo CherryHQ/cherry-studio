@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "縮小",
   "backup.restore.failed": "還原失敗",
   "backup.restore.retry": "備份未能還原。已保留原有資料。請重新嘗試還原。",
+  "channel.agent_image_limit_exceeded": "附件圖片數量超過了所選智能體模型單次請求可接受的上限。請移除部分圖片後重試——本次請求尚未傳送。 模型上限為 {{limit}} 張圖片，已附加 {{count}} 張。",
+  "channel.agent_image_limit_exceeded_after_send": "附件圖片數量超過了所選智能體模型單次請求可接受的上限。請移除部分圖片後重試——本次請求已經傳送。 模型上限為 {{limit}} 張圖片，已附加 {{count}} 張。",
   "chat.cherryai.sign_in_required": "登入 CherryAI 後才能使用此模型",
   "chat.conversation.new": "新對話",
   "command_approval.builtin-destructive-command": "此內建智慧體不能執行破壞性操作。確認刪除檔案時請使用移到垃圾桶工具。 (mcp__assistant-files__move_to_trash)",

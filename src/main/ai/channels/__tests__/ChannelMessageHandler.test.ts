@@ -300,9 +300,42 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     const [chatId, text, options] = adapter.sendMessage.mock.calls[0]
     expect(chatId).toBe('chat-1')
-    expect(text).toMatch(/at most 1 image/)
-    expect(text).toMatch(/2 image/)
+    // Localized channel reply carries both numbers (main-process catalog).
+    expect(text).toEqual(t('channel.agent_image_limit_exceeded', { limit: 1, count: 2 }))
+    expect(text).toMatch(/1/)
+    expect(text).toMatch(/2/)
     expect(options).toEqual({ replyToMessageId: 'inbound-1' })
+  })
+
+  it('renders the over-limit agent image reply in the app language (#20030)', async () => {
+    const { MockMainPreferenceServiceUtils } = await import('@test-mocks/main/PreferenceService')
+    const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+    try {
+      const adapter = createMockAdapter({ channelType: 'wecom' })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        id: 'session-image-limit-zh',
+        agentId: 'agent-1',
+        workspace: { path: '/tmp/test-workspace' }
+      } as any)
+      mockStartAgentSessionRun.mockRejectedValueOnce(new AgentImageLimitError({ limit: 1, count: 2, runtime: 'pi' }))
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'compare',
+        messageId: 'inbound-2'
+      })
+      expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+      const [, text] = adapter.sendMessage.mock.calls[0]
+      expect(text).toEqual(t('channel.agent_image_limit_exceeded', { limit: 1, count: 2 }))
+      // Both numbers survive localization.
+      expect(text).toMatch(/1/)
+      expect(text).toMatch(/2/)
+      expect(text).not.toMatch(/attached images exceed/i)
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+    }
   })
 
   it('leaves admitted stream errors to the listener without sending a second terminal reply', async () => {

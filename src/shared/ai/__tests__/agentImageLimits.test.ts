@@ -6,9 +6,13 @@ import { withCherryMeta } from '@shared/data/types/uiParts'
 import {
   AgentImageLimitError,
   assertAgentImageLimit,
+  assertClaudeAgentImageLimit,
   assertRoutedAgentImageLimit,
+  assertRuntimeAgentImageLimit,
+  canBeClaudeNativeImagePart,
   countAgentImageAttachments,
   countAgentImageFileParts,
+  countClaudeNativeImageParts,
   countRoutedAgentImageFileParts,
   isAgentImagePart,
   normalizeAgentImageLimitFailure,
@@ -312,5 +316,85 @@ describe('normalizeAgentImageLimitFailure', () => {
 
   it('returns undefined for unrelated errors', () => {
     expect(normalizeAgentImageLimitFailure(new Error('boom'), 3)).toBeUndefined()
+  })
+})
+
+describe('runtime-specific replay gates (#20030 follow-up)', () => {
+  const single = visionModel({ maxAgentImages: 1 })
+  const workspacePng = (filename: string, sourceId: string) =>
+    withCherryMeta(
+      { type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename } as never,
+      { fileTokenSourceId: sourceId } as never
+    )
+  const managedImage = (filename: string, sourceId: string) =>
+    withCherryMeta(
+      { type: 'file', url: `file:///tmp/${filename}`, mediaType: 'image/png', filename } as never,
+      { fileEntryId: `entry-${sourceId}`, fileTokenSourceId: sourceId } as never
+    )
+
+  it('counts replayed workspace PNGs without live tokens as routed', () => {
+    const parts = [
+      { type: 'text', text: 'Previous conversation history (reference only)' },
+      workspacePng('a.png', 'source-a'),
+      workspacePng('b.png', 'source-b'),
+      { type: 'text', text: 'continuation' }
+    ]
+    expect(countAgentImageFileParts(parts)).toBe(2)
+    expect(countRoutedAgentImageFileParts(parts)).toBe(2)
+    expect(() => assertRoutedAgentImageLimit(parts, single, { runtime: 'pi' })).toThrow(AgentImageLimitError)
+  })
+
+  it('excludes AVIF from the Claude native count (path fallback)', () => {
+    const parts = [
+      withCherryMeta(
+        { type: 'file', url: 'file:///workspace/a.avif', mediaType: 'image/avif', filename: 'a.avif' } as never,
+        { fileTokenSourceId: 'source-a' } as never
+      ),
+      withCherryMeta(
+        { type: 'file', url: 'file:///workspace/b.avif', mediaType: 'image/avif', filename: 'b.avif' } as never,
+        { fileTokenSourceId: 'source-b' } as never
+      )
+    ]
+    expect(canBeClaudeNativeImagePart(parts[0])).toBe(false)
+    expect(countClaudeNativeImageParts(parts)).toBe(0)
+    expect(() => assertClaudeAgentImageLimit(parts, single, { runtime: 'claude-code' })).not.toThrow()
+  })
+
+  it('counts workspace PNGs but not orphaned managed images for Claude', () => {
+    const parts = [workspacePng('a.png', 'source-a'), workspacePng('b.png', 'source-b')]
+    expect(countClaudeNativeImageParts(parts)).toBe(2)
+    expect(() => assertClaudeAgentImageLimit(parts, single)).toThrow(AgentImageLimitError)
+    const orphaned = [
+      { type: 'text', text: 'history' },
+      managedImage('a.png', 'source-a'),
+      managedImage('b.png', 'source-b')
+    ]
+    expect(countClaudeNativeImageParts(orphaned)).toBe(0)
+    expect(() => assertClaudeAgentImageLimit(orphaned, single)).not.toThrow()
+  })
+
+  it('branches Pi to raw and Claude to native counts', () => {
+    const orphanedManaged = [
+      { type: 'text', text: 'history' },
+      managedImage('a.png', 'source-a'),
+      managedImage('b.png', 'source-b')
+    ]
+    // Pi forwards every file:// path, so orphaned managed history still gates.
+    expect(() => assertRuntimeAgentImageLimit(orphanedManaged, single, 'pi', { routed: true })).toThrow(
+      AgentImageLimitError
+    )
+    // Claude drops orphaned managed history in routing, so the same replay passes.
+    expect(() => assertRuntimeAgentImageLimit(orphanedManaged, single, 'claude-code', { routed: true })).not.toThrow()
+    const workspaceReplay = [
+      { type: 'text', text: 'Previous conversation history' },
+      workspacePng('a.png', 'source-a'),
+      workspacePng('b.png', 'source-b')
+    ]
+    expect(() => assertRuntimeAgentImageLimit(workspaceReplay, single, 'pi', { routed: true })).toThrow(
+      AgentImageLimitError
+    )
+    expect(() => assertRuntimeAgentImageLimit(workspaceReplay, single, 'claude-code', { routed: true })).toThrow(
+      AgentImageLimitError
+    )
   })
 })

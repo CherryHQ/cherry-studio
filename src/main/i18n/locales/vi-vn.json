@@ -71,6 +71,8 @@
   "appMenu.zoomOut": "Thu nhỏ",
   "backup.restore.failed": "Khôi phục thất bại",
   "backup.restore.retry": "Không thể khôi phục bản sao lưu. Dữ liệu trước đó của bạn đã được giữ lại. Vui lòng thử khôi phục lại.",
+  "channel.agent_image_limit_exceeded": "Số ảnh đính kèm vượt quá giới hạn mà mô hình agent đã chọn chấp nhận trong một prompt. Hãy gỡ bớt ảnh rồi thử lại — chưa có gì được gửi đi. Giới hạn mô hình: {{limit}} ảnh; đã đính kèm: {{count}} ảnh.",
+  "channel.agent_image_limit_exceeded_after_send": "Số ảnh đính kèm vượt quá giới hạn mà mô hình agent đã chọn chấp nhận trong một prompt. Hãy gỡ bớt ảnh rồi thử lại — yêu cầu đã được gửi đi. Giới hạn mô hình: {{limit}} ảnh; đã đính kèm: {{count}} ảnh.",
   "chat.cherryai.sign_in_required": "Đăng nhập Cherry AI để dùng mô hình này",
   "chat.conversation.new": "Cuộc trò chuyện mới",
   "command_approval.builtin-destructive-command": "Tác nhân tích hợp này không thể thực hiện thao tác phá hủy. Hãy dùng công cụ thùng rác khi xác nhận xóa tệp. (mcp__assistant-files__move_to_trash)",
