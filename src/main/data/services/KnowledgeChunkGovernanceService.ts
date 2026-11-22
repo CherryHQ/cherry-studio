@@ -12,6 +12,7 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
+  hasKnowledgeChunkDecision,
   KnowledgeChunkBatchActionSchema,
   KnowledgeChunkGovernanceSourceSchema,
   KnowledgeChunkGovernanceStateSchema,
@@ -95,7 +96,8 @@ export class KnowledgeChunkGovernanceService {
       sourceContentHash: string
       expectedRevision: number
       state: KnowledgeChunkGovernanceState
-    }
+    },
+    forceRevision = false
   ) {
     this.assertItem(tx, input.baseId, input.itemId)
     const current = this.find(tx, input.baseId, input.itemId, input.unitId)
@@ -103,11 +105,11 @@ export class KnowledgeChunkGovernanceService {
     if (current.revision !== input.expectedRevision || current.sourceContentHash !== input.sourceContentHash) {
       throw DataApiErrorFactory.conflict('Chunk source or governance revision changed')
     }
-    if (JSON.stringify(current.state) === JSON.stringify(input.state)) return current
+    if (!forceRevision && JSON.stringify(current.state) === JSON.stringify(input.state)) return current
     const revision = current.revision + 1
     const row = tx
       .update(tables)
-      .set({ state: input.state, revision })
+      .set({ state: input.state, revision, retired: false })
       .where(eq(tables.id, current.id))
       .returning()
       .get()!
@@ -167,6 +169,69 @@ export class KnowledgeChunkGovernanceService {
     logger.info('Applied chunk governance batch', { baseId, selectionCount: entries.length })
   }
 
+  review(input: {
+    baseId: string
+    itemId: string
+    governanceId: string
+    expectedRevision: number
+    target?: { source: KnowledgeChunkGovernanceSource; expectedRevision: number }
+  }): void {
+    this.dbService.withWriteTx((tx) => {
+      this.assertItem(tx, input.baseId, input.itemId)
+      const old = tx
+        .select()
+        .from(tables)
+        .where(and(eq(tables.id, input.governanceId), eq(tables.baseId, input.baseId), eq(tables.itemId, input.itemId)))
+        .get()
+      if (!old || old.revision !== input.expectedRevision || old.retired)
+        throw DataApiErrorFactory.conflict('Chunk decision changed; refresh and review again')
+      let target: KnowledgeChunkGovernanceRow | undefined
+      if (input.target) {
+        const source = KnowledgeChunkGovernanceSourceSchema.parse(input.target.source)
+        if (source.baseId !== input.baseId || source.itemId !== input.itemId || source.unitId === old.unitId)
+          throw DataApiErrorFactory.conflict('Rebind requires a different chunk in the same source')
+        const existing = this.find(tx, input.baseId, input.itemId, source.unitId)
+        if (
+          (existing?.revision ?? 0) !== input.target.expectedRevision ||
+          (existing &&
+            (existing.sourceContentHash !== source.sourceContentHash || hasKnowledgeChunkDecision(existing.state)))
+        )
+          throw DataApiErrorFactory.conflict('Target decision changed or already carries decisions')
+        target = existing
+          ? this.updateStateTx(tx, { ...source, expectedRevision: existing.revision, state: old.state }, true)
+          : this.createTx(tx, source, old.state)
+        tx.update(knowledgeChunkGovernanceHistoryTable)
+          .set({ operation: 'rebind-from', relatedGovernanceId: old.id })
+          .where(
+            and(
+              eq(knowledgeChunkGovernanceHistoryTable.governanceId, target.id),
+              eq(knowledgeChunkGovernanceHistoryTable.revision, target.revision)
+            )
+          )
+          .run()
+      }
+      const cleared = tx
+        .update(tables)
+        .set({
+          state: { excluded: false, labels: [], overrideText: null },
+          revision: old.revision + 1,
+          retired: true
+        })
+        .where(eq(tables.id, old.id))
+        .returning()
+        .get()!
+      tx.insert(knowledgeChunkGovernanceHistoryTable)
+        .values({
+          governanceId: old.id,
+          revision: cleared.revision,
+          state: cleared.state,
+          operation: target ? 'rebind-away' : 'discard',
+          relatedGovernanceId: target?.id ?? null
+        })
+        .run()
+    })
+  }
+
   /** One coherent, deterministic read for retrieval revision checks. No source text is logged. */
   listByBase(baseId: string): KnowledgeChunkGovernanceRow[] {
     return this.dbService.getDb().select().from(tables).where(eq(tables.baseId, baseId)).orderBy(asc(tables.id)).all()
@@ -176,6 +241,8 @@ export class KnowledgeChunkGovernanceService {
     return this.dbService
       .getDb()
       .select({
+        operation: knowledgeChunkGovernanceHistoryTable.operation,
+        relatedGovernanceId: knowledgeChunkGovernanceHistoryTable.relatedGovernanceId,
         revision: knowledgeChunkGovernanceHistoryTable.revision,
         state: knowledgeChunkGovernanceHistoryTable.state,
         createdAt: knowledgeChunkGovernanceHistoryTable.createdAt

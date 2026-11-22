@@ -675,4 +675,256 @@ describe('Knowledge governance retrieval authority', () => {
       await expect(service.search(baseId, 'target')).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
     }
   )
+
+  // Review must move only explicitly accepted intent, never fuzzy-match or revive retired decisions.
+  function reviewInput(itemId: string, governanceId: string) {
+    const view = workflow.listReviews(baseId, itemId)
+    const row = view.records.find((row) => row.id === governanceId)!
+    return {
+      baseId,
+      itemId,
+      governanceId,
+      expectedRevision: row.revision,
+      currentSourceContentHash: view.currentSourceContentHash
+    }
+  }
+
+  it('rebinds exact selected originals atomically, keeping corrections pending and both audit links', async () => {
+    const id = material(['old target'])
+    const old = save(id, 0, { excluded: false, labels: ['reviewed'], overrideText: 'User corrected target' })
+    index(id, ['new target', 'target untouched'])
+    const view = workflow.listReviews(baseId, id)
+    expect(view.records).toMatchObject([{ id: old.id, originalText: 'old target', reason: 'source-changed' }])
+    expect(await service.search(baseId, 'target')).toEqual([])
+    const source = store.readMaterialContent(id)
+    const units = store.listMaterialUnits(id)
+    await workflow.review({
+      ...reviewInput(id, old.id),
+      action: {
+        kind: 'rebind',
+        targetUnitId: units[0].unitId,
+        expectedTargetRevision: 0
+      }
+    })
+    const next = governance.get(baseId, id, units[0].unitId)!
+    expect(next.state).toEqual(old.state)
+    expect(next.originalText).toBe('new target')
+    expect(next.sourceContentHash).not.toBe(old.sourceContentHash)
+    expect(governance.get(baseId, id, old.unitId)).toMatchObject({
+      retired: true,
+      revision: 2,
+      originalText: 'old target',
+      state: { excluded: false, labels: [], overrideText: null }
+    })
+    expect(governance.listHistory(baseId, id, old.unitId)).toMatchObject([
+      { revision: 1, state: old.state, operation: 'edit' },
+      { revision: 2, operation: 'rebind-away', relatedGovernanceId: next.id }
+    ])
+    expect(governance.listHistory(baseId, id, next.unitId)).toMatchObject([
+      { revision: 1, operation: 'rebind-from', relatedGovernanceId: old.id }
+    ])
+    expect(workflow.listReviews(baseId, id).records).toEqual([])
+    expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['target untouched'])
+    expect((await service.listItemChunks(baseId, id))[0].governance?.status).toBe('pending')
+    expect(store.readMaterialContent(id)).toBe(source)
+    expect(store.listMaterialUnits(id)).toEqual(units)
+    expect(embedMany).not.toHaveBeenCalled()
+  })
+
+  it.each(['bm25', 'vector', 'hybrid'] as const)(
+    'rebound exclusions take effect in %s before retrieval',
+    async (mode) => {
+      const id = material(['old target'])
+      const old = save(id)
+      index(id, ['new target excluded', 'target allowed'])
+      const [unit] = store.listMaterialUnits(id)
+      await workflow.review({
+        ...reviewInput(id, old.id),
+        action: { kind: 'rebind', targetUnitId: unit.unitId, expectedTargetRevision: 0 }
+      })
+      const exclusions = readKnowledgeGovernanceSearchSnapshot(baseId, store).exclusions
+      expect(
+        store
+          .search({ queryText: 'target', queryEmbedding: [1, 0, 0], mode, topK: 1, exclusions })
+          .map((hit) => hit.text)
+      ).toEqual(['target allowed'])
+    }
+  )
+
+  it.each(['empty', 'unavailable'] as const)(
+    'exposes and discards %s source decisions without erasing evidence',
+    async (state) => {
+      const id = material(['old target'])
+      const old = save(id)
+      if (state === 'empty') index(id, [])
+      else await store.deleteMaterials([id])
+      expect(await service.listItemChunks(baseId, id)).toEqual([])
+      const view = workflow.listReviews(baseId, id)
+      expect(view.records[0]).toMatchObject({
+        originalText: 'old target',
+        id: old.id,
+        reason: state === 'empty' ? 'source-changed' : 'source-unavailable'
+      })
+      expect(view.currentSourceContentHash).toBe(state === 'empty' ? hashContentText('') : null)
+      const dto = { ...reviewInput(id, old.id), action: { kind: 'discard' as const } }
+      await workflow.review(dto)
+      expect(workflow.listReviews(baseId, id).records).toEqual([])
+      expect(governance.listHistory(baseId, id, old.unitId)).toMatchObject([
+        { revision: 1, state: old.state },
+        { revision: 2, operation: 'discard' }
+      ])
+      index(id, ['old target'])
+      expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['old target'])
+      await expect(workflow.review(dto)).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+      expect(governance.listHistory(baseId, id, old.unitId)).toHaveLength(2)
+      expect(embedMany).not.toHaveBeenCalled()
+    }
+  )
+
+  it('retains a material pause until every unmatched record is explicitly resolved', async () => {
+    const id = material(['old target one', 'old target two'])
+    const one = save(id, 0),
+      two = save(id, 1)
+    index(id, ['target current'])
+    await workflow.review({ ...reviewInput(id, one.id), action: { kind: 'discard' } })
+    expect(workflow.listReviews(baseId, id).records.map((row) => row.id)).toEqual([two.id])
+    expect(await service.search(baseId, 'target')).toEqual([])
+    await workflow.review({ ...reviewInput(id, two.id), action: { kind: 'discard' } })
+    expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['target current'])
+  })
+
+  it('refuses stale source, source revision and competing target decisions without changing history', async () => {
+    const id = material(['old target'])
+    const old = save(id)
+    index(id, ['new target'])
+    const dto = reviewInput(id, old.id)
+    index(id, ['newer target'])
+    await expect(workflow.review({ ...dto, action: { kind: 'discard' } })).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+    const current = reviewInput(id, old.id)
+    update(old, { ...old.state, labels: ['newer intent'] })
+    await expect(workflow.review({ ...current, action: { kind: 'discard' } })).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+    const target = save(id, 0, { excluded: false, labels: ['target intent'], overrideText: null })
+    const originalRows = governance.listByBase(baseId)
+    await expect(
+      workflow.review({
+        ...reviewInput(id, old.id),
+        action: { kind: 'rebind', targetUnitId: target.unitId, expectedTargetRevision: 1 }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual(originalRows)
+    expect(governance.listHistory(baseId, id, old.unitId)).toHaveLength(2)
+    expect(governance.listHistory(baseId, id, target.unitId)).toHaveLength(1)
+  })
+
+  it('rolls back both transfer sides and audit links on an injected source-history failure', async () => {
+    const id = material(['old target'])
+    const old = save(id)
+    index(id, ['new target'])
+    const [target] = store.listMaterialUnits(id)
+    dbh.sqlite.exec(`CREATE TEMP TRIGGER fail_review_history BEFORE INSERT ON knowledge_chunk_governance_history
+      WHEN NEW.operation = 'rebind-away' BEGIN SELECT RAISE(ABORT, 'review history failure'); END`)
+    try {
+      await expect(
+        workflow.review({
+          ...reviewInput(id, old.id),
+          action: { kind: 'rebind', targetUnitId: target.unitId, expectedTargetRevision: 0 }
+        })
+      ).rejects.toThrow()
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER fail_review_history')
+    }
+    expect(governance.listByBase(baseId)).toEqual([old])
+    expect(governance.listHistory(baseId, id, old.unitId)).toHaveLength(1)
+    expect(governance.listHistory(baseId, id, target.unitId)).toEqual([])
+  })
+
+  it('does not auto-review same-identity rebuilds, and rechecks lifecycle after mutation-lock wait', async () => {
+    const id = material(['old target'])
+    const old = save(id)
+    index(id, ['old target'])
+    expect(workflow.listReviews(baseId, id).records).toEqual([])
+    index(id, ['new target'])
+    const dto = reviewInput(id, old.id)
+    let release!: () => void
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const held = lock.runExclusive(baseId, async () => {
+      entered()
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+    })
+    await started
+    const pending = workflow.review({ ...dto, action: { kind: 'discard' } })
+    dbh.db.update(knowledgeItemTable).set({ status: 'deleting' }).where(eq(knowledgeItemTable.id, id)).run()
+    release()
+    await held
+    await expect(pending).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([old])
+  })
+
+  it('never accepts a different source as the target or revives retired intent after a rebuild', async () => {
+    const id = material(['old target'])
+    const old = save(id)
+    index(id, ['new target'])
+    const foreign = material(['foreign target'])
+    const unit = store.listMaterialUnits(foreign)[0]
+    await expect(
+      workflow.review({
+        ...reviewInput(id, old.id),
+        action: { kind: 'rebind', targetUnitId: unit.unitId, expectedTargetRevision: 0 }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    await workflow.review({ ...reviewInput(id, old.id), action: { kind: 'discard' } })
+    index(id, ['old target'])
+    const selected = (await selection(id))[0]
+    expect(selected.expectedRevision).toBe(2)
+    await workflow.apply({
+      baseId,
+      selection: [selected],
+      action: { kind: 'label', operation: 'add', label: 'new intent' }
+    })
+    expect(governance.get(baseId, id, old.unitId)).toMatchObject({
+      retired: false,
+      revision: 3,
+      state: { excluded: false, labels: ['new intent'], overrideText: null }
+    })
+  })
+
+  it('allows an explicit transfer back to a retired identity without rewriting either original history', async () => {
+    const id = material(['old target'])
+    const old = save(id)
+    index(id, ['new target'])
+    const [unit] = store.listMaterialUnits(id)
+    await workflow.review({
+      ...reviewInput(id, old.id),
+      action: { kind: 'rebind', targetUnitId: unit.unitId, expectedTargetRevision: 0 }
+    })
+    const moved = governance.get(baseId, id, unit.unitId)!
+    index(id, ['old target'])
+    await workflow.review({
+      ...reviewInput(id, moved.id),
+      action: { kind: 'rebind', targetUnitId: old.unitId, expectedTargetRevision: 2 }
+    })
+    expect(governance.get(baseId, id, old.unitId)).toMatchObject({
+      retired: false,
+      revision: 3,
+      state: old.state,
+      originalText: old.originalText
+    })
+    expect(governance.listHistory(baseId, id, old.unitId)).toMatchObject([
+      { revision: 1, state: old.state, operation: 'edit' },
+      { revision: 2, operation: 'rebind-away', relatedGovernanceId: moved.id },
+      { revision: 3, operation: 'rebind-from', relatedGovernanceId: moved.id }
+    ])
+    expect(governance.get(baseId, id, moved.unitId)?.retired).toBe(true)
+    expect(workflow.listReviews(baseId, id).records).toEqual([])
+    expect(await service.search(baseId, 'target')).toEqual([])
+  })
 })

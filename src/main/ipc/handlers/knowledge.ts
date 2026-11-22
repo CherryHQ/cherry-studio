@@ -49,6 +49,10 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       throw error
     }
   },
+  'knowledge.list_chunk_governance_reviews': async ({ baseId, itemId }) =>
+    application.get('KnowledgeService').listChunkGovernanceReviews(baseId, itemId),
+  'knowledge.review_chunk_governance': async (input) =>
+    application.get('KnowledgeService').reviewChunkGovernance(input),
   'knowledge.apply_chunk_governance': async (input) => application.get('KnowledgeService').applyChunkGovernance(input),
   'knowledge.list_item_chunks': async ({ baseId, itemId }) =>
     application.get('KnowledgeService').listItemChunks(baseId, itemId)
