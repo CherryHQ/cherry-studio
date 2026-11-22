@@ -1308,6 +1308,22 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('allows unused pending Claude reservations without requiring a transcript', async () => {
+    const { session, replacement } = await createMessagedSessionWithBackend(
+      'claude-unused-pending',
+      {
+        version: 1,
+        kind: 'claude-code',
+        configDir: '/old/profile/Agents/.claude'
+      },
+      'pending'
+    )
+    await expect(
+      agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+    ).resolves.toMatchObject({ workspaceId: replacement.id })
+    expect(recoveryMocks.recover).not.toHaveBeenCalled()
+  })
+
   it('does not save renamed Claude recovery unless its native history reopens from the replacement cwd', async () => {
     const configDir = workspacePath('native-recovery-config')
     const previous = process.env.CLAUDE_CONFIG_DIR
@@ -1392,6 +1408,21 @@ describe('AgentSessionService', () => {
       await writeFile(path.join(managedRoot, 'projects', 'project-a', 'native-thread-1.jsonl'), '')
       const restored = await createMessagedSessionWithBackend('claude-restore-ok', sourceLocator)
       await dbh.db
+        .update(agentSessionContextTable)
+        .set({
+          checkpointMapping: {
+            fork: {
+              'message-claude-restore-ok': {
+                runtime: 'claude-code',
+                runtimeSessionId: 'native-thread-1',
+                messageUuid: 'edited-reply',
+                configDir: sourceLocator.configDir
+              }
+            }
+          }
+        })
+        .where(eq(agentSessionContextTable.sessionId, restored.session.id))
+      await dbh.db
         .update(agentSessionMessageTable)
         .set({
           data: {
@@ -1419,6 +1450,16 @@ describe('AgentSessionService', () => {
         .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
         .where(eq(agentSessionContextTable.sessionId, restored.session.id))
       expect(backend.locator).toEqual({ version: 1, kind: 'claude-code', configDir: managedRoot })
+      const edited = await dbh.db
+        .select({ mapping: agentSessionContextTable.checkpointMapping })
+        .from(agentSessionContextTable)
+        .where(eq(agentSessionContextTable.sessionId, restored.session.id))
+        .get()
+      expect(edited?.mapping?.fork?.['message-claude-restore-ok']).toMatchObject({
+        configDir: managedRoot,
+        messageUuid: 'edited-reply'
+      })
+
       const [reply] = await dbh.db
         .select({ data: agentSessionMessageTable.data })
         .from(agentSessionMessageTable)

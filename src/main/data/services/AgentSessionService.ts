@@ -1276,6 +1276,20 @@ export class AgentSessionService {
       .all()
       .flatMap(({ contextId, locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
         if (locator.kind === 'claude-code') {
+          if (bindingState === 'pending') {
+            const input = db
+              .select({ id: agentSessionMessageTable.id })
+              .from(agentSessionMessageTable)
+              .where(
+                and(
+                  eq(agentSessionMessageTable.sessionId, sessionId),
+                  eq(agentSessionMessageTable.inputContextId, contextId)
+                )
+              )
+              .limit(1)
+              .get()
+            if (!input) return []
+          }
           return [
             {
               kind: 'claude-code',
@@ -1465,13 +1479,14 @@ export class AgentSessionService {
       .select({
         contextId: agentSessionContextTable.id,
         locator: agentRuntimeBackendTable.locator,
-        state: agentRuntimeBackendTable.state
+        state: agentRuntimeBackendTable.state,
+        checkpointMapping: agentSessionContextTable.checkpointMapping
       })
       .from(agentSessionContextTable)
       .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
       .where(eq(agentSessionContextTable.sessionId, sessionId))
       .all()
-    for (const { contextId, locator, state } of rows) {
+    for (const { contextId, locator, state, checkpointMapping } of rows) {
       if (locator.kind !== 'claude-code') continue
       if (configDirs.has(path.resolve(locator.configDir)) || !isManagedClaudeConfigDir(locator.configDir)) continue
       const next = { version: 1 as const, kind: 'claude-code' as const, configDir: managedRoot }
@@ -1482,8 +1497,29 @@ export class AgentSessionService {
         .where(eq(agentRuntimeBackendTable.locator, next))
         .all()
       if (backend) {
+        const fork = checkpointMapping?.fork
+        const remappedFork =
+          fork &&
+          Object.fromEntries(
+            Object.entries(fork).map(([id, value]) => {
+              if (
+                value &&
+                typeof value === 'object' &&
+                'runtime' in value &&
+                value.runtime === 'claude-code' &&
+                'configDir' in value &&
+                value.configDir === locator.configDir
+              ) {
+                return [id, { ...value, configDir: managedRoot }]
+              }
+              return [id, value]
+            })
+          )
         tx.update(agentSessionContextTable)
-          .set({ backendId: backend.id })
+          .set({
+            backendId: backend.id,
+            ...(remappedFork ? { checkpointMapping: { ...checkpointMapping, fork: remappedFork } } : {})
+          })
           .where(eq(agentSessionContextTable.id, contextId))
           .run()
         // Fork checkpoints are adapter-owned addresses too; keeping the old profile path would

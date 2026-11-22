@@ -1,4 +1,3 @@
-import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
@@ -9,20 +8,7 @@ import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } 
 import { runForkWorker } from '../fork'
 import { ClaudeForkResultSchema, parseClaudeForkCheckpoint } from './forkCheckpoint'
 import type { ClaudeForkWorkerInput } from './forkWorker'
-
-async function findSession(configDir: string, sessionId: string): Promise<string> {
-  if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
-  const root = path.join(configDir, 'projects')
-  const files: string[] = []
-  for (const project of await readdir(root, { withFileTypes: true })) {
-    if (!project.isDirectory() || project.isSymbolicLink()) continue
-    const directory = path.join(root, project.name)
-    if ((await readdir(directory)).includes(sessionId + '.jsonl'))
-      files.push(path.join(directory, sessionId + '.jsonl'))
-  }
-  if (files.length !== 1) throw new AgentSessionForkError(files.length ? 'history_corrupt' : 'history_missing')
-  return files[0]
-}
+import { findClaudeSessionArchive } from './sessionArchive'
 
 export async function forkClaudeSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   return readNativeForkHistory(() => prepareClaudeFork(input))
@@ -30,7 +16,7 @@ export async function forkClaudeSession(input: RuntimeForkInput): Promise<Runtim
 
 async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parseClaudeForkCheckpoint(input.checkpoint)
-  const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
+  const file = await findClaudeSessionArchive(checkpoint.configDir, checkpoint.runtimeSessionId)
   const bytes = await readForkPrefix(file)
   const entries: SessionStoreEntry[] = []
   let start = 0

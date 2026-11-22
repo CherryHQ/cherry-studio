@@ -6,9 +6,23 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 
 import { runForkWorker } from '../../fork'
+import { forkClaudeSession } from '../claudeFork'
+
+vi.mock('../forkWorker?nodeWorker', async () => {
+  const source = stripTypeScriptTypes(
+    await readFile(path.resolve('src/main/ai/runtime/claudeCode/forkWorker.ts'), 'utf8')
+  ).replaceAll(
+    '@anthropic-ai/claude-agent-sdk',
+    pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
+  )
+  return {
+    default: (options: ConstructorParameters<typeof Worker>[1]) =>
+      new Worker(new URL(`data:text/javascript,${encodeURIComponent(source)}`), options)
+  }
+})
 
 const roots: string[] = []
 afterEach(async () => {
@@ -106,4 +120,50 @@ it('keeps child archive files with the copied native session', async () => {
   const targetChild = path.join(path.dirname(f.target), f.nativeThreadId, 'subagents', 'agent-child.jsonl')
   expect(await readFile(targetChild, 'utf8')).toBe(f.content)
   expect(await readFile(child, 'utf8')).toBe(f.content)
+})
+
+it('forks a completed native reply after renamed-workspace recovery retains the original archive', async () => {
+  const f = await fixture()
+  const messageUuid = randomUUID()
+  const user = JSON.parse(f.content)
+  const assistant = {
+    type: 'assistant',
+    sessionId: f.nativeThreadId,
+    uuid: messageUuid,
+    parentUuid: user.uuid,
+    timestamp: '2026-01-01T00:00:01.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'Retained reply' }] }
+  }
+  const content = f.content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, content)
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  const checkpoint = { runtime: 'claude-code', runtimeSessionId: f.nativeThreadId, messageUuid, configDir: f.configDir }
+  const fork = await forkClaudeSession({
+    sourceSessionId: 'source',
+    targetSessionId: 'fork',
+    checkpoint,
+    checkpoints: [checkpoint],
+    targetCwd: f.targetCwd,
+    artifactDirectory: path.join(f.configDir, 'fork-test'),
+    signal: AbortSignal.timeout(15_000)
+  })
+  expect(fork.resumeToken).not.toBe(f.nativeThreadId)
+  expect(fork.checkpoints).toHaveLength(1)
+  expect(await readFile(f.source, 'utf8')).toBe(content)
+  expect(await readFile(f.target, 'utf8')).toBe(content)
+})
+
+it('retries an interrupted child copy when existing child bytes match the retained source', async () => {
+  const f = await fixture()
+  const suffix = path.join(f.nativeThreadId, 'subagents', 'agent-child.jsonl')
+  const sourceChild = path.join(path.dirname(f.source), suffix)
+  const targetChild = path.join(path.dirname(f.target), suffix)
+  await mkdir(path.dirname(sourceChild), { recursive: true })
+  await mkdir(path.dirname(targetChild), { recursive: true })
+  await writeFile(sourceChild, f.content)
+  // Fault state: a prior run published this child, but never published the parent.
+  await writeFile(targetChild, f.content)
+  await expect(nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)).resolves.toEqual({ verified: true })
+  expect(await readFile(targetChild, 'utf8')).toBe(f.content)
+  expect(await readFile(f.target, 'utf8')).toBe(f.content)
 })

@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { constants, realpathSync } from 'node:fs'
-import { copyFile, cp, lstat, mkdir, readFile, readdir } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
@@ -63,6 +63,24 @@ async function run(input: ClaudeRecoveryWorkerInput) {
       throw error
     }
   }
+  async function copyChildren(source: string, target: string): Promise<void> {
+    const sourceStat = await lstat(source)
+    if (sourceStat.isSymbolicLink()) throw new Error('Claude history contains a symbolic link')
+    if (sourceStat.isDirectory()) {
+      if (await exists(target)) {
+        const targetStat = await lstat(target)
+        if (!targetStat.isDirectory() || targetStat.isSymbolicLink())
+          throw new Error('Conflicting Claude child archive')
+      } else await mkdir(target)
+      for (const name of await readdir(source)) await copyChildren(path.join(source, name), path.join(target, name))
+    } else if (sourceStat.isFile()) {
+      if (await exists(target)) {
+        await regularTree(target)
+        if (!(await readFile(source)).equals(await readFile(target)))
+          throw new Error('Conflicting Claude child archive')
+      } else await copyFile(source, target, constants.COPYFILE_EXCL)
+    } else throw new Error('Claude history is not a regular file')
+  }
   const rootStat = await lstat(projects)
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error('Invalid Claude projects directory')
   const targetProject = path.join(projects, projectKey)
@@ -104,7 +122,7 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     await mkdir(targetProject, { recursive: true })
     if (await exists(sourceChildren)) {
       const childrenBefore = await digestTree(sourceChildren)
-      await cp(sourceChildren, targetChildren, { recursive: true, force: false, errorOnExist: true })
+      await copyChildren(sourceChildren, targetChildren)
       if (
         childrenBefore !== (await digestTree(sourceChildren)) ||
         childrenBefore !== (await digestTree(targetChildren))
@@ -123,6 +141,22 @@ async function run(input: ClaudeRecoveryWorkerInput) {
   if (info?.sessionId !== input.nativeThreadId)
     throw new Error('Claude history cannot reopen from the replacement workspace')
   await getSessionMessages(input.nativeThreadId, { dir: cwd })
+  // Fork must use this same verified archive, not reject the retained original as a duplicate.
+  const records = path.join(input.configDir, '.cherry-workspace-recovery')
+  await mkdir(records, { recursive: true })
+  const recordsStat = await lstat(records)
+  if (!recordsStat.isDirectory() || recordsStat.isSymbolicLink())
+    throw new Error('Invalid Claude recovery record directory')
+  const temporary = path.join(records, `${input.nativeThreadId}.${randomUUID()}.tmp`)
+  try {
+    await writeFile(temporary, JSON.stringify({ version: 1, sessionId: input.nativeThreadId, projectKey }), {
+      flag: 'wx',
+      mode: 0o600
+    })
+    await rename(temporary, path.join(records, `${input.nativeThreadId}.json`))
+  } finally {
+    await rm(temporary, { force: true })
+  }
   return { verified: true }
 }
 
