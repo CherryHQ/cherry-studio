@@ -232,6 +232,15 @@ describe('getWebSourcesMarkdown', () => {
     }
   )
 
+  it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text: '[cite:1] [cite:1]: /ref "`"\n`[cite:2]`' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
   it('parses each native text part once when collecting strict copy eligibility', () => {
     const parse = vi.spyOn(Object.getPrototypeOf(unified), 'parse')
     try {

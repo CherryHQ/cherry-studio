@@ -547,7 +547,7 @@ export function resolveCitationMarkerParts(
       // Resolve eligibility now, before the next part replaces the one-text parse cache. Keep
       // numbering from the shared renderer/export path, including its deliberate prose fallback.
       mapMarkdownOutsideCode(
-        normalized,
+        collapsed,
         (text) => {
           for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
             const citation = byMarker.get(match[2])
