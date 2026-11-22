@@ -24,7 +24,9 @@ Compression failure is explicit. If the compression model is unavailable or summ
 
 Original message rows are not modified. Only the served context differs.
 
-Open questions for approval: whether compressed-zone summaries are cached durably per boundary or recomputed per request; and whether the Settings UI ships in the same layer as the backend, or in a later layer.
+The backend is delivered first; the Settings UI and its validation are a later layer. Summaries are recomputed per request and never cached or persisted. This avoids stale summaries after branch changes and preserves original rows. Until the UI layer is delivered, the mode is off by default and has no Settings control.
+
+Only a valid compression window changes counting to rounds. With the mode disabled or invalid, `maxMessages` keeps its existing message-count semantics. A missing compression model, disabled compression, unknown context budget, or insufficient summarizer input room falls back to the A-round window without making a summary request.
 
 ## Alternatives considered
 
@@ -44,4 +46,4 @@ Open questions for approval: whether compressed-zone summaries are cached durabl
 
 ## Risks
 
-Summarizing B−A rounds on each request adds latency and cost unless the summary is cached; the caching decision is open above. Summary quality depends on the chosen compression model, and summaries are lossy even when every round is represented. The compressed zone's summarizer requests can themselves overflow; they inherit the summarizer budgets. Related: `proposed/bug-fix/2026-11-13-chat-context-overflow.md` owns overflow recovery and summarizer budgets; this Spec consumes that summarizer and does not change its recovery semantics.
+Summarizing B−A rounds on each request adds latency and cost; this first implementation deliberately does not cache summaries. Summary quality depends on the chosen compression model, and summaries are lossy even when every round is represented. The compressed zone's summarizer requests can themselves overflow; they inherit the summarizer budgets. Related: `proposed/bug-fix/2026-11-13-chat-context-overflow.md` owns overflow recovery and summarizer budgets; this Spec consumes that summarizer and does not change its recovery semantics.

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-17-content-compression-window.md
-2026-11-17-content-compression-window.md: 68bb32906ed907ce65ee3273f0ba8cb4a1db64e9
-2026-11-17-content-compression-window.zh.md: c0c973f87fc1ed16474d67166a729ea664db39ca
+2026-11-17-content-compression-window.md: 597a2f4c7a262e6af5ed7dfc072d946759a95488
+2026-11-17-content-compression-window.zh.md: aaec38fca4ec730b02a082e8e944e093a384b5c3
