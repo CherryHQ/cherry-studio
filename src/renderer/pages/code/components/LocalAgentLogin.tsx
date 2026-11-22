@@ -16,7 +16,12 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
-import type { LocalAgentAuthMethod, LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
+import {
+  LOCAL_AGENT_PRESETS,
+  type LocalAgentAuthMethod,
+  type LocalAgentConfiguration,
+  type LocalAgentModelCatalog
+} from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
 const antigravityMethodIcons: Partial<Record<string, typeof LogIn>> = {
@@ -82,8 +87,9 @@ export function LocalAgentLogin({
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId && entry.protocol === config.protocol)
   const usableMethods = methods
-    ?.filter((method) => method.type === 'agent')
+    ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))
     .map((method) => ({ ...method, name: methodNames[config.presetId ?? '']?.[method.id] ?? method.name }))
   const canAuthenticate = !!usableMethods?.length
   const needsProvider = !canAuthenticate && config.presetId === 'pi-acp' && !!onTerminalLogin
@@ -93,7 +99,9 @@ export function LocalAgentLogin({
     status: OutputFor<'ai.local_agents.auth_status'>
   }>()
   const authFailed = !!authenticationError && classifyLocalAgentError(authenticationError).kind === 'authentication'
-  const status = authFailed ? 'signed-out' : authStatus?.signature === signature ? authStatus.status : 'unknown'
+  const hasNativeStatus = !!preset?.authStatusArgs
+  const currentStatus = authStatus?.signature === signature ? authStatus.status : undefined
+  const status = authFailed && !hasNativeStatus ? 'signed-out' : (currentStatus ?? 'unknown')
   const signedIn = status === 'signed-in'
   const needsLogin = !signedIn
   const sessionRequiresLogin =
@@ -115,7 +123,7 @@ export function LocalAgentLogin({
     let active = true
     let pending = false
     const refresh = async () => {
-      if (sessionRequiresLogin || !canAuthenticate || pending) return
+      if (!hasNativeStatus || pending) return
       pending = true
       const status = await ipcApi
         .request('ai.local_agents.auth_status', JSON.parse(signature))
@@ -133,7 +141,7 @@ export function LocalAgentLogin({
       active = false
       window.removeEventListener('focus', onFocus)
     }
-  }, [available, canAuthenticate, busy, signature, authenticationError, onRefresh, sessionRequiresLogin])
+  }, [available, hasNativeStatus, busy, signature, authenticationError, onRefresh])
   useEffect(() => {
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
@@ -262,7 +270,11 @@ export function LocalAgentLogin({
     }
   }
   if (!available) return null
-  if (sessionRequiresLogin && status === 'unknown' && modelsLoading && !open) {
+  if (
+    !open &&
+    ((hasNativeStatus && authStatus?.signature !== signature) ||
+      (sessionRequiresLogin && status === 'unknown' && modelsLoading))
+  ) {
     return (
       <Badge variant="outline" role="status">
         <Loader2 className="animate-spin" />

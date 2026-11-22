@@ -14,6 +14,14 @@ describe('executeCommand', () => {
     await expect(executeCommand(process.execPath, printStdout, { env: process.env })).resolves.toBe('command output')
   })
 
+  it('can include status written to stderr without changing default stdout capture', async () => {
+    const args = ['-e', "process.stderr.write('account status')"]
+    await expect(executeCommand(process.execPath, args, { env: process.env, includeStderr: true })).resolves.toContain(
+      'account status'
+    )
+    await expect(executeCommand(process.execPath, args, { env: process.env })).resolves.toBe('')
+  })
+
   it('discards stdout when capture is explicitly disabled', async () => {
     await expect(executeCommand(process.execPath, printStdout, { capture: false, env: process.env })).resolves.toBe('')
   })

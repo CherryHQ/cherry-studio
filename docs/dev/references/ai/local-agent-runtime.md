@@ -534,12 +534,15 @@ Protocol references: [ACP](https://agentclientprotocol.com/protocol/overview),
 ### CLI sign-in
 
 Agent Services shows sign-in for installed ACP Agents that advertise a protocol-driven
-`agent` authentication method. Discovery and model refresh do not start login;
+`agent` authentication method that can start a login flow. GLM Agent's external API key,
+ZCode's existing credential check, and Qwen Code's OpenAI API key are configured outside
+that flow. These methods do not produce a sign-in button. Other login methods offered
+by the same Agent remain available. Discovery and model refresh do not start login;
 only the user's explicit action sends `authenticate` with an advertised method ID.
 Agents offering terminal-only authentication keep their native terminal/help flow;
 Cherry does not advertise ACP terminal-auth support or send `authenticate` for those methods.
 The sign-in action opens the native terminal for Codex (`codex login`), Claude Code
-(`claude auth login`), Kimi (`kimi login`), Amp (`amp login`) and Poolside (`pool login`).
+(`claude auth login`), Kimi (`kimi login`), Qoder (`qodercli login`), Amp (`amp login`) and Poolside (`pool login`).
 For Pi, select or enter a provider ID to launch `pi auth login <provider>`.
 The CLI completes account authorization. Returning to Cherry refreshes the model catalog.
 
@@ -558,8 +561,9 @@ read or copied. Completing OAuth without changing overrides does not rewrite the
 Agent configuration. If the subsequent model refresh fails, the Agent card shows the
 catalog error and the user can retry the refresh there.
 
-Cursor's native account-status command can verify an existing sign-in and show
-“Signed in”. The built-in Antigravity preset also shows “Signed in” after successful
+Codex, Claude Code, Qoder, and Cursor use their native account-status commands when
+Agent Services opens or regains focus. The card shows “Signed in” when the configured
+CLI confirms an existing account, including one signed in through a terminal. The built-in Antigravity preset also shows “Signed in” after successful
 sign-in or a live model refresh, because its adapter and native CLI require authentication
 to open that session. When reauthentication is available, one button displays both
 “Signed in” and “Sign in again”. An authentication rejection restores the sign-in action.

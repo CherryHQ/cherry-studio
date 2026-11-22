@@ -209,6 +209,8 @@ export async function executeCommand(
   options?: {
     /** Capture and return stdout (default: true) */
     capture?: boolean
+    /** Include stderr in captured output on success. */
+    includeStderr?: boolean
     /** Environment variables (defaults to getShellEnv()) */
     env?: NodeJS.ProcessEnv
     /** Maximum combined stdout/stderr bytes before the command is terminated */
@@ -267,7 +269,9 @@ export async function executeCommand(
       if (outputLimitError) {
         reject(outputLimitError)
       } else if (code === 0) {
-        resolve(options?.capture !== false ? stdout : '')
+        if (options?.capture === false) resolve('')
+        else if (options?.includeStderr && stderr) resolve(stdout ? `${stdout}\n${stderr}` : stderr)
+        else resolve(stdout)
       } else {
         reject(new CommandFailedError(code ?? -1, stdout, stderr))
       }

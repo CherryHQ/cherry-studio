@@ -301,6 +301,7 @@ agent_servers:
     ['codex', 'codex', 'codex', ['login']],
     ['claude', 'claude', 'claude', ['auth', 'login']],
     ['kimi', 'acp', 'kimi', ['login']],
+    ['qoder', 'acp', 'qodercli', ['login']],
     ['pi-acp', 'acp', 'pi', ['auth', 'login', 'openai-codex']],
     ['poolside', 'acp', 'pool', ['login']]
   ] as const)('opens the native %s sign-in with its login arguments', async (presetId, protocol, executable, args) => {

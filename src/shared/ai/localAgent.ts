@@ -23,6 +23,9 @@ export interface LocalAgentPreset {
   aliases?: readonly string[]
   terminalArgs?: readonly string[]
   loginArgs?: readonly string[]
+  authStatusArgs?: readonly string[]
+  /** ACP methods that rely on credentials configured outside the login flow. */
+  externalCredentialMethods?: readonly string[]
   terminalExecutable?: string
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
@@ -35,6 +38,7 @@ export interface LocalAgentPreset {
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'claude',
+    authStatusArgs: ['auth', 'status', '--json'],
     loginArgs: ['auth', 'login'],
     terminalArgs: [],
     name: 'Claude Code',
@@ -45,6 +49,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'codex',
+    authStatusArgs: ['login', 'status'],
     loginArgs: ['login'],
     terminalArgs: [],
     name: 'Codex',
@@ -75,6 +80,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'cursor',
+    authStatusArgs: ['status'],
     terminalArgs: [],
     name: 'Cursor',
     protocol: 'acp',
@@ -95,6 +101,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'qwen',
+    externalCredentialMethods: ['openai'],
     terminalArgs: [],
     name: 'Qwen Code',
     protocol: 'acp',
@@ -140,6 +147,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'qoder',
+    authStatusArgs: ['status', '-o', 'json'],
+    loginArgs: ['login'],
     terminalArgs: [],
     name: 'Qoder',
     protocol: 'acp',
@@ -311,6 +320,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'zcode',
+    externalCredentialMethods: ['zcode-credentials'],
     name: 'ZCode',
     protocol: 'acp',
     executable: 'zcode-acp',
@@ -330,6 +340,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'glm-acp-agent',
+    externalCredentialMethods: ['z-ai-api-key', 'z_ai_api_key'],
     name: 'GLM Agent',
     protocol: 'acp',
     executable: 'glm-acp-agent',

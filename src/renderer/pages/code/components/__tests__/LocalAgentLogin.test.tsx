@@ -33,6 +33,43 @@ const checked = {
 }
 
 describe('ACP sign-in', () => {
+  it.each([
+    ['glm-acp-agent', ['z-ai-api-key', 'z_ai_api_key']],
+    ['zcode', ['zcode-credentials']],
+    ['qwen', ['openai']],
+    ['deepseek-harness', []]
+  ] as const)('hides sign-in when %s only uses externally configured credentials', (presetId, ids) => {
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId }}
+        authMethods={ids.map((id) => ({ id, name: id, type: 'agent' as const }))}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /登录/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps a real account flow offered alongside an external API key', async () => {
+    request.mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'qwen' }}
+        authMethods={[
+          { id: 'openai', name: 'Use OpenAI API key', type: 'agent' },
+          { id: 'qwen-oauth', name: 'Qwen OAuth', type: 'agent' }
+        ]}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.authenticate',
+        expect.objectContaining({ methodId: 'qwen-oauth' })
+      )
+    )
+  })
+
   it('localizes known login methods while preserving custom methods and their native IDs', async () => {
     request.mockResolvedValue(undefined)
     render(
@@ -205,6 +242,27 @@ const props = {
 }
 
 describe('external authentication', () => {
+  it('shows an existing Codex account for terminal login and updates when returning to Cherry', async () => {
+    statusRequest.mockResolvedValue('signed-in')
+    const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'codex', presetId: 'codex' }}
+        authMethods={[]}
+        onTerminalLogin={onTerminalLogin}
+      />
+    )
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    const button = await screen.findByRole('button', { name: /已登录.*重新登录/ })
+    expect(onTerminalLogin).not.toHaveBeenCalled()
+    await userEvent.click(button)
+    expect(onTerminalLogin).toHaveBeenCalledOnce()
+    statusRequest.mockResolvedValue('signed-out')
+    fireEvent(window, new Event('focus'))
+    expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
+  })
+
   it('opens an explicitly supported native terminal login without reporting authentication success', async () => {
     const pending = Promise.withResolvers<void>()
     const onTerminalLogin = vi.fn(() => pending.promise)
@@ -277,7 +335,13 @@ describe('external authentication', () => {
 
   it('detects an existing login without authentication, rechecks on focus and clears stale success on failure', async () => {
     statusRequest.mockResolvedValue('signed-in')
-    render(<LocalAgentLogin {...props} authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]} />)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'cursor' }}
+        authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]}
+      />
+    )
     const signInAgain = await screen.findByRole('button', { name: /已登录.*重新登录/ })
     expect(signInAgain).toHaveTextContent(/已登录.*重新登录/)
     expect(request).not.toHaveBeenCalled()
@@ -302,11 +366,12 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
+        config={{ ...config, presetId: 'cursor' }}
         onAuthenticated={onAuthenticated}
         authMethods={[{ id: 'login', name: 'Login', type: 'agent' }]}
       />
     )
-    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     expect(await screen.findByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
   })
 
@@ -332,9 +397,13 @@ describe('external authentication', () => {
           resolve = done
         })
     )
-    const loginProps = { ...props, authMethods: [{ id: 'login', name: 'Login', type: 'agent' as const }] }
+    const loginProps = {
+      ...props,
+      config: { ...config, presetId: 'cursor' },
+      authMethods: [{ id: 'login', name: 'Login', type: 'agent' as const }]
+    }
     const { rerender } = render(<LocalAgentLogin {...loginProps} />)
-    rerender(<LocalAgentLogin {...loginProps} config={{ ...config, executableOverride: '/other/agent' }} />)
+    rerender(<LocalAgentLogin {...loginProps} config={{ ...loginProps.config, executableOverride: '/other/agent' }} />)
     await act(async () => resolve('signed-in'))
     expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
     expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
