@@ -533,12 +533,21 @@ export class SkillService {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
     }
     if (candidate.registeredSkillId) {
+      // A stale picker can still offer an already-imported origin as `available`: another view
+      // may have imported it minutes earlier and saved managed edits. A bare `directoryPath`
+      // must never silently replace those edits, so re-import requires explicit intent plus the
+      // currently registered skill id. The pair is re-validated under the mutation lock inside
+      // `resyncSystemSkillLocked` against fresh DB state.
+      if (options.allowResync !== true || options.expectedSkillId !== candidate.registeredSkillId) {
+        throw new Error(`System skill is already imported: ${candidate.filename}`)
+      }
       // Re-importing the same origin refreshes the managed copy in place so the skill id and every
       // `agent_skill` row survive a source-folder change (no uninstall / fresh insert).
       const resynced = await this.resyncSystemSkill(
         candidate.registeredSkillId,
         canonicalPath,
-        candidate.placements[0]?.sourceId ?? null
+        candidate.placements[0]?.sourceId ?? null,
+        options.expectedSkillId
       )
       logger.info('System skill re-synced from local CLI', {
         skillId: resynced.id,
@@ -546,6 +555,9 @@ export class SkillService {
         directoryPath: canonicalPath
       })
       return resynced
+    }
+    if (options.expectedSkillId !== undefined) {
+      throw new Error(`System skill is not registered: ${candidate.filename}`)
     }
 
     const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
@@ -566,20 +578,32 @@ export class SkillService {
    * projected metadata and the install baseline change. An explicit user action, so
    * managed-copy edits are unconditionally replaced by the source folder.
    */
-  private resyncSystemSkill(skillId: string, canonicalPath: string, namespace: string | null): Promise<InstalledSkill> {
+  private resyncSystemSkill(
+    skillId: string,
+    canonicalPath: string,
+    namespace: string | null,
+    expectedSkillId?: string
+  ): Promise<InstalledSkill> {
     // Serialized like every other library mutation so reconcile can't observe a half-copied state.
     // The file mutation also runs under the path lock so editor writes fail stale instead of being
     // lost inside the replacement, matching `applyRemoteUpdate`.
     return this.mutationLock.runExclusive(() =>
-      runPathMutationExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace))
+      runPathMutationExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace, expectedSkillId))
     )
   }
 
   private async resyncSystemSkillLocked(
     skillId: string,
     canonicalPath: string,
-    namespace: string | null
+    namespace: string | null,
+    expectedSkillId?: string
   ): Promise<InstalledSkill> {
+    // Re-validate the explicit re-import intent under the mutation lock: `importSystem`
+    // checked a possibly stale `discoverSystem` snapshot, so confirm the expected id still
+    // matches the target before touching files or the DB.
+    if (expectedSkillId !== undefined && expectedSkillId !== skillId) {
+      throw new Error(`System skill re-import mismatch: ${skillId}`)
+    }
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
     if (skill.source !== 'system') {
@@ -598,6 +622,21 @@ export class SkillService {
         if (error instanceof Error && error.message.startsWith('System skill source changed')) throw error
         throw new Error(`System skill source is unavailable: ${skill.folderName}`)
       }
+    }
+    // Fresh registration check under the lock: another view may have uninstalled or re-pointed
+    // this origin after the pre-lock discovery. Refuse to overwrite an unrelated registration.
+    const freshByOrigin = agentGlobalSkillService
+      .list()
+      .filter((entry) => entry.source === 'system' && entry.sourceUrl?.startsWith('file:'))
+      .find((entry) => {
+        try {
+          return fileURLToPath(entry.sourceUrl!) === canonicalPath
+        } catch {
+          return false
+        }
+      })
+    if (freshByOrigin && freshByOrigin.id !== skillId) {
+      throw new Error(`System skill is already imported: ${freshByOrigin.folderName}`)
     }
     await this.assertLocalUpdateSourceInBounds(canonicalPath)
 
@@ -679,7 +718,9 @@ export class SkillService {
       // to the real source folder instead of a generic `source` directory.
       const baseName = path.basename(canonicalPath)
       const snapshotDir = path.join(tempDir, baseName && baseName !== '.' && baseName !== '..' ? baseName : 'source')
-      await copyDirectoryRecursive(canonicalPath, snapshotDir)
+      // Strict: fail on a concurrent external deletion mid-capture instead of hashing and
+      // installing an incomplete snapshot that would silently drop a helper file.
+      await copyDirectoryRecursive(canonicalPath, snapshotDir, { strict: true })
       return { snapshotDir, tempDir }
     } catch (error) {
       await safeRemoveDirectory(tempDir)
@@ -689,8 +730,14 @@ export class SkillService {
 
   /** A local `file:` update source must be a real directory outside the managed roots. */
   private async assertLocalUpdateSourceInBounds(canonicalPath: string): Promise<void> {
-    const managedRoot = path.resolve(application.getPath('feature.agents.skills'))
-    const mirrorRoot = path.resolve(this.getMirrorRoot())
+    // Compare canonical-to-canonical so a symlinked managed/mirror root cannot be bypassed:
+    // `canonicalPath` is already a realpath, so resolve both roots the same way (matching
+    // `isManagedSkillTarget`'s discovery guard) instead of comparing against lexical paths.
+    const [managedRoot, mirrorRoot] = await Promise.all(
+      [application.getPath('feature.agents.skills'), this.getMirrorRoot()].map((root) =>
+        fs.promises.realpath(root).catch(() => path.resolve(root))
+      )
+    )
     if (
       canonicalPath === managedRoot ||
       isPathInside(canonicalPath, managedRoot) ||
@@ -801,6 +848,13 @@ export class SkillService {
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`
         )
+      }
+      // System origins never silently replace through the first-import path: a stale picker can
+      // race another view's import and turn an `available` click into an unconfirmed overwrite of
+      // managed edits. Require the explicit re-import flow (`importSystem` with allowResync +
+      // expectedSkillId), which validates under the mutation lock and preserves the skill id.
+      if (source === 'system') {
+        throw new Error(`System skill is already imported: ${existing.folderName}`)
       }
     }
 

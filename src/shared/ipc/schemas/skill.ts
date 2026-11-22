@@ -120,7 +120,11 @@ export const skillRequestSchemas = {
     output: z.custom<SystemSkillCandidate[]>()
   }),
   'skill.import_system': defineRoute({
-    input: z.object({ directoryPath: z.string().min(1) }),
+    input: z.object({
+      directoryPath: z.string().min(1),
+      expectedSkillId: z.string().min(1).optional(),
+      allowResync: z.boolean().optional()
+    }),
     output: z.custom<InstalledSkill>()
   }),
   'skill.folder.open': defineRoute({

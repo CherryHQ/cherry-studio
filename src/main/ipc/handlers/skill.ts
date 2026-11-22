@@ -126,7 +126,8 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     }
   },
   'skill.discover_system': () => skillService.discoverSystem(),
-  'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath }),
+  'skill.import_system': ({ directoryPath, expectedSkillId, allowResync }) =>
+    skillService.importSystem({ directoryPath, expectedSkillId, allowResync }),
   'skill.folder.open': async ({ skillId }, { senderId }) => {
     if (!senderId) throw new Error('Skill folders can only be opened from a managed window')
 

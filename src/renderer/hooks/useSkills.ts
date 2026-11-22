@@ -299,13 +299,22 @@ export function useSystemSkills(enabled = true) {
   const importSkill = useCallback(
     async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
       // `registered` re-imports the same origin in place (id + agent enablement preserved);
-      // only a folder-name `conflict` has no safe target to write to.
+      // only a folder-name `conflict` has no safe target to write to. Re-imports carry explicit
+      // intent (allowResync + expectedSkillId) so a stale `available` view can never silently
+      // replace managed edits; the main process re-validates the pair under its mutation lock.
       if (skill.status === 'conflict') return null
       if (importingRef.current.has(skill.id)) return null
       importingRef.current.add(skill.id)
       setImporting((current) => new Set(current).add(skill.id))
       try {
-        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
+        const installed =
+          skill.status === 'registered'
+            ? await ipcApi.request('skill.import_system', {
+                directoryPath: skill.directoryPath,
+                expectedSkillId: skill.registeredSkillId,
+                allowResync: true
+              })
+            : await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
         await refreshSkillsBestEffort(invalidate)
         await discover()
         return installed

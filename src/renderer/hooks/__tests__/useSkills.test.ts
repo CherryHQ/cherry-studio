@@ -432,7 +432,11 @@ describe('useSystemSkills', () => {
       installed = await result.current.importSkill(registered)
     })
 
-    expect(importSystemSkillMock).toHaveBeenCalledWith({ directoryPath: registered.directoryPath })
+    expect(importSystemSkillMock).toHaveBeenCalledWith({
+      directoryPath: registered.directoryPath,
+      expectedSkillId: 'system-skill-id',
+      allowResync: true
+    })
     expect(installed).toMatchObject({ id: 'system-skill-id' })
   })
 

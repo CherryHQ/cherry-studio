@@ -15,6 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SystemSkillCandidate } from '@shared/types/skill'
 
@@ -44,6 +45,18 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
 
   const handleImport = useCallback(
     async (skill: SystemSkillCandidate) => {
+      // Re-import replaces the managed copy (managed edits are lost), so confirm explicitly.
+      // First import has no managed copy to clobber and proceeds directly.
+      if (skill.status === 'registered') {
+        const confirmed = await popup.confirm({
+          title: t('library.system_skill.reimport_confirm_title'),
+          content: t('library.system_skill.reimport_confirm_description', { name: skill.name })
+        })
+        if (!confirmed) return
+        const installed = await importSkill(skill)
+        if (installed) toast.success(t('library.system_skill.reimport_success', { name: skill.name }))
+        return
+      }
       const installed = await importSkill(skill)
       if (installed) toast.success(t('library.system_skill.import_success', { name: skill.name }))
     },
@@ -141,18 +154,22 @@ function SystemSkillRow({
   const enabled = mode === 'agent-create' && selected
   // An already-imported skill can be re-imported in place: the main process replaces the managed
   // copy while keeping the skill id and agent enablement. Only a folder-name conflict is blocked.
+  // The picker distinguishes the destructive replacement (`Re-import`) from a first `Import`
+  // so a stale `available` view can never turn a first-import click into an unconfirmed overwrite.
   const resync = imported && mode === 'manage'
   const disabled = importing || skill.status === 'conflict' || (!resync && mode === 'agent-create' && enabled)
   const buttonLabel =
     skill.status === 'conflict'
       ? t('library.system_skill.conflict')
-      : skill.status === 'available' || resync
+      : skill.status === 'available'
         ? t('library.system_skill.import')
-        : mode === 'manage'
-          ? t('library.system_skill.imported')
-          : enabled
-            ? t('library.system_skill.enabled')
-            : t('library.action.enable')
+        : resync
+          ? t('library.system_skill.reimport')
+          : mode === 'manage'
+            ? t('library.system_skill.imported')
+            : enabled
+              ? t('library.system_skill.enabled')
+              : t('library.action.enable')
   const onClick = skill.status === 'available' || resync ? onImport : onEnable
 
   return (

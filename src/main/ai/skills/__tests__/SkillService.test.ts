@@ -1195,7 +1195,11 @@ describe('SkillService', () => {
       const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
       await fs.promises.writeFile(managedSkillFile, '# Managed edit')
 
-      const resynced = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      const resynced = await skillService.importSystem({
+        directoryPath: sourceSkillDir,
+        expectedSkillId: imported.id,
+        allowResync: true
+      })
 
       expect(resynced.id).toBe(imported.id)
       await expect(fs.promises.readFile(managedSkillFile, 'utf-8')).resolves.toBe('# Large skill')
@@ -1203,6 +1207,32 @@ describe('SkillService', () => {
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([
         expect.objectContaining({ agentId: AGENT_ID, skillId: imported.id, isEnabled: true })
       ])
+    })
+
+    it('rejects a bare re-import of an already imported system skill without explicit intent', async () => {
+      const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
+      await fs.promises.writeFile(managedSkillFile, '# Managed edit')
+
+      await expect(skillService.importSystem({ directoryPath: sourceSkillDir })).rejects.toThrow(
+        'System skill is already imported'
+      )
+      // The managed edit must survive the rejected first-import click.
+      await expect(fs.promises.readFile(managedSkillFile, 'utf-8')).resolves.toBe('# Managed edit')
+      await expect(skillService.getById(imported.id)).resolves.toMatchObject({ id: imported.id })
+    })
+
+    it('rejects a re-import whose expected skill id does not match the registration', async () => {
+      const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
+
+      await expect(
+        skillService.importSystem({
+          directoryPath: sourceSkillDir,
+          expectedSkillId: 'other-skill-id',
+          allowResync: true
+        })
+      ).rejects.toThrow('System skill is already imported')
+      await expect(skillService.getById(imported.id)).resolves.toMatchObject({ id: imported.id })
     })
 
     it('uninstalls the managed copy without deleting the system source directory', async () => {

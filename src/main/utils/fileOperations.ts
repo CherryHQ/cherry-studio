@@ -19,7 +19,7 @@ const MAX_RECURSION_DEPTH = 1000
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string },
+  options?: { allowedBasePath?: string; strict?: boolean },
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -77,7 +77,9 @@ export async function copyDirectoryRecursive(
         // Recursively copy subdirectory
         await copyDirectoryRecursive(sourcePath, destPath, options, depth + 1)
       } else if (entryStats.isFile()) {
-        // Copy file with error handling for race conditions
+        // Copy file with error handling for race conditions. Strict snapshots (system-skill
+        // re-sync / update checks) must fail instead of installing an incomplete copy when
+        // an external sync removes a helper mid-capture; lenient callers keep the old skip.
         try {
           await fs.promises.copyFile(sourcePath, destPath)
           // Preserve file permissions
@@ -85,7 +87,7 @@ export async function copyDirectoryRecursive(
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
           // Handle race condition where file was deleted during copy
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT' && !options?.strict) {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
           }
