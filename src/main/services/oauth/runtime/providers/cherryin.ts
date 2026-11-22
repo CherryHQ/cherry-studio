@@ -18,7 +18,7 @@ export interface CherryInSignInResult extends OAuthAccount {
 
 const API_KEYS_HTTP_TIMEOUT_MS = 30_000
 
-function resolveCherryInContext(context?: CherryInOAuthContext): { oauthServer: string; apiHost: string } {
+function resolveCherryInContext(context?: CherryInOAuthContext) {
   const oauthServer = context?.oauthServer ?? CHERRYIN_CONFIG.ALLOWED_HOSTS[0]
   validateCherryInApiHost(oauthServer)
 

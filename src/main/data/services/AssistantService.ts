@@ -331,7 +331,7 @@ export class AssistantDataService {
    *
    * `page` and `limit` are filled by the schema default — no runtime fallback.
    */
-  list(query: ListAssistantsQuery): { items: Assistant[]; total: number; page: number } {
+  list(query: ListAssistantsQuery) {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
@@ -670,7 +670,7 @@ export class AssistantDataService {
   delete(
     id: string,
     options: { deleteTopics?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
-  ): { deleted: boolean; deletedTopicIds?: string[] } {
+  ) {
     const shouldDeleteTopics =
       options.deleteTopics === true && (options.permanent !== true || options.targetState === 'active')
     const { deleted, deletedTopicIds, projectedTopicIds } = application.get('DbService').withWriteTx((tx) => {

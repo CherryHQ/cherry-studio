@@ -15,7 +15,7 @@ export class PiTurnUsage {
     this.reasoningTokens = undefined
   }
 
-  record(usage: Usage): { totalTokens: number; stats: MessageStats } {
+  record(usage: Usage) {
     this.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
     this.outputTokens += usage.output
     this.totalTokens += usage.totalTokens

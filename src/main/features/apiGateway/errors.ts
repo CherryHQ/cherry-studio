@@ -147,14 +147,7 @@ function googleStatusName(status: number): string {
  * are intentionally ignored so they never reach the client.
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
-function extractError(error: unknown): {
-  status?: number
-  message?: string
-  type?: string
-  name?: string
-  code?: string
-  category?: string
-} {
+function extractError(error: unknown) {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
     name?: unknown
@@ -191,14 +184,7 @@ function safeMessage(status: number | undefined, message: string | undefined): s
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- HTTP and SSE boundaries pass native or serialized failures; extract checked presentation fields once before dialect formatting.
-function normalizeProviderError(error: unknown): {
-  statusCode: number
-  message: string
-  type?: string
-  category?: string
-  details?: ProviderDetails
-  requestId?: string
-} {
+function normalizeProviderError(error: unknown) {
   const extracted = extractError(error)
   const details = detailsOf(error)
   const { status, name, code, category } = extracted
@@ -252,10 +238,7 @@ const anthropicTypeForStatus = (status: number): string => {
   return 'invalid_request_error'
 }
 
-function transformAnthropicError(error: ReturnType<typeof normalizeProviderError>): {
-  statusCode: number
-  errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
-} {
+function transformAnthropicError(error: ReturnType<typeof normalizeProviderError>) {
   const { statusCode, message, type, category, details, requestId } = error
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const clientMessage =
@@ -269,14 +252,14 @@ function transformAnthropicError(error: ReturnType<typeof normalizeProviderError
     statusCode,
     errorResponse: {
       ...details?.body,
-      type: 'error',
+      type: 'error' as const,
       error: { ...details?.error, type: errorType, message: clientMessage, ...(requestId && { requestId }) }
     }
   }
 }
 
 /** OpenAI error `{ type, code }` for a status. */
-const openaiTypeAndCodeForStatus = (status: number): { type: string; code: string } => {
+const openaiTypeAndCodeForStatus = (status: number) => {
   if (status === 401) return { type: 'authentication_error', code: 'invalid_api_key' }
   if (status === 403) return { type: 'forbidden_error', code: 'forbidden' }
   if (status === 404) return { type: 'not_found_error', code: 'not_found' }
@@ -285,10 +268,7 @@ const openaiTypeAndCodeForStatus = (status: number): { type: string; code: strin
   return { type: 'invalid_request_error', code: 'bad_request' }
 }
 
-function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>): {
-  statusCode: number
-  errorResponse: { error: { message: string; type: string; code: string | null } }
-} {
+function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>) {
   const { statusCode, message, category, details } = error
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
@@ -311,10 +291,7 @@ function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>):
   }
 }
 
-function transformGoogleError(error: ReturnType<typeof normalizeProviderError>): {
-  statusCode: number
-  errorResponse: { error: { code: number; message: string; status: string } }
-} {
+function transformGoogleError(error: ReturnType<typeof normalizeProviderError>) {
   const { statusCode, message, details } = error
   return {
     statusCode,

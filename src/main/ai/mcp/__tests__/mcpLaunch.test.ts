@@ -328,6 +328,23 @@ describe('resolveLaunchCommand', () => {
     expect(unresolved).not.toHaveProperty('lookupError')
   })
 
+  it.each(['constructor', '__proto__', 'toString'])('resolves %s as an ordinary command', async (command) => {
+    commandMock.findCommandInShellEnv.mockResolvedValueOnce(`/opt/tools/${command}`)
+
+    expect(await resolve(command, ['--stdio'], 'https://registry.example')).toEqual({
+      command: `/opt/tools/${command}`,
+      args: ['--stdio'],
+      env: {},
+      resolution: 'system'
+    })
+    expect(await resolve(command, ['--stdio'])).toEqual({
+      command,
+      args: ['--stdio'],
+      env: {},
+      resolution: 'unresolved'
+    })
+  })
+
   it('returns unresolved facts without adding a diagnostic-specific policy', async () => {
     await expect(
       resolveLaunchCommand({

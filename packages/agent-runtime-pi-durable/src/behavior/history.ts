@@ -37,6 +37,7 @@ export const nativeSummaryUsage = defineDoc({
   history: 'latest',
   fork: 'initial',
   checkpointWhen: () => false,
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Later persisted summary records need their owner and usage contract; inference from the empty initial object would omit it.
   initial: (): { records: Record<string, { owner: GoalOwner; usage: UsageFact; runId?: number }> } => ({ records: {} })
 })
 export function conversationId(thread: ThreadId): ConversationId {

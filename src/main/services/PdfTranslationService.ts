@@ -94,10 +94,10 @@ const SIDECAR_ENV_KEYS = new Set([
   'TMPDIR',
   'WINDIR'
 ])
-const BABELDOC_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
-  'zh-hans': 'zh-CN',
-  'zh-hant': 'zh-TW'
-}
+const BABELDOC_LANGUAGE_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['zh-hans', 'zh-CN'],
+  ['zh-hant', 'zh-TW']
+])
 
 const createOcrRequiredError = (): IpcError =>
   new IpcError(translateErrorCodes.PDF_OCR_REQUIRED, 'OCR translation for scanned PDFs is not supported yet')
@@ -126,7 +126,7 @@ interface ActivePdfTranslation {
 
 const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
   if (code === 'auto' || code === 'unknown') return 'auto'
-  const alias = BABELDOC_LANGUAGE_ALIASES[code]
+  const alias = BABELDOC_LANGUAGE_ALIASES.get(code)
   if (alias) return alias
   const [language, region] = code.split('-', 2)
   return region ? `${language}-${region.toUpperCase()}` : language
@@ -145,7 +145,7 @@ const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
  * `getproxies()` non-empty, which suppresses the registry fallback and sends BabelDOC's asset
  * downloads direct.
  */
-const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost: string): Record<string, string> => {
+const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost: string) => {
   const proxyEnv: Record<string, string> = {}
   for (const [key, value] of Object.entries(getProxyEnvironment(process.env))) {
     if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) proxyEnv[key] = value
@@ -172,7 +172,7 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
  * Requests ignores SSL_CERT_FILE, so derive its bundle variables only when neither is set.
  * Requests prefers REQUESTS_CA_BUNDLE over CURL_CA_BUNDLE, so a derived value could override an explicit one.
  */
-const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>): Record<string, string> => {
+const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>) => {
   const getNonEmptyEnv = (name: string): string | undefined =>
     Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
   const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')

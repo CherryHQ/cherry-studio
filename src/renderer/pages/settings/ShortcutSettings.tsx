@@ -76,18 +76,18 @@ const shortcutRouteApi = getRouteApi('/settings/shortcut')
 const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
   a.length === b.length && a.every((key, index) => key === b[index])
 
-const keyCodeToAccelerator: Record<string, ShortcutToken> = {
-  Backquote: '`',
-  Period: '.',
-  NumpadEnter: 'numenter',
-  NumpadAdd: 'numadd',
-  NumpadSubtract: 'numsub',
-  Space: 'Space',
-  Enter: 'Enter',
-  Backspace: 'Backspace',
-  Tab: 'Tab',
-  Delete: 'Delete'
-}
+const keyCodeToAccelerator: ReadonlyMap<string, ShortcutToken> = new Map([
+  ['Backquote', '`'],
+  ['Period', '.'],
+  ['NumpadEnter', 'numenter'],
+  ['NumpadAdd', 'numadd'],
+  ['NumpadSubtract', 'numsub'],
+  ['Space', 'Space'],
+  ['Enter', 'Enter'],
+  ['Backspace', 'Backspace'],
+  ['Tab', 'Tab'],
+  ['Delete', 'Delete']
+])
 
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
@@ -102,7 +102,8 @@ const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): Shortcu
   }
 
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
-  if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
+  const accelerator = keyCodeToAccelerator.get(code)
+  if (accelerator) return accelerator
   if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
   return null
 }

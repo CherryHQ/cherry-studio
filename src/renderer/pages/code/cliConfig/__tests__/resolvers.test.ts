@@ -13,6 +13,19 @@ import {
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
 describe('resolveGeminiBaseUrl', () => {
+  it.each(['__proto__', 'constructor', 'toString'])('keeps provider %s outside the aggregator defaults', (id) => {
+    expect(resolveGeminiBaseUrl(provider({ id }))).toBe('')
+    expect(
+      resolveGeminiBaseUrl(
+        provider({
+          id,
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://custom.example.com/v1' } }
+        })
+      )
+    ).toBe('https://custom.example.com/v1')
+  })
+
   it('uses a dedicated google-generate-content baseUrl verbatim', () => {
     expect(
       resolveGeminiBaseUrl(

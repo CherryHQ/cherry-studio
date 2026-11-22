@@ -85,6 +85,44 @@ it('falls back from unknown category IDs and versions allocation changes', () =>
   expect(disabled.revision).not.toBe(normalizeContextUsage(native, 1000000).revision)
 })
 
+it.each([
+  { id: 'constructor', name: 'Messages', expectedId: 'messages', expectedKey: 'messages' },
+  { id: '__proto__', name: 'System tools', expectedId: 'system_tools', expectedKey: 'system-tools' },
+  { id: undefined, name: 'constructor', expectedId: 'constructor', expectedKey: 'other' },
+  { id: undefined, name: '__proto__', expectedId: '__proto__', expectedKey: 'other' }
+])(
+  'normalizes unknown category ID $id and label $name without inherited mappings',
+  ({ id, name, expectedId, expectedKey }) => {
+    const usage = normalizeContextUsage(
+      {
+        ...native,
+        categories: [
+          {
+            id: id as SDKControlGetContextUsageResponse['categories'][number]['id'],
+            name,
+            kind: 'used',
+            tokens: 34087,
+            color: ''
+          }
+        ]
+      },
+      1000000
+    )
+
+    expect(usage.breakdown?.categories).toEqual([
+      {
+        id: expectedId,
+        key: expectedKey,
+        label: name,
+        occupancy: 'included',
+        tokens: 34087,
+        precision: 'estimated'
+      }
+    ])
+    expect(usage.breakdown?.coverage).toBe('complete')
+  }
+)
+
 async function partial(test: Awaited<ReturnType<typeof wireFixture>>, event: SDKPartialAssistantMessage['event']) {
   const uuid = randomUUID()
   test.send({ type: 'stream_event', uuid, session_id: test.sessionId, parent_tool_use_id: null, event })

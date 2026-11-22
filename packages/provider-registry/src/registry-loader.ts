@@ -13,11 +13,11 @@ import type * as z from 'zod'
 
 import { type CatalogManifest, REGISTRY_SCHEMA_VERSION } from './catalog'
 import { ModelIndex, ProviderModelIndex } from './registry-index'
-import type { ModelConfig } from './schemas/model'
+import type { ModelConfig, ModelList } from './schemas/model'
 import { ModelListSchema } from './schemas/model'
-import type { ProviderConfig } from './schemas/provider'
+import type { ProviderConfig, ProviderList } from './schemas/provider'
 import { ProviderListSchema } from './schemas/provider'
-import type { ProviderModelOverride } from './schemas/provider-models'
+import type { ProviderModelList, ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
 
 // Re-export the top-level list schemas so Node-side consumers (e.g. the remote
@@ -55,17 +55,17 @@ function readAndParse<T>(jsonPath: string, schema: z.ZodType<T>): T {
   }
 }
 
-export function readModelRegistry(jsonPath: string): { version: string; models: ModelConfig[] } {
+export function readModelRegistry(jsonPath: string): ModelList {
   const registry = readAndParse(jsonPath, ModelListSchema)
   return { version: registry.version, models: registry.models }
 }
 
-export function readProviderRegistry(jsonPath: string): { version: string; providers: ProviderConfig[] } {
+export function readProviderRegistry(jsonPath: string): ProviderList {
   const registry = readAndParse(jsonPath, ProviderListSchema)
   return { version: registry.version, providers: registry.providers }
 }
 
-export function readProviderModelRegistry(jsonPath: string): { version: string; overrides: ProviderModelOverride[] } {
+export function readProviderModelRegistry(jsonPath: string): ProviderModelList {
   const registry = readAndParse(jsonPath, ProviderModelListSchema)
   return { version: registry.version, overrides: registry.overrides }
 }

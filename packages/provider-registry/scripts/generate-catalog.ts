@@ -126,9 +126,7 @@ function buildReasoningFamiliesGen(): string {
  * (model line × endpoint); each declaration compiles to its own entry so runtime
  * eligibility stays declaration-scoped.
  */
-function collectProviderServerToolModels(
-  models: Map<string, any>
-): Record<string, Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>>> {
+function collectProviderServerToolModels(models: Map<string, any>) {
   const result: Record<string, Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>>> = {}
   for (const provider of PROVIDERS) {
     const providerModels = new Map(models)
@@ -202,10 +200,11 @@ function buildServerToolModelsGen(models: Map<string, any>): string {
     '  endpointTypes?: readonly EndpointType[]',
     '}',
     '',
-    'export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<',
-    '  Record<string, Partial<Record<ServerTool, readonly ServerToolModelDeclaration[]>>>',
-    '> =',
-    `  ${JSON.stringify(Object.fromEntries(Object.entries(modelIds).sort(([a], [b]) => a.localeCompare(b))), null, 2)}`,
+    'export const PROVIDER_SERVER_TOOL_MODEL_IDS: ReadonlyMap<',
+    '  string, Partial<Record<ServerTool, readonly ServerToolModelDeclaration[]>>',
+    '> = new Map(Object.entries(',
+    `  ${JSON.stringify(Object.fromEntries(Object.entries(modelIds).sort(([a], [b]) => a.localeCompare(b))), null, 2)} satisfies Record<string, Partial<Record<ServerTool, readonly ServerToolModelDeclaration[]>>>`,
+    '))',
     ''
   ].join('\n')
 }
@@ -216,10 +215,7 @@ function buildServerToolModelsGen(models: Map<string, any>): string {
  * are generation-only regex over the owning creator's ids, mirroring the
  * reasoning effort-vocabulary declarations.
  */
-function collectServerToolConstraints(models: Map<string, any>): {
-  functionMixingIds: string[]
-  webSearchUnsupportedEfforts: Record<string, string[]>
-} {
+function collectServerToolConstraints(models: Map<string, any>) {
   const functionMixingIds: string[] = []
   const webSearchUnsupportedEfforts: Record<string, string[]> = {}
   for (const model of models.values()) {
@@ -255,8 +251,9 @@ function buildServerToolConstraintsGen(models: Map<string, any>): string {
     `  ${JSON.stringify(functionMixingIds, null, 2)}`,
     '',
     '/** Reasoning efforts the provider-native web-search tool rejects, by model id. */',
-    'export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> =',
+    'export const WEB_SEARCH_UNSUPPORTED_EFFORTS: ReadonlyMap<string, readonly string[]> = new Map(Object.entries(',
     `  ${JSON.stringify(sortKeys(webSearchUnsupportedEfforts), null, 2)}`,
+    '))',
     ''
   ].join('\n')
 }
@@ -534,7 +531,7 @@ function buildProviderModels(
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
   baseIds: Set<string>
-): { overrides: any[] } {
+) {
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
   )
@@ -651,11 +648,10 @@ void (async () => {
   if (args['providers-only']) {
     if (WRITE) {
       const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))
+      const modelMap: Map<string, any> = new Map(models.map((model: { id: string }) => [model.id, model]))
       fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
-      fs.writeFileSync(
-        SERVER_TOOL_MODELS_GEN_PATH,
-        buildServerToolModelsGen(new Map(models.map((model: { id: string }) => [model.id, model])))
-      )
+      fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, buildServerToolModelsGen(modelMap))
+      fs.writeFileSync(SERVER_TOOL_CONSTRAINTS_GEN_PATH, buildServerToolConstraintsGen(modelMap))
     }
     return
   }

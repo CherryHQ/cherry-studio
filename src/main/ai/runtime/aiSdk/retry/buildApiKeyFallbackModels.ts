@@ -31,7 +31,7 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
     args.primaryCredentialReceipt
   )
   return keys.map((key) => async () => {
-    const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    let repairUsagePlugins: AiPlugin[] | undefined
     const built = await buildAgentParams({
       request: { ...args.request, apiKeyOverride: key.key },
       signal: args.signal,
@@ -39,11 +39,11 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       model: args.model,
       assistant: args.assistant,
       extraFeatures: args.extraFeatures,
-      getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
+      getRepairUsagePlugins: () => repairUsagePlugins ?? [],
       compactionSink: args.request.compactionSink
     })
     const usagePlugin = args.createUsagePlugin(built.credentialReceipt)
-    repairUsagePlugins.current = [usagePlugin]
+    repairUsagePlugins = [usagePlugin]
     const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
       built.sdkConfig.providerId,
       built.sdkConfig.providerSettings,

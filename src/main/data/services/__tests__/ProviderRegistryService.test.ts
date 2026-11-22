@@ -619,6 +619,24 @@ describe('ProviderRegistryService', () => {
       expect(models[1].apiModelId).toBe('qwen1.5-1.8b-chat')
     })
 
+    it.each([
+      ['constructor', 'Constructor'],
+      ['__proto__', '__proto__'],
+      ['constructor/gpt-api', 'Constructor: GPT API'],
+      ['__proto__/custom-model', '__proto__: Custom Model']
+    ])('formats unknown model %s without inheriting an acronym', (modelId, expectedName) => {
+      setupRegistryData()
+
+      const models = providerRegistryService.resolveModels('openai', [modelId])
+
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({
+        id: createUniqueModelId('openai', modelId),
+        apiModelId: modelId,
+        name: expectedName
+      })
+    })
+
     it('does not infer controls when a preset model fails the reasoning membership gate', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',

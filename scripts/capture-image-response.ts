@@ -64,6 +64,7 @@ async function main() {
   if (!args.url) throw new Error('--url is required')
 
   const method = args.method ?? (args.body ? 'POST' : 'GET')
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- CLI headers have arbitrary HTTP field names; retain their string-valued bag while adding a missing Content-Type before fetch validates it.
   const headers: Record<string, string> = { Accept: 'application/json', ...args.headers }
   if (args.body && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type')) {
     headers['Content-Type'] = 'application/json'

@@ -87,6 +87,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     history: 'latest',
     fork: 'initial',
     checkpointWhen: () => false,
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Persisted meter state includes optional legacy per-run counts that inference from the initial zero state would omit.
     initial: (): { run: number; count: number; counts?: Record<string, number> } => ({ run: 0, count: 0 })
   })
   const hostMemo = defineDoc({
@@ -96,6 +97,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     history: 'latest',
     fork: 'initial',
     checkpointWhen: () => false,
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Memo values are produced lazily; the empty initial map must retain the native JSON value contract.
     initial: (): { values: Record<string, NativeJson> } => ({ values: {} })
   })
   const providers = new Map<string, ThreadId>()

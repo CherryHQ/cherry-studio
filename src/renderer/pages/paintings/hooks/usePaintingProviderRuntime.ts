@@ -2,19 +2,11 @@ import { useMemo } from 'react'
 
 import { useProvider, useProviderApiKeys, useProviderPreset } from '@renderer/hooks/useProvider'
 
-import {
-  createPaintingProviderRuntime,
-  type PaintingProviderRuntime,
-  pickFirstEnabledApiKey
-} from '../model/types/paintingProviderRuntime'
+import { createPaintingProviderRuntime, pickFirstEnabledApiKey } from '../model/types/paintingProviderRuntime'
 
 const ENDPOINT_CONFIG_PRESET_FIELDS = ['endpointConfigs'] as const
 
-export function usePaintingProviderRuntime(providerId: string): {
-  provider: PaintingProviderRuntime
-  isLoading: boolean
-  error?: unknown
-} {
+export function usePaintingProviderRuntime(providerId: string) {
   const { provider, isLoading, error } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const {

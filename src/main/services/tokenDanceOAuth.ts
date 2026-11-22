@@ -39,7 +39,7 @@ function base64UrlEncode(buffer: Buffer): string {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function createAuthorizationParameters(): { state: string; codeVerifier: string; codeChallenge: string } {
+function createAuthorizationParameters() {
   const codeVerifier = base64UrlEncode(randomBytes(32))
   return {
     state: randomBytes(16).toString('hex'),
@@ -49,10 +49,14 @@ function createAuthorizationParameters(): { state: string; codeVerifier: string;
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => {
-    const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
-    return entities[character] ?? character
-  })
+  const entities: ReadonlyMap<string, string> = new Map([
+    ['&', '&amp;'],
+    ['<', '&lt;'],
+    ['>', '&gt;'],
+    ['"', '&quot;'],
+    ["'", '&#39;']
+  ])
+  return value.replace(/[&<>"']/g, (character) => entities.get(character) ?? character)
 }
 
 function completeCallback(response: ServerResponse): void {

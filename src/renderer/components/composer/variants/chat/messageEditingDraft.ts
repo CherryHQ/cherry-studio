@@ -91,16 +91,13 @@ function readAnchorPartIndex(token: ComposerSerializedToken, messageId: string):
  * Only parts the message itself renders get a chip. An `isHiddenPart` part draws nothing there, so
  * a chip for it would ask the reader to place something they never saw.
  */
-function buildEditableText(
-  parts: CherryMessagePart[],
-  messageId: string
-): { text: string; anchors: ComposerSerializedToken[] } {
+function buildEditableText(parts: CherryMessagePart[], messageId: string) {
+  const anchors: ComposerSerializedToken[] = []
   const span = getEditableTextSpan(parts)
-  if (!span) return { text: '', anchors: [] }
+  if (!span) return { text: '', anchors }
 
   let text = ''
   let previous: 'none' | 'text' | 'anchor' = 'none'
-  const anchors: ComposerSerializedToken[] = []
 
   for (let index = span.start; index <= span.end; index++) {
     const part = parts[index]

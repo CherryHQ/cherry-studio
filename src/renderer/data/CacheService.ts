@@ -830,11 +830,7 @@ export class CacheService {
   /**
    * Process a cache tier (memory or shared) and collect statistics
    */
-  private processCacheTier(
-    cache: Map<string, CacheEntry>,
-    now: number,
-    includeDetails: boolean
-  ): { summary: CacheTierSummary; details: CacheEntryDetail[] } {
+  private processCacheTier(cache: Map<string, CacheEntry>, now: number, includeDetails: boolean) {
     let validCount = 0
     let expiredCount = 0
     let withTTLCount = 0
@@ -880,7 +876,7 @@ export class CacheService {
         withTTLCount,
         hookReferences,
         estimatedBytes
-      },
+      } satisfies CacheTierSummary,
       details
     }
   }
@@ -889,10 +885,7 @@ export class CacheService {
    * Process persist cache tier and collect statistics
    * Persist cache has no TTL support, all entries are always valid
    */
-  private processPersistTier(includeDetails: boolean): {
-    summary: CacheTierSummary
-    details: CacheEntryDetail[]
-  } {
+  private processPersistTier(includeDetails: boolean) {
     let hookReferences = 0
     let estimatedBytes = 0
 
@@ -919,7 +912,7 @@ export class CacheService {
         withTTLCount: 0,
         hookReferences,
         estimatedBytes
-      },
+      } satisfies CacheTierSummary,
       details
     }
   }

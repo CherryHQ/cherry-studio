@@ -7,7 +7,11 @@ import { TOKEN_PLACEHOLDER } from './markdownSession'
 type CodeLineMatch = NonNullable<ReturnType<typeof findMarkdownCodeLine>>
 
 const CODE_INDENT = '  '
-const CLOSING_BRACKETS: Record<string, string> = { '{': '}', '[': ']', '(': ')' }
+const CLOSING_BRACKETS: ReadonlyMap<string, string> = new Map([
+  ['{', '}'],
+  ['[', ']'],
+  ['(', ')']
+])
 
 function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
   const { state } = view
@@ -41,7 +45,7 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
   } else if (line !== block.close) {
     const quoteDepth = container.match(/>/g)?.length ?? 0
     const baseIndent = new RegExp(`^(?:[ \t]*>){${quoteDepth}}[ \t]*`).exec(before)?.[0] ?? container
-    if (after && after[0] === CLOSING_BRACKETS[before.at(-1) ?? '']) {
+    if (after && after[0] === CLOSING_BRACKETS.get(before.at(-1) ?? '')) {
       transaction.insertText(baseIndent + CODE_INDENT, nextLineStart)
       const middleLineEnd = transaction.selection.from
       transaction.split(middleLineEnd)

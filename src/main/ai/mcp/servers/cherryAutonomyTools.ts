@@ -51,7 +51,7 @@ import {
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
-import { ChannelConfigSchema } from '@shared/data/types/channel'
+import { ChannelConfigSchema, type ChannelType } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 
@@ -169,7 +169,7 @@ const NotifyInputSchema = z.object({
 type NotifyInput = z.output<typeof NotifyInputSchema>
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
-const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: string[]; description: string }> = {
+const CHANNEL_CONFIG_SCHEMAS = {
   dingtalk: {
     required: ['client_id', 'client_secret', 'robot_code'],
     optional: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id'],
@@ -227,7 +227,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
       '7. allowed_channel_ids is optional — leave empty to allow all channels the bot is in.'
     ].join(' ')
   }
-}
+} satisfies Partial<Record<ChannelType, { required: string[]; optional: string[]; description: string }>>
 
 const CONFIG_DESCRIPTION =
   'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap.'
@@ -245,8 +245,9 @@ const ConfigInputSchema = z.object({
       'reset_bootstrap'
     ])
     .describe('The action to perform'),
+  // SAFETY: The local descriptor literal has exactly these own string keys, which define the supported subset.
   type: z
-    .enum(Object.keys(CHANNEL_CONFIG_SCHEMAS) as [string, ...string[]])
+    .enum(Object.keys(CHANNEL_CONFIG_SCHEMAS) as (keyof typeof CHANNEL_CONFIG_SCHEMAS)[])
     .optional()
     .describe("Channel adapter type (required for 'add_channel')"),
   name: z

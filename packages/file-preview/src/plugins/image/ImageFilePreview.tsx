@@ -13,11 +13,11 @@ import { imageFilePreviewPlugin } from './imageFilePreviewPlugin'
 import { ImageFilePreviewToolbar } from './ImageFilePreviewToolbar'
 
 const IMAGE_PREVIEW_MAX_SIZE_BYTES = 64 * 1024 * 1024
-const IMAGE_MEDIA_TYPE_BY_EXTENSION: Record<string, string> = {
-  svg: 'image/svg+xml',
-  jpg: 'image/jpeg',
-  ico: 'image/x-icon'
-}
+const IMAGE_MEDIA_TYPE_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ['svg', 'image/svg+xml'],
+  ['jpg', 'image/jpeg'],
+  ['ico', 'image/x-icon']
+])
 
 export default function ImageFilePreview({ sourceId, fileName, document, mediaType }: FilePreviewPluginProps) {
   const { t } = useTranslation()
@@ -62,7 +62,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         const mime =
           normalizedMediaType && imageFilePreviewPlugin.mediaTypes.includes(normalizedMediaType)
             ? normalizedMediaType
-            : (IMAGE_MEDIA_TYPE_BY_EXTENSION[extension ?? ''] ?? `image/${extension}`)
+            : (IMAGE_MEDIA_TYPE_BY_EXTENSION.get(extension ?? '') ?? `image/${extension}`)
         objectUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: mime }))
         setUrl(objectUrlRef.current)
       })

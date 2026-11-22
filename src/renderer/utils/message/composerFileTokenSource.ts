@@ -20,7 +20,7 @@ export function isComposerFileTokenPathLike(value: string) {
   )
 }
 
-export function isComposerFileTokenSourceId(value: unknown): value is string {
+export function isComposerFileTokenSourceId<T>(value: T): value is T & string {
   return typeof value === 'string' && value.length > 0 && !isComposerFileTokenPathLike(value)
 }
 

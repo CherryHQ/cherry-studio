@@ -105,12 +105,12 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString()
 }
 
-const LOG_LEVEL_COLORS: Record<string, string> = {
-  error: 'var(--error)',
-  warn: 'var(--warning)',
-  info: 'var(--info)',
-  debug: 'var(--foreground-tertiary)'
-}
+const LOG_LEVEL_COLORS: ReadonlyMap<string, string> = new Map([
+  ['error', 'var(--error)'],
+  ['warn', 'var(--warning)'],
+  ['info', 'var(--info)'],
+  ['debug', 'var(--foreground-tertiary)']
+])
 
 const NO_AGENT_VALUE = '__none'
 
@@ -173,7 +173,7 @@ const ChannelLogModal: FC<{
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? 'var(--foreground-tertiary)' }}>
+              <span style={{ color: LOG_LEVEL_COLORS.get(entry.level) ?? 'var(--foreground-tertiary)' }}>
                 [{entry.level.toUpperCase()}]
               </span>
               <span className="break-all">{entry.message}</span>

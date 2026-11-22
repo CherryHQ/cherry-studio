@@ -5,8 +5,9 @@ import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 
 export const Route = createFileRoute('/app/browser')({
   validateSearch: (search): { url?: string } => {
-    // TanStack merges validated search into raw params, so absence must override the raw URL.
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Keep url optional for navigation while overriding invalid raw search values with undefined.
     if (typeof search.url !== 'string' || !search.url.trim()) return { url: undefined }
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- TanStack navigation may omit url; the validated result still overrides the raw query value.
     return {
       url: search.url === 'about:blank' ? 'about:blank' : normalizeBrowserEntryUrl(search.url)
     }

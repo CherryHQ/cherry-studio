@@ -15,7 +15,6 @@ import {
   type EmbeddingModelV3,
   type ImageModelV3,
   isJSONObject,
-  type JSONObject,
   type JSONValue,
   type LanguageModelV3,
   type LanguageModelV3CallOptions,
@@ -154,7 +153,7 @@ class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel 
   }
 }
 
-const resolveConfiguredHeaders = (headers?: HeadersInput): Record<string, HeaderValue> => {
+const resolveConfiguredHeaders = (headers?: HeadersInput) => {
   if (typeof headers === 'function') {
     return { ...headers() }
   }
@@ -209,19 +208,18 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
     )
 
-    const defaults: JSONObject = {}
-    if (aspectRatio) defaults.aspectRatio = aspectRatio
-    if (personGeneration) defaults.personGeneration = personGeneration
-    const googleOptions: JSONObject = {
-      ...defaults,
-      ...existingGoogle
-    }
-
-    if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
-      const imageConfig = { ...existingImageConfig }
-      if (aspectRatio) imageConfig.aspectRatio = aspectRatio
-      if (imageSize) imageConfig.imageSize = imageSize
-      googleOptions.imageConfig = imageConfig
+    const googleOptions = {
+      ...(aspectRatio && { aspectRatio }),
+      ...(personGeneration && { personGeneration }),
+      ...existingGoogle,
+      ...(isGeminiImage &&
+        (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0) && {
+          imageConfig: {
+            ...existingImageConfig,
+            ...(aspectRatio && { aspectRatio }),
+            ...(imageSize && { imageSize })
+          }
+        })
     }
 
     const generatedOptions = { ...options }

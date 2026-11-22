@@ -131,6 +131,7 @@ export function buildGenerateImageToolSchema(
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Model capabilities add heterogeneous Zod fields after the prompt seed; the mutable builder needs the full schema value contract.
   const inputShape: Record<string, z.ZodType> = { prompt: GENERATE_IMAGE_PROMPT_FIELD }
 
   for (const [key, entries] of params) {

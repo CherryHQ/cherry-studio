@@ -58,10 +58,7 @@ let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
 type PasteHandler = (event: ClipboardEvent) => Promise<boolean>
 
 // 处理函数存储
-const handlers: {
-  inputbar?: PasteHandler
-  messageEditor?: PasteHandler
-} = {}
+const handlers: Partial<Record<Exclude<ComponentType, null>, PasteHandler>> = {}
 
 // 初始化标志
 let isInitialized = false

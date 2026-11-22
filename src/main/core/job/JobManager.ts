@@ -881,11 +881,7 @@ export class JobManager extends BaseService {
    * at the call sites AFTER their idempotency check, so an idempotency hit
    * does not register a stray in-memory queue entry.
    */
-  private prepareEnqueue<K extends JobType>(
-    type: K,
-    input: JobPayloadOf<K>,
-    opts: EnqueueOptions
-  ): { handler: JobHandler; queueName: string; insertRow: InsertJobRow } {
+  private prepareEnqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions) {
     const handler = this.handlers.get(type)
     if (!handler) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
@@ -1186,7 +1182,7 @@ export class JobManager extends BaseService {
    * @throws Error if both `filter.queue` and `filter.type` are undefined
    * @throws Error with code `JOB_CANCEL_REASON_TOO_LONG` if `reason` exceeds 500 chars
    */
-  cancelMany(filter: { queue?: string; type?: string }, reason?: string): { aborted: number; transitioned: number } {
+  cancelMany(filter: { queue?: string; type?: string }, reason?: string) {
     if (!filter.queue && !filter.type) {
       throw new Error('cancelMany: filter must specify queue or type (empty filter rejected)')
     }
@@ -1246,7 +1242,7 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NAME_CONFLICT` if `(type, name)` already exists
    * @throws Error with code `JOB_SCHEDULE_SINGLETON_EXISTS` if `name` omitted on a multi-instance type
    */
-  registerJobSchedule<K extends JobType>(input: JobScheduleRegistrationInput<K>): { id: string } {
+  registerJobSchedule<K extends JobType>(input: JobScheduleRegistrationInput<K>) {
     if (!this.handlers.has(input.type)) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler for schedule type "${input.type}"`, {
         type: input.type
@@ -1288,7 +1284,7 @@ export class JobManager extends BaseService {
    *   conflicts surface as `JOB_SCHEDULE_NAME_CONFLICT` and abort the whole
    *   caller transaction
    */
-  registerJobScheduleTx<K extends JobType>(tx: DbOrTx, input: JobScheduleRegistrationInput<K>): { id: string } {
+  registerJobScheduleTx<K extends JobType>(tx: DbOrTx, input: JobScheduleRegistrationInput<K>) {
     if (!this.handlers.has(input.type)) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler for schedule type "${input.type}"`, {
         type: input.type

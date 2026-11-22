@@ -9,7 +9,7 @@ export const entryMessageId = (entry: EntryRecord, index: number): string => `en
 export class ContentProjection {
   readonly messages: RuntimeMessage[] = []
   readonly responseIds: Record<string, string> = {}
-  get legacy(): Record<string, { messageId: string; parts: number[] }> {
+  get legacy() {
     const legacy: Record<string, { messageId: string; parts: number[] }> = {}
     for (const message of this.messages) {
       const parts: number[] = []

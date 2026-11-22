@@ -17,14 +17,16 @@
  * columns) are passed through unchanged. This matches the runtime: only
  * nullable columns can actually hold NULL.
  */
+/* oxlint-disable anti-slop/no-known-value-widening -- The mapped return preserves each row field's nullability; Object.entries loses those generic key/value correlations. */
 export function nullsToUndefined<T extends Record<string, unknown>>(
   obj: T
 ): { [K in keyof T]: null extends T[K] ? Exclude<T[K], null> | undefined : T[K] } {
-  // Every source field keeps its value except null; fromEntries preserves literal keys as own data properties.
+  // SAFETY: every own row field is reconstructed, with only null values replaced; the mapped type restores lost key correlations.
   return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, value === null ? undefined : value])) as {
     [K in keyof T]: null extends T[K] ? Exclude<T[K], null> | undefined : T[K]
   }
 }
+/* oxlint-enable anti-slop/no-known-value-widening */
 
 /**
  * Convert a guaranteed-present timestamp to an ISO string.

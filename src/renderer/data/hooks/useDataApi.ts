@@ -1026,7 +1026,8 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       if (!ownsAggregateCommit()) return pages
       if (!Array.isArray(pages)) {
         const aggregateState = { ...cache.get(infiniteCacheKey) }
-        delete (aggregateState as { _l?: number })._l
+        // oxlint-disable-next-line anti-slop/no-known-value-widening -- SAFETY: Only SWR's private length key is deleted from a detached clone; its value is never interpreted.
+        delete (aggregateState as { _l?: unknown })._l
         cache.set(infiniteCacheKey, aggregateState)
       }
       return pages

@@ -327,26 +327,28 @@ type ExtensionConfigs = (typeof coreExtensions)[number]['config']
 type ProviderIdsMap = UnionToIntersection<ExtensionConfigToIdResolutionMap<ExtensionConfigs>>
 
 export const registeredProviderIds: ProviderIdsMap = (() => {
-  const map = {} as ProviderIdsMap
+  const map = new Map<string, string>()
   coreExtensions.forEach((ext) => {
-    const config = ext.config as ProviderExtensionConfig<any, any, CoreProviderId>
+    const config = ext.config
     const name = config.name
-    ;(map as Record<string, CoreProviderId>)[name] = name
+    map.set(name, name)
 
-    if (config.aliases) {
+    if ('aliases' in config && config.aliases) {
       config.aliases.forEach((alias) => {
-        ;(map as Record<string, CoreProviderId>)[alias] = name
+        map.set(alias, name)
       })
     }
 
-    if (config.variants) {
+    if ('variants' in config && config.variants) {
       config.variants.forEach((variant) => {
-        ;(map as Record<string, CoreProviderId>)[`${name}-${variant.suffix}`] = name
+        const variantId = `${name}-${variant.suffix}`
+        map.set(variantId, variantId)
       })
     }
   })
 
-  return map
+  // SAFETY: Every declared name, alias and variant is populated with the resolution encoded by ProviderIdsMap.
+  return Object.fromEntries(map) as ProviderIdsMap
 })()
 
 // ==================== 初始化 Extension Registry ====================

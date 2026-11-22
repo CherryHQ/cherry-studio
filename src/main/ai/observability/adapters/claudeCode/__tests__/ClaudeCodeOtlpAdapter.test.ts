@@ -78,6 +78,21 @@ function spanPayload() {
 }
 
 describe('ClaudeCodeOtlpAdapter', () => {
+  it.each(['constructor', '__proto__', 'toString'])(
+    'keeps unknown OTLP enum values out of inherited mappings: %s',
+    (value) => {
+      const payload = spanPayload()
+      const source = payload.resourceSpans[0].scopeSpans[0].spans[0]
+      source.kind = value
+      source.status.code = value
+
+      const spans = ClaudeCodeOtlpAdapter.spansFromPayload(payload, () => traceContext)
+
+      expect(spans[0].kind).toBe(value)
+      expect(spans[0].status).toBe('UNSET')
+    }
+  )
+
   it('converts Claude Code OTLP spans into SpanEntity records', () => {
     const spans = ClaudeCodeOtlpAdapter.spansFromPayload(spanPayload(), () => traceContext)
 

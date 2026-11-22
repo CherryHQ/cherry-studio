@@ -2,6 +2,7 @@ import {
   NOOP_TELEMETRY_CONTEXT,
   type SpanAttributes,
   type SpanStatus,
+  type TelemetryCarrier,
   type TelemetryContext,
   type TelemetryPropagation,
   type TelemetrySpan
@@ -63,7 +64,7 @@ export function createPiTelemetry(
     inject(context) {
       const parent = getPiTraceContext(context)
       if (!parent) return undefined
-      const carrier: Record<string, string> = {
+      const carrier: TelemetryCarrier = {
         'cherry.topic_id': parent.topicId,
         'cherry.session_id': parent.sessionId,
         'cherry.turn_id': parent.turnId

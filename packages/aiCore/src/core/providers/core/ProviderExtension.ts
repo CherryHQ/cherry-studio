@@ -361,7 +361,7 @@ export class ProviderExtension<
   /**
    * 获取缓存统计信息
    */
-  getCacheStats(): { cachedInstances: number } {
+  getCacheStats() {
     return {
       cachedInstances: this.instances.size
     }

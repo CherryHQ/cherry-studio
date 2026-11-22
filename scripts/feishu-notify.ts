@@ -295,7 +295,7 @@ function createSimpleCard(title: string, description: string, color: FeishuHeade
 /**
  * Get Feishu credentials from environment variables
  */
-function getCredentials(): { webhookUrl: string; secret: string } {
+function getCredentials() {
   const webhookUrl = process.env.FEISHU_WEBHOOK_URL
   const secret = process.env.FEISHU_WEBHOOK_SECRET
 

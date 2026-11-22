@@ -54,6 +54,9 @@ describe('icon catalog lazy boundary', () => {
       expect(getMiniAppsLogoRef('doubao')?.key).toBe('doubao')
       expect(getMiniAppsLogoRef('github')?.key).toBe('github')
       expect(getMiniAppsLogoRef('nousresearch')?.key).toBe('nousresearch')
+      for (const logo of ['constructor', '__proto__', 'tostring']) {
+        expect(getMiniAppsLogoRef(logo)).toBeUndefined()
+      }
       expect(providerCatalogEvaluated).not.toHaveBeenCalled()
       expect(providerLoadersEvaluated).not.toHaveBeenCalled()
       expect(modelLoadersEvaluated).not.toHaveBeenCalled()

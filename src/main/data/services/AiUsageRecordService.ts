@@ -1292,11 +1292,7 @@ function comparableRow(row: InsertAiUsageRecordRow): Omit<InsertAiUsageRecordRow
   return comparable
 }
 
-function insertRowsTx(
-  db: DbOrTx,
-  rows: readonly InsertAiUsageRecordRow[],
-  warnOnConflict: boolean
-): { inserted: number; affectedMessages: MessageReadModelTarget[] } {
+function insertRowsTx(db: DbOrTx, rows: readonly InsertAiUsageRecordRow[], warnOnConflict: boolean) {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
   for (const row of rows) {

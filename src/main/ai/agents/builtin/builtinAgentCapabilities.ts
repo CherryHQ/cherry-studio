@@ -116,7 +116,7 @@ export function hostToolsEnabled(
 export function resolveAutomationAccess(
   agent: Pick<AgentEntity, 'configuration' | 'disabledTools'>,
   options: { channelLinked: boolean; browserEnabled?: boolean; computerUseEnabled?: boolean }
-): { browser: boolean; computer: boolean } {
+) {
   const local = !options.channelLinked && resolveAgentCapabilities(agent).environment === 'open'
   return {
     browser: local && options.browserEnabled === true && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP),

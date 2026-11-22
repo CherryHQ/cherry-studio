@@ -31,18 +31,18 @@ export interface SplitImageParams<T extends Record<string, unknown>> {
  * must NOT survive to `resolveImageRequestSize`).
  */
 export function splitParamValues<T extends Record<string, unknown>>(paramValues: T): SplitImageParams<T> {
-  const structured: Record<string, T[keyof T] | string> = {}
-  const vendorBag: Record<string, T[keyof T]> = {}
+  const structured = new Map<string, T[keyof T] | string>()
+  const vendorBag = new Map<string, T[keyof T]>()
   // SAFETY: Each own enumerable field's value belongs to the input object's value union.
   for (const [key, value] of Object.entries(paramValues) as [string, T[keyof T]][]) {
     if (value === undefined || value === '' || value === null) continue
     const binding = nativeBindingFor(key) // numImages → n; aspectRatio normalized once; rest identity
     if (binding) {
       const mapped = binding.map ? binding.map(value) : value
-      if (mapped !== undefined && mapped !== null && mapped !== '') structured[binding.option] = mapped
+      if (mapped !== undefined && mapped !== null && mapped !== '') structured.set(binding.option, mapped)
     } else {
-      vendorBag[key] = value
+      vendorBag.set(key, value)
     }
   }
-  return { structured: structured, vendorBag }
+  return { structured: Object.fromEntries(structured), vendorBag: Object.fromEntries(vendorBag) }
 }

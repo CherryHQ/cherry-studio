@@ -302,16 +302,10 @@ export function AgentSessionDetailsSections({
   const [preferences, persistSections] = usePreference('agent.details.sections')
   const defaults = getDefaultValue('agent.details.sections')
   const knownIds = new Set(defaults.map(({ id }) => id))
-  const seen = new Set<string>()
-  const sections = [...preferences, ...defaults].filter(({ id }) => {
-    if (!knownIds.has(id) || seen.has(id)) return false
-    seen.add(id)
-    return true
-  })
   const saveSections = (next: AgentDetailsSectionConfig[]) => {
     void persistSections(next).catch(() => toast.error(t('common.error')))
   }
-  const labels: Record<string, { label: string; icon: ReactNode }> = {
+  const labels = {
     workspace: { label: t('code.adv.permission_modes.workspace'), icon: <FolderOpen className="size-4" /> },
     desktop_control: { label: t('agent.right_pane.info.desktop_control.title'), icon: <Monitor className="size-4" /> },
     plan: { label: t('agent.right_pane.info.plan'), icon: <ListChecks className="size-4" /> },
@@ -321,8 +315,8 @@ export function AgentSessionDetailsSections({
     other: { label: t('agent.right_pane.info.other_tasks'), icon: <ListChecks className="size-4" /> },
     artifacts: { label: t('agent.right_pane.info.artifacts'), icon: <Package className="size-4" /> },
     context: { label: t('agent.right_pane.info.context'), icon: <Gauge className="size-4" /> }
-  }
-  const content: Record<string, ReactNode> = {
+  } satisfies Record<string, { label: string; icon: ReactNode }>
+  const content = {
     workspace: workspaceLabel && (
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
         <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
@@ -477,7 +471,16 @@ export function AgentSessionDetailsSections({
       </DetailsSection>
     ),
     context: contextUsage && <div className="border-t border-border-subtle py-2">{contextUsage}</div>
-  }
+  } satisfies Record<keyof typeof labels, ReactNode>
+  const seen = new Set<string>()
+  const sections = [...preferences, ...defaults].filter(
+    (section): section is AgentDetailsSectionConfig & { id: keyof typeof labels } => {
+      const { id } = section
+      if (!knownIds.has(id) || !Object.hasOwn(labels, id) || seen.has(id)) return false
+      seen.add(id)
+      return true
+    }
+  )
   return (
     <>
       <div className="flex items-center justify-between gap-2 ps-3 pe-2 py-1">

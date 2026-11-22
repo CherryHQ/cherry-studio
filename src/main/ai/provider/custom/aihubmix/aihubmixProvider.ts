@@ -88,7 +88,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
   // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
   // image edits with "invalid character '-' in numeric literal" on the server.
-  const authHeaders = (): Record<string, string> => ({
+  const authHeaders = () => ({
     Authorization: `Bearer ${resolveApiKey()}`,
     ...APP_CODE_HEADER,
     ...options.headers

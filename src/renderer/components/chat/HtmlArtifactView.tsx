@@ -102,10 +102,7 @@ interface PreviewContentMemory {
   sweep: number | null
 }
 
-function getIframeContentHeight(
-  iframe: HTMLIFrameElement,
-  memory: PreviewContentMemory | null
-): { height: number | null; memory: PreviewContentMemory | null } {
+function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewContentMemory | null) {
   try {
     const frameDocument = iframe.contentDocument
     const body = frameDocument?.body

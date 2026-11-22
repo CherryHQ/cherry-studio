@@ -3,7 +3,7 @@ import { Fragment, type Node as ProseMirrorNode, Slice } from '@tiptap/pm/model'
 
 const IMAGE_NODE_TYPES = new Set(['image', 'imagePlaceholder'])
 
-export function stripImageNodes(doc: JSONContent): { doc: JSONContent; removedImages: boolean } {
+export function stripImageNodes(doc: JSONContent) {
   let removedImages = false
 
   const stripNode = (node: JSONContent): JSONContent | null => {
@@ -23,7 +23,7 @@ export function stripImageNodes(doc: JSONContent): { doc: JSONContent; removedIm
   return { doc: stripNode(doc) ?? { type: 'doc', content: [] }, removedImages }
 }
 
-function stripImagesFromFragment(fragment: Fragment): { fragment: Fragment; removedImages: boolean } {
+function stripImagesFromFragment(fragment: Fragment) {
   const kept: ProseMirrorNode[] = []
   let removedImages = false
 

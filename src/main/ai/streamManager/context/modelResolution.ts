@@ -29,10 +29,7 @@ export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, de
  * `chat.default_model_id` preference. Returned `assistantId` is
  * `undefined` (not a sentinel) for assistant-less topics.
  */
-export function resolveAssistantModelId(assistantId: string | null | undefined): {
-  assistantId: string | undefined
-  defaultModelId: UniqueModelId
-} {
+export function resolveAssistantModelId(assistantId: string | null | undefined) {
   if (assistantId) {
     const assistant = assistantDataService.getById(assistantId)
     if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)

@@ -70,7 +70,7 @@ type LanguageData = {
   extensions?: string[];
 };
 
-export const codeLanguages: Record<string, LanguageData> = ${languagesObjectString};
+export const codeLanguages: ReadonlyMap<string, LanguageData> = new Map(Object.entries(${languagesObjectString}));
 `
   console.log('✅ File content generated.')
   return content
@@ -135,4 +135,4 @@ if (require.main === module) {
   void updateLanguagesFile()
 }
 
-export { updateLanguagesFile }
+export { generateLanguagesFileContent, updateLanguagesFile }

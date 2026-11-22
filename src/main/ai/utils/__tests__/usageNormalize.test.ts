@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
-import { ensureNestedV3Usage, normalizeFlatV3Usage, recordTotalTokens } from '../usageNormalize'
+import { ensureNestedV3Usage, isFlatV3Usage, normalizeFlatV3Usage, recordTotalTokens } from '../usageNormalize'
 
 describe('usageNormalize', () => {
+  it.each(['inputTokens', 'outputTokens', 'totalTokens', 'reasoningTokens', 'cachedInputTokens'])(
+    'rejects a non-numeric flat %s counter',
+    (field) => {
+      expect(isFlatV3Usage({ [field]: '10' })).toBe(false)
+    }
+  )
+
+  it.each([
+    { usage: null },
+    { usage: [] },
+    { usage: { outputTokens: { total: 10 } } },
+    { usage: { raw: { cost: () => 1 } } },
+    { usage: { inputTokens: Infinity } }
+  ])('does not claim malformed provider usage is a flat counter object: %j', ({ usage }) => {
+    expect(isFlatV3Usage(usage)).toBe(false)
+  })
+
+  it.each([{}, { totalTokens: 42 }, { cachedInputTokens: 8 }])('accepts partial flat usage: %j', (usage) => {
+    expect(isFlatV3Usage(usage)).toBe(true)
+  })
+
   it('derives the non-cached remainder from the prompt total', () => {
     expect(normalizeFlatV3Usage({ inputTokens: 1000, cachedInputTokens: 800, outputTokens: 50 })).toEqual({
       inputTokens: { total: 1000, noCache: 200, cacheRead: 800, cacheWrite: undefined },
@@ -28,14 +49,14 @@ describe('usageNormalize', () => {
   })
 
   it('normalizes flat usage for persistence callers', () => {
-    expect(ensureNestedV3Usage({ inputTokens: 80, outputTokens: 12, cachedInputTokens: 20 } as never)).toEqual({
+    expect(ensureNestedV3Usage({ inputTokens: 80, outputTokens: 12, cachedInputTokens: 20 })).toEqual({
       inputTokens: { total: 80, noCache: 60, cacheRead: 20, cacheWrite: undefined },
       outputTokens: { total: 12, text: undefined, reasoning: undefined }
     })
   })
 
   it('maps flat reasoning tokens into the nested output bucket', () => {
-    expect(ensureNestedV3Usage({ inputTokens: 10, outputTokens: 5, reasoningTokens: 3 } as never)).toMatchObject({
+    expect(ensureNestedV3Usage({ inputTokens: 10, outputTokens: 5, reasoningTokens: 3 })).toMatchObject({
       outputTokens: { total: 5, reasoning: 3 }
     })
   })
@@ -50,10 +71,10 @@ describe('usageNormalize', () => {
   })
 
   it('prefers the provider flat total when input and output are absent', () => {
-    expect(recordTotalTokens({ totalTokens: 42 } as never, undefined, undefined)).toBe(42)
+    expect(recordTotalTokens({ totalTokens: 42 }, undefined, undefined)).toBe(42)
   })
 
   it('falls back to the input/output sum when flat total is absent', () => {
-    expect(recordTotalTokens({ inputTokens: 10, outputTokens: 5 } as never, 10, 5)).toBe(15)
+    expect(recordTotalTokens({ inputTokens: 10, outputTokens: 5 }, 10, 5)).toBe(15)
   })
 })

@@ -31,7 +31,7 @@ export function claudeThread(backendId: BackendId, sessionId: string, agentId?: 
   })
 }
 
-export function nativeIdentity(thread: Thread): { sessionId: string; agentId?: string } {
+export function nativeIdentity(thread: Thread) {
   const [sessionId, encoded, extra] = thread.id.split('/')
   if (!isUuid(sessionId) || extra !== undefined || encoded === '') throw new TypeError('Invalid Claude thread')
   const agentId = encoded === undefined ? undefined : decodeURIComponent(encoded)

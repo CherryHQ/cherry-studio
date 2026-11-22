@@ -3,9 +3,7 @@ import fs from 'node:fs'
 import { loggerService } from '@logger'
 import type {
   LocalModelDownloadResult,
-  LocalModelErrorCode,
   LocalModelStatus,
-  LocalModelStatusHintCode,
   LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
 
@@ -85,7 +83,7 @@ export class BundleInstaller {
   }
 
   /** {@link getStatus} plus why an `error` status arose, for the cards' notice text. */
-  getStatusInfo(): { status: LocalModelStatus; errorCode?: LocalModelErrorCode; hintCode?: LocalModelStatusHintCode } {
+  getStatusInfo(): Omit<LocalModelStatusSnapshot, 'percent'> {
     if (!localModelStorageService.isBundleSupported(this.bundle)) return { status: 'unsupported' }
     if (this.attempt) return { status: 'downloading' }
     if (this.lastDownloadFailed) return { status: 'error', errorCode: 'download_failed' }

@@ -153,7 +153,7 @@ export function spliceTextAtKey(skeleton: Serializable, key: string, text: strin
   const segments = key.split('/').filter((s) => s.length > 0)
   if (segments.length === 0) return skeleton
 
-  const replaceField = (record: Record<string, Serializable>, field: string): Record<string, Serializable> => {
+  const replaceField = (record: Record<string, Serializable>, field: string) => {
     if (!(field in record)) return record
     return Object.fromEntries(
       Object.entries(record).map(([key, value]): [string, Serializable] => [key, key === field ? text : value])

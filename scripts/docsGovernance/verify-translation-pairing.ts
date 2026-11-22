@@ -67,25 +67,21 @@ export const stagedPairAnchors = (root = ROOT): string[] => {
   return pairAnchorsFromPaths(result.stdout.toString('utf8').split('\0').filter(Boolean))
 }
 
-const validatePair = (
-  anchor: string,
-  reader: Reader,
-  manifest: ReturnType<typeof parseManifest>
-): { state: PairState; errors: string[] } => {
+const validatePair = (anchor: string, reader: Reader, manifest: ReturnType<typeof parseManifest>) => {
   const paths = pairPaths(anchor)
   const source = reader(paths.source)
   const zh = reader(paths.zh)
   const meta = reader(paths.meta)
   const present = [source, zh, meta].filter(Boolean).length
 
-  if (present === 0) return { state: 'deleted', errors: [] }
+  if (present === 0) return { state: 'deleted' as const, errors: [] }
   if (isExcluded(anchor, manifest)) {
     const errors: string[] = []
     if (zh) errors.push(`${paths.zh}: ${paths.source} is excluded from pairing`)
     if (meta) errors.push(`${paths.meta}: ${paths.source} is excluded from pairing`)
-    return { state: errors.length ? 'invalid' : 'ok', errors }
+    return { state: errors.length ? ('invalid' as const) : ('ok' as const), errors }
   }
-  if (!isInScope(anchor, manifest)) return { state: 'deleted', errors: [] }
+  if (!isInScope(anchor, manifest)) return { state: 'deleted' as const, errors: [] }
 
   const missing = [
     !source ? paths.source : undefined,
@@ -93,17 +89,17 @@ const validatePair = (
     !meta ? paths.meta : undefined
   ].filter((value): value is string => Boolean(value))
   if (missing.length)
-    return { state: 'missing', errors: [`${anchor}: incomplete pair — missing ${missing.join(', ')}`] }
+    return { state: 'missing' as const, errors: [`${anchor}: incomplete pair — missing ${missing.join(', ')}`] }
 
   const structureErrors = validatePairContent(paths, source!, zh!)
-  if (structureErrors.length) return { state: 'invalid', errors: structureErrors }
+  if (structureErrors.length) return { state: 'invalid' as const, errors: structureErrors }
   const record = parseRecord(meta!.toString('utf8'), paths)
-  if (!record) return { state: 'invalid', errors: [`${paths.meta}: malformed consistency record`] }
+  if (!record) return { state: 'invalid' as const, errors: [`${paths.meta}: malformed consistency record`] }
 
   const errors: string[] = []
   if (record.sourceHash !== blobHash(source!)) errors.push(`${paths.source}: out of sync with ${paths.meta}`)
   if (record.zhHash !== blobHash(zh!)) errors.push(`${paths.zh}: out of sync with ${paths.meta}`)
-  return { state: errors.length ? 'out-of-sync' : 'ok', errors }
+  return { state: errors.length ? ('out-of-sync' as const) : ('ok' as const), errors }
 }
 
 export const runPairing = (args: string[]): number => {

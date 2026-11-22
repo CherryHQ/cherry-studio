@@ -34,13 +34,7 @@ export function useImeAwareDebouncedValue(
   value: string,
   delayMs: number = GLOBAL_SEARCH_QUERY_DEBOUNCE_MS,
   onCompositionEndCommit?: (rawValue: string) => void
-): {
-  committedValue: string
-  compositionHandlers: {
-    onCompositionStart: () => void
-    onCompositionEnd: (event: CompositionEvent<HTMLInputElement>) => void
-  }
-} {
+) {
   const [committedValue, setCommittedValue] = useState(value)
   const isComposingRef = useRef(false)
 

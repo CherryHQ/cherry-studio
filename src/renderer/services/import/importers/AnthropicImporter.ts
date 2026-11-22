@@ -185,11 +185,7 @@ export class AnthropicImporter implements ConversationImporter {
    * schemes: `claude-3-5-sonnet-20241022` and `claude-sonnet-4-5-20250929`.
    * Returns an empty result for ids that match neither.
    */
-  private parseModelId(modelId: string): {
-    family?: string
-    version?: string
-    ordering?: 'version-first' | 'family-first'
-  } {
+  private parseModelId(modelId: string) {
     // Drop the provider prefix, any deployment suffix, and the trailing release date
     const base = modelId
       .toLowerCase()
@@ -201,12 +197,12 @@ export class AnthropicImporter implements ConversationImporter {
 
     const versionFirst = base.match(/^claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)/)
     if (versionFirst) {
-      return { version: versionFirst[1].replace('-', '.'), family: versionFirst[2], ordering: 'version-first' }
+      return { version: versionFirst[1].replace('-', '.'), family: versionFirst[2], ordering: 'version-first' as const }
     }
 
     const familyFirst = base.match(/^claude-(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)/)
     if (familyFirst) {
-      return { version: familyFirst[2].replace('-', '.'), family: familyFirst[1], ordering: 'family-first' }
+      return { version: familyFirst[2].replace('-', '.'), family: familyFirst[1], ordering: 'family-first' as const }
     }
 
     return {}

@@ -18,11 +18,7 @@ function invalidAudio(): never {
   throw new VoiceRuntimeError('invalid_audio')
 }
 
-export function inspectCanonicalWav(audio: Uint8Array): {
-  durationSeconds: number
-  dataOffset: number
-  dataBytes: number
-} {
+export function inspectCanonicalWav(audio: Uint8Array) {
   if (audio.byteLength > MAX_CANONICAL_WAV_BYTES) invalidAudio()
   if (audio.byteLength < 12) invalidAudio()
   const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)

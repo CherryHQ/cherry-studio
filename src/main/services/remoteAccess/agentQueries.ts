@@ -63,11 +63,7 @@ export function notFound<T>(fn: () => T): T {
   }
 }
 
-export function sliceContent(
-  bytes: Uint8Array,
-  offset: string,
-  maxBytes: number
-): { offset: string; dataBase64: string; nextOffset: string; eof: boolean; sha256: string } {
+export function sliceContent(bytes: Uint8Array, offset: string, maxBytes: number) {
   const start = Number(offset)
   if (!Number.isSafeInteger(start) || start < 0 || start > bytes.length)
     throw new RemoteRpcError('NOT_FOUND', 'Offset exceeds content length')
@@ -375,10 +371,7 @@ export function listWorkspaces(agentId: string, cursor?: string, limit?: number)
   }
 }
 
-export function listSessions(query: AgentParams<'agent.sessions.list'>): {
-  items: AgentSessionEntity[]
-  nextCursor: string | null
-} {
+export function listSessions(query: AgentParams<'agent.sessions.list'>) {
   const options = {
     agentId: query.agentId,
     workspaceId: query.workspaceId,

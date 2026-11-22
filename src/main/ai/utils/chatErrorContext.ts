@@ -57,6 +57,7 @@ function containsPayload(error: unknown, depth = 0): boolean {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK and native failures may be arbitrary values; narrow diagnostic fields and redact payloads under the selected message policy.
 function collectErrorContext(error: unknown, depth: number, hideMessage: boolean): Record<string, Serializable> {
   if (!(typeof error === 'object' && error !== null)) {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Every branch contributes bounded Serializable fields to the same dynamic diagnostic context.
     return { errorMessage: hideMessage ? redactToShape(error) : safeText(String(error), MAX_MESSAGE_CHARS) }
   }
 

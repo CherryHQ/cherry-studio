@@ -105,10 +105,7 @@ export function revokeGrant(appId: string, key: string): void {
  *
  * Current grants are for runtime authorization only (`assertGranted`).
  */
-export function diffDeclaredSets(
-  previous: MiniAppManifest,
-  next: MiniAppManifest
-): { added: string[]; addedOptional: string[]; removed: string[] } {
+export function diffDeclaredSets(previous: MiniAppManifest, next: MiniAppManifest) {
   const before = declaredGrants(previous)
   const after = declaredGrants(next)
   const wasRequired = new Set(before.required)

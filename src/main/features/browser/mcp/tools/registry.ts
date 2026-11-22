@@ -13,6 +13,7 @@ import { handleSnapshot } from './snapshot'
 import { handleCloseTab, handleListTabs, handleSwitchTab } from './tabs'
 import { handleListWebTools, handleCallWebTool } from './webMcp'
 
+/* oxlint-disable anti-slop/no-known-value-widening -- Runtime tool names share one callable contract; the server selects an allowed definition and validates its schema before dispatch. */
 export const toolHandlers: Record<
   string,
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This heterogeneous dispatch table cannot correlate a runtime tool name with its schema; each selected handler validates its arguments.
@@ -42,3 +43,4 @@ export const toolHandlers: Record<
   console_messages: handleConsoleMessages,
   network_requests: handleNetworkRequests
 }
+/* oxlint-enable anti-slop/no-known-value-widening */

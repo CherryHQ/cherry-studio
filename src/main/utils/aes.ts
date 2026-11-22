@@ -1,7 +1,7 @@
 import * as crypto from 'crypto'
 
 // 加密函数
-export function encrypt(text: string, secretKey: string, iv: string): { iv: string; encryptedData: string } {
+export function encrypt(text: string, secretKey: string, iv: string) {
   const _iv = Buffer.from(iv, 'hex')
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey), _iv)
   let encrypted = cipher.update(text, 'utf8', 'hex')

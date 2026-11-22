@@ -45,40 +45,40 @@ export type FileItem = ImageFileItem | NonImageFileItem
 export function getFormatLabel(format: string): string {
   if (!format) return '—'
 
-  const map: Record<string, string> = {
-    png: 'PNG',
-    jpg: 'JPG',
-    jpeg: 'JPEG',
-    pdf: 'PDF',
-    doc: 'DOC',
-    docx: 'DOCX',
-    odt: 'ODT',
-    rtf: 'RTF',
-    epub: 'EPUB',
-    py: 'Python',
-    ts: 'TypeScript',
-    tsx: 'TSX',
-    json: 'JSON',
-    yaml: 'YAML',
-    yml: 'YAML',
-    mp3: 'MP3',
-    mp4: 'MP4',
-    md: 'Markdown',
-    markdown: 'Markdown',
-    mdx: 'Markdown',
-    txt: 'Text',
-    text: 'Text',
-    xls: 'Excel',
-    xlsx: 'Excel',
-    ods: 'Excel',
-    csv: 'CSV',
-    tsv: 'TSV',
-    ppt: 'PPT',
-    pptx: 'PPT',
-    odp: 'PPT',
-    bin: 'Binary'
-  }
-  return map[format] || format.toUpperCase()
+  const map: ReadonlyMap<string, string> = new Map([
+    ['png', 'PNG'],
+    ['jpg', 'JPG'],
+    ['jpeg', 'JPEG'],
+    ['pdf', 'PDF'],
+    ['doc', 'DOC'],
+    ['docx', 'DOCX'],
+    ['odt', 'ODT'],
+    ['rtf', 'RTF'],
+    ['epub', 'EPUB'],
+    ['py', 'Python'],
+    ['ts', 'TypeScript'],
+    ['tsx', 'TSX'],
+    ['json', 'JSON'],
+    ['yaml', 'YAML'],
+    ['yml', 'YAML'],
+    ['mp3', 'MP3'],
+    ['mp4', 'MP4'],
+    ['md', 'Markdown'],
+    ['markdown', 'Markdown'],
+    ['mdx', 'Markdown'],
+    ['txt', 'Text'],
+    ['text', 'Text'],
+    ['xls', 'Excel'],
+    ['xlsx', 'Excel'],
+    ['ods', 'Excel'],
+    ['csv', 'CSV'],
+    ['tsv', 'TSV'],
+    ['ppt', 'PPT'],
+    ['pptx', 'PPT'],
+    ['odp', 'PPT'],
+    ['bin', 'Binary']
+  ])
+  return map.get(format) || format.toUpperCase()
 }
 
 export const typeIcons: Record<FileType, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {

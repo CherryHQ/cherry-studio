@@ -12,7 +12,7 @@ const REDACTED = '[REDACTED]'
  *
  * Returns the sanitized text and whether any redactions were made.
  */
-export function sanitizeChannelOutput(text: string): { text: string; redacted: boolean } {
+export function sanitizeChannelOutput(text: string) {
   const result = sanitizeChannelOutputSilently(text)
   for (const pattern of result.redactedPatterns) {
     logger.warn('Redacted sensitive content from channel output', { pattern })
@@ -21,7 +21,7 @@ export function sanitizeChannelOutput(text: string): { text: string; redacted: b
 }
 
 /** Same sanitization as {@link sanitizeChannelOutput}, without logging, for repeated live-preview passes. */
-export function sanitizeChannelOutputSilently(text: string): { text: string; redactedPatterns: string[] } {
+export function sanitizeChannelOutputSilently(text: string) {
   let result = stripCitationMarkers(text)
   const redactedPatterns: string[] = []
 

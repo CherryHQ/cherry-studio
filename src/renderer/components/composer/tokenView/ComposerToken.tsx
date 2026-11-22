@@ -104,10 +104,12 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
 }
 
 /** Glyphs a producer can name in a token's persisted `icon`; any other value (an emoji) renders as text. */
-const namedTokenIcons: Record<string, ReactNode> = {
-  comment: <MessageSquareText className={tokenIconClassName} />,
-  quote: <TextQuote className={tokenIconClassName} />
-}
+const namedTokenIcons: ReadonlyMap<string, ReactNode> = new Map(
+  Object.entries({
+    comment: <MessageSquareText className={tokenIconClassName} />,
+    quote: <TextQuote className={tokenIconClassName} />
+  })
+)
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
   event.preventDefault()
@@ -275,7 +277,7 @@ function renderActiveComposerTokenElement({
       {...interactionProps}>
       <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
-          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons[token.icon]) || token.icon : icon}
+          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons.get(token.icon)) || token.icon : icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName="size-[1em] rounded-[4px]"

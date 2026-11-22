@@ -285,10 +285,7 @@ export class BehaviorController {
   }
 
   /** The override if one is set, else what the registry declares. */
-  private resolveAlwaysOnTop(
-    windowId: string,
-    managed: ManagedWindow
-  ): { level?: AlwaysOnTopLevel; relativeLevel?: number } {
+  private resolveAlwaysOnTop(windowId: string, managed: ManagedWindow): NonNullable<WindowBehavior['alwaysOnTop']> {
     const override = this.alwaysOnTopLevelOverride.get(windowId)
     if (override !== undefined) return { level: override }
     return managed.metadata.behavior?.alwaysOnTop ?? {}

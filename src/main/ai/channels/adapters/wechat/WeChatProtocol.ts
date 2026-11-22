@@ -470,7 +470,7 @@ async function parseJsonResponse<TSchema extends z.ZodType>(
   return schema.parse(raw)
 }
 
-function buildHeaders(token: string, uin: string): Record<string, string> {
+function buildHeaders(token: string, uin: string) {
   return {
     'Content-Type': 'application/json',
     AuthorizationType: 'ilink_bot_token',
@@ -616,19 +616,7 @@ async function pollQrStatus(baseUrl: string, qrcode: string): Promise<QrStatusRe
   })
 }
 
-function buildTextMessage(
-  userId: string,
-  contextToken: string,
-  text: string
-): {
-  from_user_id: string
-  to_user_id: string
-  client_id: string
-  message_type: MessageType
-  message_state: MessageState
-  context_token: string
-  item_list: MessageItem[]
-} {
+function buildTextMessage(userId: string, contextToken: string, text: string) {
   return {
     from_user_id: '',
     to_user_id: userId,

@@ -26,23 +26,24 @@ export const TooltipSurface = ({ active = true, children }: { active?: boolean; 
   return <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
 }
 
+const PLACEMENTS = new Map<string, { side: Side; align: Align }>([
+  ['top', { side: 'top', align: 'center' }],
+  ['top-start', { side: 'top', align: 'start' }],
+  ['top-end', { side: 'top', align: 'end' }],
+  ['bottom', { side: 'bottom', align: 'center' }],
+  ['bottom-start', { side: 'bottom', align: 'start' }],
+  ['bottom-end', { side: 'bottom', align: 'end' }],
+  ['bottomRight', { side: 'bottom', align: 'end' }],
+  ['left', { side: 'left', align: 'center' }],
+  ['left-start', { side: 'left', align: 'start' }],
+  ['left-end', { side: 'left', align: 'end' }],
+  ['right', { side: 'right', align: 'center' }],
+  ['right-start', { side: 'right', align: 'start' }],
+  ['right-end', { side: 'right', align: 'end' }]
+])
+
 function parsePlacement(placement?: string): { side: Side; align: Align } {
-  const mapping: Record<string, { side: Side; align: Align }> = {
-    top: { side: 'top', align: 'center' },
-    'top-start': { side: 'top', align: 'start' },
-    'top-end': { side: 'top', align: 'end' },
-    bottom: { side: 'bottom', align: 'center' },
-    'bottom-start': { side: 'bottom', align: 'start' },
-    'bottom-end': { side: 'bottom', align: 'end' },
-    bottomRight: { side: 'bottom', align: 'end' },
-    left: { side: 'left', align: 'center' },
-    'left-start': { side: 'left', align: 'start' },
-    'left-end': { side: 'left', align: 'end' },
-    right: { side: 'right', align: 'center' },
-    'right-start': { side: 'right', align: 'start' },
-    'right-end': { side: 'right', align: 'end' }
-  }
-  return mapping[placement ?? 'top'] ?? { side: 'top', align: 'center' }
+  return PLACEMENTS.get(placement ?? 'top') ?? { side: 'top', align: 'center' }
 }
 
 /** Close-after 挂载窗口，与退出动画时长一致：Radix Presence 靠 animationend 卸载，布局重排可能吞掉该事件

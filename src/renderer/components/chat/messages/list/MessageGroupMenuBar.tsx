@@ -18,10 +18,7 @@ import MessageGroupSettings from './MessageGroupSettings'
 
 const logger = loggerService.withContext('MessageGroupMenuBar')
 
-function selectRetryCandidates(
-  messages: MessageListItem[],
-  selectedMessageId: string
-): { candidates: MessageListItem[]; skippedCount: number } {
+function selectRetryCandidates(messages: MessageListItem[], selectedMessageId: string) {
   const candidatesByModel = new Map<string, MessageListItem>()
 
   for (const message of messages) {

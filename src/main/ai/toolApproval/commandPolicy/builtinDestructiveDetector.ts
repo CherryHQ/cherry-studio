@@ -259,7 +259,7 @@ function findClosingQuote(code: string, start: number, quote: string): number {
 }
 
 /** Blank a template literal's text but keep its `${…}` expressions, which execute. */
-function stripTemplateLiteral(code: string, start: number): { output: string; end: number } {
+function stripTemplateLiteral(code: string, start: number) {
   let output = ' '
   let index = start + 1
   while (index < code.length) {

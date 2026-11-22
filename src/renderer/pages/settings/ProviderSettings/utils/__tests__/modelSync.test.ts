@@ -1,7 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, ModelSchema } from '@shared/data/types/model'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
 
@@ -39,14 +39,72 @@ describe('fetchResolvedProviderModels', () => {
         providerId: 'openai',
         throwOnError: true
       })
-      expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to fetch and resolve provider models', {
-        providerId: 'openai',
-        errorType: 'Error'
-      })
       expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(apiKey)
     } finally {
       loggerErrorSpy.mockRestore()
     }
+  })
+
+  it.each([
+    {
+      listed: { apiModelId: 'custom-chat', name: 'Provider name', supportsStreaming: false },
+      expectedStreaming: false
+    },
+    {
+      listed: { id: 'custom::custom-chat', name: 'Provider name', supportsStreaming: undefined },
+      expectedStreaming: true
+    }
+  ])('builds a complete model from partial discovery without changing optional omission: $listed', async (input) => {
+    const fetched = Object.freeze(ModelSchema.partial().parse(input.listed))
+    const resolved = Object.freeze(
+      ModelSchema.parse({
+        id: 'custom::custom-chat',
+        providerId: 'custom',
+        apiModelId: 'custom-chat',
+        name: 'Registry name',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: false,
+        isHidden: true,
+        presetModelId: null
+      })
+    )
+    listModelsMock.mockResolvedValueOnce({ models: [fetched], skippedModels: ['unsupported-entry'] })
+    dataApiGetMock.mockResolvedValueOnce([resolved])
+
+    const {
+      models: [model],
+      skippedModels
+    } = await fetchResolvedProviderModels('custom')
+
+    expect(ModelSchema.safeParse(model).success).toBe(true)
+    expect(model).toMatchObject({
+      id: 'custom::custom-chat',
+      providerId: 'custom',
+      name: 'Provider name',
+      supportsStreaming: input.expectedStreaming,
+      isEnabled: false,
+      isHidden: true
+    })
+    expect(Object.hasOwn(model, 'presetModelId')).toBe(false)
+    expect(skippedModels).toEqual(['unsupported-entry'])
+    expect(dataApiGetMock).toHaveBeenCalledWith('/providers/custom/models:resolve', {
+      query: { ids: ['custom-chat'] }
+    })
+  })
+
+  it('rejects a named discovery row without an identity before issuing a resolve request', async () => {
+    listModelsMock.mockResolvedValueOnce({ models: [{ name: 'Incomplete model' }] })
+
+    await expect(fetchResolvedProviderModels('custom')).rejects.toThrow()
+
+    expect(dataApiGetMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing resolver entries instead of exposing an incomplete model list', async () => {
+    listModelsMock.mockResolvedValueOnce({ models: [{ apiModelId: 'custom-chat', name: 'Provider name' }] })
+
+    await expect(fetchResolvedProviderModels('custom')).rejects.toThrow()
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {

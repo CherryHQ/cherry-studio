@@ -24,8 +24,7 @@ const storageNames = {
 async function readSecret(command: string, args: string[], signal: AbortSignal, input?: string): Promise<Buffer> {
   signal.throwIfAborted()
   return new Promise((resolve, reject) => {
-    let value: Buffer | undefined
-    let failure: unknown
+    let settle = () => reject(new CookieImportError('key_unavailable'))
     const child = execFile(
       command,
       args,
@@ -33,7 +32,8 @@ async function readSecret(command: string, args: string[], signal: AbortSignal, 
       (error, stdout, stderr) => {
         if (signal.aborted) {
           stdout.fill(0)
-          failure = signal.reason
+          const reason = signal.reason
+          settle = () => reject(reason)
         } else if (error) {
           stdout.fill(0)
           const denied =
@@ -41,18 +41,15 @@ async function readSecret(command: string, args: string[], signal: AbortSignal, 
             (command === 'security' && [36, 51, 128].includes(Number(error.code))) ||
             (command === 'kwallet-query' && error.code === 2) ||
             /org\.freedesktop\.(DBus\.Error\.AccessDenied|Secret\.Error\.Dismissed)/.test(stderr.toString())
-          failure = new CookieImportError(
+          const failure = new CookieImportError(
             error.code === 'ENOENT' ? 'key_store_unavailable' : denied ? 'access_denied' : 'key_unavailable'
           )
-        } else value = stdout
+          settle = () => reject(failure)
+        } else settle = () => resolve(stdout)
         stderr.fill(0)
       }
     )
-    child.once('close', () => {
-      if (failure) reject(failure)
-      else if (value) resolve(value)
-      else reject(new CookieImportError('key_unavailable'))
-    })
+    child.once('close', () => settle())
     // Child-process errors can include stdout/stderr; never propagate those secret-bearing errors.
     child.stdin?.on('error', () => undefined)
     child.stdin?.end(input)

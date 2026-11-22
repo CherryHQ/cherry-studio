@@ -167,7 +167,7 @@ function parsePrice(value: string, optional: boolean) {
 
   const parsedValue = Number(trimmedValue)
   if (trimmedValue === '' || !Number.isFinite(parsedValue) || parsedValue < 0) {
-    return { error: 'invalidPrice' satisfies ModelPricingDraftError }
+    return { error: 'invalidPrice' } satisfies { error: ModelPricingDraftError }
   }
 
   return { value: parsedValue }

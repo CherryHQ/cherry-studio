@@ -106,11 +106,9 @@ function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): Se
  * with a stable `{ type, name }` descriptor so the signature is built from a
  * serializable subset instead of deep-normalizing the live SDK object graph.
  */
-function sanitizeMcpServersForSignature(
-  mcpServers: NonNullable<Options['mcpServers']>
-): Record<string, McpServerConfigForProcessTransport> {
+function sanitizeMcpServersForSignature(mcpServers: NonNullable<Options['mcpServers']>) {
   return Object.fromEntries(
-    Object.entries(mcpServers).map(([key, config]) => {
+    Object.entries(mcpServers).map(([key, config]): [string, McpServerConfigForProcessTransport] => {
       if (config.type !== 'sdk') return [key, config]
       return [key, { type: config.type, name: config.name, timeout: config.timeout, tools: config.tools }]
     })

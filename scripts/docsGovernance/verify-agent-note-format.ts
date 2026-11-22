@@ -45,7 +45,7 @@ const visibleText = (node: Node): string => {
   return (node as Parent).children.map(visibleText).join('')
 }
 
-const parseSections = (content: string, root: Root): { headings: string[]; sections: Map<string, RootContent[]> } => {
+const parseSections = (content: string, root: Root) => {
   const headings: string[] = []
   const sections = new Map<string, RootContent[]>()
   for (let index = 0; index < root.children.length; index += 1) {
@@ -140,12 +140,12 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
 
   const headings = parsed.headings
   if (headings[0] !== '## Problem') errors.push('the first section must be `## Problem`')
-  const required: Record<string, string[]> = {
-    proposed: ['## Proposal', '## Alternatives considered', '## Acceptance criteria', '## Risks'],
-    implemented: ['## Decision', '## Alternatives considered', '## Consequences', '## Verification'],
-    rejected: ['## Proposal', '## Rejection rationale', '## Alternatives considered']
-  }
-  for (const heading of required[lifecycle] ?? []) {
+  const required: ReadonlyMap<string, readonly string[]> = new Map([
+    ['proposed', ['## Proposal', '## Alternatives considered', '## Acceptance criteria', '## Risks']],
+    ['implemented', ['## Decision', '## Alternatives considered', '## Consequences', '## Verification']],
+    ['rejected', ['## Proposal', '## Rejection rationale', '## Alternatives considered']]
+  ])
+  for (const heading of required.get(lifecycle) ?? []) {
     if (!headings.includes(heading)) errors.push(`missing required section ${heading}`)
   }
   if (lifecycle === 'implemented') {

@@ -66,10 +66,7 @@ export type AgentTaskOutput = {
 }
 
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
-function makeRunSignal(
-  outerSignal: AbortSignal,
-  timeoutMinutes: number | undefined
-): { signal: AbortSignal; dispose: () => void } {
+function makeRunSignal(outerSignal: AbortSignal, timeoutMinutes: number | undefined) {
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }
   }

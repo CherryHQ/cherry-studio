@@ -27,18 +27,18 @@ import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { withScratch } from './scratch'
 import { completeSpeechOperation } from './sdkOperations'
 
-const LANGUAGES: Record<string, string> = {
-  'zh-CN': 'chinese',
-  'en-US': 'english',
-  'ja-JP': 'japanese',
-  'ko-KR': 'korean',
-  'de-DE': 'german',
-  'fr-FR': 'french',
-  'ru-RU': 'russian',
-  'pt-PT': 'portuguese',
-  'es-ES': 'spanish',
-  'it-IT': 'italian'
-}
+const LANGUAGES: ReadonlyMap<string, string> = new Map([
+  ['zh-CN', 'chinese'],
+  ['en-US', 'english'],
+  ['ja-JP', 'japanese'],
+  ['ko-KR', 'korean'],
+  ['de-DE', 'german'],
+  ['fr-FR', 'french'],
+  ['ru-RU', 'russian'],
+  ['pt-PT', 'portuguese'],
+  ['es-ES', 'spanish'],
+  ['it-IT', 'italian']
+])
 const VOICES: LocalSpeechVoice[] = [
   ['vivian', 'Vivian', 'zh-CN'],
   ['serena', 'Serena', 'zh-CN'],
@@ -49,7 +49,7 @@ const VOICES: LocalSpeechVoice[] = [
   ['aiden', 'Aiden', 'en-US'],
   ['ono_anna', 'Ono Anna', 'ja-JP'],
   ['sohee', 'Sohee', 'ko-KR']
-].map(([id, name, locale]) => ({ id, name, locale, languages: Object.keys(LANGUAGES) }))
+].map(([id, name, locale]) => ({ id, name, locale, languages: [...LANGUAGES.keys()] }))
 
 export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
@@ -98,12 +98,11 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
     async doGenerate(input) {
       checkAbort(input.abortSignal)
       const voice = VOICES.find((voice) => voice.id === options.voice)
-      const language = options.language ?? voice?.locale
+      const language = LANGUAGES.get(options.language ?? voice?.locale ?? '')
       const speed = options.speed ?? DEFAULT_SPEECH_SPEED
       if (
         !voice ||
         !language ||
-        !LANGUAGES[language] ||
         !Number.isFinite(speed) ||
         speed < MIN_SPEECH_SPEED ||
         speed > MAX_SPEECH_SPEED ||
@@ -122,7 +121,7 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
               .get('TtsInferenceService')
               .synthesize(
                 QWEN3_TTS_BUNDLE_ID,
-                { text: input.text, voice: voice.id, language: LANGUAGES[language], speed, outputPath },
+                { text: input.text, voice: voice.id, language, speed, outputPath },
                 signal
               )
           } catch (error) {
@@ -153,23 +152,16 @@ function startPcmSpeech(
   const opened = Promise.resolve().then(() => {
     checkAbort(lifetime)
     const voice = VOICES.find((voice) => voice.id === options.voice)
-    const language = options.language ?? voice?.locale
+    const language = LANGUAGES.get(options.language ?? voice?.locale ?? '')
     const speed = options.speed ?? DEFAULT_SPEECH_SPEED
-    if (
-      !voice ||
-      !language ||
-      !LANGUAGES[language] ||
-      !Number.isFinite(speed) ||
-      speed < MIN_SPEECH_SPEED ||
-      speed > MAX_SPEECH_SPEED
-    )
+    if (!voice || !language || !Number.isFinite(speed) || speed < MIN_SPEECH_SPEED || speed > MAX_SPEECH_SPEED)
       throw new VoiceRuntimeError('invalid_request')
     return application.get('TtsInferenceService').stream(
       QWEN3_TTS_BUNDLE_ID,
       {
         ...(input.kind === SpeechInputKind.Text && { text: input.text }),
         voice: voice.id,
-        language: LANGUAGES[language],
+        language,
         speed
       },
       lifetime
@@ -276,7 +268,7 @@ export const qwen3SpeechDefinition: SpeechModelDefinition = {
   },
   getDefaultVoice: async (language, signal) => {
     checkAbort(signal)
-    if (language && !LANGUAGES[language]) return null
+    if (language && !LANGUAGES.has(language)) return null
     return VOICES.find((voice) => voice.locale === language) ?? VOICES[0]
   },
   download: () =>

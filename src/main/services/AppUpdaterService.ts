@@ -541,11 +541,7 @@ export class AppUpdaterService extends BaseService {
    * current against an older (e.g. stable) feed, but not when the feed advertises a newer version.
    * Unparseable versions stay current.
    */
-  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined): {
-    currentVersion: string
-    feedVersion: string | null
-    isCurrent: boolean
-  } {
+  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined) {
     const currentVersion = app.getVersion()
     const feedVersion = updateInfo?.version || null
     let isCurrent = true

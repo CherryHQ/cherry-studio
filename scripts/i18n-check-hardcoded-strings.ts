@@ -41,9 +41,9 @@ const UI_ATTRIBUTES = [
   'body'
 ]
 
-const CONTEXT_SENSITIVE_ATTRIBUTES: Record<string, string[]> = {
-  content: ['Tooltip', 'Popover', 'Modal', 'Popconfirm', 'Alert', 'Notification', 'Message']
-}
+const CONTEXT_SENSITIVE_ATTRIBUTES: ReadonlyMap<string, readonly string[]> = new Map([
+  ['content', ['Tooltip', 'Popover', 'Modal', 'Popconfirm', 'Alert', 'Notification', 'Message']]
+])
 
 const UI_PROPERTIES = ['message', 'text', 'title', 'label', 'placeholder', 'description', 'detail']
 
@@ -248,7 +248,7 @@ function shouldCheckAttribute(attrName: string, elementName: string | null): boo
   if (UI_ATTRIBUTES.includes(attrName)) {
     return true
   }
-  const allowedComponents = CONTEXT_SENSITIVE_ATTRIBUTES[attrName]
+  const allowedComponents = CONTEXT_SENSITIVE_ATTRIBUTES.get(attrName)
   if (allowedComponents && elementName) {
     return allowedComponents.includes(elementName)
   }

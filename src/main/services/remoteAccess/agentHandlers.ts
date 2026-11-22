@@ -68,6 +68,7 @@ export function registerAgentMethods(
       Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The protocol map preserves each method's correlated params/result types for generic registration.
   const taskHandlers: { [M in TaskMethod]: (params: AgentParams<M>) => AgentResult<M> } = {
     'agent.tasks.list': listTasks,
     'agent.tasks.get': ({ taskId }) => ({ task: getTask(taskId) }),

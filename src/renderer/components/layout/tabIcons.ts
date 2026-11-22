@@ -24,29 +24,29 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 
 // ─── Route → Icon mapping ─────────────────────────────────────────────────────
 
-export const ROUTE_ICONS: Record<string, IconComponent> = {
-  '/app/chat': MessageCircle,
-  '/app/browser': Globe,
-  '/app/agents': MousePointerClick,
-  '/app/scheduled-tasks': Clock,
-  '/app/paintings': Palette,
-  '/app/marketplace': Store,
-  '/app/translate': Languages,
-  '/app/mini-app': LayoutGrid,
-  '/app/launchpad': Rocket,
-  '/app/knowledge': FileSearch,
-  '/app/file-preview': ScanSearch,
-  '/app/files': Folder,
-  '/app/code': Code,
-  '/app/notes': NotepadText,
-  '/app/release-notes': Sparkles,
-  '/settings': Settings
-}
+export const ROUTE_ICONS: ReadonlyMap<string, IconComponent> = new Map([
+  ['/app/chat', MessageCircle],
+  ['/app/browser', Globe],
+  ['/app/agents', MousePointerClick],
+  ['/app/scheduled-tasks', Clock],
+  ['/app/paintings', Palette],
+  ['/app/marketplace', Store],
+  ['/app/translate', Languages],
+  ['/app/mini-app', LayoutGrid],
+  ['/app/launchpad', Rocket],
+  ['/app/knowledge', FileSearch],
+  ['/app/file-preview', ScanSearch],
+  ['/app/files', Folder],
+  ['/app/code', Code],
+  ['/app/notes', NotepadText],
+  ['/app/release-notes', Sparkles],
+  ['/settings', Settings]
+])
 
 export function getTabIcon(tab: Tab): IconComponent {
   if (tab.type === 'webview') return Globe
   const pathname = parseAppRouteUrl(tab.url)?.pathname ?? '/'
   const segments = pathname.split('/').filter(Boolean)
   const key = segments[0] === 'app' && segments.length >= 2 ? '/app/' + segments[1] : '/' + (segments[0] || '')
-  return ROUTE_ICONS[key] || MessageCircle
+  return ROUTE_ICONS.get(key) || MessageCircle
 }

@@ -51,7 +51,10 @@ export const FileProcessorIcon = ({ processorId, size = 16, className }: FilePro
     )
   }
 
-  const Logo = (PROCESSOR_LOGOS as Partial<Record<string, CompoundIcon>>)[processorId]
+  // SAFETY: The own-key check restricts persisted ids to this finite logo catalog.
+  const Logo = Object.hasOwn(PROCESSOR_LOGOS, processorId)
+    ? PROCESSOR_LOGOS[processorId as keyof typeof PROCESSOR_LOGOS]
+    : undefined
 
   if (!Logo) {
     return <FileText size={size} className={cn('shrink-0 text-muted-foreground', className)} />

@@ -99,10 +99,15 @@ const DELIMITER_FALLBACKS: ReadonlyArray<{ separator: string; score: number }> =
   { separator: ' ', score: 3 }
 ]
 
-const SEPARATOR_ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\' }
+const SEPARATOR_ESCAPES = new Map([
+  ['n', '\n'],
+  ['t', '\t'],
+  ['r', '\r'],
+  ['\\', '\\']
+])
 /** Convert a user-typed escaped delimiter (`"\\n\\n"`, `"\\t"`) into its literal characters. */
 function unescapeSeparator(raw: string): string {
-  return raw.replace(/\\([ntr\\])/g, (_match, code: string) => SEPARATOR_ESCAPES[code])
+  return raw.replace(/\\([ntr\\])/g, (match, code: string) => SEPARATOR_ESCAPES.get(code) ?? match)
 }
 
 /**

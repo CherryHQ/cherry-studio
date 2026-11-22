@@ -91,18 +91,18 @@ class MarkdownResultStore {
 
 export const markdownResultStore = new MarkdownResultStore()
 
-function getMarkdownPersistenceLogContext(options: {
-  jobId: string
-  result: MarkdownPersistencePayload
-}): Record<string, string> {
-  const context: Record<string, string> = {
+function getMarkdownPersistenceLogContext(options: { jobId: string; result: MarkdownPersistencePayload }) {
+  const context = {
     jobId: options.jobId,
     resultKind: options.result.kind
   }
 
   if (options.result.kind === 'remote-zip-url') {
-    context.downloadUrl = redactUrlToOrigin(options.result.downloadUrl)
-    context.configuredApiHost = options.result.configuredApiHost
+    return {
+      ...context,
+      downloadUrl: redactUrlToOrigin(options.result.downloadUrl),
+      configuredApiHost: options.result.configuredApiHost
+    }
   }
 
   return context

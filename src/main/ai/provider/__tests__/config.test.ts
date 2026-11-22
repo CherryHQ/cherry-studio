@@ -2221,7 +2221,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           providerOptions: buildVendorProviderOptions(
             config.providerId,
             paramValues,
-            WIRE_REGISTRY[config.providerId],
+            WIRE_REGISTRY.get(config.providerId)!,
             vendorBag
           ),
           headers: undefined,

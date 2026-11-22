@@ -10,10 +10,7 @@ export function isStreamLimits(value: unknown): value is UtilityProcessStreamLim
   )
 }
 
-export function encodeStreamFrame(
-  frame: UtilityProcessStreamFrame,
-  maxBytes: number
-): { metadata: string; payload?: Uint8Array; bytes: number } {
+export function encodeStreamFrame(frame: UtilityProcessStreamFrame, maxBytes: number) {
   const metadata = frame.metadata
   if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata))
     throw new TypeError('Invalid stream metadata')

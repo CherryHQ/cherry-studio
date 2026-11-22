@@ -43,8 +43,8 @@ const file = (byte: number): NonNullable<ImageModelV3CallOptions['files']>[numbe
   ({ mediaType: 'image/png', data: new Uint8Array([byte]) }) as NonNullable<ImageModelV3CallOptions['files']>[number]
 
 /** What `AiService.generateImage` delivers for a canonical param bag. */
-const deliver = (paramValues: Record<string, unknown>) =>
-  buildVendorProviderOptions('doubao', paramValues, WIRE_REGISTRY.doubao, paramValues)
+const deliver = <T>(paramValues: Record<string, T>) =>
+  buildVendorProviderOptions('doubao', paramValues, WIRE_REGISTRY.get('doubao')!, paramValues)
 
 describe('Doubao (Ark) image boundary', () => {
   it('delivers the vendor body under `bytedance`, the key the package reads', () => {

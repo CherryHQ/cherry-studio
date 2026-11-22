@@ -1,5 +1,3 @@
-import type { JSONObject } from '@ai-sdk/provider'
-
 import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,7 +39,7 @@ export interface CherryWebSearchConfig {
 const qwencloudResponsesOnlySearch =
   /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|deepseek-v4[.-]1-flash(?:-1017)?|glm-5[.-]2|kimi-k3)$/
 
-export function getWebSearchParams(model: Model, provider: Provider | undefined): JSONObject {
+export function getWebSearchParams(model: Model, provider: Provider | undefined) {
   if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
     // reach — transformZhipuRequestBody moves this marker into `tools`
@@ -60,8 +58,7 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       : /qwen3-max|omni|qwen3-vl/.test(apiModelId)
         ? 'agent'
         : undefined
-    const searchOptions = { forced_search: true }
-    if (searchStrategy) Object.assign(searchOptions, { search_strategy: searchStrategy })
+    const searchOptions = { forced_search: true, ...(searchStrategy && { search_strategy: searchStrategy }) }
     return { enable_search: true, search_options: searchOptions }
   }
 
@@ -85,8 +82,7 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       )
         ? 'agent'
         : undefined
-    const searchOptions = { forced_search: true }
-    if (searchStrategy) Object.assign(searchOptions, { search_strategy: searchStrategy })
+    const searchOptions = { forced_search: true, ...(searchStrategy && { search_strategy: searchStrategy }) }
     return { enable_search: true, search_options: searchOptions }
   }
 

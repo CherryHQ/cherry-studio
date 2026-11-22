@@ -618,11 +618,7 @@ export class JobService {
    * Used by JobManager.cancelMany — covers Phase 4 Knowledge reset() and
    * FileProcessing batch cancellation semantics.
    */
-  cancelManyTx(
-    tx: DbOrTx,
-    filter: { queue?: string; type?: string },
-    error: JobError | null
-  ): { runningIds: string[]; transitioned: number } {
+  cancelManyTx(tx: DbOrTx, filter: { queue?: string; type?: string }, error: JobError | null) {
     const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_JOB_STATUSES)]
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
     if (filter.type) conditions.push(eq(jobTable.type, filter.type))

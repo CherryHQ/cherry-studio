@@ -435,18 +435,12 @@ export class AgentTaskService {
     return task
   }
 
-  listTasks(
-    agentId: string,
-    options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): { tasks: ScheduledTaskEntity[]; total: number } {
+  listTasks(agentId: string, options: ListOptions & { includeHeartbeat?: boolean } = {}) {
     return this.queryTasks({ ...options, agentId })
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}): {
-    tasks: ScheduledTaskListItem[]
-    total: number
-  } {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}) {
     const result = this.queryTasks(options)
     const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
     return {
@@ -457,10 +451,7 @@ export class AgentTaskService {
 
   queryTasks(
     options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
-  ): {
-    tasks: ScheduledTaskEntity[]
-    total: number
-  } {
+  ) {
     const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
@@ -529,7 +520,7 @@ export class AgentTaskService {
     )
   }
 
-  getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
+  getTaskLogs(taskId: string, options: ListOptions = {}) {
     const sliced = jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset })
     const total = jobService.count({ scheduleId: taskId })
 
@@ -548,7 +539,7 @@ export class AgentTaskService {
     return agentSessionService.listByCursor({ ...query, scope: 'all-conversations', agentId: task.agentId, taskId })
   }
 
-  listTaskRuns(taskId: string, options: { limit: number; offset?: number }): { runs: TaskRunRecord[]; total: number } {
+  listTaskRuns(taskId: string, options: { limit: number; offset?: number }) {
     const task = this.getTaskById(taskId)
     if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
     const filter = { type: AGENT_TASK_TYPE, scheduleId: taskId }

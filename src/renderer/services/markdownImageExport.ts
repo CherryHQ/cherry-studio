@@ -258,18 +258,18 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-const MIME_EXTS: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/bmp': 'bmp',
-  'image/avif': 'avif',
-  'image/svg+xml': 'svg'
-}
+const MIME_EXTS: ReadonlyMap<string, string> = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/gif', 'gif'],
+  ['image/webp', 'webp'],
+  ['image/bmp', 'bmp'],
+  ['image/avif', 'avif'],
+  ['image/svg+xml', 'svg']
+])
 
 function imageExtension(ref: ExportableImageRef, mime: string | undefined): string {
-  const fromMime = mime ? MIME_EXTS[mime.toLowerCase()] : undefined
+  const fromMime = mime ? MIME_EXTS.get(mime.toLowerCase()) : undefined
   if (fromMime) return fromMime
   const fromName = ref.filename?.includes('.') ? ref.filename.split('.').pop() : undefined
   if (fromName && /^[a-zA-Z0-9]{1,5}$/.test(fromName)) return fromName.toLowerCase()

@@ -88,7 +88,10 @@ const MISE_PASSTHROUGH_ENV = [
 
 // Backend → default runtime spec. The runtime name must be a registered
 // RuntimeInterpreter, so a new backend can't silently bypass isRuntimeDependency.
-const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@22', pipx: 'python@3.12' }
+const RUNTIME_DEPS: ReadonlyMap<string, `${RuntimeInterpreter}@${string}`> = new Map([
+  ['npm', 'node@22'],
+  ['pipx', 'python@3.12']
+])
 
 // Query commands (which/ls/registry/latest) finish in seconds. Installs are a
 // different budget entirely: `use` may download a full runtime (node, python)
@@ -181,7 +184,7 @@ function toPipxRegistryUrl(indexUrl: string): string {
 // resolves the version through MISE_PIPX_REGISTRY_URL and hands the download to
 // uv, which it only tells about an *extra* index (UV_INDEX) — so UV_DEFAULT_INDEX
 // is what actually displaces pypi.org, and PIP_INDEX_URL covers a pipx fallback.
-function pipIndexEnv(index: string): Record<string, string> {
+function pipIndexEnv(index: string) {
   return {
     PIP_INDEX_URL: index,
     MISE_PIPX_REGISTRY_URL: toPipxRegistryUrl(index),
@@ -436,18 +439,18 @@ export class BinaryManager extends BaseService {
    * or null when the marker is missing. Absent keys mean the binary is not
    * bundled or hasn't been extracted yet.
    */
-  private probeBundled(): Record<string, string | null> {
+  private probeBundled() {
     const binDir = application.getPath('cherry.bin')
-    const result: Record<string, string | null> = {}
+    const result = new Map<string, string | null>()
     // Skip mise (internal infrastructure). Record every shipped executable so
     // aliases such as uvx resolve through the same bundled boundary as uv.
     for (const tool of BUNDLED_TOOLS.filter((t) => !t.internal)) {
       const version = this.readVersionMarker(path.join(binDir, tool.versionFile))
       for (const binary of tool.binaries) {
-        if (fs.existsSync(path.join(binDir, getBinaryName(binary)))) result[binary] = version
+        if (fs.existsSync(path.join(binDir, getBinaryName(binary)))) result.set(binary, version)
       }
     }
-    return result
+    return Object.fromEntries(result)
   }
 
   /**
@@ -1523,7 +1526,7 @@ export class BinaryManager extends BaseService {
    * a `pyvenv.cfg` pointing straight into that install directory.
    */
   private async releaseMisePythonSelection(): Promise<void> {
-    const runtimeName = RUNTIME_DEPS.pipx.split('@')[0]
+    const runtimeName = 'python'
     const userOwned = this.getCustomDefinitions().some(
       (entry) => normalizeToolIdentity(entry.tool).split('@')[0] === runtimeName
     )
@@ -1543,7 +1546,7 @@ export class BinaryManager extends BaseService {
   ): Promise<string> {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
-    const defaultRuntime = RUNTIME_DEPS[backend]
+    const defaultRuntime = RUNTIME_DEPS.get(backend)
     const runtimeName = defaultRuntime?.split('@')[0]
     const pinnedRuntime = runtimeName
       ? definitions.find((entry) => {
@@ -2322,9 +2325,7 @@ export class BinaryManager extends BaseService {
     if (!isRuntimeDependency(definition.tool)) return []
     const runtimeName = definition.tool.replace(/^core:/, '').split('@')[0]
     const dependentBackends = new Set(
-      Object.entries(RUNTIME_DEPS)
-        .filter(([, dep]) => dep.split('@')[0] === runtimeName)
-        .map(([backend]) => backend)
+      Array.from(RUNTIME_DEPS).flatMap(([backend, dep]) => (dep.split('@')[0] === runtimeName ? [backend] : []))
     )
     if (dependentBackends.size === 0) return []
 

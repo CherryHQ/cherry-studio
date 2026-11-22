@@ -8,6 +8,12 @@ vi.mock('react-i18next', () => ({
 import { SkillSourceBadge } from '../SkillSourceBadge'
 
 describe('SkillSourceBadge', () => {
+  it.each(['constructor', '__proto__', 'toString'])('keeps the literal label for an unknown %s source', (source) => {
+    render(<SkillSourceBadge source={source} />)
+
+    expect(screen.getByText(source)).toBeInTheDocument()
+  })
+
   it('derives the registry label from an exact marketplace Skill URL', () => {
     render(<SkillSourceBadge source="marketplace" sourceUrl="https://skills.sh/owner/repo/writer" />)
 

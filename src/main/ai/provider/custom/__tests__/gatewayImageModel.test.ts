@@ -36,9 +36,9 @@ const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageMod
 const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV3 =>
   ({ doGenerate }) as unknown as LanguageModelV3
 
-const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
+const gatewayProviderOptions = <T>(paramValues: Record<string, T>) => {
   const { vendorBag } = splitParamValues(paramValues)
-  const registration = WIRE_REGISTRY.gateway ?? DEFAULT_DIFFUSION_REGISTRATION
+  const registration = WIRE_REGISTRY.get('gateway') ?? DEFAULT_DIFFUSION_REGISTRATION
   return buildVendorProviderOptions('gateway', paramValues, registration, vendorBag)
 }
 
@@ -56,6 +56,18 @@ describe('isGatewayGeminiImageModel', () => {
 })
 
 describe('createGatewayGeminiImageModel', () => {
+  it.each([{ imageConfig: 'invalid-config' }, { imageConfig: ['invalid-config'] }])(
+    'does not spread a non-object imageConfig into SDK options: %j',
+    async ({ imageConfig }) => {
+      const doGenerate = vi.fn().mockResolvedValue({ content: [], response: {} })
+      const model = createGatewayGeminiImageModel(fakeLanguageModel(doGenerate), 'gemini-2.5-flash-image')
+
+      await model.doGenerate(callOptions({ aspectRatio: '16:9', providerOptions: { google: { imageConfig } } }))
+
+      expect(doGenerate.mock.calls[0][0].providerOptions.google.imageConfig).toEqual({ aspectRatio: '16:9' })
+    }
+  )
+
   it('drives the language API with responseModalities IMAGE and returns the image', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
       content: [{ type: 'file', mediaType: 'image/png', data: 'BASE64DATA' }],

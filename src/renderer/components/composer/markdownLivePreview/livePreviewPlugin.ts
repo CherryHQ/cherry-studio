@@ -43,13 +43,13 @@ const livePreviewKey = new PluginKey<LivePreviewState>('composerMarkdownLivePrev
 
 const HEADING_NODE = /^ATXHeading([1-6])$/
 const SETEXT_HEADING_NODE = /^SetextHeading([12])$/
-const DELIMITED_NODES: Record<string, { mark: string; className: string }> = {
-  Emphasis: { mark: 'EmphasisMark', className: 'composer-md-emphasis' },
-  StrongEmphasis: { mark: 'EmphasisMark', className: 'composer-md-strong' },
-  Strikethrough: { mark: 'StrikethroughMark', className: 'composer-md-delete' },
-  InlineCode: { mark: 'CodeMark', className: 'composer-md-inline-code' },
-  Autolink: { mark: 'LinkMark', className: 'composer-md-link' }
-}
+const DELIMITED_NODES: ReadonlyMap<string, { mark: string; className: string }> = new Map([
+  ['Emphasis', { mark: 'EmphasisMark', className: 'composer-md-emphasis' }],
+  ['StrongEmphasis', { mark: 'EmphasisMark', className: 'composer-md-strong' }],
+  ['Strikethrough', { mark: 'StrikethroughMark', className: 'composer-md-delete' }],
+  ['InlineCode', { mark: 'CodeMark', className: 'composer-md-inline-code' }],
+  ['Autolink', { mark: 'LinkMark', className: 'composer-md-link' }]
+])
 const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'CodeBlock', 'LinkReference'])
 
 const COMPOSITION_END_SETTLE_MS = 40
@@ -168,7 +168,7 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
         return false
       }
 
-      const delimited = DELIMITED_NODES[name]
+      const delimited = DELIMITED_NODES.get(name)
       if (delimited) addDelimited(ref.node, delimited.mark, delimited.className)
       else if (name === 'Link') addLink(ref.node)
       else if (name === 'URL' && ref.node.parent?.name !== 'Link' && ref.node.parent?.name !== 'Autolink')

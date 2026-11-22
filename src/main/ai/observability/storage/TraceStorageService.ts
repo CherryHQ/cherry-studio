@@ -69,7 +69,7 @@ function sumEventBytes(events: TimedEvent[]): number {
  * re-measure what it already retains. An event larger than the byte budget is dropped: trace detail
  * is best-effort and must not defeat the memory bound by itself.
  */
-function capSpanEvents(events: TimedEvent[], bytes: number): { events: TimedEvent[]; bytes: number } {
+function capSpanEvents(events: TimedEvent[], bytes: number) {
   let dropped = 0
   let retained = bytes
   while (
@@ -82,7 +82,7 @@ function capSpanEvents(events: TimedEvent[], bytes: number): { events: TimedEven
   return { events: dropped > 0 ? events.slice(dropped) : events, bytes: Math.max(0, retained) }
 }
 
-function capSpanEventArray(events: TimedEvent[] | undefined): { events: TimedEvent[] | undefined; bytes: number } {
+function capSpanEventArray(events: TimedEvent[] | undefined) {
   if (!events || events.length === 0) return { events, bytes: 0 }
   const retained: TimedEvent[] = []
   let bytes = 0

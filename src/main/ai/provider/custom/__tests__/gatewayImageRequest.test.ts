@@ -20,7 +20,7 @@ const callOptions = (providerOptions: unknown): ImageModelV3CallOptions => ({
 
 function builderOptions(params: Record<string, unknown>) {
   const { structured, vendorBag } = splitParamValues(params)
-  const registration = WIRE_REGISTRY.gateway ?? DEFAULT_DIFFUSION_REGISTRATION
+  const registration = WIRE_REGISTRY.get('gateway') ?? DEFAULT_DIFFUSION_REGISTRATION
   return { structured, providerOptions: buildVendorProviderOptions('gateway', params, registration, vendorBag) }
 }
 
@@ -49,7 +49,7 @@ describe('Gateway image request envelope', () => {
         const params = { quality, size: '1536x864', numImages: 1 }
         const { structured, vendorBag } = splitParamValues(params)
         Object.assign(vendorBag, { only: ['openai'], zeroDataRetention: true })
-        const registration = WIRE_REGISTRY.gateway ?? DEFAULT_DIFFUSION_REGISTRATION
+        const registration = WIRE_REGISTRY.get('gateway') ?? DEFAULT_DIFFUSION_REGISTRATION
         const providerOptions = buildVendorProviderOptions('gateway', params, registration, vendorBag)
         const { provider, requests } = captureGateway()
 

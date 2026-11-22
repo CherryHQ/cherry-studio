@@ -624,7 +624,7 @@ class FeishuAdapter extends ChannelAdapter {
         files.push({
           filename,
           data: buffer.toString('base64'),
-          media_type: detected?.mime ?? FILE_EXTENSION_MIME_MAP[extension] ?? 'application/octet-stream',
+          media_type: detected?.mime ?? FILE_EXTENSION_MIME_MAP.get(extension) ?? 'application/octet-stream',
           size: buffer.length
         })
       } catch (error) {

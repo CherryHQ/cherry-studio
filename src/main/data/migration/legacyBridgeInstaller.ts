@@ -47,7 +47,7 @@ export function getLegacyLinuxPackageType(): LegacyLinuxPackageType | undefined 
   }
 }
 
-export function getLegacyBridgeEligibility(profile: string): { prerequisite: boolean; target?: LegacyBridgeTarget } {
+export function getLegacyBridgeEligibility(profile: string) {
   let prerequisite = true
   try {
     const version = getLegacyBridgeVersion(

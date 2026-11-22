@@ -63,7 +63,7 @@ export function parsePreferenceWrite(
   key: string,
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model tool proposals supply untyped preference values; validate against the selected allow-listed key schema before writing.
   value: unknown
-): { key: DoctorWritablePreferenceKey; value: unknown } {
+) {
   if (!isPreferenceWritable(key)) throw new Error(`Preference "${key}" is not writable by the doctor`)
   const parsed = PREFERENCE_WRITE_SCHEMAS[key].safeParse(value)
   if (!parsed.success) throw new Error(`Invalid value for "${key}": ${parsed.error.issues[0]?.message ?? 'rejected'}`)

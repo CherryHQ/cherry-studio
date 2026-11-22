@@ -630,7 +630,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
-    const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    let repairUsagePlugins: AiPlugin[] | undefined
     const {
       sdkConfig,
       credentialReceipt,
@@ -644,7 +644,7 @@ export class AiService extends BaseService {
       hookParts,
       nativeFileSupport,
       fileAttachments
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins ?? [])
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -664,7 +664,7 @@ export class AiService extends BaseService {
           : null
     })
     const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
-    repairUsagePlugins.current = [usagePlugin]
+    repairUsagePlugins = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
 
@@ -695,7 +695,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
-    const agentRef: { current?: Agent } = {}
+    let agent: Agent | undefined
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
@@ -761,11 +761,11 @@ export class AiService extends BaseService {
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
         // PersistenceListener strips it before the message is saved.
-        onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        onRetryEvent: (event) => agent?.write({ type: 'data-retry', id: 'retry', data: event })
       })
     }
 
-    const agent = new Agent({
+    agent = new Agent({
       contextOwner: request.contextOwner,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -795,8 +795,6 @@ export class AiService extends BaseService {
         resolveModelTokenDialect(provider, model)
       )
     })
-    agentRef.current = agent
-
     return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
   }
 
@@ -857,7 +855,7 @@ export class AiService extends BaseService {
     // Model messages go directly to generation, not the UI-message context scanner.
     const { messages, ...parameterRequest } = request
 
-    const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    let repairUsagePlugins: AiPlugin[] | undefined
     const {
       sdkConfig,
       credentialReceipt,
@@ -870,7 +868,7 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport
-    } = await this.buildAgentParamsFor(parameterRequest, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(parameterRequest, signal, extraFeatures, () => repairUsagePlugins ?? [])
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -880,7 +878,7 @@ export class AiService extends BaseService {
       messageRef: null
     })
     const usagePlugin = createAiUsagePlugin(usageContext)
-    repairUsagePlugins.current = [usagePlugin]
+    repairUsagePlugins = [usagePlugin]
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
@@ -1088,7 +1086,7 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    const registration = WIRE_REGISTRY.get(sdkConfig.providerId) ?? DEFAULT_DIFFUSION_REGISTRATION
     const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio

@@ -25,7 +25,7 @@ export class EmbeddingInferenceService extends InferenceServiceBase<EmbeddingInf
     return this.run('qwen3-embedding-0.6b', 'countTokens', () => ({ ...this.resolveModel(), texts }), { signal })
   }
 
-  private resolveModel(): { modelDir: string; dtype: string } {
+  private resolveModel() {
     const bundle = getModelBundle('qwen3-embedding-0.6b')
     const modelDir = localModelStorageService.resolveInstalledDir(bundle)
     const artifactsReady = bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))

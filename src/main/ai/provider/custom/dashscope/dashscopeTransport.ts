@@ -188,7 +188,7 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
  * Family C — flat `input.prompt` body for text2image/image-synthesis
  * (qwen-image / qwen-image-plus / wanx2.x-t2i-* / wanx-v1).
  */
-function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -218,7 +218,7 @@ function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopePr
  * `prompt: { text, images }` → `options.files`). DashScope accepts both
  * `https?:` URLs and `data:` base64 URLs in `content[].image`.
  */
-function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const content: Array<{ text?: string; image?: string }> = []
   if (input.prompt) content.push({ text: input.prompt })
   for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
@@ -246,7 +246,7 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  * user attaches an image, it goes on `input.ref_image`; `style` /
  * `ref_strength` / `ref_mode` live on `parameters.*`.
  */
-function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -273,7 +273,7 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
  * Family D1 — wan2.5-i2i-preview's image2image body. `input.images` is an
  * array (up to 3 per docs); the canonical `input.files` carries them.
  */
-function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -301,7 +301,7 @@ function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  * prompt; `input.image_url` + `source_lang` + `target_lang` are the only
  * required fields (pipeline must thread `requirePrompt: false`).
  */
-function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   const firstFile = input.files?.[0]
   if (firstFile) inputBlock.image_url = fileToDataUrl(firstFile)
@@ -317,7 +317,7 @@ function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeP
  * function-specific param that's set on the bag and let DashScope ignore
  * the irrelevant ones per its documented behavior.
  */
-function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): JSONObject {
+function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   if (bag.function) inputBlock.function = bag.function
   if (input.prompt) inputBlock.prompt = input.prompt

@@ -513,6 +513,7 @@ function getDisplayProjection(
   const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part, hoistNonImageFiles)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Both projection branches expose shared token and preview collections as readonly to their rendering consumers.
     return {
       entries: entries.filter((entry) => !isHoistedEntry(entry)),
       hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS,
@@ -602,6 +603,7 @@ function getDisplayProjection(
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Preserve the same readonly projection contract when this branch constructs mutable collections internally.
   return {
     entries: displayEntries.filter((entry) => !rendersOnlyHoistedTokens(entry, hiddenImageTokens)),
     hiddenImageTokens,

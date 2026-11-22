@@ -20,23 +20,26 @@ const uvRunner: Runner = {
     `3. Restart the application if you recently installed ${command}`
 }
 
-const RUNNERS: Record<string, Runner> = {
-  npx: {
-    bundled: 'bun',
-    // `bun x -y <pkg>` is bun's npx equivalent. Prefix by position, not membership: a package
-    // argument that happens to be `x` or `-y` must not suppress it.
-    transformArgs: (args) => (args.length === 0 ? args : args[0] === '-y' ? ['x', ...args] : ['x', '-y', ...args]),
-    registryEnv: (url) => ({ NPM_CONFIG_REGISTRY: url }),
-    notFound: () =>
-      'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
-      'Please either:\n' +
-      '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
-      '2. Run the MCP dependencies installer from Settings\n' +
-      '3. Restart the application if you recently installed Node.js'
-  },
-  uvx: uvRunner,
-  uv: uvRunner
-}
+const RUNNERS: ReadonlyMap<string, Runner> = new Map<string, Runner>([
+  [
+    'npx',
+    {
+      bundled: 'bun',
+      // `bun x -y <pkg>` is bun's npx equivalent. Prefix by position, not membership: a package
+      // argument that happens to be `x` or `-y` must not suppress it.
+      transformArgs: (args) => (args.length === 0 ? args : args[0] === '-y' ? ['x', ...args] : ['x', '-y', ...args]),
+      registryEnv: (url) => ({ NPM_CONFIG_REGISTRY: url }),
+      notFound: () =>
+        'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
+        'Please either:\n' +
+        '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
+        '2. Run the MCP dependencies installer from Settings\n' +
+        '3. Restart the application if you recently installed Node.js'
+    }
+  ],
+  ['uvx', uvRunner],
+  ['uv', uvRunner]
+])
 
 export type LaunchCommand = {
   command: string
@@ -80,7 +83,7 @@ export async function resolveLaunchCommand({
     throw new Error('MCP stdio command cannot be empty')
   }
 
-  const runner = RUNNERS[normalizedCommand]
+  const runner = RUNNERS.get(normalizedCommand)
   const env = runner?.registryEnv && registryUrl ? runner.registryEnv(registryUrl) : {}
 
   const resolve = async (): Promise<CommandResolution> => {
@@ -132,10 +135,7 @@ export async function resolveLaunchCommand({
   }
 }
 
-export function buildStdioEnvironment(
-  loginShellEnv: Record<string, string>,
-  serverEnv: Record<string, string>
-): Record<string, string> {
+export function buildStdioEnvironment(loginShellEnv: Record<string, string>, serverEnv: Record<string, string>) {
   const env = { ...loginShellEnv, ...serverEnv }
   if (process.platform !== 'win32') return env
 

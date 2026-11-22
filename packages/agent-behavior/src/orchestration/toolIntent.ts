@@ -54,6 +54,7 @@ function intentFreeProperties(parameters: unknown): Schema | undefined {
 }
 
 /** `args` without `intent`; the same object when it has none, and never a mutation of the caller's object. */
+// oxlint-disable anti-slop/no-known-value-widening -- Removing intent cannot preserve every generic argument shape; remaining own values stay unvalidated until the native tool validates them.
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unvalidated tool arguments retain opaque own values; each native tool validates them after intent removal.
 export function withoutToolIntent<Args>(args: Args): Args | Record<string, unknown> {
   if (!isRecord(args) || !(TOOL_INTENT_ARG in args)) return args
@@ -61,6 +62,7 @@ export function withoutToolIntent<Args>(args: Args): Args | Record<string, unkno
   delete rest[TOOL_INTENT_ARG]
   return rest
 }
+// oxlint-enable anti-slop/no-known-value-widening
 
 /**
  * A transform that removes `intent` from each call before anything else reads it: the tool's own argument repair,

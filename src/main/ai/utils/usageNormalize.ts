@@ -1,21 +1,20 @@
-import type { LanguageModelV3Usage } from '@ai-sdk/provider'
+import { isJSONObject, type LanguageModelV3Usage } from '@ai-sdk/provider'
+import * as z from 'zod'
 
-export interface FlatV3Usage {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-  cachedInputTokens?: number
-  raw?: LanguageModelV3Usage['raw']
-}
+const flatV3UsageSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  totalTokens: z.number().optional(),
+  reasoningTokens: z.number().optional(),
+  cachedInputTokens: z.number().optional(),
+  raw: z.custom<NonNullable<LanguageModelV3Usage['raw']>>(isJSONObject).optional()
+})
 
+export type FlatV3Usage = z.infer<typeof flatV3UsageSchema>
+
+// Gateway SDK forwards usage without validation, so the legacy probe checks the full flat shape.
 export function isFlatV3Usage(usage: unknown): usage is FlatV3Usage {
-  if (!usage || typeof usage !== 'object') return false
-  const inputTokens = 'inputTokens' in usage ? usage.inputTokens : undefined
-  // V3-nested usage has `inputTokens` as an object; flat has it as a number.
-  // Also handle the case where the field is absent (still treat as flat-shaped
-  // upstream — V3 nested would carry the empty object).
-  return typeof inputTokens !== 'object' || inputTokens === null
+  return flatV3UsageSchema.safeParse(usage).success
 }
 
 export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
@@ -47,15 +46,17 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
 }
 
 /** Coerce flat provider usage into the nested AI SDK v3 shape expected by persistence. */
-export function ensureNestedV3Usage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
+export function ensureNestedV3Usage(usage: LanguageModelV3Usage | FlatV3Usage): LanguageModelV3Usage {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Even nominal SDK usage can be legacy flat data; the boundary guard validates every flat counter before conversion.
   return isFlatV3Usage(usage) ? normalizeFlatV3Usage(usage) : usage
 }
 
 export function recordTotalTokens(
-  usage: LanguageModelV3Usage,
+  usage: LanguageModelV3Usage | FlatV3Usage,
   inputTokens: number | undefined,
   outputTokens: number | undefined
 ): number | undefined {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- SDK typing does not validate the network usage shape; read totalTokens only after the legacy flat schema accepts it.
   const flatTotal = isFlatV3Usage(usage) ? usage.totalTokens : undefined
   const summed =
     inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined

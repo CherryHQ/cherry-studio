@@ -31,10 +31,10 @@ function dirHasGit(cwd: string): boolean {
  * any tool absent from this table has no runtime gate. Table-driven: the predicate function is the
  * gate (no string condition labels / switch).
  */
-const TOOL_ENABLE_PREDICATES: Record<string, (ctx: ClaudeToolContext) => boolean> = {
-  EnterWorktree: (ctx) => dirHasGit(ctx.cwd),
-  ExitWorktree: (ctx) => dirHasGit(ctx.cwd)
-}
+const TOOL_ENABLE_PREDICATES: ReadonlyMap<string, (ctx: ClaudeToolContext) => boolean> = new Map([
+  ['EnterWorktree', (ctx) => dirHasGit(ctx.cwd)],
+  ['ExitWorktree', (ctx) => dirHasGit(ctx.cwd)]
+])
 
 /**
  * Derive the SDK `disallowedTools` set from each tool's declarations:
@@ -64,7 +64,7 @@ export function resolveDisallowedTools(
       blocked.add(def.name)
       continue
     }
-    const predicate = TOOL_ENABLE_PREDICATES[def.name]
+    const predicate = TOOL_ENABLE_PREDICATES.get(def.name)
     if (predicate && ctx && !predicate(ctx)) blocked.add(def.name)
   }
 

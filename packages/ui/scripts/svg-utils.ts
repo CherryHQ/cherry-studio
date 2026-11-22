@@ -405,7 +405,7 @@ export function isLargeShape(pathD: string, vbW: number, vbH: number, threshold 
  * Parse the viewBox from an SVG element's attributes record.
  * Returns { x, y, w, h } or defaults to { 0, 0, 24, 24 }.
  */
-export function parseViewBox(attrs: Record<string, string>): { x: number; y: number; w: number; h: number } {
+export function parseViewBox(attrs: Record<string, string>) {
   const vb = attrs.viewBox || attrs.viewbox
   if (vb) {
     const parts = vb.split(/[\s,]+/).map(Number)
@@ -444,7 +444,7 @@ function colorToSaturation(hex: string): number {
  * Strips `<defs>...</defs>` blocks from analysis so clip-path and gradient
  * fills are not counted as content fills.
  */
-export function isMonochromeSvg(svgContent: string): { monochrome: boolean; darkDesigned: boolean } {
+export function isMonochromeSvg(svgContent: string) {
   // Strip <defs>...</defs> blocks from analysis
   const stripped = svgContent.replace(/<defs[\s\S]*?<\/defs>/gi, '')
 

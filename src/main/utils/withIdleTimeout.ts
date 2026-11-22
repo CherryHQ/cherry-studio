@@ -73,5 +73,6 @@ export function withIdleTimeout<T>(
   // to rearm with a longer bound; the next pulled chunk's `idle.reset()` above
   // restores the default. Don't `idle.cleanup()` to pause indefinitely — a renderer
   // that never responds would leave the stream + subprocess hanging until app quit.
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Consumers receive only IdleTimeoutHandle; the controller's signal and timer state remain internal to this stream wrapper.
   return { stream, idle }
 }

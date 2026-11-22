@@ -39,6 +39,15 @@ const implemented = proposed
   .replace('## Risks\n\nRisk.', '## Consequences\n\nConsequence.')
 
 describe('checkAgentNote', () => {
+  it.each(['constructor', '__proto__', 'toString'])(
+    'reports invalid lifecycle %s without reading inherited sections',
+    (lifecycle) => {
+      expect(checkAgentNote(`.agents/notes/${lifecycle}/feature/2026-08-20-decision.md`, proposed)).toContain(
+        'path must use proposed, implemented, or rejected lifecycle'
+      )
+    }
+  )
+
   it('accepts a proposed note with observable AC IDs', () => {
     expect(
       checkAgentNote(

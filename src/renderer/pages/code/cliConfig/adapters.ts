@@ -6,7 +6,12 @@ import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } fro
 import type { Serializable } from '@shared/types/serializable'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
-import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
+import {
+  type CliConfigWriteFile,
+  type FileConfiguredCli,
+  getCliConfigTargets,
+  isFileConfiguredCli
+} from '@shared/utils/cliConfig'
 
 import {
   buildClaudeConfig,
@@ -348,7 +353,7 @@ const claudeAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('claude-settings', read, 'Claude Code settings')
     if (!existing) return []
-    const next: Record<string, Serializable> = { ...existing }
+    const next = { ...existing }
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     if (next.permissions && typeof next.permissions === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
@@ -599,7 +604,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('opencode-config', read, 'OpenCode config')
     if (!existing) return []
-    const next: Record<string, Serializable> = { ...existing }
+    const next = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     // SAFETY: The container helper retains the JSONC parser's value domain.
     const compaction = { ...(asRecord(next.compaction) as Record<string, Serializable>) }
@@ -802,7 +807,7 @@ const qwenAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('qwen-settings', read, 'Qwen Code config')
     if (!existing) return []
-    const next: Record<string, Serializable> = { ...existing }
+    const next = { ...existing }
     if (next.env && typeof next.env === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
       next.env = omitKeysByPrefix(next.env as Record<string, Serializable>, 'CHERRY_')
@@ -903,7 +908,7 @@ const kimiAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedTomlOrNull('kimi-config', read, 'Kimi Code config')
     if (!existing) return []
-    const next: TomlTable = { ...existing }
+    const next = { ...existing }
     for (const table of ['providers', 'models'] as const) {
       if (next[table] && typeof next[table] === 'object') {
         // SAFETY: This checked container retains native values from the TOML parser.
@@ -1214,9 +1219,7 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {
-  // The registry is total over `FileConfiguredCli`, but callers hold a raw string
-  // cliTool that may name a provider-less/non-file tool — hence the runtime-safe lookup.
-  return (CLI_CONFIG_ADAPTERS as Record<string, CliConfigAdapter | undefined>)[cliTool]
+  return isFileConfiguredCli(cliTool) ? CLI_CONFIG_ADAPTERS[cliTool] : undefined
 }
 
 /** Strip a user-edited config blob to the tool params `cliTool` persists (no-op passthrough for unknown tools). */

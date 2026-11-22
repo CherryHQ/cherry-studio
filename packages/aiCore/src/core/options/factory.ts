@@ -9,6 +9,7 @@ const isPlainObject = (value: unknown): value is ProviderOptionObject => {
 }
 
 function deepMergeObjects(target: ProviderOptionObject, source: ProviderOptionObject): ProviderOptionObject {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- This merge container preserves opaque SDK values; cloning it does not validate those fields as JSON or a closed shape.
   const result: ProviderOptionObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
     const merged =

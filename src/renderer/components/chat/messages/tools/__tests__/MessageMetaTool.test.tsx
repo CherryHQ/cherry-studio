@@ -47,6 +47,19 @@ afterAll(async () => {
 })
 
 describe('MessageMetaTool', () => {
+  it.each([
+    { label: 'array', args: [{ query: 'nested query' }] },
+    { label: 'streaming text', args: '{"query":' },
+    { label: 'missing arguments', args: undefined },
+    { label: 'non-string fields', args: { query: 42, namespace: false } }
+  ])('keeps the search title usable for $label', async ({ args }) => {
+    render(<MessageMetaTool toolResponse={createMetaToolResponse({ arguments: args })} />)
+
+    expect(screen.getByText('tool_search', { exact: true })).toBeVisible()
+    await expandCard(/tool_search/)
+    expect(await screen.findByText('没有匹配的工具。')).toBeVisible()
+  })
+
   it('shows and copies diagnostic text when a native tool result cannot be serialized', async () => {
     const user = userEvent.setup()
     const copyText = vi.fn()

@@ -92,20 +92,20 @@ export const COMPOSER_SHORTCUTS: readonly ComposerShortcut[] = [
 ]
 
 // v1 (and pre-2.0 v2) stored one of five fixed strings instead of a binding.
-const LEGACY_COMPOSER_SHORTCUTS: Record<string, ComposerShortcut> = {
-  Enter: ['Enter'],
-  'Shift+Enter': ['Shift', 'Enter'],
-  'Alt+Enter': ['Alt', 'Enter'],
+const LEGACY_COMPOSER_SHORTCUTS: ReadonlyMap<string, ComposerShortcut> = new Map([
+  ['Enter', ['Enter']],
+  ['Shift+Enter', ['Shift', 'Enter']],
+  ['Alt+Enter', ['Alt', 'Enter']],
   // Command+Enter was matched against the Meta key, i.e. the OS-reserved Win/Super key
   // off macOS, where it could never fire.
-  'Command+Enter': ['CommandOrControl', 'Enter'],
-  'Ctrl+Enter': isMac ? ['Ctrl', 'Enter'] : ['CommandOrControl', 'Enter']
-}
+  ['Command+Enter', ['CommandOrControl', 'Enter']],
+  ['Ctrl+Enter', isMac ? ['Ctrl', 'Enter'] : ['CommandOrControl', 'Enter']]
+])
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preference reads retain raw persisted values, including legacy strings; validate token arrays or decode an own legacy-map entry before using a binding.
 const normalizeComposerShortcut = (stored: unknown): ComposerShortcut | null => {
   if (typeof stored === 'string') {
-    return Object.hasOwn(LEGACY_COMPOSER_SHORTCUTS, stored) ? (LEGACY_COMPOSER_SHORTCUTS[stored] ?? null) : null
+    return LEGACY_COMPOSER_SHORTCUTS.get(stored) ?? null
   }
   if (!isShortcutBinding(stored) || !stored.length) return null
   if (isMac) return stored

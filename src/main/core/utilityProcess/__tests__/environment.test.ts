@@ -76,6 +76,18 @@ describe('createUtilityProcessEnvironment', () => {
     expect(env.PATH).toBe('/usr/bin')
   })
 
+  it.each(['__proto__', 'constructor', 'toString'])('preserves the own additive variable %s', (key) => {
+    const additions = Object.freeze({ [key]: 'definition-value' })
+    const env = createUtilityProcessEnvironment({ tempDir: '/tmp/cherry', parentEnv, platform: 'darwin' }, additions)
+
+    expect(Object.hasOwn(env, key)).toBe(true)
+    expect(env[key]).toBe('definition-value')
+    expect(env.PATH).toBe('/usr/bin')
+    expect(env.TMPDIR).toBe('/tmp/cherry')
+    expect(Object.getPrototypeOf(env)).toBe(Object.prototype)
+    expect(additions[key]).toBe('definition-value')
+  })
+
   it.each([
     ['overrides the baseline', { PATH: '/evil' }],
     ['overrides the baseline case-insensitively', { path: '/evil' }],

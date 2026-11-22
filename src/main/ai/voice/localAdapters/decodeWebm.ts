@@ -34,7 +34,7 @@ function audioError(code: typeof INVALID | typeof UNSUPPORTED | typeof LIMIT): E
 }
 
 // Mediabunny does not expose DiscardPadding; only ts-ebml reads container metadata here.
-function inspectContainer(audio: Uint8Array): { packetCount: number; padding: number; codecDelay?: number } {
+function inspectContainer(audio: Uint8Array) {
   const decoder = new Decoder()
   let consumed = 0
   let packetCount = 0

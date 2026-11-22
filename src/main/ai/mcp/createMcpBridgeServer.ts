@@ -31,7 +31,7 @@ const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
 
 /** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
 export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Removing catalog bookkeeping does not validate extension/schema values; preserve the remaining native fields, including symbol keys.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Removing catalog bookkeeping does not validate extension/schema values; preserve the remaining native fields, including symbol keys.
   const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
   for (const field of CATALOG_FIELDS) delete result[field]
   return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
@@ -48,7 +48,7 @@ function toSdkTool(tool: McpTool): Tool {
 // McpResource carries both list metadata and read payload fields; a read content
 // block must collapse to the SDK's text-or-blob union, keyed on whichever is present.
 function toSdkResourceContents(content: McpResource): ReadResourceResult['contents'][number] {
-  const base: { uri: string; mimeType?: string } = { uri: content.uri }
+  const base: Pick<ReadResourceResult['contents'][number], 'uri' | 'mimeType'> = { uri: content.uri }
   if (content.mimeType) base.mimeType = content.mimeType
   if (typeof content.text === 'string') return { ...base, text: content.text }
   if (typeof content.blob === 'string') return { ...base, blob: content.blob }
@@ -168,7 +168,7 @@ export function createMcpBridgeServer(
         return {}
       }
       if (observations.size >= 128) throw new Error('MCP bridge subscription limit reached')
-      const entry: { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation } = {
+      const entry: NonNullable<ReturnType<typeof observations.get>> = {
         abort: new AbortController(),
         ready: Promise.resolve()
       }

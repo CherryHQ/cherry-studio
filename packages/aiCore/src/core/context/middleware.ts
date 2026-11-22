@@ -326,21 +326,21 @@ export function createCompressionAdapter(
   abortSignal?: AbortSignal
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
-    const formatted = messages.map((m): { role: CompressRole; content: string } => {
+    const formatted = messages.map((m) => {
       if (m.role === 'tool') {
         return {
-          role: 'user' satisfies CompressRole,
+          role: 'user',
           content: `[Tool result${m.tool_call_id ? ` (${m.tool_call_id})` : ''}: ${m.content}]`
-        }
+        } satisfies ModelMessage
       }
       if (m.role === 'assistant' && m.tool_calls?.length) {
         const toolCallsDesc = m.tool_calls
           .map((tc) => `[Called tool: ${tc.function.name}(${tc.function.arguments})]`)
           .join('\n')
         return {
-          role: 'assistant' satisfies CompressRole,
+          role: 'assistant',
           content: m.content ? `${m.content}\n${toolCallsDesc}` : toolCallsDesc
-        }
+        } satisfies ModelMessage
       }
       return {
         role: toCompressRole(m.role),

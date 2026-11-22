@@ -24,17 +24,17 @@ export const FORK_PLACEHOLDER_RESULT =
 /** The result a child's open calls get before a message starts its next run, with `isError: true` (H3). */
 export const INTERRUPTED_CALL_RESULT =
   'This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.'
-const STOPPED: { readonly [end in Exclude<RunEndFacts['outcome'], 'completed'>]: string } = {
+const STOPPED = {
   failed: 'The subagent failed',
   truncated: 'The subagent hit its output limit before finishing',
   aborted: 'The subagent was stopped because the turn was aborted',
   limit_reached: `The subagent was stopped after ${MAX_SUBAGENT_REQUESTS} model requests`
-}
-const STOPPED_BY: { readonly [by in SubagentStopper]: string } = {
+} as const satisfies { readonly [end in Exclude<RunEndFacts['outcome'], 'completed'>]: string }
+const STOPPED_BY = {
   model: 'stopped by you',
   user: 'stopped by the user',
   budget: "stopped because the goal's budget is used up"
-}
+} as const satisfies { readonly [by in SubagentStopper]: string }
 
 export const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
 export const idTrailer = (child: string) => `(id: ${child} — continue this subagent with message_subagent.)`

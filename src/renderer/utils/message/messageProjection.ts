@@ -31,12 +31,12 @@ export function isRenderableConversationMessage(message: CherryUIMessage): boole
   return !isBlankUserTurn({ role: message.role, status: message.metadata?.status, parts: message.parts })
 }
 
-export function uiMessagesToPartsMap(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {
-  const map: Record<string, CherryMessagePart[]> = {}
+export function uiMessagesToPartsMap(messages: CherryUIMessage[]) {
+  const map = new Map<string, CherryMessagePart[]>()
   for (const message of messages) {
     if (message.parts.length > 0) {
-      map[message.id] = message.parts
+      map.set(message.id, message.parts)
     }
   }
-  return map
+  return Object.fromEntries(map)
 }

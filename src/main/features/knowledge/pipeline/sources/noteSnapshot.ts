@@ -15,11 +15,7 @@ export { deriveNoteSnapshotSlug }
  * {@link captureNoteSnapshotFile} and the v1→v2 vector migrator; the caller supplies
  * the `timestamp` (frontmatter-only, so it never affects a content hash).
  */
-export function buildNoteSnapshotFile(
-  source: string,
-  content: string,
-  timestamp: string
-): { slug: string; fileText: string } {
+export function buildNoteSnapshotFile(source: string, content: string, timestamp: string) {
   const frontmatter = serializeOkfFrontmatter({
     type: 'Note',
     // The same first-line name the slug and the conflict key use: a migrated `source` can be the

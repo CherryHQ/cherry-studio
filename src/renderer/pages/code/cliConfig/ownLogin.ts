@@ -64,7 +64,7 @@ export function buildGeminiOwnLoginSettings(
   settings: Record<string, Serializable>,
   blob: NonNullable<CliConfigWriteArgs['configBlob']>
 ) {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The managed settings merge retains unvalidated edited fields until JSON rendering.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Managed settings may add raw edited fields; preserve their value domain until JSON rendering.
   const next: Record<string, unknown> = { ...settings }
   applyManagedJsonSettings(next, blob, GEMINI_MANAGED_SETTINGS_KEYS)
   dropSecurityAuthSelectedTypeIfEmpty(next)
@@ -80,7 +80,7 @@ export function buildQwenOwnLoginConfig(
   existing: Record<string, Serializable>,
   blob: NonNullable<CliConfigWriteArgs['configBlob']>
 ) {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Own-login settings preserve foreign JSON values and raw edited tool parameters until rendering.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Own-login settings accept raw edited fields; JSON rendering owns their final representation.
   const next: Record<string, unknown> = { ...existing }
   if (next.env && typeof next.env === 'object') {
     next.env = omitKeysByPrefix(asRecord(next.env), 'CHERRY_')
@@ -97,7 +97,7 @@ export function buildQwenOwnLoginConfig(
 }
 
 export function buildKimiOwnLoginConfig(existing: TomlTable, blob: NonNullable<CliConfigWriteArgs['configBlob']>) {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native TOML fields and raw edited tool parameters remain unvalidated until TOML rendering.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Native TOML fields and raw edited tool parameters remain unvalidated until TOML rendering.
   const next: Record<string, unknown> = { ...existing }
   for (const table of ['providers', 'models'] as const) {
     if (next[table] && typeof next[table] === 'object') {

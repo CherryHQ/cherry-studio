@@ -6,7 +6,7 @@ export function resolveProviderBilling(
   billing: ProviderBilling | undefined,
   modelId: string,
   startedAt: Date | null
-): { pricing: RuntimeModelPricing | null; billing?: BillingResolution } {
+) {
   // oxlint-disable-next-line no-restricted-globals -- Resolve nested pricing tiers once per estimate/request without exposing configured prices.
   if (!billing) return { pricing: pricing ? structuredClone(pricing) : null }
   const resolution: BillingResolution = {
@@ -67,7 +67,8 @@ export function resolveProviderBilling(
           if (override) {
             delete resolution.multiplier
             // oxlint-disable-next-line no-restricted-globals -- Resolve one scheduled pricing override without exposing provider configuration.
-            return { pricing: structuredClone(override.pricing), billing: { ...resolution, mode: 'prices' } }
+            const overridePricing = structuredClone(override.pricing)
+            return { pricing: overridePricing, billing: { ...resolution, mode: 'prices' } satisfies BillingResolution }
           }
           resolution.reason = 'model_fallback'
         } else resolution.multiplier = period.multiplier

@@ -223,11 +223,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
    * Without a projected breakdown there is nothing to split, so the total is
    * reported as-is and the cache buckets keep their SDK defaults.
    */
-  private splitAnthropicInputUsage(): {
-    inputTokens: number
-    cacheCreationInputTokens: number
-    cacheReadInputTokens: number | null
-  } {
+  private splitAnthropicInputUsage() {
     const cacheRead = this.state.cacheReadTokens
     const cacheWrite = this.cacheWriteTokens
     if (cacheRead === undefined && cacheWrite === undefined) {

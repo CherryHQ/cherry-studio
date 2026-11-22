@@ -165,7 +165,7 @@ class PreferenceNotifier {
   /**
    * Get subscription statistics for debugging
    */
-  getSubscriptionStats = (): Record<string, number> => {
+  getSubscriptionStats = () => {
     const stats: Record<string, number> = {}
     for (const [key, keySubscriptions] of this.subscriptions.entries()) {
       stats[key] = keySubscriptions.size
@@ -450,15 +450,19 @@ export class PreferenceService extends BaseService {
    * })
    * ```
    */
-  public getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(
-    keys: T
-  ): { [P in keyof T]: UnifiedPreferenceType[T[P]] } {
+  public getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(keys: T) {
     const preferenceKeys = Object.values(keys)
     const values = this.getMultipleRaw(preferenceKeys)
+    // SAFETY: Every enumerable alias is filled from its corresponding schema-typed preference key before the result escapes.
     const result = {} as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
     for (const key in keys) {
-      result[key] = values[keys[key]]
+      Object.defineProperty(result, key, {
+        value: values[keys[key]],
+        enumerable: true,
+        configurable: true,
+        writable: true
+      })
     }
 
     return result
@@ -721,11 +725,7 @@ export class PreferenceService extends BaseService {
     }
   }
 
-  private collectWindowSubscriptionStats(): {
-    windowSubscribedKeys: number
-    windowTotalSubscriptions: number
-    activeWindowCount: number
-  } {
+  private collectWindowSubscriptionStats() {
     const keyToWindows = new Map<string, Set<number>>()
     let totalSubscriptions = 0
 

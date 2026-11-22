@@ -23,7 +23,7 @@
  *   via `parseCursor` but keeps its own throw policy.
  */
 
-import { and, asc, desc, eq, gt, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, lt, or, type SQLWrapper } from 'drizzle-orm'
 
 import { loggerService } from '@logger'
 
@@ -113,15 +113,12 @@ export function keysetOrdering(
   keyCol: SQLWrapper,
   idCol: SQLWrapper,
   dir: { major: 'asc' | 'desc'; tie: 'asc' | 'desc' }
-): {
-  where: (cursor: { key: string | number; id: string }) => SQL
-  orderBy: SQL[]
-} {
+) {
   const after = (col: SQLWrapper, d: 'asc' | 'desc', value: string | number) =>
     d === 'asc' ? gt(col, value) : lt(col, value)
   const direction = (d: 'asc' | 'desc') => (d === 'asc' ? asc : desc)
   return {
-    where: (cursor) =>
+    where: (cursor: NonNullable<ReturnType<typeof parseCursor<string | number>>>) =>
       or(after(keyCol, dir.major, cursor.key), and(eq(keyCol, cursor.key), after(idCol, dir.tie, cursor.id)))!,
     orderBy: [direction(dir.major)(keyCol), direction(dir.tie)(idCol)]
   }

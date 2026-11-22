@@ -26,18 +26,6 @@ export class PluginError extends Error {
   }
 }
 
-type FrontmatterValue =
-  | string
-  | null
-  | undefined
-  | symbol
-  | Date
-  | Uint8Array
-  | FrontmatterValue[]
-  | { [key: string]: FrontmatterValue }
-  | Map<FrontmatterValue, FrontmatterValue>
-  | Set<FrontmatterValue>
-
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 
 function parseFrontmatterYaml(block: string): object {
@@ -125,18 +113,19 @@ function toString(value: unknown): string | undefined {
   return isString(value) ? value : undefined
 }
 
-function parseLooseValue(raw: string): FrontmatterValue {
+// oxlint-disable anti-slop/no-unknown-returns, anti-slop/no-known-value-widening -- Recovered YAML values remain unvalidated; metadata readers narrow each selected field.
+function parseLooseValue(raw: string): unknown {
   if (!raw) return ''
   try {
-    // SAFETY: The fixed schema and built-in YAML tags construct data values, including cyclic aliases.
-    const parsed = parse(raw, YAML_PARSE_OPTIONS) as FrontmatterValue
+    const parsed: unknown = parse(raw, YAML_PARSE_OPTIONS)
     return parsed === undefined ? raw : parsed
   } catch {
     return raw
   }
 }
+// oxlint-enable anti-slop/no-unknown-returns, anti-slop/no-known-value-widening
 
-function parseFrontmatterLoose(content: string): Record<string, FrontmatterValue> {
+function parseFrontmatterLoose(content: string) {
   const lines = content.split(/\r?\n/)
   if (lines.length === 0 || lines[0].trim() !== '---') {
     return {}
@@ -154,14 +143,14 @@ function parseFrontmatterLoose(content: string): Record<string, FrontmatterValue
   }
 
   const frontmatterLines = lines.slice(1, endIndex)
-  const data: Record<string, FrontmatterValue> = {}
+  const data = new Map<string, unknown>()
   let currentKey: string | null = null
   let buffer: string[] = []
 
   const flush = () => {
     if (!currentKey) return
     const rawValue = buffer.join('\n').trim()
-    data[currentKey] = parseLooseValue(rawValue)
+    data.set(currentKey, parseLooseValue(rawValue))
     buffer = []
     currentKey = null
   }
@@ -173,7 +162,7 @@ function parseFrontmatterLoose(content: string): Record<string, FrontmatterValue
       currentKey = keyMatch[1]
       const rest = keyMatch[2].trimStart()
       if (rest.length > 0) {
-        data[currentKey] = parseLooseValue(rest)
+        data.set(currentKey, parseLooseValue(rest))
         currentKey = null
       }
       continue
@@ -184,10 +173,10 @@ function parseFrontmatterLoose(content: string): Record<string, FrontmatterValue
   }
 
   flush()
-  return data
+  return Object.fromEntries(data)
 }
 
-function recoverFrontmatter(content: string, context: FrontmatterContext): Record<string, FrontmatterValue> {
+function recoverFrontmatter(content: string, context: FrontmatterContext) {
   const data = parseFrontmatterLoose(content)
   logger.warn('Recovered frontmatter using loose parser', {
     ...context,

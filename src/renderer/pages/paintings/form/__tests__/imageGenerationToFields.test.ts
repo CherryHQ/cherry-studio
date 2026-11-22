@@ -21,6 +21,23 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
  * regression in the dispatcher fails here before reaching the painting page.
  */
 describe('imageGenerationToFields', () => {
+  it('keeps unknown enum values as raw labels rather than inherited properties', () => {
+    const fields = imageGenerationToFields({
+      modes: {
+        generate: {
+          supports: { quality: { type: 'enum', options: ['constructor', '__proto__', 'toString', 'low'] } }
+        }
+      }
+    })
+
+    expect(staticOptions(fields[0])).toEqual([
+      { value: 'constructor', label: 'constructor' },
+      { value: '__proto__', label: '__proto__' },
+      { value: 'toString', label: 'toString' },
+      { value: 'low', labelKey: 'paintings.quality_options.low' }
+    ])
+  })
+
   it.each(['gpt-image-2-6-flare', 'gpt-image-2-6-sunburst'])(
     'renders actionable generation and edit controls from the bundled catalog for %s',
     (id) => {

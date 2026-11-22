@@ -219,7 +219,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
 
       for (const [toolId, declarations] of declarationsByTool) {
         const key = `${provider.id}/${toolId}`
-        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[toolId] ?? []
+        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS.get(provider.id)?.[toolId] ?? []
 
         if (generated.length === 0) problems.push(`${key}: no generated models`)
         if (generated.length !== declarations.length) {
@@ -248,7 +248,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
       }
     }
 
-    for (const [providerId, tools] of Object.entries(PROVIDER_SERVER_TOOL_MODEL_IDS)) {
+    for (const [providerId, tools] of PROVIDER_SERVER_TOOL_MODEL_IDS) {
       for (const toolId of Object.keys(tools)) {
         const key = `${providerId}/${toolId}`
         if (!declaredKeys.has(key)) problems.push(`${key}: generated without a provider declaration`)
@@ -269,7 +269,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     const declaredEfforts = new Set(
       CREATORS.flatMap((c) => c.webSearchUnsupportedEfforts ?? []).flatMap((r) => r.efforts)
     )
-    const generatedEfforts = new Set(Object.values(WEB_SEARCH_UNSUPPORTED_EFFORTS).flat())
+    const generatedEfforts = new Set(Array.from(WEB_SEARCH_UNSUPPORTED_EFFORTS.values()).flat())
     expect([...generatedEfforts].sort()).toEqual([...declaredEfforts].sort())
   })
 

@@ -202,11 +202,12 @@ function sanitizeValue(value: unknown, depth = 0): CapturedPayload {
     return result
   }
 
-  const result: Record<string, CapturedPayload> = {}
   const entries = Object.entries(value)
-  for (const [key, item] of entries.slice(0, MAX_OBJECT_KEYS)) {
-    result[key] = sanitizeValue(item, depth + 1)
-  }
+  const result: Record<string, CapturedPayload> = Object.fromEntries(
+    entries
+      .slice(0, MAX_OBJECT_KEYS)
+      .map(([key, item]): [string, CapturedPayload] => [key, sanitizeValue(item, depth + 1)])
+  )
   if (entries.length > MAX_OBJECT_KEYS) {
     result.__truncatedKeys = entries.length - MAX_OBJECT_KEYS
   }

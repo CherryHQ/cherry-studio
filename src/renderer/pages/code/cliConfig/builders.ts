@@ -61,9 +61,7 @@ interface OpenCodeProviderIdentity {
   name: string
 }
 
-function openCodeProviderRequestOptions(options: Pick<OpenCodeConfigOptions, 'providerHeaders'>): {
-  headers?: Record<string, string>
-} {
+function openCodeProviderRequestOptions(options: Pick<OpenCodeConfigOptions, 'providerHeaders'>) {
   const headers = Object.fromEntries(
     Object.entries(asRecord(options.providerHeaders)).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string'
@@ -78,8 +76,7 @@ export function buildClaudeConfig(
   resolved: { apiKey: string; baseUrl: string; model: string; writePrimaryModel?: boolean }
 ) {
   const configEnv = { ...asRecord(userBlob.env) }
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Foreign env values from the edited blob are preserved until JSON rendering; only managed values are overwritten.
-  const envBlock: Record<string, unknown> = { ...configEnv }
+  const envBlock = { ...configEnv }
   if (resolved.baseUrl) envBlock.ANTHROPIC_BASE_URL = resolved.baseUrl
   if (resolved.apiKey) envBlock.ANTHROPIC_AUTH_TOKEN = resolved.apiKey
   if (resolved.writePrimaryModel === false) delete envBlock.ANTHROPIC_MODEL
@@ -94,8 +91,7 @@ export function buildClaudeConfig(
     }
   }
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The edited blob may retain unvalidated extension values; JSON rendering owns omission and serialization errors.
-  const merged: Record<string, unknown> = { ...existing, ...userBlob }
+  const merged = { ...existing, ...userBlob }
   for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
     if (!(key in userBlob)) delete merged[key]
   }
@@ -177,10 +173,7 @@ export function buildCodexConfig(
   return merged
 }
 
-export function buildCodexAuthConfig(
-  existingAuth: Record<string, Serializable>,
-  apiKey: string
-): Record<string, Serializable> {
+export function buildCodexAuthConfig(existingAuth: Record<string, Serializable>, apiKey: string) {
   return { ...existingAuth, auth_mode: 'apikey', OPENAI_API_KEY: apiKey }
 }
 
@@ -210,31 +203,25 @@ export function clearCodexApiKeyAuth(existingAuth: Record<string, Serializable>)
 }
 
 function buildOpenCodeModelOptions(
-  modelConfig: Record<string, Serializable>,
   npmInfo: OpenCodeNpmInfo,
   options: { reasoning: boolean; supportsReasoningEffort: boolean }
-): void {
+) {
   if (npmInfo.providerType === 'anthropic') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
+      return { reasoning: true, options: { thinking: { budgetTokens: 10000, type: 'enabled' } } }
     }
     return
   }
 
   if (npmInfo.providerType === 'google') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = {
-        thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }
-      }
+      return { reasoning: true, options: { thinkingConfig: { includeThoughts: true, thinkingBudget: -1 } } }
     }
     return
   }
 
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
-    modelConfig.reasoning = true
-    modelConfig.options = { reasoningEffort: 'medium' }
+    return { reasoning: true, options: { reasoningEffort: 'medium' } }
   }
 }
 
@@ -263,31 +250,34 @@ export function buildOpenCodeConfig(
   npmInfo: OpenCodeNpmInfo,
   resolved: { apiKey: string; baseUrl: string; model: string; modelLabel?: string },
   options: OpenCodeConfigOptions
-): Record<string, Serializable> {
+) {
   const providerName = cliProviderKeyName(provider)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   // The models map key is the addressing id sent to the API; `name` is only what
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
-  const modelConfig: Record<string, Serializable> = { name: resolved.modelLabel ?? resolved.model }
+  const modelName = resolved.modelLabel ?? resolved.model
   const limit = openCodeModelLimit(options)
-  if (limit) modelConfig.limit = limit
-  buildOpenCodeModelOptions(modelConfig, npmInfo, {
-    reasoning: options.reasoning === true,
-    supportsReasoningEffort: options.supportsReasoningEffort === true
-  })
+  const modelConfig = {
+    name: modelName,
+    ...(limit && { limit }),
+    ...buildOpenCodeModelOptions(npmInfo, {
+      reasoning: options.reasoning === true,
+      supportsReasoningEffort: options.supportsReasoningEffort === true
+    })
+  }
   // SAFETY: Existing provider entries come from parsed JSON; the container check does not change their value domain.
   const preservedProviders = omitKeysByPrefix(
     asRecord(existing.provider) as Record<string, Serializable>,
     CHERRY_PROVIDER_PREFIX
   )
-  const cleaned: Record<string, Serializable> = { ...existing }
+  const cleaned = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   // SAFETY: Existing compaction values come from parsed JSON and are copied without interpretation.
   const compaction = { ...(asRecord(existing.compaction) as Record<string, Serializable>) }
   delete cleaned.compaction
   delete compaction.auto
   if (options.autoCompact === true) compaction.auto = true
-  const merged: Record<string, Serializable> = {
+  return {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
     // OpenCode's default-model selector. It splits at the FIRST "/", so the model id may
@@ -306,11 +296,10 @@ export function buildOpenCodeConfig(
         },
         models: { [resolved.model]: modelConfig }
       }
-    }
+    },
+    ...(Object.keys(compaction).length > 0 && { compaction }),
+    ...(isOpenCodePermissionMode(options.permissionMode) && { permission: options.permissionMode })
   }
-  if (Object.keys(compaction).length > 0) merged.compaction = compaction
-  if (isOpenCodePermissionMode(options.permissionMode)) merged.permission = options.permissionMode
-  return merged
 }
 
 export function buildGeminiEnvConfig(
@@ -333,7 +322,7 @@ export function buildGeminiSettingsConfig(
   resolved: { model: string },
   configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
 ) {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Managed-key copying can retain raw edited values; JSON rendering validates their final representation.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Managed-key copying can add raw edited values; preserve their value domain until JSON rendering.
   const next: Record<string, unknown> = { ...settings }
   applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
   next.model = { ...asRecord(next.model), name: resolved.model }
@@ -358,8 +347,7 @@ export function buildQwenConfig(
   existingEnv[envKey] = resolved.apiKey
 
   const security = asRecord(existing.security)
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The managed settings copied below still contain raw edited values; JSON rendering owns their serialization.
-  const merged: Record<string, unknown> = {
+  const merged = {
     ...existing,
     modelProviders: { ...asRecord(existing.modelProviders), openai: userModels },
     env: existingEnv,
@@ -390,8 +378,7 @@ export function buildKimiConfig(
   if (resolved.maxContextSize !== undefined) modelConfig.max_context_size = resolved.maxContextSize
   modelsTable[resolved.modelKey] = modelConfig
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve native TOML entries and raw managed values until the target TOML serializer validates them.
-  const merged: Record<string, unknown> = {
+  const merged = {
     ...existing,
     default_model: resolved.modelKey,
     providers: providerTable,
@@ -423,23 +410,23 @@ export function buildPiModelsConfig(
     providerKey: string
     reasoning: boolean
   }
-): Record<string, Serializable> {
-  const model: Record<string, Serializable> = {
+) {
+  const model = {
     id: resolved.model,
     name: resolved.modelLabel,
     reasoning: resolved.reasoning,
-    input: resolved.input
+    input: resolved.input,
+    ...(resolved.contextWindow !== undefined && { contextWindow: resolved.contextWindow }),
+    ...(resolved.maxTokens !== undefined && { maxTokens: resolved.maxTokens })
   }
-  if (resolved.contextWindow !== undefined) model.contextWindow = resolved.contextWindow
-  if (resolved.maxTokens !== undefined) model.maxTokens = resolved.maxTokens
 
-  const provider: Record<string, Serializable> = {
+  const provider = {
     baseUrl: resolved.baseUrl,
     api: resolved.api,
     apiKey: resolved.apiKey,
-    models: [model]
+    models: [model],
+    ...(resolved.headers && Object.keys(resolved.headers).length > 0 && { headers: resolved.headers })
   }
-  if (resolved.headers && Object.keys(resolved.headers).length > 0) provider.headers = resolved.headers
 
   // SAFETY: Existing provider entries come from parsed JSON; only the managed prefix is replaced.
   const preservedProviders = omitKeysByPrefix(
@@ -459,6 +446,6 @@ export function buildPiModelsConfig(
 export function buildPiSettingsConfig(
   existing: Record<string, Serializable>,
   resolved: { model: string; providerKey: string }
-): Record<string, Serializable> {
+) {
   return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
 }

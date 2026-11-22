@@ -19,7 +19,7 @@ import {
 import type { CliConfigWriteArgs } from './types'
 import { asRecord } from './values'
 
-function pickTopLevel<T>(source: Record<string, T>, keys: readonly string[]): Record<string, T> {
+function pickTopLevel<T>(source: Record<string, T>, keys: readonly string[]) {
   const next: Record<string, T> = {}
   for (const key of keys) {
     if (source[key] !== undefined) next[key] = source[key]

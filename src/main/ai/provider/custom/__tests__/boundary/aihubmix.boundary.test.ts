@@ -38,6 +38,34 @@ const config = {
   headers: () => ({ Authorization: 'Bearer sk' })
 }
 
+it('renames canonical options while preserving reserved extension keys through the real SDK', async () => {
+  const bag = Object.freeze({
+    safetyTolerance: 2,
+    ['__proto__']: { enabled: true },
+    constructor: 'literal constructor',
+    toString: 'literal string'
+  })
+  const req = await captureWithFetch((fetch) =>
+    createAihubmixImageModel('gpt-image-1', { ...config, fetch }).doGenerate(
+      opts({ providerOptions: { aihubmix: bag } })
+    )
+  )
+
+  expect(req.body).toMatchObject({
+    safety_tolerance: 2,
+    constructor: 'literal constructor',
+    toString: 'literal string'
+  })
+  expect(Object.getOwnPropertyDescriptor(req.body, '__proto__')).toMatchObject({
+    value: { enabled: true },
+    enumerable: true
+  })
+  expect(Object.getPrototypeOf(req.body)).toBe(Object.prototype)
+  expect(bag.safetyTolerance).toBe(2)
+  expect(Object.hasOwn(bag, 'safety_tolerance')).toBe(false)
+  expect(Object.getPrototypeOf(bag)).toBe(Object.prototype)
+})
+
 describe('AiHubMix image-model boundary (Ideogram branches)', () => {
   it('V_3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
     const req = await captureWithFetch((fetch) =>

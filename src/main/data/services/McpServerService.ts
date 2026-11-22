@@ -57,7 +57,7 @@ export class McpServerService {
   /**
    * List MCP servers with optional filters
    */
-  list(query: ListMcpServersQuery): { items: McpServer[]; total: number; page: number } {
+  list(query: ListMcpServersQuery) {
     const conditions: SQL[] = []
     if (query.id !== undefined) {
       conditions.push(eq(mcpServerTable.id, query.id))

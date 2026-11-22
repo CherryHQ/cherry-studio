@@ -91,28 +91,28 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
   logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
-  const isoMap: Record<string, TranslateLangCode> = {
-    cmn: BUILTIN_LANGUAGE.zhCN.langCode,
-    jpn: BUILTIN_LANGUAGE.jaJP.langCode,
-    kor: BUILTIN_LANGUAGE.koKR.langCode,
-    rus: BUILTIN_LANGUAGE.ruRU.langCode,
-    ara: BUILTIN_LANGUAGE.arSA.langCode,
-    spa: BUILTIN_LANGUAGE.esES.langCode,
-    fra: BUILTIN_LANGUAGE.frFR.langCode,
-    deu: BUILTIN_LANGUAGE.deDE.langCode,
-    ita: BUILTIN_LANGUAGE.itIT.langCode,
-    por: BUILTIN_LANGUAGE.ptPT.langCode,
-    eng: BUILTIN_LANGUAGE.enUS.langCode,
-    pol: BUILTIN_LANGUAGE.plPL.langCode,
-    tur: BUILTIN_LANGUAGE.trTR.langCode,
-    tha: BUILTIN_LANGUAGE.thTH.langCode,
-    vie: BUILTIN_LANGUAGE.viVN.langCode,
-    ind: BUILTIN_LANGUAGE.idID.langCode,
-    urd: BUILTIN_LANGUAGE.urPK.langCode,
-    zsm: BUILTIN_LANGUAGE.msMY.langCode
-  }
+  const isoMap: ReadonlyMap<string, TranslateLangCode> = new Map([
+    ['cmn', BUILTIN_LANGUAGE.zhCN.langCode],
+    ['jpn', BUILTIN_LANGUAGE.jaJP.langCode],
+    ['kor', BUILTIN_LANGUAGE.koKR.langCode],
+    ['rus', BUILTIN_LANGUAGE.ruRU.langCode],
+    ['ara', BUILTIN_LANGUAGE.arSA.langCode],
+    ['spa', BUILTIN_LANGUAGE.esES.langCode],
+    ['fra', BUILTIN_LANGUAGE.frFR.langCode],
+    ['deu', BUILTIN_LANGUAGE.deDE.langCode],
+    ['ita', BUILTIN_LANGUAGE.itIT.langCode],
+    ['por', BUILTIN_LANGUAGE.ptPT.langCode],
+    ['eng', BUILTIN_LANGUAGE.enUS.langCode],
+    ['pol', BUILTIN_LANGUAGE.plPL.langCode],
+    ['tur', BUILTIN_LANGUAGE.trTR.langCode],
+    ['tha', BUILTIN_LANGUAGE.thTH.langCode],
+    ['vie', BUILTIN_LANGUAGE.viVN.langCode],
+    ['ind', BUILTIN_LANGUAGE.idID.langCode],
+    ['urd', BUILTIN_LANGUAGE.urPK.langCode],
+    ['zsm', BUILTIN_LANGUAGE.msMY.langCode]
+  ])
 
-  const mapped = isoMap[iso3]
+  const mapped = isoMap.get(iso3)
   if (mapped === undefined) {
     // franc recognized a language but we have no mapping for it yet. Log so
     // we can discover cold languages that real users speak.

@@ -344,10 +344,7 @@ function sameSnapshotContent(snapshot: FileSnapshot, expected: string): boolean 
   return snapshot.content === expected
 }
 
-export function resolveDeepSeekHarnessEndpoint(
-  provider: Provider,
-  model: Model
-): { endpoint: EndpointType; protocol: DeepSeekHarnessProtocol; baseUrl: string } {
+export function resolveDeepSeekHarnessEndpoint(provider: Provider, model: Model) {
   const isSupported = (endpoint: EndpointType | undefined): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
     Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
@@ -368,13 +365,7 @@ export function resolveDeepSeekHarnessEndpoint(
   return { endpoint, protocol: PROTOCOL_BY_ENDPOINT[endpoint], baseUrl }
 }
 
-export function createDeepSeekHarnessDirectIdentity(
-  providerId: string,
-  protocol: DeepSeekHarnessProtocol
-): {
-  route: string
-  credentialRef: string
-} {
+export function createDeepSeekHarnessDirectIdentity(providerId: string, protocol: DeepSeekHarnessProtocol) {
   const hash = crypto.createHash('sha256').update(`${providerId}\0${protocol}`).digest('hex').slice(0, 12)
   return {
     route: `cherry-studio-codemate-${hash}`,

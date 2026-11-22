@@ -13,16 +13,16 @@ import {
 } from './types'
 
 // TODO: Move file-type / mime resolution into the unified file management layer when file handling is consolidated.
-const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
-  '.tif': 'image/tiff',
-  '.tiff': 'image/tiff'
-}
+const IMAGE_MIME_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp'],
+  ['.gif', 'image/gif'],
+  ['.bmp', 'image/bmp'],
+  ['.tif', 'image/tiff'],
+  ['.tiff', 'image/tiff']
+])
 
 export async function prepareDocumentPayload(context: PreparedMistralContext): Promise<MistralImageDocument> {
   return {
@@ -145,7 +145,7 @@ export async function deleteUploadedDocument(context: PreparedMistralContext, fi
 async function createImageDataUrl(file: FileInfo): Promise<string> {
   const filePath = file.path
   const extension = file.ext ? `.${file.ext.toLowerCase()}` : ''
-  const mime = IMAGE_MIME_BY_EXTENSION[extension]
+  const mime = IMAGE_MIME_BY_EXTENSION.get(extension)
 
   if (!mime) {
     throw new Error(`Unsupported image type for Mistral OCR: ${extension || file.ext}`)

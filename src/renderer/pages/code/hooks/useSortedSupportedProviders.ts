@@ -28,10 +28,7 @@ export function useSortedSupportedProviders({
   reorderProviders,
   onReorderError,
   prependedProviders
-}: UseSortedSupportedProvidersOptions): {
-  supportedProviders: Provider[]
-  onReorder: (nextProviders: Provider[]) => Promise<void>
-} {
+}: UseSortedSupportedProvidersOptions) {
   const [optimisticProviderOrder, setOptimisticProviderOrder] = useState<{ toolId: CodeCli; ids: string[] } | null>(
     null
   )

@@ -1,9 +1,4 @@
-export function getElementBorderWidth(element: HTMLElement): {
-  top: number
-  right: number
-  bottom: number
-  left: number
-} {
+export function getElementBorderWidth(element: HTMLElement) {
   const style = window.getComputedStyle(element)
   return {
     top: parseFloat(style.borderTopWidth),

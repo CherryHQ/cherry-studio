@@ -142,6 +142,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         try {
           input = funcCall.arguments ? JSON.parse(funcCall.arguments) : {}
         } catch {
+          // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw fallback shares the SDK's unknown input contract with arbitrary parsed JSON; tool validation happens later.
           input = { raw: funcCall.arguments }
         }
         functionCalls.set(funcCall.call_id, { name: funcCall.name, input })

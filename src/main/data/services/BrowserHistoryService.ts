@@ -3,7 +3,7 @@ import { and, eq, or, sql } from 'drizzle-orm'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { browserVisitTable } from '@data/db/schemas/browserVisit'
-import type { BrowserVisit, ListBrowserVisitsQuery } from '@shared/data/api/schemas/browserVisits'
+import type { ListBrowserVisitsQuery } from '@shared/data/api/schemas/browserVisits'
 import { sanitizeBrowserVisitUrl } from '@shared/utils/browserUrl'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -81,7 +81,7 @@ export class BrowserHistoryService {
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership', dimension: 'search' }])
   }
 
-  list(query: ListBrowserVisitsQuery): { items: BrowserVisit[]; hasMore: boolean; nextCursor?: string } {
+  list(query: ListBrowserVisitsQuery) {
     const needle = query.search?.trim().toLowerCase()
     const ordering = keysetOrdering(browserVisitTable.visitedAt, browserVisitTable.id, { major: 'desc', tie: 'desc' })
     const cursor = decodeListCursor(query.cursor, asNumericKey, 'browser-history')

@@ -100,16 +100,16 @@ export function resolveDmxapiEndpointType(modelId: string): EndpointType {
   return resolveDmxapiChatRoute(modelId).endpointType
 }
 
-const GATEWAY_MODEL_ROUTERS: Partial<Record<string, (modelId: string) => GatewayModelRoute>> = {
-  [SystemProviderIds.aihubmix]: resolveAihubmixChatRoute,
-  [SystemProviderIds.dmxapi]: resolveDmxapiChatRoute
-}
+const GATEWAY_MODEL_ROUTERS: ReadonlyMap<string, (modelId: string) => GatewayModelRoute> = new Map([
+  [SystemProviderIds.aihubmix, resolveAihubmixChatRoute],
+  [SystemProviderIds.dmxapi, resolveDmxapiChatRoute]
+])
 
 /** Resolve a gateway's per-model wire route from data available in both main and renderer. */
 export function resolveGatewayChatRoute(provider: Provider, model: Model): GatewayModelRoute | undefined {
   const router =
-    GATEWAY_MODEL_ROUTERS[provider.id] ??
-    (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS[provider.presetProviderId] : undefined)
+    GATEWAY_MODEL_ROUTERS.get(provider.id) ??
+    (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS.get(provider.presetProviderId) : undefined)
   const route = router?.(model.apiModelId ?? model.id)
   return route && provider.endpointConfigs?.[route.endpointType] ? route : undefined
 }

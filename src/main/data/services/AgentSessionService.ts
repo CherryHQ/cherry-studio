@@ -549,17 +549,7 @@ export class AgentSessionService {
   }
 
   /** Prepare session-owned changes before the caller deletes an agent row. */
-  prepareForAgentDeletionTx(
-    tx: DbOrTx,
-    agentId: string,
-    options: { deleteSessions: boolean }
-  ): {
-    sessionIds: string[]
-    taskScheduleIds: string[]
-    changeKind: 'membership' | 'projection'
-    deliveryResults: AgentSessionMessageEntity[]
-    purgedSystemWorkspacePaths: string[]
-  } {
+  prepareForAgentDeletionTx(tx: DbOrTx, agentId: string, options: { deleteSessions: boolean }) {
     const sessions = tx
       .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskId })
       .from(sessionsTable)
@@ -585,7 +575,7 @@ export class AgentSessionService {
       return {
         sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false, deliveryResults }),
         taskScheduleIds,
-        changeKind: 'membership',
+        changeKind: 'membership' as const,
         deliveryResults,
         purgedSystemWorkspacePaths
       }
@@ -598,7 +588,7 @@ export class AgentSessionService {
     return {
       sessionIds,
       taskScheduleIds,
-      changeKind: 'projection',
+      changeKind: 'projection' as const,
       purgedSystemWorkspacePaths: [],
       deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
         tx,
@@ -946,11 +936,7 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  updateTx(
-    tx: DbOrTx,
-    id: string,
-    patch: UpdateAgentSessionDto
-  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+  updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto) {
     const [current] = tx
       .select({
         agentId: sessionsTable.agentId,
@@ -1229,11 +1215,7 @@ export class AgentSessionService {
   }
 
   /** Move sessions to the Recycle Bin, detach bound tasks, and fail pending deliveries. */
-  trashByIdsTx(
-    tx: DbOrTx,
-    ids: string[],
-    options: { requireAll?: boolean; deletedAt?: number } = {}
-  ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
+  trashByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean; deletedAt?: number } = {}) {
     const children = chunk(ids, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       tx
         .select({ id: sessionsTable.id })

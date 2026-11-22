@@ -80,7 +80,7 @@ function makeStringReplacement(
   }
 }
 
-function canonicalizeClassText(designSystem: DesignSystem, value: string): { text: string; count: number } {
+function canonicalizeClassText(designSystem: DesignSystem, value: string) {
   const tokens = value.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) {
     return { text: value, count: 0 }

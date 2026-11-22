@@ -101,7 +101,7 @@ export function createComposerTokenMarkerInlineContent(
   text: string,
   rules: readonly ComposerTokenMarkerRule[],
   options: { literalFencedCode?: boolean; fencedLines?: ReadonlySet<number> } = {}
-): { content: JSONContent[]; hasToken: boolean } {
+) {
   if (!rules.length) return { content: createComposerPlainTextContent(text), hasToken: false }
 
   const lines = text.split(LINE_BREAK_PATTERN)

@@ -83,12 +83,7 @@ export function blobRefsOf(ref: PersistedToolOutputRef): PersistedToolOutputBlob
 /** One display excerpt per envelope for transport/renderer preview — head of the
  *  first blob, tail of the last, summed totals. Keeps the outbound projection
  *  and the renderer excerpt path shape-agnostic. */
-export function envelopeDisplayExcerpt(ref: PersistedToolOutputRef): {
-  head: string
-  tail: string
-  totalChars: number
-  totalLines: number
-} {
+export function envelopeDisplayExcerpt(ref: PersistedToolOutputRef) {
   const blobs = blobRefsOf(ref)
   return {
     head: blobs[0].head,

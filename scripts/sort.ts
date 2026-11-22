@@ -26,17 +26,16 @@ function lexicalSort(a: string, b: string): number {
  * @returns 返回排序后的新对象
  */
 export function sortedObjectByKeys(obj: Catalog): Catalog {
-  const sortedKeys = Object.keys(obj).sort(lexicalSort)
-
-  const sortedObj: Catalog = {}
-  for (const key of sortedKeys) {
-    let value = obj[key]
-    // 如果值是对象，递归排序
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      value = sortedObjectByKeys(value)
-    }
-    sortedObj[key] = value
-  }
-
-  return sortedObj
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Recursion preserves catalog values and arrays while rebuilding sorted own keys, including __proto__.
+  return Object.fromEntries(
+    Object.keys(obj)
+      .sort(lexicalSort)
+      .map((key): [string, CatalogValue] => {
+        const value = obj[key]
+        return [
+          key,
+          typeof value === 'object' && value !== null && !Array.isArray(value) ? sortedObjectByKeys(value) : value
+        ]
+      })
+  )
 }

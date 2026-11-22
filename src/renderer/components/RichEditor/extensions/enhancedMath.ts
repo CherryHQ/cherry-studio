@@ -114,7 +114,7 @@ const backslashMath = (block: boolean) => {
         }
         if (!scan || !isSuffix || precedingSlashes % 2 !== 0) {
           const pairs = new Map<number, number>()
-          const stacks: Record<string, number[]> = { '[': [], '(': [] }
+          const stacks: Record<'[' | '(', number[]> = { '[': [], '(': [] }
           const excluded = new Map<number, number>()
           const protectedStarts = new Set<number>()
           let protectedEnd = 0

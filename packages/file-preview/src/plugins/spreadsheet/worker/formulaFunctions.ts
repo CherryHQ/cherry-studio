@@ -114,7 +114,7 @@ function nthOrdered(params: FunctionArg[], k: FunctionArg, compare: (a: number, 
   return nums[index - 1]
 }
 
-export const CUSTOM_FORMULA_FUNCTIONS: Record<string, ParserFunction> = {
+export const CUSTOM_FORMULA_FUNCTIONS = {
   MAX: (...params) => findExtremum(params, IS_GREATER),
   MIN: (...params) => findExtremum(params, IS_LESS),
   MEDIAN: (...params) => {
@@ -168,4 +168,4 @@ export const CUSTOM_FORMULA_FUNCTIONS: Record<string, ParserFunction> = {
     if (nums.length < 1) throw FormulaError.DIV0
     return sumOfSquares(nums) / nums.length
   }
-}
+} satisfies Record<string, ParserFunction>

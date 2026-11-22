@@ -15,7 +15,7 @@ export type GroupTranslations = {
   }
 }
 
-export const groupTranslations: GroupTranslations = {
+const GROUP_TRANSLATIONS = {
   我的: {
     'el-GR': 'Τα δικά μου',
     'de-DE': 'Meine Agenten',
@@ -458,4 +458,8 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Gestão',
     'ro-RO': 'Management'
   }
-}
+} satisfies GroupTranslations
+
+export const groupTranslations: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map(
+  Object.entries(GROUP_TRANSLATIONS).map(([group, labels]) => [group, new Map(Object.entries(labels))])
+)

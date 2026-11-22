@@ -4,14 +4,14 @@ function toBase64Url(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64url')
 }
 
-export function createAuthorizationSecrets(): { state: string; codeVerifier: string; codeChallenge: string } {
+export function createAuthorizationSecrets() {
   const state = toBase64Url(randomBytes(32))
   const codeVerifier = toBase64Url(randomBytes(32))
   const codeChallenge = createHash('sha256').update(codeVerifier, 'ascii').digest('base64url')
   return { state, codeVerifier, codeChallenge }
 }
 
-export function createDeviceKeyPair(): { publicKey: string; privateKey: string } {
+export function createDeviceKeyPair() {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
   const publicDer = publicKey.export({ format: 'der', type: 'spki' })
   const privateDer = privateKey.export({ format: 'der', type: 'pkcs8' })
@@ -35,7 +35,7 @@ export function createDeviceSignature(input: {
   idempotencyKey?: string
   now?: Date
   requestId?: string
-}): Record<string, string> {
+}) {
   const timestamp = Math.floor((input.now ?? new Date()).getTime() / 1000).toString()
   const requestId = input.requestId ?? randomUUID()
   const bodyHash = createHash('sha256').update(input.body).digest('hex')

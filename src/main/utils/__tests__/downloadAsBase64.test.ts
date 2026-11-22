@@ -95,6 +95,25 @@ describe('downloadImageAsBase64', () => {
     await expect(downloadImageAsBase64('https://example.com/download')).resolves.toBeNull()
   })
 
+  it.each(['__proto__', 'constructor'])(
+    'rejects unregistered image extension %s from URLs and filenames',
+    async (extension) => {
+      mockNetFetch
+        .mockResolvedValueOnce(new Response(UNKNOWN_BYTES, { headers: { 'content-type': 'application/octet-stream' } }))
+        .mockResolvedValueOnce(
+          new Response(UNKNOWN_BYTES, {
+            headers: {
+              'content-type': 'application/octet-stream',
+              'content-disposition': `attachment; filename="generated.${extension}"`
+            }
+          })
+        )
+
+      await expect(downloadImageAsBase64(`https://example.com/result.${extension}`)).resolves.toBeNull()
+      await expect(downloadImageAsBase64('https://example.com/download')).resolves.toBeNull()
+    }
+  )
+
   it('rejects non-image file types detected from bytes', async () => {
     mockNetFetch.mockResolvedValue(binaryResponse(PDF_BYTES, { 'content-type': 'image/png' }))
 

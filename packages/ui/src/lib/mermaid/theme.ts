@@ -12,7 +12,7 @@ export interface MermaidTheme {
 }
 
 // Merman role → design-system variable. The canvas roles come from the host's actual background instead.
-const ROLE_TOKENS: Record<string, string> = {
+const ROLE_TOKENS = {
   surface: '--muted',
   'surface-alt': '--secondary',
   text: '--foreground',
@@ -69,7 +69,9 @@ export function resolveMermaidTheme(element: Element): MermaidTheme {
   const body = getComputedStyle(element.ownerDocument.body)
   const canvas = backgroundBehind(element)
   const token = (name: string) => paintHex([canvas, style.getPropertyValue(name).trim() || 'transparent'])
-  const roles = Object.fromEntries(Object.entries(ROLE_TOKENS).map(([role, name]) => [role, token(name)]))
+  const roles = Object.fromEntries(
+    Object.entries(ROLE_TOKENS).map(([role, name]): [string, string] => [role, token(name)])
+  )
   const [r, g, b] = [1, 3, 5].map((index) => Number.parseInt(canvas.slice(index, index + 2), 16))
   return {
     appearance: 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'dark' : 'light',

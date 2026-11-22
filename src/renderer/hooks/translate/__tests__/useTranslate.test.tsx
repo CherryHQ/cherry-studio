@@ -276,6 +276,44 @@ describe('useTranslate', () => {
   })
 
   describe('non-abort errors', () => {
+    it('localizes an Error for display while rethrowing the original error', async () => {
+      const cause = new Error('rate limit')
+      const error = new Error('Request failed: translate.error.quota', { cause })
+      error.name = 'RateLimitError'
+      translateTextMock.mockRejectedValueOnce(error)
+      const { result } = renderHook(() => useTranslate({ rethrowError: true }))
+
+      await act(async () => {
+        await expect(result.current.translate('源', TARGET)).rejects.toBe(error)
+      })
+
+      expect(toast.error).toHaveBeenCalledWith('t(translate.error.failed): t(translate.error.quota)')
+      expect(formatErrorMessageWithPrefixMock.mock.calls.at(-1)?.[0]).toMatchObject({
+        message: 't(translate.error.quota)',
+        name: 'RateLimitError',
+        stack: error.stack,
+        cause
+      })
+      expect(error.message).toBe('Request failed: translate.error.quota')
+      expect(result.current.isTranslating).toBe(false)
+    })
+
+    it.each([
+      { rejection: 'plain rejection', message: 'plain rejection' },
+      { rejection: Object.freeze({ code: 'RATE_LIMIT', message: 'quota reached' }), message: 'quota reached' }
+    ])('preserves a non-Error rejection and its diagnostic value: $message', async ({ rejection, message }) => {
+      translateTextMock.mockRejectedValueOnce(rejection)
+      const { result } = renderHook(() => useTranslate({ rethrowError: true }))
+
+      await act(async () => {
+        await expect(result.current.translate('源', TARGET)).rejects.toBe(rejection)
+      })
+
+      expect(toast.error).toHaveBeenCalledWith(`t(translate.error.failed): ${message}`)
+      expect(loggerErrorSpy).toHaveBeenCalledWith('Translation failed', { error: rejection })
+      expect(result.current.isTranslating).toBe(false)
+    })
+
     it('logs and toasts a prefixed message by default, then returns undefined', async () => {
       const error = new Error('upstream boom')
       translateTextMock.mockRejectedValueOnce(error)

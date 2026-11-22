@@ -33,9 +33,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
-function localizeTranslateError<TError>(error: TError, t: (key: string) => string): TError | Error {
-  if (!(error instanceof Error)) return error
-
+function localizeTranslateError(error: Error, t: (key: string) => string): Error {
   const key = error.message.match(TRANSLATE_ERROR_KEY_PATTERN)?.[0]
   if (!key) return error
 
@@ -151,9 +149,12 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         const opts = optionsRef.current
         const showErrorToast = opts?.showErrorToast ?? true
         const errorPrefixI18nKey = opts?.errorPrefixI18nKey ?? 'translate.error.failed'
-        loggerService.withContext(opts?.loggerContext ?? 'useTranslate').error('Translation failed', error as Error)
+        loggerService
+          .withContext(opts?.loggerContext ?? 'useTranslate')
+          .error('Translation failed', error instanceof Error ? error : { error })
         if (showErrorToast) {
-          toast.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
+          const displayError = error instanceof Error ? localizeTranslateError(error, t) : error
+          toast.error(formatErrorMessageWithPrefix(displayError, t(errorPrefixI18nKey)))
         }
         if (opts?.rethrowError) throw error
         return undefined

@@ -42,6 +42,14 @@ const SAFE_AI_SDK_STRING_FIELDS = [
   'finishReason'
 ] as const
 
+type SafeAiSdkErrorDiscriminants = Partial<Record<(typeof SAFE_AI_SDK_STRING_FIELDS)[number], string>> & {
+  availableProviders?: string[] | null
+  availableTools?: string[] | null
+  statusCode?: number | null
+  maxEmbeddingsPerCall?: number | null
+  isRetryable?: boolean
+}
+
 function actionableText(value: string): string {
   if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   const text = value.trim()
@@ -146,8 +154,8 @@ export function getSafeProviderErrorMessage(source: ProviderErrorSource): string
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native SDK errors and serialized context carry unchecked extension fields; only validated, redacted discriminants may enter diagnostics.
-export function getSafeAiSdkErrorDiscriminants(source: unknown): Record<string, Serializable> {
-  const discriminants: Record<string, Serializable> = {}
+export function getSafeAiSdkErrorDiscriminants(source: unknown): SafeAiSdkErrorDiscriminants {
+  const discriminants: SafeAiSdkErrorDiscriminants = {}
   if (source === null || typeof source !== 'object') return discriminants
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; native SDK extensions are validated field by field before redaction.
   const record = source as Record<string, unknown>

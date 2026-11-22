@@ -20,7 +20,7 @@ type TaskGetOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToo
 type TaskListOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskList>['output']>, string>
 type TaskStopOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskStop>['output']>, string>
 
-function isObject(value: unknown): value is object {
+function isObject<T>(value: T): value is T & object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

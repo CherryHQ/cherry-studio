@@ -50,7 +50,7 @@ describe('GPT Image 2.6 OpenAI requests', () => {
       const providerOptions = buildVendorProviderOptions(
         sdkProviderId,
         params,
-        WIRE_REGISTRY[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION,
+        WIRE_REGISTRY.get(sdkProviderId) ?? DEFAULT_DIFFUSION_REGISTRATION,
         vendorBag
       )
       const requests: Request[] = []
@@ -114,7 +114,7 @@ describe('GPT Image 2.6 OpenAI requests', () => {
         frameDurationMs: 200,
         complexity: 'low'
       })
-      const providerOptions = buildVendorProviderOptions('openai', vendorBag, WIRE_REGISTRY.openai, vendorBag)
+      const providerOptions = buildVendorProviderOptions('openai', vendorBag, WIRE_REGISTRY.get('openai')!, vendorBag)
       const bodies: unknown[] = []
       const model = createOpenAI({
         apiKey: 'fixture',
@@ -153,7 +153,7 @@ describe('GPT Image 2.6 OpenAI requests', () => {
   it('omits stale animation timing when output switches back to PNG', () => {
     const params = { outputFormat: 'png', frameCount: 9, frameDurationMs: 200, complexity: 'high' }
     const { vendorBag } = splitParamValues(params)
-    expect(buildVendorProviderOptions('openai', params, WIRE_REGISTRY.openai, vendorBag)).toEqual({
+    expect(buildVendorProviderOptions('openai', params, WIRE_REGISTRY.get('openai')!, vendorBag)).toEqual({
       openai: { outputFormat: 'png', complexity: 'high' }
     })
   })

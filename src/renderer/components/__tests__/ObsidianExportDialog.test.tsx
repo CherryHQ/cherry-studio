@@ -66,6 +66,42 @@ const exportNewNote = async (title: string, tags: string) => {
 }
 
 describe('ObsidianExportDialog front matter', () => {
+  it.each(['constructor', '__proto__', 'toString'])('allows selecting the vault folder named %s', async (name) => {
+    const user = userEvent.setup()
+    ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'export.obsidian.get_vaults') return [{ name: 'Notes', path: '/vaults/Notes' }]
+      if (route === 'export.obsidian.get_files') {
+        return [
+          { path: name, name, type: 'folder' },
+          { path: `${name}/note.md`, name: 'note.md', type: 'markdown' }
+        ]
+      }
+      return undefined
+    })
+    render(
+      <PopupContainer
+        title="Draft"
+        obsidianTags=""
+        processingMethod={ObsidianProcessingMethod.NEW_OR_OVERWRITE}
+        open
+        resolve={vi.fn()}
+        rawContent={body}
+      />
+    )
+
+    const folderPicker = await screen.findByRole('combobox', {
+      name: i18n.t('chat.topics.export.obsidian_root_directory')
+    })
+    await user.click(folderPicker)
+    await user.click(await screen.findByRole('button', { name: i18n.t('common.expand') }))
+    const folder = await screen.findByRole('treeitem', { name })
+    await user.click(await screen.findByRole('button', { name: i18n.t('common.expand') }))
+    expect(await screen.findByRole('treeitem', { name: /note.md/ })).toBeVisible()
+    await user.click(folder)
+
+    expect(folderPicker).toHaveTextContent(name)
+  })
+
   it('keeps a ": " title and turns comma-separated "#" tags into a plain tag list', async () => {
     const note = await exportNewNote('Meeting: sprint planning', '#work, notes')
 

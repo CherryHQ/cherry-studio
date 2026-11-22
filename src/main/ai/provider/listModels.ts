@@ -131,12 +131,13 @@ function handleOptionalModelListFailure<T>(
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional model endpoints may fail independently of the primary list; record only a safe error type and contribute an empty list.
-function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>) {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     errorType: getErrorType(error)
   })
-  return { data: [] }
+  const data: T[] = []
+  return { data }
 }
 
 function warnSkippedOpenAIModelEntries(
@@ -584,24 +585,26 @@ const togetherFetcher: ModelFetcher = {
 
 type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'][number]
 
-const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
-  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
-  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-  'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
-  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
-  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
-  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
-  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
-  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
-}
+const ENDPOINT_TYPE_ALIASES: ReadonlyMap<string, EndpointType> = new Map(
+  Object.entries({
+    anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+    gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+    'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+    'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+    'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+    'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+    openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+    'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+    'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
+    'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+    'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+    'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
+  })
+)
 const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
@@ -614,7 +617,7 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
       .map((value) => {
         const normalized = value.trim().toLowerCase()
         return (
-          ENDPOINT_TYPE_ALIASES[normalized] ??
+          ENDPOINT_TYPE_ALIASES.get(normalized) ??
           (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
         )
       })

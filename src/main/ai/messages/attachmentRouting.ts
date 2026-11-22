@@ -25,7 +25,7 @@
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
-import type { UIMessage } from 'ai'
+import type { TextUIPart, UIMessage } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -199,7 +199,7 @@ function capInlineText(handle: string, text: string, isToolCapable: boolean, cap
   return head + more
 }
 
-function noteOf(handle: string): { type: 'text'; text: string } {
+function noteOf(handle: string): TextUIPart {
   return { type: 'text', text: `Attached file "${handle}": [could not read this file].` }
 }
 

@@ -1,5 +1,5 @@
 interface ZhipuRequestBody {
-  tools?: Iterable<unknown> | null
+  tools?: unknown[] | null
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve pre-serialization provider fields and arbitrary tool-schema values without interpreting them.
   [key: string]: unknown
 }

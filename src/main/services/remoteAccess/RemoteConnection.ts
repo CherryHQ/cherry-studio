@@ -202,7 +202,7 @@ export class RemoteConnection {
     await this.send({ jsonrpc: '2.0', method: 'agent.uploads.ack', params })
   }
 
-  requireCapability(domain: RemoteCapability): { deviceId: string; grantId: string } {
+  requireCapability(domain: RemoteCapability) {
     const auth = this.requireAuthentication()
     const grant = auth.authorization.grants.find((value) => value.domain === domain)
     if (!grant) throw new RemoteRpcError('FORBIDDEN', 'Capability was not approved during pairing')

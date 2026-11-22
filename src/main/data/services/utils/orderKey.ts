@@ -363,10 +363,7 @@ export function computeNewOrderKey(
 /**
  * Deduplicate moves by id, keeping the LAST occurrence.
  */
-function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>): {
-  deduped: Array<{ id: string; anchor: OrderRequest }>
-  droppedCount: number
-} {
+function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>) {
   const byId = new Map<string, { id: string; anchor: OrderRequest }>()
   for (const m of moves) {
     byId.set(m.id, m)
@@ -441,12 +438,7 @@ function isValidOrderKey(key: string): boolean {
  * Walk from the scope extremum towards the interior and collect the run of
  * distinct invalid order keys up to the first generator-valid one.
  */
-function collectInvalidBoundaryKeys(
-  tx: TxLike,
-  table: TableWithOrderKey,
-  which: 'first' | 'last',
-  scope?: SQL
-): { invalidKeys: string[]; nearestValid: string | null } {
+function collectInvalidBoundaryKeys(tx: TxLike, table: TableWithOrderKey, which: 'first' | 'last', scope?: SQL) {
   const side = which === 'last' ? 'predecessor' : 'successor'
   const invalidKeys: string[] = []
   let cursor = selectBoundaryKey(tx, table, which, scope)

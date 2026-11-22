@@ -47,7 +47,7 @@ export class BrowserGuestRegistry implements Disposable {
     private readonly claims = new Map<WebContents, BrowserGuestTarget>()
   ) {}
 
-  attach(sessionId: string, webviewId: number, senderId: WindowId | null, pageId = sessionId): { tabId: string } {
+  attach(sessionId: string, webviewId: number, senderId: WindowId | null, pageId = sessionId) {
     const ownerId = this.getOwner(sessionId)
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)

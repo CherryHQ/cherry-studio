@@ -26,12 +26,8 @@ interface MinimaxImageResponse {
   }
 }
 
-function responseHeaders(response: Response): Record<string, string> {
-  const headers: Record<string, string> = {}
-  response.headers.forEach((value, key) => {
-    headers[key] = value
-  })
-  return headers
+function responseHeaders(response: Response) {
+  return Object.fromEntries(response.headers.entries())
 }
 
 function parseSize(size: `${number}x${number}` | undefined): { width?: number; height?: number } {

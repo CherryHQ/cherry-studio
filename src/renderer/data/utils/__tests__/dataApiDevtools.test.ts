@@ -68,6 +68,31 @@ describe('DataApiDevtools', () => {
     nowSpy.mockRestore()
   })
 
+  it('preserves reserved own keys in captured payloads without changing the source', async () => {
+    const { DataApiDevtools } = await import('../dataApiDevtools')
+    const payload = Object.freeze({
+      ['__proto__']: Object.freeze({ marker: 'preview' }),
+      constructor: 'literal-constructor',
+      toString: 'literal-toString'
+    })
+    DataApiDevtools.exposeControlSurface()
+    window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
+
+    DataApiDevtools.recordStart({
+      requestId: 'req_reserved_keys',
+      method: 'POST',
+      path: '/providers',
+      body: payload,
+      retryAttempt: 0
+    })
+
+    const captured = window.__CHERRY_DATA_API_DEVTOOLS__?.getEvent('req_reserved_keys')?.body
+    expect(captured).toEqual(payload)
+    expect(Object.getOwnPropertyDescriptor(captured, '__proto__')?.value).toEqual({ marker: 'preview' })
+    expect(Object.getPrototypeOf(captured)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(payload)).toBe(Object.prototype)
+  })
+
   it('strips request, response, and error payloads by default', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
     DataApiDevtools.exposeControlSurface()

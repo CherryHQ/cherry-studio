@@ -194,17 +194,14 @@ interface AnchoredChartRef {
   chartRId: string
 }
 
-const readAnchorPoint = (node: XmlValue | undefined): { col: number; colOff: number; row: number; rowOff: number } => ({
+const readAnchorPoint = (node: XmlValue | undefined) => ({
   col: toNumber(findChild(node, 'col')) ?? 0,
   colOff: toNumber(findChild(node, 'colOff')) ?? 0,
   row: toNumber(findChild(node, 'row')) ?? 0,
   rowOff: toNumber(findChild(node, 'rowOff')) ?? 0
 })
 
-const anchorPointToPx = (
-  point: { col: number; colOff: number; row: number; rowOff: number },
-  layout: SheetLayoutAccessor
-): { x: number; y: number } => ({
+const anchorPointToPx = (point: ReturnType<typeof readAnchorPoint>, layout: SheetLayoutAccessor) => ({
   // col/row attributes are 0-based; layout.colX/rowY expect 1-based cumulative offsets.
   x: layout.colX(point.col + 1) + emuToPx(point.colOff),
   y: layout.rowY(point.row + 1) + emuToPx(point.rowOff)
@@ -287,14 +284,14 @@ const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor, 
 // chart XML -> ChartModel
 // ---------------------------------------------------------------------------
 
-const PLOT_AREA_TYPE_MAP: Record<string, ChartType> = {
-  barChart: 'bar',
-  lineChart: 'line',
-  pieChart: 'pie',
-  pie3DChart: 'pie',
-  doughnutChart: 'pie',
-  areaChart: 'area'
-}
+const PLOT_AREA_TYPE_MAP: ReadonlyMap<string, ChartType> = new Map([
+  ['barChart', 'bar'],
+  ['lineChart', 'line'],
+  ['pieChart', 'pie'],
+  ['pie3DChart', 'pie'],
+  ['doughnutChart', 'pie'],
+  ['areaChart', 'area']
+])
 
 /** Concatenate plain text from rich-text nodes, taking all a:t values from title tx/rich or literals without strRef. */
 const collectText = (node: XmlValue | undefined, acc: string[] = []): string[] => {
@@ -372,10 +369,7 @@ const readRefFormula = (refNode: XmlValue | undefined): string | undefined => {
 }
 
 /** c:cat or c:val node, containing numRef or strRef, -> data array plus reference string. */
-const readDataSource = (
-  sourceNode: XmlValue | undefined,
-  warnings: string[]
-): { cache: (string | number | null)[] | null; ref: string | undefined } => {
+const readDataSource = (sourceNode: XmlValue | undefined, warnings: string[]) => {
   if (!sourceNode) return { cache: null, ref: undefined }
   const numRef = findChild(sourceNode, 'numRef')
   const strRef = findChild(sourceNode, 'strRef')
@@ -470,7 +464,7 @@ const pickChartTypeNode = (
   const candidates = entries(plotArea).filter(([name]) => name.endsWith('Chart'))
   if (candidates.length === 0) return null
 
-  const supported = candidates.find(([name]) => name in PLOT_AREA_TYPE_MAP)
+  const supported = candidates.find(([name]) => PLOT_AREA_TYPE_MAP.has(name))
   if (candidates.length > 1) {
     warnings.push(
       `combo chart detected (${candidates.map(([n]) => n).join(', ')}); rendering only "${
@@ -500,11 +494,10 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
 
   const { tag, node } = picked
 
-  if (!(tag in PLOT_AREA_TYPE_MAP)) {
+  const type = PLOT_AREA_TYPE_MAP.get(tag)
+  if (!type) {
     return { type: 'unsupported', rawTypeName: tag, title, series: [] }
   }
-
-  const type = PLOT_AREA_TYPE_MAP[tag]
 
   if (tag === 'pie3DChart' || tag === 'doughnutChart') {
     warnings.push(`${tag} rendered as a regular pie chart`)

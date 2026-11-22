@@ -54,10 +54,7 @@ export class ApiGatewayPairedDeviceService {
       .map(rowToApiGatewayPairedDevice)
   }
 
-  approveRemote(input: ApiGatewayPairedDeviceMetadata & { peerIdentity: string; capabilities: RemoteCapability[] }): {
-    device: ApiGatewayPairedDevice
-    authorization: RemoteAuthorization
-  } {
+  approveRemote(input: ApiGatewayPairedDeviceMetadata & { peerIdentity: string; capabilities: RemoteCapability[] }) {
     const parsed = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
     if (!parsed.success) throw toDataApiError(parsed.error, 'approve paired device')
     const metadata = parsed.data

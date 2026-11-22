@@ -72,36 +72,36 @@ type OtlpLogRecord = {
 
 type TraceContextResolver = (traceId: string) => ClaudeCodeTraceContext | undefined
 
-const KIND_BY_VALUE: Record<string, string> = {
-  SPAN_KIND_INTERNAL: 'INTERNAL',
-  SPAN_KIND_SERVER: 'SERVER',
-  SPAN_KIND_CLIENT: 'CLIENT',
-  SPAN_KIND_PRODUCER: 'PRODUCER',
-  SPAN_KIND_CONSUMER: 'CONSUMER',
-  INTERNAL: 'INTERNAL',
-  SERVER: 'SERVER',
-  CLIENT: 'CLIENT',
-  PRODUCER: 'PRODUCER',
-  CONSUMER: 'CONSUMER',
-  '0': 'INTERNAL',
-  '1': 'INTERNAL',
-  '2': 'SERVER',
-  '3': 'CLIENT',
-  '4': 'PRODUCER',
-  '5': 'CONSUMER'
-}
+const KIND_BY_VALUE: ReadonlyMap<string, string> = new Map([
+  ['SPAN_KIND_INTERNAL', 'INTERNAL'],
+  ['SPAN_KIND_SERVER', 'SERVER'],
+  ['SPAN_KIND_CLIENT', 'CLIENT'],
+  ['SPAN_KIND_PRODUCER', 'PRODUCER'],
+  ['SPAN_KIND_CONSUMER', 'CONSUMER'],
+  ['INTERNAL', 'INTERNAL'],
+  ['SERVER', 'SERVER'],
+  ['CLIENT', 'CLIENT'],
+  ['PRODUCER', 'PRODUCER'],
+  ['CONSUMER', 'CONSUMER'],
+  ['0', 'INTERNAL'],
+  ['1', 'INTERNAL'],
+  ['2', 'SERVER'],
+  ['3', 'CLIENT'],
+  ['4', 'PRODUCER'],
+  ['5', 'CONSUMER']
+])
 
-const STATUS_BY_VALUE: Record<string, string> = {
-  STATUS_CODE_UNSET: 'UNSET',
-  STATUS_CODE_OK: 'OK',
-  STATUS_CODE_ERROR: 'ERROR',
-  UNSET: 'UNSET',
-  OK: 'OK',
-  ERROR: 'ERROR',
-  '0': 'UNSET',
-  '1': 'OK',
-  '2': 'ERROR'
-}
+const STATUS_BY_VALUE: ReadonlyMap<string, string> = new Map([
+  ['STATUS_CODE_UNSET', 'UNSET'],
+  ['STATUS_CODE_OK', 'OK'],
+  ['STATUS_CODE_ERROR', 'ERROR'],
+  ['UNSET', 'UNSET'],
+  ['OK', 'OK'],
+  ['ERROR', 'ERROR'],
+  ['0', 'UNSET'],
+  ['1', 'OK'],
+  ['2', 'ERROR']
+])
 
 export class ClaudeCodeOtlpAdapter {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector JSON parsing does not validate OTLP structure; conversion failures propagate to its HTTP 400 boundary before span entities are published.
@@ -534,12 +534,12 @@ function getNumber(attributes: Attributes, key: string): number | undefined {
 
 function normalizeKind(kind: string | number | undefined): string {
   const key = kind === undefined ? 'SPAN_KIND_INTERNAL' : String(kind)
-  return KIND_BY_VALUE[key] ?? key.replace(/^SPAN_KIND_/, '') ?? 'INTERNAL'
+  return KIND_BY_VALUE.get(key) ?? key.replace(/^SPAN_KIND_/, '')
 }
 
 function normalizeStatus(status: string | number | undefined): string {
   const key = status === undefined ? 'STATUS_CODE_UNSET' : String(status)
-  return STATUS_BY_VALUE[key] ?? 'UNSET'
+  return STATUS_BY_VALUE.get(key) ?? 'UNSET'
 }
 
 function unixNanoToMillis(value: string | number | undefined): number {

@@ -28,6 +28,7 @@ it.each(['renderer', 'main', 'file-preview'] as const)('preserves UI findings an
     notification.info('通知');
     const view = <div title="标题">正文</div>;
     const english = <Button title="Save Changes" />;
+    const customProps = <Widget constructor="忽略自定义属性" __proto__="忽略自定义属性" toString="忽略自定义属性" />;
     t('忽略翻译');
     logger.info('忽略日志');
     type Example = { label: '忽略类型' };

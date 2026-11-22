@@ -1289,6 +1289,14 @@ describe('SkillService', () => {
       )
     })
 
+    it.each(['constructor', '__proto__', 'toString'])('rejects an unknown %s install source', async (source) => {
+      const skillService = new SkillService()
+
+      await expect(skillService.install({ installSource: `${source}:foo/bar` })).rejects.toThrow(
+        `Unknown install source: ${source}`
+      )
+    })
+
     it('rejects ambiguous claude-plugins identifiers without a directory path', async () => {
       const skillService = new SkillService()
       const createTempDirSpy = vi.mocked(skillPaths.createTempDir)

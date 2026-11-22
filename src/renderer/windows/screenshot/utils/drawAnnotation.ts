@@ -92,7 +92,7 @@ function drawRect(ctx: CanvasRenderingContext2D, a: RectAnnotation): void {
  * Arrow proportions per stroke width, all in logical px:
  * `[shaft width at the tail, shaft width at the head junction, head wing span, head length]`.
  */
-const ARROW_DIMS: Record<number, [number, number, number, number]> = {
+const ARROW_DIMS: Record<2 | 4 | 6, [number, number, number, number]> = {
   2: [3, 9, 20, 26],
   4: [6, 12, 30, 39],
   6: [9, 18, 40, 52]
@@ -117,7 +117,7 @@ function drawArrow(ctx: CanvasRenderingContext2D, a: ArrowAnnotation): void {
   const ny = ux
 
   // The table only has 2/4/6; a width restored from an older preference must not destructure undefined.
-  const [startWidth, endWidth, headWidth, headLen] = ARROW_DIMS[sw] ?? ARROW_DIMS[4]
+  const [startWidth, endWidth, headWidth, headLen] = sw === 2 || sw === 6 ? ARROW_DIMS[sw] : ARROW_DIMS[4]
   const startHalfW = startWidth / 2
   const endHalfW = endWidth / 2
   const headHalfW = headWidth / 2

@@ -22,6 +22,7 @@ function mergeAxis(base: OptionObject, extension: OptionObject, data?: Array<num
 
   const axis = { ...base, ...extension }
   if (data) axis.data = data
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native ECharts fields and formatter callbacks survive this partial merge without being claimed as parsed chart values.
   return Object.assign(axis, {
     axisLine: {
       ...baseAxisLine,

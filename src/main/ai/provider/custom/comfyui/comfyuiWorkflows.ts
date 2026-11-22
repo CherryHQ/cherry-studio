@@ -27,10 +27,7 @@ export function isListableWorkflow(providerId: string, workflow: string): boolea
  * id contract refuses. A skip the user cannot see reads as a workflow that vanished, so
  * the names travel with the list and the caller reports them; the log names the cause.
  */
-export function partitionListableWorkflows(
-  providerId: string,
-  workflows: string[]
-): { listed: string[]; skipped: string[] } {
+export function partitionListableWorkflows(providerId: string, workflows: string[]) {
   const listed: string[] = []
   const skipped: string[] = []
   for (const workflow of workflows) {

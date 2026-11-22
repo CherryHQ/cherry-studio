@@ -8,16 +8,19 @@
  * - No embedded raster images (<image> or data:image)
  * - File size < 50KB
  *
- * Usage: pnpm tsx scripts/icons-validate.ts [--dir=logos|general]
+ * Usage: pnpm tsx packages/ui/scripts/icons-validate.ts [--dir=providers|models|general]
  */
 import fs from 'fs/promises'
 import path from 'path'
 
 type SourceDir = 'providers' | 'models' | 'general'
 
-function parseArgs(): { dir: SourceDir } {
+function parseArgs() {
   const dirArg = process.argv.find((a) => a.startsWith('--dir='))
-  const dir = (dirArg?.split('=')[1] as SourceDir) || 'providers'
+  const dir = dirArg?.split('=')[1] || 'providers'
+  if (dir !== 'providers' && dir !== 'models' && dir !== 'general') {
+    throw new Error('--dir must be providers, models or general')
+  }
   return { dir }
 }
 

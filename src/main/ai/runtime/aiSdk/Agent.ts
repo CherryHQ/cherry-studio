@@ -46,16 +46,14 @@ class MissingFinishReasonError extends Error {
   }
 }
 
-function normalizeStreamError<TError>(
-  error: TError,
-  providerId: string,
-  modelId: string
-): TError | MissingFinishReasonError {
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening -- Stream promises can reject with any value; wrap only the recognized SDK failure and preserve every other rejection by identity. */
+function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
   if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
 }
+/* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening */
 
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>

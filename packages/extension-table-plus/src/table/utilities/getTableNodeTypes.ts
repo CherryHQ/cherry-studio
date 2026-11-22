@@ -17,5 +17,6 @@ export function getTableNodeTypes(schema: Schema): { [key: string]: NodeType } {
 
   schema.cached.tableNodeTypes = roles
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Schema extensions define dynamic table roles; keep the NodeType contract instead of inferring any from the native cache.
   return roles
 }

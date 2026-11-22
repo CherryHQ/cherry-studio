@@ -23,7 +23,7 @@ import {
   MarketplaceLoadState
 } from './MarketplaceComponents'
 import { groupTranslations } from './marketplaceGroupTranslations'
-import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
+import { getMarketplaceCategoryLabel } from './marketplaceLabels'
 
 export function MarketplaceTemplates({
   items,
@@ -71,9 +71,9 @@ export function MarketplaceTemplates({
     return preview ? matched.slice(0, 6) : matched
   }, [items, query, preview, category, categories])
   const categoryLabel = (group: string) =>
-    groupTranslations[group]?.[i18n.language] ??
-    groupTranslations[group]?.['en-US'] ??
-    (MARKETPLACE_CATEGORY_KEYS[group] ? t(MARKETPLACE_CATEGORY_KEYS[group]) : group)
+    groupTranslations.get(group)?.get(i18n.language) ??
+    groupTranslations.get(group)?.get('en-US') ??
+    getMarketplaceCategoryLabel(group, t)
   const add = (item: MarketplaceTemplate) => {
     setSelected(null)
     setCreating(item)

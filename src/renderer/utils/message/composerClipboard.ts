@@ -720,7 +720,7 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
   const clipboardItemConstructor = window.ClipboardItem
 
   if (navigator.clipboard && clipboardItemConstructor) {
-    const baseItems: Record<string, Blob> = {
+    const baseItems: ConstructorParameters<typeof clipboardItemConstructor>[0] = {
       'text/plain': new Blob([content.plainText], { type: 'text/plain' }),
       'text/html': new Blob([content.html], { type: 'text/html' })
     }

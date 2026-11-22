@@ -564,9 +564,9 @@ export class CacheService extends BaseService {
    * Get all shared cache entries (for renderer initialization sync)
    * @returns Record of all shared cache entries with their metadata
    */
-  private getAllShared(): Record<string, CacheEntry> {
+  private getAllShared() {
     const now = Date.now()
-    const result: Record<string, CacheEntry> = {}
+    const entries: [string, CacheEntry][] = []
 
     for (const [key, entry] of this.sharedCache.entries()) {
       // Skip expired entries
@@ -574,10 +574,10 @@ export class CacheService extends BaseService {
         this.evictShared(key)
         continue
       }
-      result[key] = entry
+      entries.push([key, entry])
     }
 
-    return result
+    return Object.fromEntries(entries)
   }
 
   // ============ Persist Cache (Main-authoritative, JSON-backed) ============

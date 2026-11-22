@@ -15,6 +15,7 @@ export function getAutomationReplKind(tool: BaseTool | McpTool): 'execute' | 're
   return undefined
 }
 
+// oxlint-disable anti-slop/no-known-value-widening -- Recursive error-envelope unwrapping needs an explicit text/error result type to avoid circular inference.
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted automation output may contain an MCP envelope, content array or legacy text; CallToolResultSchema owns envelope validation.
 export function parseAutomationReplOutput(response: unknown): { text: string; isError: boolean } {
   const parsed = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
@@ -37,6 +38,7 @@ export function parseAutomationReplOutput(response: unknown): { text: string; is
     isError: parsed.data.isError === true
   }
 }
+// oxlint-enable anti-slop/no-known-value-widening
 
 export function formatAutomationReplOutput(text: string): string {
   try {

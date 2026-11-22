@@ -14,16 +14,14 @@ import path from 'path'
 
 const TARGET_SIZE = 32
 
-type SourceDir = 'providers' | 'models'
-
-function parseArgs(): { dir: SourceDir; dryRun: boolean } {
+function parseArgs() {
   const dirArg = process.argv.find((a) => a.startsWith('--dir='))
-  const dir = (dirArg?.split('=')[1] as SourceDir) || 'providers'
+  const dir = dirArg?.split('=')[1] || 'providers'
   const dryRun = process.argv.includes('--dry-run')
   return { dir, dryRun }
 }
 
-function normalizeSvg(content: string): { result: string; changed: boolean; reason?: string } {
+function normalizeSvg(content: string) {
   const svgTagMatch = content.match(/<svg([^>]*)>/s)
   if (!svgTagMatch) {
     return { result: content, changed: false, reason: 'no <svg> tag' }

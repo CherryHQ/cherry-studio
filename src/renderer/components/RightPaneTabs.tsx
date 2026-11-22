@@ -43,12 +43,11 @@ const TAB_SLOT_PX = 116
 const OVERFLOW_BUTTON_PX = 32
 
 /** Keeps the active tab visible and moves overflow tabs into the menu; narrow strips may shrink the visible tab. */
-export function fitPaneTabs<T extends { key: string }>(
-  tabs: T[],
-  activeKey: string | null,
-  width: number
-): { visible: T[]; hidden: T[] } {
-  if (width <= 0 || tabs.length * TAB_SLOT_PX <= width) return { visible: tabs, hidden: [] }
+export function fitPaneTabs<T extends { key: string }>(tabs: T[], activeKey: string | null, width: number) {
+  if (width <= 0 || tabs.length * TAB_SLOT_PX <= width) {
+    const hidden: T[] = []
+    return { visible: tabs, hidden }
+  }
   const capacity = Math.max(1, Math.floor((width - OVERFLOW_BUTTON_PX) / TAB_SLOT_PX))
   let visible = tabs.slice(0, capacity)
   const active = tabs.find((tab) => tab.key === activeKey)

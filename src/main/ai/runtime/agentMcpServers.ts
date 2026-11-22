@@ -68,7 +68,7 @@ export function buildAgentMcpServers(
   selectedKnowledgeBaseIds: readonly string[] = [],
   notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
   effectiveModelId?: UniqueModelId | null
-): Record<string, AgentMcpServer> {
+) {
   const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
   const interactionContext = {
     sessionId: session.id,

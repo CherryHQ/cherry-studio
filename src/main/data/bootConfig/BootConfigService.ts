@@ -368,11 +368,7 @@ export class BootConfigService {
    * surface a validation_error instead of silently adopting corrupt data.
    * No deep merge needed — flat key-value map with direct assignment.
    */
-  private mergeDefaults(loaded: JSONValue): {
-    config: BootConfigSchema
-    invalidKeys: BootConfigKey[]
-    invalidRoot: boolean
-  } {
+  private mergeDefaults(loaded: JSONValue) {
     if (typeof loaded !== 'object' || loaded === null || Array.isArray(loaded)) {
       return { config: { ...DefaultBootConfig }, invalidKeys: [], invalidRoot: true }
     }

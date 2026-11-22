@@ -51,8 +51,9 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
   const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
   if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
 
-  function strip<T>(values: Record<string, T>): Record<string, T> {
-    const cleaned = { ...values }
+  function strip<T>(values: Record<string, T>) {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Preserve arbitrary input fields and their value domain while allowing the numeric temperature replacement.
+    const cleaned: Record<string, T | number> = { ...values }
     if (!acceptsTemperature) delete cleaned.temperature
     if (!acceptsTopP) {
       delete cleaned.topP
@@ -72,7 +73,7 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
       Number.isFinite(cleaned.temperature) &&
       cleaned.temperature >= 2
     ) {
-      cleaned.temperature = 1.9 as T
+      cleaned.temperature = 1.9
     }
     return cleaned
   }

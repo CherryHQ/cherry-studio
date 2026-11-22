@@ -53,7 +53,7 @@ export const knowledgeFileProcessingExts = ['.pdf'] as const
  * This is the primary source for identifying code files.
  */
 const linguistExtSet = new Set<string>()
-for (const lang of Object.values(codeLanguages)) {
+for (const lang of codeLanguages.values()) {
   if (lang.extensions) {
     for (const ext of lang.extensions) {
       linguistExtSet.add(ext)

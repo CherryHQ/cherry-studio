@@ -9,16 +9,16 @@ let extensionToLanguageCache: Map<string, string> | null = null
 // common extensions — e.g. `.md` → 'GCC Machine Description', `.html` →
 // 'Ecmarkup', `.sql` → 'PLpgSQL'. Pin the conventional primary language for
 // the extensions where the alphabetical winner is clearly wrong.
-const PRIMARY_EXTENSION_OVERRIDES: Record<string, string> = {
-  md: 'Markdown',
-  yml: 'YAML',
-  yaml: 'YAML',
-  html: 'HTML',
-  sql: 'SQL',
-  rs: 'Rust',
-  txt: 'Text',
-  php: 'PHP'
-}
+const PRIMARY_EXTENSION_OVERRIDES: ReadonlyMap<string, string> = new Map([
+  ['md', 'Markdown'],
+  ['yml', 'YAML'],
+  ['yaml', 'YAML'],
+  ['html', 'HTML'],
+  ['sql', 'SQL'],
+  ['rs', 'Rust'],
+  ['txt', 'Text'],
+  ['php', 'PHP']
+])
 
 /**
  * Build a cache mapping extensions to language names
@@ -29,7 +29,7 @@ function buildExtensionCache(): Map<string, string> {
   }
 
   extensionToLanguageCache = new Map()
-  for (const [langName, data] of Object.entries(codeLanguages)) {
+  for (const [langName, data] of codeLanguages) {
     if (data.extensions) {
       for (const ext of data.extensions) {
         // Store without the leading dot, lowercase
@@ -55,7 +55,7 @@ export function getLanguageByExtension(extension: string): string {
   // Normalize extension: remove leading dot and lowercase
   const normalizedExt = extension.startsWith('.') ? extension.slice(1).toLowerCase() : extension.toLowerCase()
 
-  const override = PRIMARY_EXTENSION_OVERRIDES[normalizedExt]
+  const override = PRIMARY_EXTENSION_OVERRIDES.get(normalizedExt)
   if (override) return override
 
   const cache = buildExtensionCache()
@@ -93,20 +93,20 @@ export function getExtensionByLanguage(language: string): string {
   const lowerLanguage = language.toLowerCase()
 
   // 精确匹配语言名称
-  const directMatch = codeLanguages[language]
+  const directMatch = codeLanguages.get(language)
   if (directMatch?.extensions?.[0]) {
     return directMatch.extensions[0]
   }
 
   // 大小写不敏感的语言名称匹配
-  for (const [langName, data] of Object.entries(codeLanguages)) {
+  for (const [langName, data] of codeLanguages) {
     if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
       return data.extensions[0]
     }
   }
 
   // 通过别名匹配
-  for (const [, data] of Object.entries(codeLanguages)) {
+  for (const data of codeLanguages.values()) {
     if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
       return data.extensions?.[0] || `.${language}`
     }

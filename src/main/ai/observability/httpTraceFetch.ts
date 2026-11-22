@@ -229,19 +229,19 @@ function truncate(str: string, max: number): string {
   return str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
 }
 
-function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!headers) return out
+function headersToRecord(headers: HeadersInit | undefined) {
+  const entries: [string, string][] = []
+  if (!headers) return Object.fromEntries(entries)
   if (headers instanceof Headers) {
     headers.forEach((value, key) => {
-      out[key] = value
+      entries.push([key, value])
     })
   } else if (Array.isArray(headers)) {
-    for (const [key, value] of headers) out[key] = value
+    for (const [key, value] of headers) entries.push([key, value])
   } else {
-    for (const [key, value] of Object.entries(headers)) out[key] = String(value)
+    for (const [key, value] of Object.entries(headers)) entries.push([key, String(value)])
   }
-  return out
+  return Object.fromEntries(entries)
 }
 
 function normalizeUrl(input: RequestInfo | URL): string {

@@ -1,5 +1,5 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { buildCitationPartsRegistry, getPriorCitationParts } from './citations'
 
@@ -29,8 +29,7 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
 
 /** Attach each message's earlier citable tool parts so a list export resolves re-cited ids like the screen. */
 export function withPriorCitationParts(messages: MessageExportView[]): MessageExportView[] {
-  const partsByMessageId: Record<string, CherryMessagePart[]> = {}
-  for (const message of messages) partsByMessageId[message.id] = message.parts
+  const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts] as const))
   const registry = buildCitationPartsRegistry(
     messages.map((message) => message.id),
     partsByMessageId
@@ -41,10 +40,6 @@ export function withPriorCitationParts(messages: MessageExportView[]): MessageEx
   })
 }
 
-export function createPartsByMessageId(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {
-  const partsByMessageId: Record<string, CherryMessagePart[]> = {}
-  for (const message of messages) {
-    partsByMessageId[message.id] = message.parts ?? []
-  }
-  return partsByMessageId
+export function createPartsByMessageId(messages: CherryUIMessage[]) {
+  return Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []] as const))
 }

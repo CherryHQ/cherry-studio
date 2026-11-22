@@ -23,6 +23,7 @@ async function requestDocument() {
     history: 'latest',
     fork: 'initial',
     checkpointWhen: () => false,
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The document starts empty and later accepts a request validated by requestSchema; inferring only null would prevent that state transition.
     initial: (): { request: z.infer<typeof requestSchema> | null } => ({ request: null })
   })
 }

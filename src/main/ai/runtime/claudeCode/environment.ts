@@ -141,7 +141,7 @@ export async function buildEnvironment(
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
 
-  const env: Record<string, string | undefined> = {
+  const env: NodeJS.ProcessEnv = {
     ...loginShellEnv,
     ...proxyEnvironment,
     CLAUDE_CODE_USE_BEDROCK: '0',
