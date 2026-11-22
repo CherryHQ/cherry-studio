@@ -335,6 +335,32 @@ describe('memory organization lifecycle and commit fences', () => {
       })
   })
 
+  it('retries the failed manual batch before deferred topics when automatic organization is enabled', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.memory.dreaming.enabled', true)
+    await save('Entry')
+    for (const target of ['.memories/a.md', '.memories/b.md']) await save('reason '.repeat(1000), target)
+    dreaming.request(scope)
+    generate.mockRejectedValueOnce(new Error('Temporary model failure'))
+    await expect(dreaming.execute(job())).rejects.toThrow()
+    now += 9 * 60_000
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ deferred: true })
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect(readDreamingState(scope).manual).toBe(true)
+    now += 60_000
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 2 })
+    const prompts = generate.mock.calls.map(([input]) =>
+      JSON.parse(input.prompt!).files.map((file: { path: string }) => file.path)
+    )
+    expect(prompts).toEqual([
+      ['MEMORY.md', '.memories/a.md'],
+      ['MEMORY.md', '.memories/a.md']
+    ])
+    expect(readDreamingState(scope).manual).toBe(false)
+  })
+
   it('keeps an unfit required entry intact and blocks repeated preflight until a fresh request', async () => {
     dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
     const original = 'reason '.repeat(3000)
