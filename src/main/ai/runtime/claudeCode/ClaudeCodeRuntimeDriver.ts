@@ -106,6 +106,20 @@ function isFastSlashCommand(input: AgentRuntimeCommand): boolean {
   return /^\/fast(?:\s|$)/i.test(text)
 }
 
+/**
+ * Preserve the native open operation/code on the thrown error so cold-start
+ * `native-storage-missing` can be distinguished from live SDK text that merely
+ * mentions the same token (#23519 review inv_5182df3851eda86f). The message
+ * keeps the `Claude Code open:` prefix that `isMissingNativeStorageError`
+ * matches; the typed fields let it match without substring sniffing.
+ */
+function throwNativeOpenError(error: { operation: string; code: string; message: string }): never {
+  const thrown = new Error(error.message) as Error & { operation: string; code: string }
+  thrown.operation = error.operation
+  thrown.code = error.code
+  throw thrown
+}
+
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
   const baselineFacts = baseline.rebuildFactFingerprints
   const freshFacts = fresh.rebuildFactFingerprints
@@ -258,7 +272,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+    if (opened.status !== 'confirmed') throwNativeOpenError(opened.error)
     this.handle = opened.value
     this.sdkModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
@@ -712,7 +726,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           backendId: this.handle!.thread.backendId,
           id: runtimeId(control.sessionId)
         })
-        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        if (opened.status !== 'confirmed') throwNativeOpenError(opened.error)
         let context: NonNullable<typeof this.context>
         try {
           // `input.branchHead` is captured at connect time and goes stale once
@@ -813,7 +827,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (granted) handle = granted
         else {
           const opened = await this.runtime!.open(thread)
-          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+          if (opened.status !== 'confirmed') throwNativeOpenError(opened.error)
           handle = opened.value
         }
         const relation = handle.claude.relation()

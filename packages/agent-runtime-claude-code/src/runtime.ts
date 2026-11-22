@@ -215,6 +215,13 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         return { status: 'confirmed', value: access(owner, projection, sessionId, agentId) }
       } catch (error) {
         report(error)
+        // `refresh()` throws `native-storage-missing` for a confirmed-gone
+        // archive; preserve that distinction instead of collapsing everything
+        // to `native-storage-unavailable` so cold start can route the confirmed
+        // case through scoped invalidation while transient failures preserve
+        // bindings (#23519 review inv_ed3f7d595f21b254).
+        const text = error instanceof Error ? (error.message ?? '') : String(error ?? '')
+        if (text.includes('native-storage-missing')) return rejected('open', 'native-storage-missing')
         return rejected('open', 'native-storage-unavailable')
       }
     },

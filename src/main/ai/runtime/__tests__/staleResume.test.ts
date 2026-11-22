@@ -34,10 +34,29 @@ describe('isMissingNativeStorageError', () => {
     expect(isMissingNativeStorageError(new Error('Claude Code open: native-storage-missing'))).toBe(true)
   })
 
+  it('matches typed open missing results without substring sniffing', () => {
+    const typed = new Error('Claude Code open: native-storage-missing') as Error & {
+      operation: string
+      code: string
+    }
+    typed.operation = 'open'
+    typed.code = 'native-storage-missing'
+    expect(isMissingNativeStorageError(typed)).toBe(true)
+  })
+
   it('rejects transient unavailable and unrelated errors', () => {
     expect(isMissingNativeStorageError(new Error('Claude Code open: native-storage-unavailable'))).toBe(false)
     expect(isMissingNativeStorageError(new Error('No conversation found with session ID: abc'))).toBe(false)
     expect(isMissingNativeStorageError(null)).toBe(false)
+  })
+
+  it('rejects live SDK text that merely mentions the missing token', () => {
+    // inv_5182df3851eda86f: a live failure like `API 503: service returned
+    // native-storage-missing` must not clear a healthy binding.
+    expect(isMissingNativeStorageError(new Error('API 503: service returned native-storage-missing'))).toBe(false)
+    const liveFailure = new Error('API 503: service returned native-storage-missing')
+    liveFailure.name = 'ClaudeCodeResultError'
+    expect(isMissingNativeStorageError(liveFailure)).toBe(false)
   })
 })
 

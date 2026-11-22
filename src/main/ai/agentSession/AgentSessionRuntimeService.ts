@@ -548,6 +548,13 @@ export class AgentSessionRuntimeService extends BaseService {
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
+  /** Resolved when shutdown starts so a close already waiting on a pending connect
+   * can apply the 1.5s shutdown bound instead of holding the unbounded wait
+   * across both stop and destroy (#23519 review inv_8fa258e00144e9e7). */
+  private shutdownResolve: (() => void) | undefined
+  private readonly shutdownStarted: Promise<void> = new Promise<void>((resolve) => {
+    this.shutdownResolve = resolve
+  })
   /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
    *  connection is shared per-session across windows, so its view-close teardown may only start
    *  once this set is empty — a renderer-local count can neither see other windows nor survive
@@ -2154,6 +2161,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.shutdownResolve?.()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -4142,7 +4150,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // Bound the pending-connect wait (1.5s while shutting down) so shutdown does
     // not stall on a hung `driver.connect()`; the late attempt still serializes
     // against teardown via `connectionAttempts` and self-closes on `entry.closing`
-    // (#23519 review).
+    // (#23519 review). When shutdown starts mid-wait, the same 1.5s bound applies
+    // to the already-in-progress wait so one close cannot consume the 4s budget in
+    // both stop and destroy (inv_8fa258e00144e9e7).
     if (connectionAttempt) {
       if (this.isShuttingDown) {
         await Promise.race([
@@ -4150,7 +4160,15 @@ export class AgentSessionRuntimeService extends BaseService {
           new Promise<void>((resolve) => setTimeout(resolve, 1500))
         ])
       } else {
-        await connectionAttempt.catch(() => undefined)
+        await Promise.race([
+          connectionAttempt.catch(() => undefined),
+          this.shutdownStarted.then(() =>
+            Promise.race([
+              connectionAttempt.catch(() => undefined),
+              new Promise<void>((resolve) => setTimeout(resolve, 1500))
+            ])
+          )
+        ])
       }
     }
     if (connectionLoop) await connectionLoop

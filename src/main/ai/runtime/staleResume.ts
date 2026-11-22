@@ -18,9 +18,22 @@ export function isStaleResumeError(error: unknown): boolean {
  * archive is gone and retrying the same id will fail identically. Route only
  * this confirmed case through scoped stale invalidation; preserve bindings on
  * transient failures.
+ *
+ * The match is intentionally strict: only the `Claude Code open:` operation
+ * (or a typed `{ operation: 'open', code: 'native-storage-missing' }` result)
+ * counts. Live SDK text such as `API 503: service returned
+ * native-storage-missing` must not clear a healthy binding (#23519 review
+ * inv_5182df3851eda86f).
  */
 export function isMissingNativeStorageError(error: unknown): boolean {
-  return extractErrorText(error).includes('native-storage-missing')
+  if (typeof error === 'object' && error !== null) {
+    const record = error as Record<string, unknown>
+    if (record['code'] === 'native-storage-missing' && record['operation'] === 'open') return true
+    // ClaudeCodeResultError and other live failures carry their own names;
+    // never treat them as confirmed-missing without the open operation marker.
+    if ((error as Error).name === 'ClaudeCodeResultError') return false
+  }
+  return extractErrorText(error).includes('Claude Code open: native-storage-missing')
 }
 
 /**
