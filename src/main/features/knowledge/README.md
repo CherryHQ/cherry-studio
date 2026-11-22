@@ -35,6 +35,7 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
 | `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
+| `governance/` | Source-authenticated exclusion/label batches under the shared mutation lock; durable decisions/history remain in Main data services. |
 | `query/` | Read side + Concept ID tool surface: base discovery and hybrid search with visibility filtering (`KnowledgeQueryService`); Concept ID read/grep/tree plus the `kb_manage` delete/refresh writes, which delegate to `ingestion/` (`KnowledgeConceptService`). |
 | `tasks/` | Job handlers — the pipeline executors (see below); `prepareItem.ts` holds prepare-root's two locked steps: pinning a directory root's `raw/` prefix and creating its child items. |
 | `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |

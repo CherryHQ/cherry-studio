@@ -13,8 +13,11 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { knowledgeChunkGovernanceService as governance } from '@data/services/KnowledgeChunkGovernanceService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
+import { KnowledgeChunkBatchInputSchema } from '@shared/data/types/knowledgeChunkGovernance'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { KeyedMutex } from '@shared/utils/async'
 
+import { KnowledgeChunkGovernanceWorkflow } from '../../governance/KnowledgeChunkGovernanceWorkflow'
 import { openBetterSqlite3IndexDriver } from '../../pipeline/vectorstore/indexStore/BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from '../../pipeline/vectorstore/indexStore/BetterSqlite3VectorIndex'
 import { hashContentText, hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
@@ -46,6 +49,8 @@ const rerankModelId = createUniqueModelId('openai', 'rerank')
 describe('Knowledge governance retrieval authority', () => {
   const dbh = setupTestDatabase()
   const service = new KnowledgeQueryService()
+  const lock = new KeyedMutex()
+  const workflow = new KnowledgeChunkGovernanceWorkflow(lock)
   let tempDir: string
   let store: KnowledgeIndexStore
 
@@ -174,6 +179,227 @@ describe('Knowledge governance retrieval authority', () => {
   function enableRerank() {
     dbh.db.update(knowledgeBaseTable).set({ rerankModelId }).where(eq(knowledgeBaseTable.id, baseId)).run()
   }
+
+  async function selection(itemId: string) {
+    return (await service.listItemChunks(baseId, itemId)).map((chunk) => ({
+      itemId,
+      unitId: chunk.id,
+      sourceContentHash: chunk.governance!.sourceContentHash,
+      expectedRevision: chunk.governance!.revision
+    }))
+  }
+
+  it('atomically edits explicitly selected exclusions and labels without changing source or other units', async () => {
+    const id = material(['target one', 'target two', 'target untouched'])
+    const selected = (await selection(id)).slice(0, 2)
+    await workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    expect((await service.search(baseId, 'target')).map((hit) => hit.pageContent)).toEqual(['target untouched'])
+    await workflow.apply({
+      baseId,
+      selection: (await selection(id)).slice(0, 2),
+      action: { kind: 'label', operation: 'add', label: ' review ' }
+    })
+    let chunks = await service.listItemChunks(baseId, id)
+    expect(chunks.map((chunk) => chunk.governance?.labels)).toEqual([['review'], ['review'], []])
+    expect(chunks.map((chunk) => chunk.governance?.status)).toEqual(['excluded', 'excluded', 'active'])
+    await workflow.apply({
+      baseId,
+      selection: (await selection(id)).slice(0, 1),
+      action: { kind: 'exclusion', excluded: false }
+    })
+    await workflow.apply({
+      baseId,
+      selection: (await selection(id)).slice(0, 1),
+      action: { kind: 'label', operation: 'remove', label: 'review' }
+    })
+    chunks = await service.listItemChunks(baseId, id)
+    expect(chunks[0].governance).toMatchObject({ excluded: false, labels: [], status: 'active' })
+    expect(chunks[1].governance).toMatchObject({ excluded: true, labels: ['review'] })
+    expect(store.readMaterialContent(id)).toBe('target one\ntarget two\ntarget untouched')
+    expect(embedMany).not.toHaveBeenCalled()
+    expect(rerank).not.toHaveBeenCalled()
+  })
+
+  it('rolls back an earlier selected write when a later revision is stale', async () => {
+    const id = material(['target one', 'target two'])
+    const existing = save(id, 1)
+    const selected = await selection(id)
+    const revised = update(existing, { ...existing.state, labels: ['newer window'] })
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'label', operation: 'add', label: 'stale edit' } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([revised])
+    expect(governance.listHistory(baseId, id, existing.unitId)).toHaveLength(2)
+  })
+
+  it('rolls back every record and history when a later batch history insert fails', async () => {
+    const id = material(['target one', 'target two'])
+    const selected = await selection(id)
+    dbh.sqlite.exec(`CREATE TEMP TRIGGER fail_second_history BEFORE INSERT ON knowledge_chunk_governance_history
+      WHEN (SELECT count(*) FROM knowledge_chunk_governance_history) > 0
+      BEGIN SELECT RAISE(ABORT, 'injected second history failure'); END`)
+    try {
+      await expect(
+        workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+      ).rejects.toThrow()
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER fail_second_history')
+    }
+    expect(governance.listByBase(baseId)).toEqual([])
+    expect(dbh.sqlite.prepare('SELECT count(*) AS n FROM knowledge_chunk_governance_history').get()).toEqual({ n: 0 })
+  })
+
+  it('serializes competing windows and refuses a stale first-edit revision', async () => {
+    const id = material()
+    const selected = await selection(id)
+    const results = await Promise.allSettled([
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } }),
+      workflow.apply({ baseId, selection: selected, action: { kind: 'label', operation: 'add', label: 'competing' } })
+    ])
+    expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected'])
+    expect(governance.listByBase(baseId)[0]).toMatchObject({ revision: 1, state: { excluded: true, labels: [] } })
+  })
+
+  it.each(['source', 'unit', 'ownership'])(
+    'rejects a stale or forged %s selection without partial writes',
+    async (change) => {
+      const id = material(['target one', 'target two'])
+      const other = material(['target other'])
+      const selected = await selection(id)
+      if (change === 'source') selected[1].sourceContentHash = 'f'.repeat(64)
+      if (change === 'unit') selected[1].unitId = 'a'.repeat(64)
+      if (change === 'ownership') selected[1].unitId = store.listMaterialUnits(other)[0].unitId
+      await expect(
+        workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+      ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+      expect(governance.listByBase(baseId)).toEqual([])
+    }
+  )
+
+  it('authenticates original source slices instead of trusting a returned chunk body', async () => {
+    const id = material()
+    const selected = await selection(id)
+    const units = store.listMaterialUnits(id)
+    vi.spyOn(store, 'listMaterialUnits').mockReturnValueOnce([{ ...units[0], text: 'x'.repeat(units[0].text.length) }])
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([])
+  })
+
+  it('shows changed-source review state and refuses edits that would conceal unmatched history', async () => {
+    const id = material()
+    const saved = save(id)
+    index(id, ['target changed'])
+    const chunks = await service.listItemChunks(baseId, id)
+    expect(chunks[0].governance?.status).toBe('review-needed')
+    await expect(
+      workflow.apply({ baseId, selection: await selection(id), action: { kind: 'exclusion', excluded: false } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([saved])
+  })
+
+  it('rechecks lifecycle state after waiting for the same per-base mutation owner', async () => {
+    const id = material()
+    const selected = await selection(id)
+    let release!: () => void
+    let signalStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve
+    })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const held = lock.runExclusive(baseId, async () => {
+      signalStarted()
+      await gate
+    })
+    await started
+    const pending = workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    dbh.db.update(knowledgeItemTable).set({ status: 'deleting' }).where(eq(knowledgeItemTable.id, id)).run()
+    release()
+    await held
+    await expect(pending).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([])
+  })
+
+  it('preserves pending corrections and labels while re-enabling and creates no untouched no-op records', async () => {
+    const id = material(['target one', 'target two'])
+    const saved = save(id, 0, { excluded: true, labels: ['keep'], overrideText: 'pending correction' })
+    await workflow.apply({ baseId, selection: await selection(id), action: { kind: 'exclusion', excluded: false } })
+    expect(governance.listByBase(baseId)).toHaveLength(1)
+    expect(governance.get(baseId, id, saved.unitId)?.state).toEqual({
+      excluded: false,
+      labels: ['keep'],
+      overrideText: 'pending correction'
+    })
+    expect((await service.listItemChunks(baseId, id))[0].governance?.status).toBe('pending')
+  })
+
+  it.each(['processing', 'deleting'] as const)('rejects %s items before creating any decisions', async (status) => {
+    const id = material()
+    const selected = await selection(id)
+    dbh.db.update(knowledgeItemTable).set({ status }).where(eq(knowledgeItemTable.id, id)).run()
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([])
+  })
+
+  it('rejects another base and an unavailable source rather than trusting selected IDs', async () => {
+    const id = material()
+    const selected = await selection(id)
+    const foreignBase = '00000000-0000-4000-8000-000000000777'
+    const originalBase = dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, baseId)).get()!
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values({ ...originalBase, id: foreignBase, name: 'Other base' })
+      .run()
+    dbh.db.update(knowledgeItemTable).set({ baseId: foreignBase }).where(eq(knowledgeItemTable.id, id)).run()
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    dbh.db.update(knowledgeItemTable).set({ baseId }).where(eq(knowledgeItemTable.id, id)).run()
+    vi.spyOn(store, 'readMaterialContent').mockReturnValueOnce(null)
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(governance.listByBase(baseId)).toEqual([])
+    expect(governance.listByBase(foreignBase)).toEqual([])
+  })
+
+  it('rejects a non-completed base without provider work or governance changes', async () => {
+    const id = material()
+    const selected = await selection(id)
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({ status: 'failed', error: 'missing_vector_store' })
+      .where(eq(knowledgeBaseTable.id, baseId))
+      .run()
+    await expect(
+      workflow.apply({ baseId, selection: selected, action: { kind: 'exclusion', excluded: true } })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(governance.listByBase(baseId)).toEqual([])
+    expect(embedMany).not.toHaveBeenCalled()
+  })
+
+  it('bounds and validates selections, rejecting duplicates and any caller-supplied correction', async () => {
+    const id = material()
+    const selected = await selection(id)
+    const input = { baseId, selection: selected, action: { kind: 'exclusion', excluded: true } }
+    expect(KnowledgeChunkBatchInputSchema.safeParse({ ...input, selection: [] }).success).toBe(false)
+    expect(KnowledgeChunkBatchInputSchema.safeParse({ ...input, selection: [selected[0], selected[0]] }).success).toBe(
+      false
+    )
+    expect(
+      KnowledgeChunkBatchInputSchema.safeParse({ ...input, action: { ...input.action, overrideText: 'unapproved' } })
+        .success
+    ).toBe(false)
+    expect(
+      KnowledgeChunkBatchInputSchema.safeParse({ ...input, selection: Array.from({ length: 501 }, () => selected[0]) })
+        .success
+    ).toBe(false)
+  })
 
   it('leaves an untouched base empty of decisions and keeps lexical search provider-free', async () => {
     const id = material()

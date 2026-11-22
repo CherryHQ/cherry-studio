@@ -1,7 +1,10 @@
 import { knowledgeChunkGovernanceService } from '@data/services/KnowledgeChunkGovernanceService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { KnowledgeChunkGovernanceView } from '@shared/data/types/knowledgeChunkGovernance'
 
+import { hashContentText } from '../pipeline/vectorstore/indexStore/hashing'
 import type { KnowledgeIndexStore } from '../pipeline/vectorstore/indexStore/KnowledgeIndexStore'
+import type { KnowledgeSearchUnit } from '../pipeline/vectorstore/indexStore/model'
 import type { KnowledgeIndexSearchExclusions } from '../pipeline/vectorstore/indexStore/model'
 
 export interface KnowledgeGovernanceSearchSnapshot {
@@ -42,6 +45,40 @@ export function readKnowledgeGovernanceSearchSnapshot(
   return {
     key: JSON.stringify([records.map((record) => [record.id, record.revision]), exclusions]),
     exclusions
+  }
+}
+
+export function createKnowledgeChunkGovernanceViewReader(baseId: string, store: KnowledgeIndexStore) {
+  const snapshot = readKnowledgeGovernanceSearchSnapshot(baseId, store)
+  const paused = new Set(snapshot.exclusions.materialIds)
+  const records = new Map(
+    knowledgeChunkGovernanceService.listByBase(baseId).map((record) => [`${record.itemId}:${record.unitId}`, record])
+  )
+  return (itemId: string, units: KnowledgeSearchUnit[]): Map<string, KnowledgeChunkGovernanceView> => {
+    const content = store.readMaterialContent(itemId)
+    if (typeof content !== 'string') return new Map()
+    const sourceContentHash = hashContentText(content)
+    return new Map<string, KnowledgeChunkGovernanceView>(
+      units.map((unit) => {
+        const record = records.get(`${itemId}:${unit.unitId}`)
+        return [
+          unit.unitId,
+          {
+            sourceContentHash,
+            revision: record?.revision ?? 0,
+            excluded: record?.state.excluded ?? false,
+            labels: record?.state.labels ?? [],
+            status: paused.has(itemId)
+              ? 'review-needed'
+              : record?.state.overrideText != null
+                ? 'pending'
+                : record?.state.excluded
+                  ? 'excluded'
+                  : 'active'
+          }
+        ]
+      })
+    )
   }
 }
 
