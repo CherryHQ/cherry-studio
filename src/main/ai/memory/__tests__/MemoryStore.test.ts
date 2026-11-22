@@ -563,6 +563,8 @@ describe('limits, access, and recovery', () => {
     await expect(store.clear(access(), preview.token, approve)).rejects.toMatchObject({ code: 'invalid-receipt' })
     const cleared = await store.clear(caller, preview.token, approve)
     expect(cleared.files.every((file) => file.outcome === 'applied')).toBe(true)
+    const repeated = await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    expect(repeated.files.every((file) => file.outcome === 'unchanged')).toBe(true)
     expect(await store.list(caller)).toEqual(['.memories/topic.md', 'MEMORY.md'])
     expect(await readFile(path.join(root, 'JOURNAL.md'), 'utf8')).toBe('Historical content')
     expect(await readFile(path.join(root, '.memories', 'unknown.txt'), 'utf8')).toBe('Unmanaged')
