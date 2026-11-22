@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   convertAcceleratorToHotkey,
+  convertKeyToAccelerator,
   formatShortcutDisplay,
   getShortcutBindingFromKeyboardEvent,
   isValidShortcut,
@@ -39,6 +40,13 @@ describe('getShortcutBindingFromKeyboardEvent', () => {
     [{ key: 'F25', code: 'F25' }, []]
   ])('resolves %j to %j on darwin', (event, expected) => {
     expect(getShortcutBindingFromKeyboardEvent(event, 'darwin')).toEqual(expected)
+  })
+
+  it.each(['constructor', '__proto__', 'toString'])('falls back to the key when code %s is unknown', (code) => {
+    expect(getShortcutBindingFromKeyboardEvent({ key: 'a', code, metaKey: true }, 'darwin')).toEqual([
+      'CommandOrControl',
+      'A'
+    ])
   })
 })
 
@@ -119,6 +127,12 @@ describe('normalizeShortcutToken', () => {
     expect(normalizeShortcutToken('F25')).toBeUndefined()
     expect(normalizeShortcutToken('Key1')).toBeUndefined()
   })
+
+  it.each(['constructor', '__proto__', 'toString'])('rejects inherited names as shortcut tokens: %s', (name) => {
+    expect(normalizeShortcutToken(name)).toBeUndefined()
+    expect(convertKeyToAccelerator(name)).toBeUndefined()
+    expect(normalizeShortcutBinding(['Ctrl', name])).toEqual([])
+  })
 })
 
 describe('normalizeShortcutBinding', () => {
@@ -171,7 +185,7 @@ describe('isValidShortcut', () => {
   })
 
   it('rejects bindings containing an unknown token', () => {
-    expect(isValidShortcut(['CommandOrControl', 'NotAKey' as never])).toBe(false)
+    expect(isValidShortcut(['CommandOrControl', 'NotAKey'])).toBe(false)
   })
 
   it('rejects bindings with duplicate tokens', () => {

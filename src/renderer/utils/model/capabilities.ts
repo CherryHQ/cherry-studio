@@ -37,7 +37,7 @@ export const getRawModelId = (model: Model): string => model.apiModelId ?? parse
 // ── Renderer-only utility: id vs name fallback pattern ─────────────────────
 // Legacy v1 data sometimes stored the real id under `name`. v2 ids are
 // canonical, but a few renderer checks still try name as a fallback.
-export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T) => {
   const modelWithNameAsId = { ...model, apiModelId: model.name }
   return {
     idResult: fn(model),

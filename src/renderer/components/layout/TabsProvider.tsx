@@ -75,7 +75,7 @@ function isTransientMiniAppTab(tab: Tab): boolean {
  * redirect never produces a second Code pin). `changed` is true when anything was dropped or
  * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
  */
-export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
+export function migratePinnedTabs(pinnedTabs: Tab[]): PinnedRepairResult {
   let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
   const tabs: Tab[] = []
   let changed = false

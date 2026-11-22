@@ -7,21 +7,21 @@ import { MB } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('downloadAsBase64')
 
-const TRUSTED_REMOTE_IMAGE_EXT_TO_MIME: Readonly<Record<string, string>> = {
-  avif: 'image/avif',
-  bmp: 'image/bmp',
-  gif: 'image/gif',
-  heic: 'image/heic',
-  heif: 'image/heif',
-  ico: 'image/vnd.microsoft.icon',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  svg: 'image/svg+xml',
-  tif: 'image/tiff',
-  tiff: 'image/tiff',
-  webp: 'image/webp'
-}
+const TRUSTED_REMOTE_IMAGE_EXT_TO_MIME: ReadonlyMap<string, string> = new Map([
+  ['avif', 'image/avif'],
+  ['bmp', 'image/bmp'],
+  ['gif', 'image/gif'],
+  ['heic', 'image/heic'],
+  ['heif', 'image/heif'],
+  ['ico', 'image/vnd.microsoft.icon'],
+  ['jpeg', 'image/jpeg'],
+  ['jpg', 'image/jpeg'],
+  ['png', 'image/png'],
+  ['svg', 'image/svg+xml'],
+  ['tif', 'image/tiff'],
+  ['tiff', 'image/tiff'],
+  ['webp', 'image/webp']
+])
 
 /** Pre-downloaded, base64-encoded image ready for multimodal AI input. */
 export type ImageAttachment = {
@@ -50,7 +50,7 @@ function normalizeImageContentType(contentType: string | null): string | null {
 
 function trustedImageMimeFromExt(ext: string | null | undefined): string | null {
   if (!ext) return null
-  return TRUSTED_REMOTE_IMAGE_EXT_TO_MIME[ext.replace(/^\./, '').toLowerCase()] ?? null
+  return TRUSTED_REMOTE_IMAGE_EXT_TO_MIME.get(ext.replace(/^\./, '').toLowerCase()) ?? null
 }
 
 function extFromFilename(filename: string | null | undefined): string | null {

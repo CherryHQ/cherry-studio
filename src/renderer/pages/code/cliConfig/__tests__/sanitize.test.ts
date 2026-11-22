@@ -4,6 +4,12 @@ import { CodeCli } from '@shared/types/codeCli'
 
 import { sanitizeCliConfigBlob } from '../adapters'
 
+it.each(['constructor', 'toString', '__proto__'])('preserves unknown-tool configuration for %s', (cliTool) => {
+  const config = Object.freeze({ env: Object.freeze({ USER_OPTION: 'keep' }), customOption: true })
+
+  expect(sanitizeCliConfigBlob(cliTool, config)).toBe(config)
+})
+
 describe('sanitizeCliConfigBlob (codex)', () => {
   // `commonConfig` was a dead toggle (buildCodexConfig/parser.ts never read or wrote it) and was
   // removed from the UI — pin it as filtered so a future field addition can't silently revive it.

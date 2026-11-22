@@ -208,16 +208,16 @@ export function preserveCompatibleTriggerMetadata(previous: Trigger, next: Trigg
 }
 
 export function getWeekdayLabel(weekday: string, t: TFunction) {
-  const labels: Record<string, string> = {
-    '0': t('agent.tasks.schedule.weekdays.sunday'),
-    '1': t('agent.tasks.schedule.weekdays.monday'),
-    '2': t('agent.tasks.schedule.weekdays.tuesday'),
-    '3': t('agent.tasks.schedule.weekdays.wednesday'),
-    '4': t('agent.tasks.schedule.weekdays.thursday'),
-    '5': t('agent.tasks.schedule.weekdays.friday'),
-    '6': t('agent.tasks.schedule.weekdays.saturday')
-  }
-  return labels[weekday] ?? weekday
+  const labels = new Map([
+    ['0', t('agent.tasks.schedule.weekdays.sunday')],
+    ['1', t('agent.tasks.schedule.weekdays.monday')],
+    ['2', t('agent.tasks.schedule.weekdays.tuesday')],
+    ['3', t('agent.tasks.schedule.weekdays.wednesday')],
+    ['4', t('agent.tasks.schedule.weekdays.thursday')],
+    ['5', t('agent.tasks.schedule.weekdays.friday')],
+    ['6', t('agent.tasks.schedule.weekdays.saturday')]
+  ])
+  return labels.get(weekday) ?? weekday
 }
 
 export function getTriggerSummary(trigger: Trigger, t: TFunction) {

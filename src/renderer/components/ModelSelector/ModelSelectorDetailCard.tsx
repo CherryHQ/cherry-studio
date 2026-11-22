@@ -23,26 +23,26 @@ const DETAIL_CARD_SIDE_OFFSET = 8
 const DETAIL_CARD_COLLISION_PADDING = 12
 const DETAIL_CARD_OPEN_DELAY = 1500
 
-const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
-  auto: 'assistants.settings.reasoning_effort.auto',
-  default: 'assistants.settings.reasoning_effort.default',
-  high: 'assistants.settings.reasoning_effort.high',
-  low: 'assistants.settings.reasoning_effort.low',
-  max: 'assistants.settings.reasoning_effort.max',
-  medium: 'assistants.settings.reasoning_effort.medium',
-  minimal: 'assistants.settings.reasoning_effort.minimal',
-  none: 'assistants.settings.reasoning_effort.off',
-  ultra: 'assistants.settings.reasoning_effort.ultra',
-  xhigh: 'assistants.settings.reasoning_effort.xhigh'
-}
+const REASONING_EFFORT_LABEL_KEYS = new Map([
+  ['auto', 'assistants.settings.reasoning_effort.auto'],
+  ['default', 'assistants.settings.reasoning_effort.default'],
+  ['high', 'assistants.settings.reasoning_effort.high'],
+  ['low', 'assistants.settings.reasoning_effort.low'],
+  ['max', 'assistants.settings.reasoning_effort.max'],
+  ['medium', 'assistants.settings.reasoning_effort.medium'],
+  ['minimal', 'assistants.settings.reasoning_effort.minimal'],
+  ['none', 'assistants.settings.reasoning_effort.off'],
+  ['ultra', 'assistants.settings.reasoning_effort.ultra'],
+  ['xhigh', 'assistants.settings.reasoning_effort.xhigh']
+])
 
-const IMAGE_MODE_LABEL_KEYS: Record<string, string> = {
-  edit: 'paintings.mode.edit',
-  generate: 'paintings.mode.generate',
-  merge: 'paintings.mode.merge',
-  remix: 'paintings.mode.remix',
-  upscale: 'paintings.mode.upscale'
-}
+const IMAGE_MODE_LABEL_KEYS = new Map([
+  ['edit', 'paintings.mode.edit'],
+  ['generate', 'paintings.mode.generate'],
+  ['merge', 'paintings.mode.merge'],
+  ['remix', 'paintings.mode.remix'],
+  ['upscale', 'paintings.mode.upscale']
+])
 
 function formatNumber(value: number | null | undefined): string | undefined {
   return value == null ? undefined : NUMBER_FORMATTER.format(value)
@@ -104,12 +104,12 @@ function compactList(values: readonly string[] | undefined, limit = 3): string |
 }
 
 function formatReasoningEfforts(values: readonly string[] | undefined, t: TFunction): string | undefined {
-  return values?.map((value) => t(REASONING_EFFORT_LABEL_KEYS[value] ?? value)).join(', ')
+  return values?.map((value) => t(REASONING_EFFORT_LABEL_KEYS.get(value) ?? value)).join(', ')
 }
 
 function formatImageGenerationModes(model: Model, t: TFunction): string | undefined {
   const modes = Object.keys(model.imageGeneration?.modes ?? {})
-  return compactList(modes.map((mode) => t(IMAGE_MODE_LABEL_KEYS[mode] ?? mode)))
+  return compactList(modes.map((mode) => t(IMAGE_MODE_LABEL_KEYS.get(mode) ?? mode)))
 }
 
 function DetailRow({ label, value }: { label: ReactNode; value?: ReactNode }) {

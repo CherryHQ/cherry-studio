@@ -20,13 +20,14 @@ export function useNutstoreSso() {
     cancelPendingAttemptRef.current?.()
 
     return new Promise<string | null>((resolve) => {
-      const resources: { removeListener?: () => void; timeoutId?: number } = {}
+      let removeListener: (() => void) | undefined
+      let timeoutId: number | undefined
       let settled = false
 
       const release = () => {
         settled = true
-        resources.removeListener?.()
-        if (resources.timeoutId !== undefined) window.clearTimeout(resources.timeoutId)
+        removeListener?.()
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId)
         if (cancelPendingAttemptRef.current === cancel) {
           cancelPendingAttemptRef.current = null
         }
@@ -63,7 +64,7 @@ export function useNutstoreSso() {
 
       try {
         const unsubscribe = ipcApi.on('navigation.protocol_data', onProtocolData)
-        resources.removeListener = unsubscribe
+        removeListener = unsubscribe
         if (settled) unsubscribe()
       } catch (error) {
         logger.error('Failed to listen for Nutstore SSO callback', error as Error)
@@ -75,7 +76,7 @@ export function useNutstoreSso() {
         logger.warn('Nutstore SSO timed out')
         finish(null)
       }, NUTSTORE_SSO_TIMEOUT_MS)
-      resources.timeoutId = timer
+      timeoutId = timer
       if (settled) window.clearTimeout(timer)
     })
   }, [])

@@ -25,7 +25,7 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
   const categories: ContextCategory[] = []
   const resources: ContextResource[] = []
   for (const part of measureSystemContext(system, usage.deferred)) {
-    const key = categoryKeys[part.kind] ?? 'other'
+    const key = categoryKeys.get(part.kind) ?? 'other'
     const occupancy = part.state === 'deferred' ? 'deferred' : 'included'
     const id = `${key}:${occupancy}`
     const category = categories.find((category) => category.id === id)
@@ -77,12 +77,12 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
   }
 }
 
-const categoryKeys: Record<string, ContextCategoryKey> = {
-  'system-prompt': 'system-prompt',
-  'system-tools': 'system-tools',
-  'mcp-tools': 'mcp-tools',
-  'mcp-instructions': 'mcp-instructions',
-  'memory-files': 'memory-files',
-  skills: 'skills',
-  agents: 'agents'
-}
+const categoryKeys: ReadonlyMap<string, ContextCategoryKey> = new Map([
+  ['system-prompt', 'system-prompt'],
+  ['system-tools', 'system-tools'],
+  ['mcp-tools', 'mcp-tools'],
+  ['mcp-instructions', 'mcp-instructions'],
+  ['memory-files', 'memory-files'],
+  ['skills', 'skills'],
+  ['agents', 'agents']
+])

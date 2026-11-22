@@ -6,22 +6,22 @@ const pathnameOf = (url: string) => parseAppRouteUrl(url)?.pathname ?? ''
 /**
  * Route to i18n key mapping for default tab titles
  */
-const routeTitleKeys: Record<string, string> = {
-  '/app/chat': 'agent.session.group.conversation',
-  '/app/agents': 'title.work',
-  '/app/scheduled-tasks': 'settings.scheduledTasks.title',
-  '/app/paintings': 'title.paintings',
-  '/app/marketplace': 'title.marketplace',
-  '/app/translate': 'title.translate',
-  '/app/launchpad': 'title.launchpad',
-  '/app/mini-app': 'title.apps',
-  '/app/knowledge': 'title.knowledge',
-  '/app/files': 'title.files',
-  '/app/code': 'title.code',
-  '/app/notes': 'title.notes',
-  '/app/release-notes': 'settings.about.releases.title',
-  '/settings': 'title.settings'
-}
+const routeTitleKeys = new Map([
+  ['/app/chat', 'agent.session.group.conversation'],
+  ['/app/agents', 'title.work'],
+  ['/app/scheduled-tasks', 'settings.scheduledTasks.title'],
+  ['/app/paintings', 'title.paintings'],
+  ['/app/marketplace', 'title.marketplace'],
+  ['/app/translate', 'title.translate'],
+  ['/app/launchpad', 'title.launchpad'],
+  ['/app/mini-app', 'title.apps'],
+  ['/app/knowledge', 'title.knowledge'],
+  ['/app/files', 'title.files'],
+  ['/app/code', 'title.code'],
+  ['/app/notes', 'title.notes'],
+  ['/app/release-notes', 'settings.about.releases.title'],
+  ['/settings', 'title.settings']
+])
 
 /**
  * Get the base path for route matching
@@ -51,13 +51,13 @@ export function getDefaultRouteTitle(url: string): string {
   const sanitizedUrl = pathnameOf(url)
 
   // Try exact match first
-  const exactKey = routeTitleKeys[sanitizedUrl]
+  const exactKey = routeTitleKeys.get(sanitizedUrl)
   if (exactKey) {
     return i18n.t(exactKey)
   }
 
   // Try matching base path
-  const baseKey = routeTitleKeys[getBasePath(sanitizedUrl)]
+  const baseKey = routeTitleKeys.get(getBasePath(sanitizedUrl))
   if (baseKey) {
     return i18n.t(baseKey)
   }
@@ -73,10 +73,10 @@ export function getDefaultRouteTitle(url: string): string {
 export function getRouteTitleKey(url: string): string | undefined {
   const sanitizedUrl = pathnameOf(url)
 
-  const exactKey = routeTitleKeys[sanitizedUrl]
+  const exactKey = routeTitleKeys.get(sanitizedUrl)
   if (exactKey) return exactKey
 
-  return routeTitleKeys[getBasePath(sanitizedUrl)]
+  return routeTitleKeys.get(getBasePath(sanitizedUrl))
 }
 
 /**
@@ -85,7 +85,7 @@ export function getRouteTitleKey(url: string): string | undefined {
  */
 export function isTopLevelRoute(url: string): boolean {
   const parsedUrl = parseAppRouteUrl(url)
-  return !!parsedUrl && !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
+  return !!parsedUrl && !parsedUrl.search && !parsedUrl.hash && routeTitleKeys.has(parsedUrl.pathname)
 }
 
 /** Routes whose tab title + icon are owned by the page (topic / session name + emoji). */

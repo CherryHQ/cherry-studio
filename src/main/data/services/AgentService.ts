@@ -656,10 +656,7 @@ export class AgentService {
     )
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}): {
-    agents: AgentEntity[]
-    total: number
-  } {
+  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}) {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
@@ -680,19 +677,15 @@ export class AgentService {
     const sortBy = options.sortBy ?? 'orderKey'
     const sortOrder = options.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
-    const sortByToColumn: Record<
-      string,
-      | typeof agentsTable.createdAt
-      | typeof agentsTable.name
-      | typeof agentsTable.updatedAt
-      | typeof agentsTable.orderKey
-    > = {
-      createdAt: agentsTable.createdAt,
-      updatedAt: agentsTable.updatedAt,
-      name: agentsTable.name,
-      orderKey: agentsTable.orderKey
-    }
-    const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
+    const sortByToColumn = new Map(
+      Object.entries({
+        createdAt: agentsTable.createdAt,
+        updatedAt: agentsTable.updatedAt,
+        name: agentsTable.name,
+        orderKey: agentsTable.orderKey
+      })
+    )
+    const sortField = sortByToColumn.get(sortBy) ?? agentsTable.createdAt
     const orderFn = sortOrder === 'asc' ? asc : desc
     const orderByClauses =
       sortBy === 'updatedAt'
@@ -1024,7 +1017,7 @@ export class AgentService {
     pinService.notifyPurged()
   }
 
-  deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
+  deleteAgentTx(tx: DbOrTx, id: string) {
     pinService.purgeForEntityTx(tx, 'agent', id)
     promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
@@ -1042,7 +1035,7 @@ export class AgentService {
     return agent
   }
 
-  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+  restoreAgentTx(tx: DbOrTx, id: string) {
     const [target] = tx
       .select({ deletedAt: agentsTable.deletedAt })
       .from(agentsTable)

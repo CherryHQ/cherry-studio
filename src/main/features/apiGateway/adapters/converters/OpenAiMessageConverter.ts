@@ -183,6 +183,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       try {
         input = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {}
       } catch {
+        // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw fallback shares the SDK's unknown input contract with arbitrary parsed JSON; tool validation happens later.
         input = { raw: toolCall.function.arguments }
       }
       const hasResult = toolResultOutputs.has(toolCall.id)

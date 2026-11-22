@@ -298,35 +298,37 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 /**
  * Provider ID aliases for IDs that don't directly match catalog keys.
  */
-const PROVIDER_ID_ALIASES: Record<string, string> = {
-  // Codex is an OpenAI product; reuse the OpenAI mark until a dedicated glyph exists.
-  'openai-codex': 'openai',
-  // Grok CLI is an xAI product; reuse the Grok mark.
-  'grok-cli': 'grok',
-  'azure-openai': 'azureai',
-  'new-api': 'newapi',
-  'tencent-cloud-ti': 'tencent-cloud-ti',
-  tokenhub: 'tencent-cloud-ti',
-  'baidu-cloud': 'baidu-cloud',
-  'aws-bedrock': 'aws-bedrock',
-  'gitee-ai': 'gitee-ai',
-  yi: 'zero-one',
-  ovms: 'intel',
-  gemini: 'google',
-  copilot: 'github-copilot',
-  'github-copilot-openai-compatible': 'github-copilot',
-  doubao: 'volcengine',
-  stepfun: 'step',
-  voyageai: 'voyage',
-  gateway: 'vercel',
-  zhinao: 'xirang',
-  aionly: 'ai-only',
-  dashscope: 'bailian',
-  zai: 'z-ai',
-  'minimax-global': 'minimax',
-  'moonshot-global': 'moonshot',
-  cherryai: 'cherryin'
-}
+const PROVIDER_ID_ALIASES: ReadonlyMap<string, string> = new Map(
+  Object.entries({
+    // Codex is an OpenAI product; reuse the OpenAI mark until a dedicated glyph exists.
+    'openai-codex': 'openai',
+    // Grok CLI is an xAI product; reuse the Grok mark.
+    'grok-cli': 'grok',
+    'azure-openai': 'azureai',
+    'new-api': 'newapi',
+    'tencent-cloud-ti': 'tencent-cloud-ti',
+    tokenhub: 'tencent-cloud-ti',
+    'baidu-cloud': 'baidu-cloud',
+    'aws-bedrock': 'aws-bedrock',
+    'gitee-ai': 'gitee-ai',
+    yi: 'zero-one',
+    ovms: 'intel',
+    gemini: 'google',
+    copilot: 'github-copilot',
+    'github-copilot-openai-compatible': 'github-copilot',
+    doubao: 'volcengine',
+    stepfun: 'step',
+    voyageai: 'voyage',
+    gateway: 'vercel',
+    zhinao: 'xirang',
+    aionly: 'ai-only',
+    dashscope: 'bailian',
+    zai: 'z-ai',
+    'minimax-global': 'minimax',
+    'moonshot-global': 'moonshot',
+    cherryai: 'cherryin'
+  })
+)
 
 /**
  * Synchronous handle for an icon: which catalog it lives in, its key, and its
@@ -338,13 +340,17 @@ export type IconRef =
   | { kind: 'model'; key: ModelIconKey; meta: IconMeta }
 
 function providerRef(key: string): IconRef | undefined {
-  const meta = (PROVIDER_ICON_META_CATALOG as Record<string, IconMeta>)[key]
-  return meta ? { kind: 'provider', key: key as ProviderIconKey, meta } : undefined
+  if (!Object.hasOwn(PROVIDER_ICON_META_CATALOG, key)) return undefined
+  // SAFETY: the own-key check restricts this string to the fixed provider catalog's keys.
+  const catalogKey = key as ProviderIconKey
+  return { kind: 'provider', key: catalogKey, meta: PROVIDER_ICON_META_CATALOG[catalogKey] }
 }
 
 function modelRef(key: string): IconRef | undefined {
-  const meta = (MODEL_ICON_META_CATALOG as Record<string, IconMeta>)[key]
-  return meta ? { kind: 'model', key: key as ModelIconKey, meta } : undefined
+  if (!Object.hasOwn(MODEL_ICON_META_CATALOG, key)) return undefined
+  // SAFETY: the own-key check restricts this string to the fixed model catalog's keys.
+  const catalogKey = key as ModelIconKey
+  return { kind: 'model', key: catalogKey, meta: MODEL_ICON_META_CATALOG[catalogKey] }
 }
 
 /** Exact-key ref constructor — no alias or pattern logic; keys are compile-time checked. */
@@ -382,7 +388,7 @@ export function resolveModelToProviderIconRef(modelId: string): IconRef | undefi
 /** Resolve a provider icon ref by provider ID (with alias support, model icon fallback) */
 export function resolveProviderIconRef(providerId: string): IconRef | undefined {
   if (!providerId) return undefined
-  const key = PROVIDER_ID_ALIASES[providerId] ?? providerId
+  const key = PROVIDER_ID_ALIASES.get(providerId) ?? providerId
   return providerRef(key) ?? modelRef(key)
 }
 

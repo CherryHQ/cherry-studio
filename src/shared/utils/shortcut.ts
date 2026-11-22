@@ -124,50 +124,50 @@ const shortcutTokenLowerCaseMap = new Map<string, ShortcutToken>(
   shortcutTokens.map((token) => [token.toLowerCase(), token])
 )
 
-const keyAliases: Record<string, ShortcutToken> = {
-  Cmd: 'Command',
-  cmd: 'Command',
-  Command: 'Command',
-  command: 'Command',
-  Control: 'Ctrl',
-  control: 'Ctrl',
-  ctrl: 'Ctrl',
-  Option: 'Alt',
-  option: 'Alt',
-  AltGraph: 'AltGr',
-  altgraph: 'AltGr',
-  Esc: 'Escape',
-  esc: 'Escape',
-  Spacebar: 'Space',
-  spacebar: 'Space',
-  ArrowUp: 'Up',
-  ArrowDown: 'Down',
-  ArrowLeft: 'Left',
-  ArrowRight: 'Right',
-  Add: 'numadd',
-  NumpadAdd: 'numadd',
-  Subtract: 'numsub',
-  NumpadSubtract: 'numsub',
-  Slash: '/',
-  Semicolon: ';',
-  BracketLeft: '[',
-  BracketRight: ']',
-  Backslash: '\\',
-  Quote: "'",
-  Comma: ',',
-  Period: '.',
-  Minus: '-',
-  Equal: '=',
-  Backquote: '`'
-}
+const keyAliases: ReadonlyMap<string, ShortcutToken> = new Map([
+  ['Cmd', 'Command'],
+  ['cmd', 'Command'],
+  ['Command', 'Command'],
+  ['command', 'Command'],
+  ['Control', 'Ctrl'],
+  ['control', 'Ctrl'],
+  ['ctrl', 'Ctrl'],
+  ['Option', 'Alt'],
+  ['option', 'Alt'],
+  ['AltGraph', 'AltGr'],
+  ['altgraph', 'AltGr'],
+  ['Esc', 'Escape'],
+  ['esc', 'Escape'],
+  ['Spacebar', 'Space'],
+  ['spacebar', 'Space'],
+  ['ArrowUp', 'Up'],
+  ['ArrowDown', 'Down'],
+  ['ArrowLeft', 'Left'],
+  ['ArrowRight', 'Right'],
+  ['Add', 'numadd'],
+  ['NumpadAdd', 'numadd'],
+  ['Subtract', 'numsub'],
+  ['NumpadSubtract', 'numsub'],
+  ['Slash', '/'],
+  ['Semicolon', ';'],
+  ['BracketLeft', '['],
+  ['BracketRight', ']'],
+  ['Backslash', '\\'],
+  ['Quote', "'"],
+  ['Comma', ','],
+  ['Period', '.'],
+  ['Minus', '-'],
+  ['Equal', '='],
+  ['Backquote', '`']
+])
 
-const domCodeToToken: Record<string, ShortcutToken> = {
+const domCodeToToken: ReadonlyMap<string, ShortcutToken> = new Map([
   // Keypad Enter keeps its own token so it can display as "Enter" (its printed label)
   // while main Return displays as "Return" on macOS; matching treats the two as one key.
-  NumpadEnter: 'numenter',
-  NumpadAdd: 'numadd',
-  NumpadSubtract: 'numsub'
-}
+  ['NumpadEnter', 'numenter'],
+  ['NumpadAdd', 'numadd'],
+  ['NumpadSubtract', 'numsub']
+])
 
 export const isShortcutToken = (value: unknown): value is ShortcutToken =>
   typeof value === 'string' && shortcutTokenSet.has(value)
@@ -190,8 +190,9 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
     return trimmed
   }
 
-  if (keyAliases[trimmed]) {
-    return keyAliases[trimmed]
+  const alias = keyAliases.get(trimmed)
+  if (alias) {
+    return alias
   }
 
   const canonicalToken = shortcutTokenLowerCaseMap.get(trimmed.toLowerCase())
@@ -199,8 +200,9 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
     return canonicalToken
   }
 
-  if (domCodeToToken[trimmed]) {
-    return domCodeToToken[trimmed]
+  const domToken = domCodeToToken.get(trimmed)
+  if (domToken) {
+    return domToken
   }
 
   const letterMatch = trimmed.match(/^Key([A-Z])$/)
@@ -265,29 +267,29 @@ export const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
 // Display / accelerator formatting (token-typed) for the unified command system.
 // ---------------------------------------------------------------------------
 
-const acceleratorKeyMap: Record<string, ShortcutToken> = {
-  Command: 'CommandOrControl',
-  Cmd: 'CommandOrControl',
-  Control: 'Ctrl',
-  Meta: 'Meta',
-  ArrowUp: 'Up',
-  ArrowDown: 'Down',
-  ArrowLeft: 'Left',
-  ArrowRight: 'Right',
-  AltGraph: 'AltGr',
-  Slash: '/',
-  Semicolon: ';',
-  BracketLeft: '[',
-  BracketRight: ']',
-  Backslash: '\\',
-  Quote: "'",
-  Comma: ',',
-  Minus: '-',
-  Equal: '='
-}
+const acceleratorKeyMap: ReadonlyMap<string, ShortcutToken> = new Map([
+  ['Command', 'CommandOrControl'],
+  ['Cmd', 'CommandOrControl'],
+  ['Control', 'Ctrl'],
+  ['Meta', 'Meta'],
+  ['ArrowUp', 'Up'],
+  ['ArrowDown', 'Down'],
+  ['ArrowLeft', 'Left'],
+  ['ArrowRight', 'Right'],
+  ['AltGraph', 'AltGr'],
+  ['Slash', '/'],
+  ['Semicolon', ';'],
+  ['BracketLeft', '['],
+  ['BracketRight', ']'],
+  ['Backslash', '\\'],
+  ['Quote', "'"],
+  ['Comma', ','],
+  ['Minus', '-'],
+  ['Equal', '=']
+])
 
 export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined =>
-  acceleratorKeyMap[key] ?? normalizeShortcutToken(key)
+  acceleratorKeyMap.get(key) ?? normalizeShortcutToken(key)
 
 const getEventKeyToken = (event: KeyboardEventLike) => {
   const fromKey = convertKeyToAccelerator(event.key)
@@ -388,7 +390,8 @@ export const formatShortcutDisplay = (keys: ShortcutBinding, isMac: boolean): st
   return keys.map((key) => formatKeyDisplay(key, isMac)).join(isMac ? '' : '+')
 }
 
-export const isValidShortcut = (binding: ShortcutBinding): boolean => {
+export const isValidShortcut = (binding: readonly string[]): boolean => {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- String arrays may contain noncanonical tokens; validate membership before modifier and trigger rules.
   if (!binding.length || !isShortcutBinding(binding)) {
     return false
   }

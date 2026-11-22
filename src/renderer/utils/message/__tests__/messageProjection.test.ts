@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest'
 
-import { sharedMessageToUIMessage } from '../messageProjection'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+
+import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '../messageProjection'
+
+describe('uiMessagesToPartsMap', () => {
+  it.each(['constructor', '__proto__', 'toString'])('preserves own parts for a message named %s', (id) => {
+    const parts: CherryMessagePart[] = [{ type: 'text', text: 'Imported message' }]
+    const messages: CherryUIMessage[] = [
+      { id, role: 'user', parts },
+      { id: 'empty', role: 'user', parts: [] }
+    ]
+    Object.freeze(parts)
+    Object.freeze(messages)
+
+    const result = uiMessagesToPartsMap(messages)
+
+    expect(Object.hasOwn(result, id)).toBe(true)
+    expect(result[id]).toBe(parts)
+    expect(Object.hasOwn(result, 'empty')).toBe(false)
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+  })
+})
 
 describe('sharedMessageToUIMessage', () => {
   it('projects persisted retry settings into UI metadata', () => {

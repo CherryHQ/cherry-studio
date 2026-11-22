@@ -43,12 +43,7 @@ const noteIdentity = (note: NoteLocation): string => `${note.noteClass}/${note.f
 
 const repeatedIds = (ids: string[]): string[] => [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))]
 
-export const checkAgentNoteTransition = (
-  fromPath: string,
-  before: string,
-  toPath: string,
-  after: string
-): { transition?: NoteTransition; errors: string[] } => {
+export const checkAgentNoteTransition = (fromPath: string, before: string, toPath: string, after: string) => {
   const from = noteLocation(fromPath)
   const to = noteLocation(toPath)
   if (!from || !to) return { errors: ['transition paths must identify English Agent Notes'] }

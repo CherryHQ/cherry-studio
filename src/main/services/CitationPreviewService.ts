@@ -34,7 +34,7 @@ type PreviewJob = {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Citation requests can reject arbitrary values; logs expose only the validated origin and an error name, not response bodies or full URLs.
-function createErrorLogContext(safeUrl: string, error: unknown): { origin: string; errorName: string } {
+function createErrorLogContext(safeUrl: string, error: unknown) {
   let errorName = 'UnknownError'
   try {
     if (error instanceof Error) {

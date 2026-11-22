@@ -115,6 +115,7 @@ export function mergeManagedSettingsKeys(...groups: ManagedSettingsKeys[]): Mana
       merged[section] = [...new Set([...(merged[section] ?? []), ...keys])]
     }
   }
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Section names are runtime keys; publish read-only lists instead of exposing the mutable accumulator.
   return merged
 }
 

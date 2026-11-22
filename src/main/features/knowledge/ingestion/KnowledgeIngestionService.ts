@@ -671,7 +671,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     fileProcessorId: string | null | undefined,
     input: KnowledgeAddItemInput,
     reservedPaths: Set<string>
-  ): { createInput: CreateKnowledgeItemDto; copies: KnowledgeSourceCopy[] } {
+  ) {
     if (input.type === 'url') {
       if (!input.data.snapshotPath) {
         return { createInput: input, copies: [] }
@@ -686,7 +686,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           groupId: input.groupId,
           type: 'url',
           data: { source: input.data.source, url: input.data.url, relativePath }
-        },
+        } satisfies CreateKnowledgeItemDto,
         copies: [{ from: input.data.snapshotPath, relativePath }]
       }
     }
@@ -713,7 +713,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           groupId: input.groupId,
           type: 'file',
           data: { source: input.data.source, relativePath, indexedRelativePath }
-        },
+        } satisfies CreateKnowledgeItemDto,
         copies: [sourceCopy, { from: input.data.indexedPath, relativePath: indexedRelativePath }]
       }
     }
@@ -726,7 +726,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           source: input.data.source,
           relativePath
         }
-      },
+      } satisfies CreateKnowledgeItemDto,
       copies: [sourceCopy]
     }
   }

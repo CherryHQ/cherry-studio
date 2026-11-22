@@ -87,10 +87,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
  * preserved.
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored configuration JSON can drift across versions; validate known fields while preserving unrelated extension keys.
-export function sanitizeAgentConfiguration(raw: unknown): {
-  data: AgentConfiguration | undefined
-  invalidKeys: string[]
-} {
+export function sanitizeAgentConfiguration(raw: unknown) {
   if (raw == null) return { data: undefined, invalidKeys: [] }
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     return { data: undefined, invalidKeys: ['<root>'] }
@@ -105,8 +102,9 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   const entries = Object.entries(raw as Record<string, unknown>)
   const filtered = Object.fromEntries(entries.filter(([key]) => !invalidKeys.includes(key)))
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
+  const data: AgentConfiguration = reparsed.success ? reparsed.data : {}
   return {
-    data: reparsed.success ? reparsed.data : {},
+    data,
     invalidKeys
   }
 }

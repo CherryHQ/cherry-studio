@@ -54,6 +54,17 @@ describe('isSensitiveKey', () => {
 })
 
 describe('redactRecord', () => {
+  it('keeps own reserved keys without changing the output prototype or the input', () => {
+    const record = Object.freeze({ ['__proto__']: 'visible', constructor: 'kept', Authorization: 'Bearer private' })
+
+    const out = redactRecord(record)
+
+    expect(Object.hasOwn(out, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype)
+    expect(out).toEqual({ ['__proto__']: 'visible', constructor: 'kept', Authorization: REDACTED })
+    expect(record.Authorization).toBe('Bearer private')
+  })
+
   it('redacts sensitive keys, keeps benign values visible', () => {
     const out = redactRecord({
       OPENAI_API_KEY: 'sk-secret123',

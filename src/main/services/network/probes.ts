@@ -22,7 +22,7 @@ export function classifyNetworkError(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DNS, TLS and HTTP catches include arbitrary rejections and wrapped causes; classify recognized transport codes without asserting a single error class.
   error: unknown,
   httpStatus?: number
-): { readonly kind: NetworkFailureKind; readonly code?: string } {
+): Pick<Extract<NetworkLayerResult, { status: 'failed' }>, 'kind' | 'code'> {
   if (httpStatus !== undefined) {
     if (httpStatus === 407) return { kind: 'proxy_auth', code: 'HTTP 407' }
     if (httpStatus >= 500) return { kind: 'http_server', code: `HTTP ${httpStatus}` }

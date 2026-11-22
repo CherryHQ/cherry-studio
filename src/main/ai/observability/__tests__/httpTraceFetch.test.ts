@@ -27,6 +27,31 @@ function fakeTracer() {
 
 describe('createHttpTraceFetch', () => {
   it.each([
+    ['plain object', { ['__proto__']: 'visible', Authorization: 'Bearer private' }],
+    ['Headers instance', new Headers({ ['__proto__']: 'visible', Authorization: 'Bearer private' })],
+    [
+      'tuple-array init',
+      [
+        ['__proto__', 'visible'],
+        ['Authorization', 'Bearer private']
+      ]
+    ]
+  ] satisfies [string, HeadersInit][])(
+    'retains own reserved header names while redacting credentials (%s)',
+    async (_label, headers) => {
+      const { tracer, attributes } = fakeTracer()
+      const f = createHttpTraceFetch(async () => new Response(null, { status: 204 }), { tracer })
+
+      await f('https://api.example.com', { headers })
+
+      const recorded = JSON.parse(attributes['http.request.headers'] as string)
+      expect(Object.hasOwn(recorded, '__proto__')).toBe(true)
+      expect(recorded.__proto__).toBe('visible')
+      expect(JSON.stringify(recorded)).not.toContain('private')
+    }
+  )
+
+  it.each([
     [' { "stream": true } ', '{"stream":true}'],
     ['"prompt"', 'prompt'],
     ['true', 'true'],

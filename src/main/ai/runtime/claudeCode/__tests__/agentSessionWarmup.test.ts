@@ -1325,6 +1325,87 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
   })
 
+  it.each([
+    { selection: 'auto', thinking: { type: 'adaptive', display: 'summarized' }, effort: undefined },
+    { selection: 'high', thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' },
+    { selection: 'ultra', thinking: { type: 'adaptive', display: 'summarized' }, effort: 'max' },
+    { selection: 'default', thinking: undefined, effort: undefined }
+  ] as const)(
+    'preserves native adaptive thinking for $selection CLI subscriptions',
+    async ({ selection, thinking, effort }) => {
+      mocks.getProviderByProviderId.mockReturnValue({
+        id: 'provider-1',
+        authMethods: ['external-cli'],
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+      })
+      mocks.getModelByKey.mockReturnValue({
+        id: 'model-1',
+        apiModelId: 'claude-sonnet-4-6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['none', 'auto', 'low', 'medium', 'high', 'max', 'ultra'] }
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, selection)
+
+      expect(request).not.toBeNull()
+      expect(request?.options.thinking).toEqual(thinking)
+      expect(request?.options.effort).toBe(effort)
+    }
+  )
+
+  it.each([
+    { maxOutputTokens: 32_000, thinking: { type: 'enabled', budgetTokens: 8_192 } },
+    { maxOutputTokens: 4_096, thinking: { type: 'enabled', budgetTokens: 4_095 } },
+    { maxOutputTokens: 1_024, thinking: undefined }
+  ])('keeps the native thinking budget below $maxOutputTokens output tokens', async ({ maxOutputTokens, thinking }) => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.budgetWire
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet-4-5',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      maxOutputTokens,
+      reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 8_192, max: 8_192 } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'auto')
+
+    expect(request).not.toBeNull()
+    expect(request?.options.thinking).toEqual(thinking)
+    expect(request?.options.effort).toBeUndefined()
+  })
+
+  it('keeps CLI defaults for the unsupported between-tools thinking mode', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.betweenToolsWire
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-opus-5-5',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { selectableEfforts: ['none', 'high'] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'none')
+
+    expect(request).not.toBeNull()
+    expect(request?.options.thinking).toBeUndefined()
+    expect(request?.options.effort).toBeUndefined()
+  })
+
   it('carries Codex Fast through the internal gateway header', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
     mocks.getProviderByProviderId.mockReturnValue({

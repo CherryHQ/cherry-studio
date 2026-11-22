@@ -74,37 +74,37 @@ function getToolHeaderCandidateKey(candidate: ToolHeaderCandidate): string {
   return candidate.key
 }
 
-const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
-  [SESSION_CREATE_TOOL_NAME]: GitBranchPlus,
-  [`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`]: GitBranchPlus,
-  [AgentToolsType.Agent]: Sparkles,
-  [AgentToolsType.Bash]: SquareTerminal,
-  [AgentToolsType.BashOutput]: SquareTerminal,
-  [AgentToolsType.Edit]: FileText,
-  [AgentToolsType.Glob]: FileSearch,
-  [AgentToolsType.Grep]: FileSearch,
-  [AgentToolsType.ListMcpResources]: FileSearch,
-  [AgentToolsType.MultiEdit]: FileText,
-  [AgentToolsType.NotebookEdit]: FileText,
-  [AgentToolsType.Read]: FileText,
-  [AgentToolsType.ReadMcpResource]: FileSearch,
-  [AgentToolsType.Search]: FileSearch,
-  [AgentToolsType.Skill]: ToolCase,
-  [AgentToolsType.Task]: ListChecks,
-  [AgentToolsType.TaskCreate]: ListChecks,
-  [AgentToolsType.TaskGet]: ListChecks,
-  [AgentToolsType.TaskList]: ListChecks,
-  [AgentToolsType.TaskOutput]: ListChecks,
-  [AgentToolsType.TaskStop]: ListChecks,
-  [AgentToolsType.TaskUpdate]: ListChecks,
-  [AgentToolsType.TodoWrite]: ListChecks,
-  [AgentToolsType.ToolSearch]: FileSearch,
-  [AgentToolsType.WebFetch]: Globe,
-  [AgentToolsType.WebSearch]: Globe,
-  [PROVIDER_WEB_SEARCH_TOOL_NAME]: Globe,
-  [AgentToolsType.Workflow]: Workflow,
-  [AgentToolsType.Write]: FileText
-}
+const TOOL_GROUP_ICON_BY_NAME: ReadonlyMap<string, LucideIcon> = new Map([
+  [SESSION_CREATE_TOOL_NAME, GitBranchPlus],
+  [`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`, GitBranchPlus],
+  [AgentToolsType.Agent, Sparkles],
+  [AgentToolsType.Bash, SquareTerminal],
+  [AgentToolsType.BashOutput, SquareTerminal],
+  [AgentToolsType.Edit, FileText],
+  [AgentToolsType.Glob, FileSearch],
+  [AgentToolsType.Grep, FileSearch],
+  [AgentToolsType.ListMcpResources, FileSearch],
+  [AgentToolsType.MultiEdit, FileText],
+  [AgentToolsType.NotebookEdit, FileText],
+  [AgentToolsType.Read, FileText],
+  [AgentToolsType.ReadMcpResource, FileSearch],
+  [AgentToolsType.Search, FileSearch],
+  [AgentToolsType.Skill, ToolCase],
+  [AgentToolsType.Task, ListChecks],
+  [AgentToolsType.TaskCreate, ListChecks],
+  [AgentToolsType.TaskGet, ListChecks],
+  [AgentToolsType.TaskList, ListChecks],
+  [AgentToolsType.TaskOutput, ListChecks],
+  [AgentToolsType.TaskStop, ListChecks],
+  [AgentToolsType.TaskUpdate, ListChecks],
+  [AgentToolsType.TodoWrite, ListChecks],
+  [AgentToolsType.ToolSearch, FileSearch],
+  [AgentToolsType.WebFetch, Globe],
+  [AgentToolsType.WebSearch, Globe],
+  [PROVIDER_WEB_SEARCH_TOOL_NAME, Globe],
+  [AgentToolsType.Workflow, Workflow],
+  [AgentToolsType.Write, FileText]
+])
 const TOOL_GROUP_ICON_CLASS_NAME =
   'size-3.5 text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
 
@@ -238,7 +238,7 @@ function getMcpToolGroupPresentation(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool groups pass incomplete runtime arguments; MCP presentation checks the action field before choosing a group icon.
 export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?: unknown): LucideIcon {
   return (
-    (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
+    (tool && TOOL_GROUP_ICON_BY_NAME.get(tool.name)) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
   )
 }
 

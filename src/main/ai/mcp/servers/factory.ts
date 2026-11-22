@@ -93,7 +93,7 @@ export async function createBuiltinMcpEndpoint(
  * Env that keeps `@cherry/mcp-auto-install` inside the Cherry tree: its Registry cache, and the
  * config file it writes to so a missed `dryRun` never lands in the user's other MCP clients.
  */
-export function getBuiltinAutoInstallEnv(server: McpServer): Record<string, string> {
+export function getBuiltinAutoInstallEnv(server: McpServer) {
   if (server.installSource !== 'builtin' || server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
     return {}
   }

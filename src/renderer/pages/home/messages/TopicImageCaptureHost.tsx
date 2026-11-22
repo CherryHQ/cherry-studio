@@ -51,7 +51,7 @@ const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => 
     },
     [topic.id]
   )
-  const { messages, partsByMessageId } = useMessageImageCaptureMessages<CherryUIMessage>({
+  const { messages, partsByMessageId } = useMessageImageCaptureMessages({
     loadMessages,
     mapMessage: passThroughUIMessage,
     onError: handleLoadError

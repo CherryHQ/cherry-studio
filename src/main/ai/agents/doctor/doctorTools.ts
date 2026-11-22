@@ -345,7 +345,7 @@ function assertOpenedPathIsStillReadable(resolved: string, opened: fs.Stats): vo
   }
 }
 
-export function openDoctorReadablePath(resolved: string): { handle: number; stat: fs.Stats } {
+export function openDoctorReadablePath(resolved: string) {
   const initial = fs.lstatSync(resolved)
   if (initial.isSymbolicLink()) {
     throw new ToolError('Access denied: symbolic links are not readable by the doctor', ToolErrorCode.InvalidParams)

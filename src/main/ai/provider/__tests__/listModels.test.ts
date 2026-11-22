@@ -1280,6 +1280,23 @@ describe('listModels — Radeon Cloud source header', () => {
 })
 
 describe('listModels — newApiFetcher endpoint types', () => {
+  it.each(['constructor', '__proto__', 'toString'])(
+    'ignores unknown endpoint names inherited from Object: %s',
+    async (endpoint) => {
+      const provider = makeProvider({
+        id: 'new-api',
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://newapi.example.com/v1' } }
+      })
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { data: [{ id: 'custom-model', supported_endpoint_types: [endpoint, 'openai'] }] }
+      })
+
+      const { models } = await listModels(provider)
+
+      expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    }
+  )
+
   it('maps supported_endpoint_types from NewAPI model responses', async () => {
     const provider = makeProvider({
       id: 'new-api',

@@ -165,18 +165,17 @@ const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> 
 }
 
 function toOptions(key: string, values: readonly string[]): OptionItem[] {
-  // `key` is a runtime string from the registry `supports` map; index defensively
-  // (the typed maps are keyed by CanonicalParamKey, but a registry parse already
-  // guarantees membership — the cast just bridges the string→literal index).
-  const labelMap = (OPTION_LABELS as Record<string, Record<string, string>>)[key]
+  // SAFETY: the own-key check proves this runtime registry key belongs to the canonical label catalog.
+  const labelMap = Object.hasOwn(OPTION_LABELS, key) ? OPTION_LABELS[key as CanonicalParamKey] : undefined
   return values.map((v) => {
-    const labelKey = labelMap?.[v]
+    const labelKey = labelMap && Object.hasOwn(labelMap, v) ? labelMap[v] : undefined
     return labelKey ? { labelKey, value: v } : { label: v, value: v }
   })
 }
 
 function specToField(key: string, spec: SupportSpec, allSupports: Record<string, SupportSpec>): BaseConfigItem | null {
-  const labels = (KEY_LABELS as Record<string, { title: string; tooltip?: string }>)[key] ?? { title: key }
+  // SAFETY: only an own key of the exhaustive canonical catalog is used as CanonicalParamKey.
+  const labels = Object.hasOwn(KEY_LABELS, key) ? KEY_LABELS[key as CanonicalParamKey] : { title: key }
   switch (spec.type) {
     case 'switch':
       return { type: 'switch', key, ...labels, initialValue: spec.default ?? false }

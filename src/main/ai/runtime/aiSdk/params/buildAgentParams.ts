@@ -846,11 +846,11 @@ export function applyCallOverrides(
 
   let providerOptions = base.providerOptions
   if (callOverrides.providerOptions) {
-    const merged: ProviderOptions = { ...providerOptions }
+    const merged = new Map(Object.entries(providerOptions))
     for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
-      merged[pid] = { ...merged[pid], ...opts }
+      merged.set(pid, { ...merged.get(pid), ...opts })
     }
-    providerOptions = merged
+    providerOptions = Object.fromEntries(merged)
   }
   return { standardParams, providerOptions }
 }

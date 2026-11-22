@@ -455,18 +455,18 @@ export interface ClaudeUserFacingTool {
 }
 
 /** Friendly labels for MCP wire tools whose `name` is an opaque `mcp__server__wire` id. */
-const MCP_TOOL_LABELS: Record<string, string> = {
-  'mcp__cherry-tools__web_search': 'Web Search',
-  'mcp__cherry-tools__web_fetch': 'Web Fetch',
-  'mcp__cherry-tools__kb_search': 'Knowledge Search',
-  'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
-  'mcp__cherry-tools__to_markdown': 'File to Markdown',
-  'mcp__agent-memory__memory': 'Memory',
-  'mcp__cherry-tools__cron': 'Scheduler',
-  'mcp__cherry-tools__notify': 'Notify',
-  'mcp__cherry-tools__config': 'Configuration',
-  'mcp__cherry-tools__generate_image': 'Generate Image'
-}
+const MCP_TOOL_LABELS = new Map([
+  ['mcp__cherry-tools__web_search', 'Web Search'],
+  ['mcp__cherry-tools__web_fetch', 'Web Fetch'],
+  ['mcp__cherry-tools__kb_search', 'Knowledge Search'],
+  ['mcp__cherry-tools__kb_manage', 'Manage Knowledge'],
+  ['mcp__cherry-tools__to_markdown', 'File to Markdown'],
+  ['mcp__agent-memory__memory', 'Memory'],
+  ['mcp__cherry-tools__cron', 'Scheduler'],
+  ['mcp__cherry-tools__notify', 'Notify'],
+  ['mcp__cherry-tools__config', 'Configuration'],
+  ['mcp__cherry-tools__generate_image', 'Generate Image']
+])
 
 /**
  * The tools shown in the edit-dialog catalog (exposure `user`), across SDK + in-process MCP.
@@ -478,7 +478,7 @@ export function claudeUserFacingTools(): ClaudeUserFacingTool[] {
     .map(([key, def]) => ({
       key,
       name: def.name,
-      label: isMcpTool(def) ? (MCP_TOOL_LABELS[def.name] ?? def.name) : def.name,
+      label: isMcpTool(def) ? (MCP_TOOL_LABELS.get(def.name) ?? def.name) : def.name,
       category: def.category,
       description: def.description
     }))

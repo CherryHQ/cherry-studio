@@ -116,10 +116,7 @@ export class AgentSubscriptions {
   }
 
   /** Switches to live delivery; the caller must send the reply before `commit` releases the suffix. */
-  activate(input: AgentParams<'agent.subscriptions.activate'>): {
-    result: AgentResult<'agent.subscriptions.activate'>
-    commit: () => void
-  } {
+  activate(input: AgentParams<'agent.subscriptions.activate'>) {
     const subscription = this.require(input.subscriptionId)
     if (subscription.phase !== 'prepared')
       throw new RemoteRpcError('CONFLICT', 'Subscription is not awaiting activation')
@@ -139,7 +136,10 @@ export class AgentSubscriptions {
       throw new RemoteRpcError('RESET_REQUIRED', 'Replay suffix is no longer retained')
     }
     return {
-      result: { subscriptionId: subscription.id, status: 'active' },
+      result: {
+        subscriptionId: subscription.id,
+        status: 'active'
+      } satisfies AgentResult<'agent.subscriptions.activate'>,
       commit: () => {
         if (subscription.phase !== 'prepared') return
         subscription.phase = 'active'

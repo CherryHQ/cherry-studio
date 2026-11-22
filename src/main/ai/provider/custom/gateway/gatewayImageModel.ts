@@ -16,7 +16,13 @@
  * problem by pointing a real `@ai-sdk/google` provider at their Google-native
  * endpoint — the gateway has no such endpoint, so it needs this.
  */
-import type { ImageModelV3, ImageModelV3CallOptions, JSONValue, LanguageModelV3 } from '@ai-sdk/provider'
+import {
+  type ImageModelV3,
+  type ImageModelV3CallOptions,
+  isJSONObject,
+  type JSONObject,
+  type LanguageModelV3
+} from '@ai-sdk/provider'
 import { convertToBase64 } from '@ai-sdk/provider-utils'
 
 const GATEWAY_GOOGLE_IMAGE_PROVIDER = 'gateway.google.image' as const
@@ -93,14 +99,14 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       // (e.g. `gateway` routing: order/only/BYOK) intact, and deep-merge
       // imageConfig so an existing imageSize survives an added aspectRatio.
       const { gateway: rawGateway, ...otherProviderOptions } = providerOptions ?? {}
-      const { imageResolution, ...gateway } = (rawGateway ?? {}) as Record<string, JSONValue>
-      const existingGoogle = (providerOptions?.google ?? {}) as Record<string, JSONValue>
-      const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, JSONValue>
-      const imageDefaults: Record<string, JSONValue> = {}
+      const { imageResolution, ...gateway } = rawGateway ?? {}
+      const existingGoogle = providerOptions?.google ?? {}
+      const existingImageConfig = isJSONObject(existingGoogle.imageConfig) ? existingGoogle.imageConfig : {}
+      const imageDefaults: JSONObject = {}
       if (typeof imageResolution === 'string' && imageResolution !== 'auto') imageDefaults.imageSize = imageResolution
-      const imageConfig: Record<string, JSONValue> = { ...imageDefaults, ...existingImageConfig }
+      const imageConfig: JSONObject = { ...imageDefaults, ...existingImageConfig }
       if (aspectRatio) imageConfig.aspectRatio = aspectRatio
-      const google: Record<string, JSONValue> = {
+      const google: JSONObject = {
         ...existingGoogle,
         responseModalities: ['IMAGE']
       }

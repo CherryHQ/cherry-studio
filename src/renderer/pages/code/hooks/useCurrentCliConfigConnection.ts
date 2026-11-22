@@ -34,11 +34,7 @@ export function useCurrentCliConfigConnection({
   selectedCliTool: CodeCli
   currentProviderConfig?: CliProviderConfig | null
   apiGatewayProvider?: ApiGatewayProviderBundle | null
-}): {
-  connection: CliConfigConnection | null
-  setConnection: (connection: CliConfigConnection | null) => void
-  reload: () => void
-} {
+}) {
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
   const [reloadRevision, setReloadRevision] = useState(0)
   const readGenerationRef = useRef(0)

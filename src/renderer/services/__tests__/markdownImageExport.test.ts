@@ -380,6 +380,24 @@ describe('hydrateDeferredImageOutputs', () => {
 // --- serializeMessagesWithImages ---
 
 describe('serializeMessagesWithImages', () => {
+  it.each([
+    { mime: 'constructor', extension: '.png' },
+    { mime: '__proto__', extension: '.png' },
+    { mime: 'IMAGE/JPEG', extension: '.jpg' }
+  ])('uses a known MIME or PNG fallback for inline tool assets: $mime', async ({ mime, extension }) => {
+    const message = view([generateImageInlinePart([{ data: PNG_1PX_RAW, mimeType: mime }])], 'assistant')
+    const { refs } = await collectExportableImages([message])
+    Object.freeze(refs[0])
+
+    const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages([message], 'folder', refs)
+
+    expect(skippedCount).toBe(0)
+    expect(pendingWrites).toHaveLength(1)
+    expect(pendingWrites[0].fileName.endsWith(extension)).toBe(true)
+    expect(overrides.get(message.id)).toBe(`![image](assets/${pendingWrites[0].fileName})`)
+    expect(refs[0]).toHaveProperty('mime', mime)
+  })
+
   it('interleaves images with text in parts order and inlines data URIs (embed)', async () => {
     const message = view([
       { type: 'text', text: 'before the image' },

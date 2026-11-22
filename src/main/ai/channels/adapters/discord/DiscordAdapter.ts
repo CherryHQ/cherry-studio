@@ -567,11 +567,7 @@ class DiscordAdapter extends ChannelAdapter {
   /**
    * Parse message text, extract image URLs and downloadable file attachments.
    */
-  private parseMessageContent(msg: DiscordMessage): {
-    text: string
-    imageUrls: string[]
-    fileAttachments: DiscordAttachment[]
-  } {
+  private parseMessageContent(msg: DiscordMessage) {
     const text = msg.content.replace(/<@!?\d+>/g, '').trim()
     const imageUrls: string[] = []
     const fileAttachments: DiscordAttachment[] = []

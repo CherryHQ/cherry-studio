@@ -479,12 +479,7 @@ export class KnowledgeBaseService {
       }
     }
 
-    const nextConfig: {
-      chunkSize: number
-      chunkOverlap: number
-      chunkStrategy: KnowledgeBase['chunkStrategy']
-      chunkSeparator: KnowledgeBase['chunkSeparator']
-    } = {
+    const nextConfig = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
       chunkStrategy: dto.chunkStrategy !== undefined ? dto.chunkStrategy : existing.chunkStrategy,

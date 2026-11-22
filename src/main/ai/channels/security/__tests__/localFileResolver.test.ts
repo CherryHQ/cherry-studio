@@ -33,9 +33,11 @@ describe('resolveLocalFile', () => {
     expect(Buffer.from(file.data, 'base64').toString()).toBe('hello world')
   })
 
-  it('falls back to octet-stream for unknown extensions', async () => {
-    await writeFile(path.join(base, 'blob.xyz'), 'x')
-    expect((await resolveLocalFile(base, 'blob.xyz')).media_type).toBe('application/octet-stream')
+  it.each(['xyz', '__proto__', 'constructor'])('uses octet-stream for unregistered extension %s', async (extension) => {
+    await writeFile(path.join(base, `blob.${extension}`), 'x')
+    const result = await resolveLocalFile(base, `blob.${extension}`)
+    expect(result.media_type).toBe('application/octet-stream')
+    expect(Buffer.from(result.data, 'base64').toString()).toBe('x')
   })
 
   // This resolver deliberately has NO containment boundary — callers own authorization.

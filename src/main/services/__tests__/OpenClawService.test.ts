@@ -2238,6 +2238,25 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Provider openai has no enabled API key configured' })
     })
 
+    it.each(['constructor', '__proto__', 'toString'])(
+      'requires an API key when the preset %s has no registered keyless placeholder',
+      async (presetProviderId) => {
+        const { modelService } = await import('@data/services/ModelService')
+        const { providerService } = await import('@data/services/ProviderService')
+        vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider({ presetProviderId }))
+        const model = createModel()
+        vi.mocked(modelService.getByKey).mockReturnValue(model)
+        vi.mocked(modelService.list).mockReturnValue([model])
+        vi.mocked(providerService.getApiKeys).mockReturnValue([])
+        vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+        await expect(service.syncConfig('openai::gpt-4o')).resolves.toEqual({
+          success: false,
+          message: 'Provider openai has no enabled API key configured'
+        })
+      }
+    )
+
     it('returns an error when the selected OpenClaw model is non-chat', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')

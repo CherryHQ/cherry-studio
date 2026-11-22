@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import { z } from 'zod'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -61,6 +62,26 @@ import {
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
+
+const claudeCodeEffortSchema = z
+  .enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+  .transform((effort): Options['effort'] => (effort === 'ultra' ? 'max' : effort))
+  .optional()
+
+const claudeCodeThinkingSchema = z
+  .discriminatedUnion('type', [
+    z.object({ type: z.literal('disabled') }),
+    z.object({ type: z.literal('adaptive'), display: z.enum(['summarized', 'omitted']).optional() }),
+    z.object({
+      type: z.literal('enabled'),
+      budgetTokens: z.number().optional(),
+      display: z.enum(['summarized', 'omitted']).optional()
+    }),
+    z.object({ type: z.literal('between_tools') })
+  ])
+  // The SDK emits no thinking flag for between_tools; preserve its existing default behavior.
+  .transform((thinking): Options['thinking'] => (thinking.type === 'between_tools' ? undefined : thinking))
+  .optional()
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
@@ -649,10 +670,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 }
 
 /** Encode reasoning for CLI subscriptions, whose requests bypass Cherry's provider execution. */
-function resolveClaudeCodeThinkingOptions(
-  model: Model,
-  reasoningEffort: ReasoningEffortOption
-): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+function resolveClaudeCodeThinkingOptions(model: Model, reasoningEffort: ReasoningEffortOption) {
   const profile = providerRegistryService.resolveReasoningProfile(
     {
       id: 'anthropic',
@@ -674,9 +692,9 @@ function resolveClaudeCodeThinkingOptions(
   const encoded = encodeReasoningInvocation(invocation)
 
   return {
-    effort: encoded.effort as Options['effort'] | undefined,
-    thinking: encoded.thinking as Options['thinking'] | undefined
-  }
+    effort: claudeCodeEffortSchema.parse(encoded.effort),
+    thinking: claudeCodeThinkingSchema.parse(encoded.thinking)
+  } satisfies Pick<Options, 'effort' | 'thinking'>
 }
 
 /**

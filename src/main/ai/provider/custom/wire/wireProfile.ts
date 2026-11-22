@@ -1,4 +1,4 @@
-import type { JSONValue } from 'ai'
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 
 /**
  * Per-provider declaration of the NON-native vendor body params (the
@@ -34,7 +34,7 @@ export interface WireRule {
   /** One-to-many / nested escape hatch: return a partial body merged into the
    *  result (nested plain objects are deep-merged, e.g. google's `imageConfig`
    *  assembled from `aspectRatio` + `size`). Mutually exclusive with `to`/`map`. */
-  contribute?: (value: NonNullable<ParamValues[CanonicalParamKey]>, all: ParamValues) => Record<string, JSONValue>
+  contribute?: (value: NonNullable<ParamValues[CanonicalParamKey]>, all: ParamValues) => JSONObject
 }
 
 export interface WireProfile {
@@ -69,11 +69,10 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   fields: {
     outputFormat: { to: 'outputFormat' },
     frameCount: {
-      contribute: (value, all): Record<string, JSONValue> => (all.outputFormat === 'gif' ? { frameCount: value } : {})
+      contribute: (value, all) => (all.outputFormat === 'gif' ? { frameCount: value } : {})
     },
     frameDurationMs: {
-      contribute: (value, all): Record<string, JSONValue> =>
-        all.outputFormat === 'gif' ? { frameDurationMs: value } : {}
+      contribute: (value, all) => (all.outputFormat === 'gif' ? { frameDurationMs: value } : {})
     }
   }
 }
@@ -95,7 +94,7 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
   forward: ['resolution', 'quality', 'outputFormat', 'background'],
   fields: {
     outputCompression: {
-      contribute: (value, all): Record<string, JSONValue> => {
+      contribute: (value, all) => {
         if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
           return { output_compression: value }
         }
@@ -138,7 +137,7 @@ export const DOUBAO_WIRE_PROFILE: WireProfile = {
  *  google family and the dmxapi gateway's google-routed block; an invalid value
  *  contributes nothing, so the deep-merge leaves no `imageConfig.aspectRatio`. */
 const aspectRatioImageConfigRule: WireRule = {
-  contribute: (v): Record<string, JSONValue> => {
+  contribute: (v) => {
     const normalized = normalizeAspectRatio(String(v))
     return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
   }
@@ -149,7 +148,7 @@ const aspectRatioImageConfigRule: WireRule = {
  *  `@ai-sdk/google` reads it as `providerOptions.<key>.imageConfig.imageSize`.
  *  Shared by the google / google-vertex family and the dmxapi google-routed block. */
 const imageResolutionImageConfigRule: WireRule = {
-  contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+  contribute: (v) => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
 }
 
 /**
@@ -242,47 +241,50 @@ export interface WireRegistration {
  * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
  * migrated provider with bespoke delivery; the plain diffusion family needs no row.
  */
-export const WIRE_REGISTRY: Record<string, WireRegistration> = {
-  openrouter: { profile: OPENROUTER_WIRE_PROFILE },
-  openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  'azure-responses': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  huggingface: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+export const WIRE_REGISTRY: ReadonlyMap<string, WireRegistration> = new Map<string, WireRegistration>([
+  ['openrouter', { profile: OPENROUTER_WIRE_PROFILE }],
+  ['openai', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }],
+  ['openai-chat', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }],
+  ['azure', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }],
+  ['azure-responses', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }],
+  ['huggingface', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }],
   // passthrough: CherryIn's own Google-image wrapper (@cherrystudio/ai-sdk-provider)
   // reads raw camelCase personGeneration/imageResolution off this key — those aren't
   // OPENAI_WIRE_PROFILE fields, so without passthrough they're silently dropped.
-  cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
+  ['cherryin', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true }],
   // The provider resolver upgrades cherryin's default chat endpoint to this variant
   // (provider/config.ts), so 'cherryin-chat' — not 'cherryin' — is the id AiService
   // actually looks up for the common image-generation path. But the wrapper above
   // reads providerOptions['cherryin'] (its own fixed internal key, independent of
   // our providerId variant), so deliver under 'cherryin' here too — mirroring
   // google-vertex → vertex below.
-  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true },
-  newapi: {
-    profile: {
-      forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), ...(DIFFUSION_WIRE_PROFILE.forward ?? [])]
-    },
-    passthrough: true
-  },
-  google: { profile: GOOGLE_WIRE_PROFILE },
+  ['cherryin-chat', { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true }],
+  [
+    'newapi',
+    {
+      profile: {
+        forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), ...(DIFFUSION_WIRE_PROFILE.forward ?? [])]
+      },
+      passthrough: true
+    }
+  ],
+  ['google', { profile: GOOGLE_WIRE_PROFILE }],
   // Vertex reuses the google body but delivers under `vertex` (the key the
   // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
-  'google-vertex': { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' },
-  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
+  ['google-vertex', { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' }],
+  ['dashscope', { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true }],
   // `@ai-sdk/bytedance` reads `providerOptions.bytedance` — its own fixed key, independent
   // of our `doubao` provider id — so the body is re-keyed, mirroring google-vertex → vertex.
-  doubao: { profile: DOUBAO_WIRE_PROFILE, key: 'bytedance', passthrough: true },
+  ['doubao', { profile: DOUBAO_WIRE_PROFILE, key: 'bytedance', passthrough: true }],
   // passthrough: forward the vendor bag (imageResolution / addWatermark /
   // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
-  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
-  ollama: { profile: OLLAMA_WIRE_PROFILE },
-  minimax: { profile: MINIMAX_WIRE_PROFILE }
-}
+  ['aihubmix', { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true }],
+  ['dmxapi', { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] }],
+  ['ollama', { profile: OLLAMA_WIRE_PROFILE }],
+  ['minimax', { profile: MINIMAX_WIRE_PROFILE }]
+])
 
 /**
  * Fallback for any provider not in {@link WIRE_REGISTRY} and not on the legacy

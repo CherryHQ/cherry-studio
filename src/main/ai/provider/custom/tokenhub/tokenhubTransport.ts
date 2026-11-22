@@ -109,41 +109,55 @@ function imagesOf(input: ImageGenerationSubmitInput): string[] | undefined {
   return input.files.map((file) => fileToDataUrl(file))
 }
 
-function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
-  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '' }
+function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams) {
+  const model = input.modelId
+  const prompt = input.prompt ?? ''
   const images = imagesOf(input)
-  if (images) body.images = images
-  if (input.size) body.size = input.size
-  if (typeof input.seed === 'number') body.seed = input.seed
-  if (bag.promptEnhancement !== undefined) body.revise = bag.promptEnhancement
-  return body
-}
-
-function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
-  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '', response_format: 'url' }
-  const images = imagesOf(input)
-  if (images) body.images = images
-  const size = input.size ?? bag.imageResolution
-  if (size) body.size = size
-  if (bag.outputFormat) body.output_format = bag.outputFormat
-  if (bag.addWatermark !== undefined) body.watermark = bag.addWatermark
-  if (bag.sequentialImageGeneration) {
-    body.sequential_image_generation = bag.sequentialImageGeneration
-    if (bag.sequentialImageGeneration === 'auto' && typeof bag.maxImages === 'number') {
-      body.sequential_image_generation_options = { max_images: bag.maxImages }
-    }
+  return {
+    model,
+    prompt,
+    ...(images && { images }),
+    ...(input.size && { size: input.size }),
+    ...(typeof input.seed === 'number' && { seed: input.seed }),
+    ...(bag.promptEnhancement !== undefined && { revise: bag.promptEnhancement })
   }
-  return body
 }
 
-function buildViduBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams): JSONObject {
-  const body: JSONObject = { model: input.modelId, prompt: input.prompt ?? '' }
+function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams) {
+  const model = input.modelId
+  const prompt = input.prompt ?? ''
   const images = imagesOf(input)
-  if (images) body.images = images
-  if (input.aspectRatio) body.aspect_ratio = input.aspectRatio
-  if (bag.resolution) body.resolution = bag.resolution
-  if (typeof input.seed === 'number') body.seed = input.seed
-  return body
+  const size = input.size ?? bag.imageResolution
+  return {
+    model,
+    prompt,
+    response_format: 'url',
+    ...(images && { images }),
+    ...(size && { size }),
+    ...(bag.outputFormat && { output_format: bag.outputFormat }),
+    ...(bag.addWatermark !== undefined && { watermark: bag.addWatermark }),
+    ...(bag.sequentialImageGeneration && {
+      sequential_image_generation: bag.sequentialImageGeneration,
+      ...(bag.sequentialImageGeneration === 'auto' &&
+        typeof bag.maxImages === 'number' && {
+          sequential_image_generation_options: { max_images: bag.maxImages }
+        })
+    })
+  }
+}
+
+function buildViduBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderParams) {
+  const model = input.modelId
+  const prompt = input.prompt ?? ''
+  const images = imagesOf(input)
+  return {
+    model,
+    prompt,
+    ...(images && { images }),
+    ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
+    ...(bag.resolution && { resolution: bag.resolution }),
+    ...(typeof input.seed === 'number' && { seed: input.seed })
+  }
 }
 
 function extractSyncUrls(response: TokenhubSyncImageResponse): string[] {

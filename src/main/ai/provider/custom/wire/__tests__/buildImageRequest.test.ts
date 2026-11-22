@@ -11,9 +11,97 @@ import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY }
 /** Run a provider's registration (WIRE_REGISTRY, else the diffusion default). */
 function engine(providerId: string, paramValues: Parameters<typeof buildVendorProviderOptions>[1]) {
   const { vendorBag } = splitParamValues(paramValues)
-  const registration = WIRE_REGISTRY[providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+  const registration = WIRE_REGISTRY.get(providerId) ?? DEFAULT_DIFFUSION_REGISTRATION
   return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
 }
+
+describe('image wire extension boundaries', () => {
+  it.each(['constructor', '__proto__', 'toString'])(
+    'uses diffusion fallback for an unregistered provider: %s',
+    (providerId) => {
+      const result = engine(providerId, { negativePrompt: 'avoid blur', quality: 'high' })
+
+      expect(Object.hasOwn(result, providerId)).toBe(true)
+      expect(Object.getOwnPropertyDescriptor(result, providerId)?.value).toEqual({
+        negative_prompt: 'avoid blur',
+        quality: 'high'
+      })
+    }
+  )
+
+  it('preserves native passthrough values and own reserved keys without serializing them', () => {
+    const date = new Date('2026-01-02T03:04:05Z')
+    const bytes = new Uint8Array([1, 2, 3])
+    const nested = Object.freeze({ onProgress: () => undefined })
+    const serializable = Object.freeze({
+      toJSON() {
+        throw new Error('Serialization belongs to the selected adapter')
+      }
+    })
+    const vendorBag = Object.freeze({
+      ['__proto__']: 'literal',
+      constructor: 'constructor value',
+      toString: 'toString value',
+      date,
+      bytes,
+      nested,
+      serializable,
+      bigint: 42n,
+      onProgress: () => undefined,
+      symbol: Symbol('extension'),
+      absent: undefined
+    })
+
+    const result = buildVendorProviderOptions('__proto__', {}, { profile: {}, passthrough: true }, vendorBag)
+    const body = Object.getOwnPropertyDescriptor(result, '__proto__')?.value
+
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(body)).toBe(Object.prototype)
+    expect(Object.getOwnPropertyDescriptor(body, '__proto__')?.value).toBe('literal')
+    expect(body.constructor).toBe('constructor value')
+    expect(body.toString).toBe('toString value')
+    expect(body.date).toBe(date)
+    expect(body.bytes).toBe(bytes)
+    expect(body.nested).toBe(nested)
+    expect(body.serializable).toBe(serializable)
+    expect(body.bigint).toBe(42n)
+    expect(Object.hasOwn(body, 'onProgress')).toBe(false)
+    expect(Object.hasOwn(body, 'symbol')).toBe(false)
+    expect(Object.hasOwn(body, 'absent')).toBe(false)
+    expect(Object.hasOwn(vendorBag, 'onProgress')).toBe(true)
+    expect(Object.hasOwn(vendorBag, 'symbol')).toBe(true)
+    expect(Object.hasOwn(vendorBag, 'absent')).toBe(true)
+  })
+
+  it('keeps a mapped reserved wire name as an own data property', () => {
+    const body = buildImageRequest({ quality: 'high' }, { fields: { quality: { to: '__proto__' } } })
+
+    expect(Object.getOwnPropertyDescriptor(body, '__proto__')).toEqual({
+      value: 'high',
+      enumerable: true,
+      configurable: true,
+      writable: true
+    })
+    expect(Object.getPrototypeOf(body)).toBe(Object.prototype)
+  })
+
+  it('merges nested contributions without losing reserved fields or mutating the source', () => {
+    const contribution = Object.freeze({ imageConfig: Object.freeze({ ['__proto__']: 'literal', aspectRatio: '1:1' }) })
+    const body = buildImageRequest(
+      { quality: 'high', size: '1024x1024' },
+      {
+        fields: {
+          quality: { contribute: () => contribution },
+          size: { contribute: (value) => ({ imageConfig: { imageSize: value } }) }
+        }
+      }
+    )
+
+    expect(body).toEqual({ imageConfig: { ['__proto__']: 'literal', aspectRatio: '1:1', imageSize: '1024x1024' } })
+    expect(Object.getPrototypeOf(body.imageConfig)).toBe(Object.prototype)
+    expect(contribution.imageConfig).toEqual({ ['__proto__']: 'literal', aspectRatio: '1:1' })
+  })
+})
 
 describe('buildVendorProviderOptions — OpenRouter image API', () => {
   it('maps model-advertised parameters under the native OpenRouter provider key', () => {

@@ -68,7 +68,7 @@ export const validate = (english: string, translation: string, doNotTranslate: s
 
 const readJson = (filePath: string): I18N => JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 
-export const checkTranslationValues = (): { checked: number; failures: string[] } => {
+export const checkTranslationValues = () => {
   const glossary = JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-glossary.json'), 'utf-8')) as Glossary
   const failures: string[] = []
   let checked = 0

@@ -35,12 +35,7 @@ function getPaintingHydrationFingerprint(record: Painting): string {
   ])
 }
 
-export function usePaintingHistory(): {
-  items: PaintingStripEntry[]
-  isLoading: boolean
-  hasMore: boolean
-  loadMore: () => void
-} {
+export function usePaintingHistory() {
   const {
     pages,
     isLoading: isQueryLoading,

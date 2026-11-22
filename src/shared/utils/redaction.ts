@@ -21,12 +21,10 @@ export function isSensitiveKey(key: string): boolean {
 }
 
 /** Shallow redaction of a flat string map (env vars, headers). */
-export function redactRecord(record: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(record)) {
-    out[key] = isSensitiveKey(key) ? REDACTED : value
-  }
-  return out
+export function redactRecord(record: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [key, isSensitiveKey(key) ? REDACTED : value] as const)
+  )
 }
 
 const MAX_STRING = 300

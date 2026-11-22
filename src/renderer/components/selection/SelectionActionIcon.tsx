@@ -12,15 +12,15 @@ const DynamicSelectionActionIcon = lazy(() => import('./DynamicSelectionActionIc
 
 type StaticSelectionActionIcon = typeof Languages
 
-const BUILT_IN_SELECTION_ACTION_ICONS: Record<string, StaticSelectionActionIcon> = {
-  'clipboard-copy': ClipboardCopy,
-  'file-question': FileQuestion,
-  languages: Languages,
-  quote: Quote,
-  'scan-text': ScanText,
-  search: Search,
-  'wand-sparkles': WandSparkles
-}
+const BUILT_IN_SELECTION_ACTION_ICONS: ReadonlyMap<string, StaticSelectionActionIcon> = new Map([
+  ['clipboard-copy', ClipboardCopy],
+  ['file-question', FileQuestion],
+  ['languages', Languages],
+  ['quote', Quote],
+  ['scan-text', ScanText],
+  ['search', Search],
+  ['wand-sparkles', WandSparkles]
+])
 
 type SelectionActionIconProps = ComponentProps<StaticSelectionActionIcon> & {
   fallback?: () => ReactNode
@@ -28,7 +28,7 @@ type SelectionActionIconProps = ComponentProps<StaticSelectionActionIcon> & {
 }
 
 const SelectionActionIcon: FC<SelectionActionIconProps> = ({ fallback, name, ...props }) => {
-  const BuiltInIcon = name ? BUILT_IN_SELECTION_ACTION_ICONS[name] : undefined
+  const BuiltInIcon = name ? BUILT_IN_SELECTION_ACTION_ICONS.get(name) : undefined
 
   if (BuiltInIcon) {
     return <BuiltInIcon {...props} />

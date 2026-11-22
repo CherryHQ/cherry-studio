@@ -175,5 +175,5 @@ export function shouldShowLanguageOptions(processorId: FileProcessorId): process
 }
 
 export function getTesseractLanguageCode(languageCode: string): string | undefined {
-  return TESSERACT_LANG_MAP[languageCode]
+  return TESSERACT_LANG_MAP.get(languageCode)
 }

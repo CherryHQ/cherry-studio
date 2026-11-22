@@ -15,7 +15,7 @@ import {
   MarketplaceDetailHeader,
   MarketplaceDetailProperties
 } from './MarketplaceComponents'
-import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
+import { getMarketplaceCategoryLabel } from './marketplaceLabels'
 import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 
 type Props = {
@@ -119,7 +119,7 @@ export function MarketplaceSkillDialog({
               { label: t('marketplace.version'), value: item.version || '—' },
               {
                 label: t('marketplace.category'),
-                value: MARKETPLACE_CATEGORY_KEYS[item.domain] ? t(MARKETPLACE_CATEGORY_KEYS[item.domain]) : item.domain
+                value: getMarketplaceCategoryLabel(item.domain, t)
               }
             ]}
           />

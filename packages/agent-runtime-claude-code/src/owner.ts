@@ -59,7 +59,7 @@ interface Input {
 // Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
 // credential and hides an existing `claude /login`, so only a non-default directory is passed.
 function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
-  const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
+  const childEnv: NodeJS.ProcessEnv = { ...env, CLAUDE_CONFIG_DIR: configDir }
   if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
   return childEnv
 }

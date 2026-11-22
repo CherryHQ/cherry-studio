@@ -4,7 +4,7 @@
  */
 
 /** Exact filename → icon name */
-const filenameMap: Record<string, string> = {
+const FILENAME_ICONS = {
   dockerfile: 'docker',
   'docker-compose.yml': 'docker',
   'docker-compose.yaml': 'docker',
@@ -73,7 +73,7 @@ const filenameMap: Record<string, string> = {
 }
 
 /** File extension → icon name */
-const extensionMap: Record<string, string> = {
+const EXTENSION_ICONS = {
   // JavaScript / TypeScript
   ts: 'typescript',
   tsx: 'react-ts',
@@ -258,6 +258,9 @@ const extensionMap: Record<string, string> = {
   ipynb: 'jupyter'
 }
 
+const filenameMap: ReadonlyMap<string, string> = new Map(Object.entries(FILENAME_ICONS))
+const extensionMap: ReadonlyMap<string, string> = new Map(Object.entries(EXTENSION_ICONS))
+
 const DEFAULT_ICON = 'document'
 
 export function getFileIconName(filePath: string): string {
@@ -270,19 +273,20 @@ export function getFileIconName(filePath: string): string {
   const lowerFilename = filename.toLowerCase()
 
   // Check exact filename match first
-  if (filenameMap[filename]) return filenameMap[filename]
-  if (filenameMap[lowerFilename]) return filenameMap[lowerFilename]
+  const filenameIcon = filenameMap.get(filename) ?? filenameMap.get(lowerFilename)
+  if (filenameIcon) return filenameIcon
 
   // Check compound extensions (e.g. .d.ts, .spec.ts)
   const parts = filename.split('.')
   if (parts.length > 2) {
     const compoundExt = parts.slice(-2).join('.').toLowerCase()
-    if (extensionMap[compoundExt]) return extensionMap[compoundExt]
+    const compoundIcon = extensionMap.get(compoundExt)
+    if (compoundIcon) return compoundIcon
   }
 
   // Check simple extension
   const ext = parts.pop()?.toLowerCase()
-  if (ext && extensionMap[ext]) return extensionMap[ext]
+  if (ext) return extensionMap.get(ext) ?? DEFAULT_ICON
 
   return DEFAULT_ICON
 }

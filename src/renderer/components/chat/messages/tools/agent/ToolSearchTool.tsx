@@ -8,7 +8,7 @@ import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool search results can originate from several runtimes; validate known output and safely display an unrecognized result.
-function parseOutput(output: unknown): { matches: string[]; message?: string } {
+function parseOutput(output: unknown) {
   if (!output) return { matches: [] }
   const result = ToolSearchToolOutputSchema.safeParse(output)
   if (!result.success) return { matches: [], message: safeToString(output, 2) }

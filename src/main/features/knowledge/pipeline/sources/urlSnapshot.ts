@@ -82,12 +82,7 @@ function decodePathSegment(segment: string | undefined): string | undefined {
  * rules. Native capture may additionally supply the fetched page title. The caller
  * supplies the `timestamp` (frontmatter-only, so it never affects a content hash).
  */
-export function buildUrlSnapshotFile(
-  url: string,
-  markdown: string,
-  timestamp: string,
-  pageTitle?: string
-): { slug: string; fileText: string } {
+export function buildUrlSnapshotFile(url: string, markdown: string, timestamp: string, pageTitle?: string) {
   const frontmatter = serializeOkfFrontmatter({
     type: 'URL',
     title: deriveUrlSnapshotTitle(markdown, url, pageTitle),

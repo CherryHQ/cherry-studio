@@ -30,7 +30,7 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
   const categories: ContextCategory[] = []
   const resources: ContextResource[] = []
   for (const part of measureSystemContext(system, deferred, estimateSystemCharacters, '')) {
-    const key = categoryKeys[part.kind] ?? 'other'
+    const key = categoryKeys.get(part.kind) ?? 'other'
     const occupancy = part.state === 'deferred' ? 'deferred' : 'included'
     const id = `${key}:${occupancy}`
     const category = categories.find((category) => category.id === id)
@@ -87,12 +87,12 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
   return { status: 'confirmed', value: Object.assign(value, context) }
 }
 
-const categoryKeys: Record<string, ContextCategoryKey> = {
-  'system-prompt': 'system-prompt',
-  'system-tools': 'system-tools',
-  'mcp-tools': 'mcp-tools',
-  'mcp-instructions': 'mcp-instructions',
-  'memory-files': 'memory-files',
-  skills: 'skills',
-  agents: 'agents'
-}
+const categoryKeys: ReadonlyMap<string, ContextCategoryKey> = new Map([
+  ['system-prompt', 'system-prompt'],
+  ['system-tools', 'system-tools'],
+  ['mcp-tools', 'mcp-tools'],
+  ['mcp-instructions', 'mcp-instructions'],
+  ['memory-files', 'memory-files'],
+  ['skills', 'skills'],
+  ['agents', 'agents']
+])

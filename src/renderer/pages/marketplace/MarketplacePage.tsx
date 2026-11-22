@@ -13,7 +13,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceResourceType, MarketplaceView } from '@renderer/types/marketplace'
 
 import { MarketplaceCategoryFilter } from './MarketplaceComponents'
-import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
+import { getMarketplaceCategoryLabel } from './marketplaceLabels'
 import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
@@ -226,9 +226,7 @@ export default function MarketplacePage() {
               categories={skillCategories}
               category={curatedSkillCategory}
               onCategoryChange={setSkillCategory}
-              categoryLabel={(domain) =>
-                MARKETPLACE_CATEGORY_KEYS[domain] ? t(MARKETPLACE_CATEGORY_KEYS[domain]) : domain
-              }
+              categoryLabel={(domain) => getMarketplaceCategoryLabel(domain, t)}
             />
           ) : null}
           {resourceType === 'all' ? (

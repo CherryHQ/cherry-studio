@@ -339,7 +339,7 @@ export const ZhipuExtension = ProviderExtension.create({
  * Only IMAGE models are routed here by `providerToAiSdkConfig` — chat/embedding stay on
  * the generic openai-compatible provider, and this provider throws `NoSuchModelError`
  * for them by design. Params ride under `providerOptions.bytedance`, which is why the
- * wire registration re-keys the body (see `WIRE_REGISTRY.doubao`).
+ * wire registration re-keys the body (see `WIRE_REGISTRY.get('doubao')`).
  *
  * Pinned to 1.x: 2.x moves to the `ProviderV4` / `ImageModelV4` specs, which the rest of
  * the app is not on yet. It also ships Seedance video models we don't wire up yet.

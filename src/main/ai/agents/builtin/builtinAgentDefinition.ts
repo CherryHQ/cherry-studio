@@ -12,17 +12,17 @@ const logger = loggerService.withContext('BuiltinAgentDefinition')
 /** Canonical Claude plugin name declared by the bundled Cherry Assistant manifest. */
 export const BUILTIN_AGENT_PLUGIN_NAME = 'cherry-assistant-builtin'
 
-const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
-  [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
-  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-support',
-  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-doctor'
-}
+const TEMPLATE_NAME_BY_ROLE: ReadonlyMap<string, string> = new Map([
+  [BUILTIN_AGENT_ROLE.ASSISTANT, 'cherry-assistant'],
+  [BUILTIN_AGENT_ROLE.SUPPORT, 'cherry-support'],
+  [BUILTIN_AGENT_ROLE.DOCTOR, 'cherry-doctor']
+])
 
-const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
-  [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
-  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-assistant',
-  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-assistant'
-}
+const PLUGIN_TEMPLATE_NAME_BY_ROLE: ReadonlyMap<string, string> = new Map([
+  [BUILTIN_AGENT_ROLE.ASSISTANT, 'cherry-assistant'],
+  [BUILTIN_AGENT_ROLE.SUPPORT, 'cherry-assistant'],
+  [BUILTIN_AGENT_ROLE.DOCTOR, 'cherry-assistant']
+])
 
 // No `description` here: the builtin agent's display/search description is owned by i18n
 // (`agent.builtin.cherry_assistant.description`), not the bundle — a bundle copy would be a
@@ -58,7 +58,7 @@ function resolveLocalizedField(value: unknown, language: string): string | undef
 }
 
 export function getBuiltinAgentTemplateDirectory(builtinRole: string): string | undefined {
-  const templateName = TEMPLATE_NAME_BY_ROLE[builtinRole]
+  const templateName = TEMPLATE_NAME_BY_ROLE.get(builtinRole)
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
     return undefined
@@ -68,7 +68,7 @@ export function getBuiltinAgentTemplateDirectory(builtinRole: string): string | 
 }
 
 export function getBuiltinAgentPluginTemplateDirectory(builtinRole: string): string | undefined {
-  const templateName = PLUGIN_TEMPLATE_NAME_BY_ROLE[builtinRole]
+  const templateName = PLUGIN_TEMPLATE_NAME_BY_ROLE.get(builtinRole)
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping plugin provisioning', { builtinRole })
     return undefined

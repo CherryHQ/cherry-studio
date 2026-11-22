@@ -3,11 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
-import {
-  type AgentPreviewUrlCandidate,
-  findAgentPreviewUrlCandidates,
-  findAgentPreviewUrlInOutput
-} from './agentRightPaneProjection'
+import { findAgentPreviewUrlCandidates, findAgentPreviewUrlInOutput } from './agentRightPaneProjection'
 
 function buildSearchKey(sessionId: string | undefined, candidateKeys: string[]): string {
   return `${sessionId ?? ''}\0${candidateKeys.join('\0')}`
@@ -19,7 +15,7 @@ export function useAgentPreviewUrl(
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): { source: AgentPreviewUrlCandidate | null; url: string | null } {
+) {
   const candidates = useMemo(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]

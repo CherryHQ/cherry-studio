@@ -8,15 +8,15 @@ import { listMarkdownFiles } from './verify-doc-frontmatter'
 
 const ROOT = path.resolve(__dirname, '../..')
 
-const SECTION_TITLES: Record<string, string> = {
-  ai: 'AI',
-  'api-gateway': 'API Gateway',
-  i18n: 'i18n',
-  ipc: 'IPC'
-}
+const SECTION_TITLES: ReadonlyMap<string, string> = new Map([
+  ['ai', 'AI'],
+  ['api-gateway', 'API Gateway'],
+  ['i18n', 'i18n'],
+  ['ipc', 'IPC']
+])
 
 const titleForDomain = (domain: string): string =>
-  SECTION_TITLES[domain] ??
+  SECTION_TITLES.get(domain) ??
   domain
     .split('-')
     .map((word) => word[0].toUpperCase() + word.slice(1))

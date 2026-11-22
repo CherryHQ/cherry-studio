@@ -6,9 +6,7 @@ import { groupTranslations } from './marketplaceGroupTranslations'
 
 function canonicalGroup(group: string): string {
   return (
-    Object.entries(groupTranslations).find(
-      ([key, labels]) => key === group || Object.values(labels).includes(group)
-    )?.[0] ?? group
+    [...groupTranslations].find(([key, labels]) => key === group || [...labels.values()].includes(group))?.[0] ?? group
   )
 }
 

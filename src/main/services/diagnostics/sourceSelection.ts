@@ -21,9 +21,7 @@ export function compareBudgetCandidates(
   return b.latestAt - a.latestAt || (a.key > b.key ? 1 : a.key < b.key ? -1 : 0)
 }
 
-export function createDiagnosticBudgetSelector(limitBytes: number): {
-  trySelect(candidate: DiagnosticBudgetCandidate<unknown>): boolean
-} {
+export function createDiagnosticBudgetSelector(limitBytes: number) {
   const selectedPartKeys = new Set<string>()
   let remainingBytes = limitBytes
 

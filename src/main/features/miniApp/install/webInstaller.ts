@@ -249,7 +249,7 @@ function assertManifestMatchesReviewed(review: MiniAppManifest, packaged: MiniAp
  * Safe because `checkForUpdate` refuses any manifest whose `update.url` leaves
  * `sourceOrigin` — a hijacked domain cannot walk the endpoint off the pinned origin.
  */
-function updateEndpointsOf(row: MiniAppInstallationRow): { url: string; urlCn?: string } {
+function updateEndpointsOf(row: MiniAppInstallationRow) {
   const update = MiniAppManifestSchema.parse(row.manifestJson).update
   const url = update?.url ?? row.sourceUrl!
   const pinned = pinnedOrigins(row)

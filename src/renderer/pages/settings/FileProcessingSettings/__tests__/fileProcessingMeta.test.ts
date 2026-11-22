@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RendererConstantModule from '@renderer/utils/platform'
 
-import { shouldShowLanguageOptions, supportsLanguageConfig } from '../utils/fileProcessingMeta'
+import {
+  getTesseractLanguageCode,
+  shouldShowLanguageOptions,
+  supportsLanguageConfig
+} from '../utils/fileProcessingMeta'
 
 const platformMock = vi.hoisted(() => ({
   isWin: false
@@ -22,6 +26,10 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 describe('fileProcessingMeta language options', () => {
   beforeEach(() => {
     platformMock.isWin = false
+  })
+
+  it.each(['constructor', '__proto__', 'toString'])('does not resolve an unsupported language named %s', (language) => {
+    expect(getTesseractLanguageCode(language)).toBeUndefined()
   })
 
   it('identifies processors that support language configuration', () => {

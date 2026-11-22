@@ -94,9 +94,12 @@ export function readIncidentMessage(incident: DoctorAgentIncident): IncidentMess
 }
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored error extensions are unvalidated; selected fields remain opaque until model-bound redaction.
-function projectError(data: Record<string, unknown>): Record<string, unknown> {
+function projectError(data: Record<string, unknown>) {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Projection limits field names but does not establish types for cause and provider extensions.
-  const projected: Record<string, unknown> = {}
+  const projected: Partial<Record<(typeof ERROR_FIELDS)[number], unknown>> & {
+    responseBody?: string
+    attempts?: Array<{ statusCode: unknown; message: string | undefined }>
+  } = {}
   for (const field of ERROR_FIELDS) {
     if (data[field] !== undefined && data[field] !== null) projected[field] = data[field]
   }
@@ -155,7 +158,17 @@ export function incidentOverview(incident: DoctorAgentIncident): Serializable {
   const kind = conversationKind(incident)
   const conversationId = conversationIdOf(incident.topicId)
   const message = readIncidentMessage(incident)
-  let owner: unknown
+  let owner:
+    | {
+        workspaceType: ReturnType<typeof agentSessionService.getById>['workspace']['type']
+        agent: Pick<
+          NonNullable<ReturnType<typeof agentService.getAgent>>,
+          'id' | 'type' | 'model' | 'mcps' | 'configuration'
+        > | null
+      }
+    | Pick<ReturnType<typeof topicService.getById>, 'assistantId'>
+    | { missing: true }
+    | undefined
   try {
     if (kind === 'agent') {
       const session = agentSessionService.getById(conversationId)
@@ -202,7 +215,7 @@ function precedingMessages(incident: DoctorAgentIncident, count: number): Incide
 
 /** The failed message and the `before` messages leading up to it, oldest first. */
 export function incidentMessages(incident: DoctorAgentIncident, before: number): Serializable {
-  let messages: unknown[]
+  let messages: ReturnType<typeof compactMessage>[]
   try {
     messages = precedingMessages(incident, before).map(compactMessage)
   } catch {
@@ -268,7 +281,7 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): Seri
 // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Stored request values remain opaque until redaction; this projection only bounds content and selected fields.
 function requestShape(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Counted content is typed locally; retained parameter values still require the caller's model-bound redaction.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- This summary combines runtime content keys with raw parameters; model-bound redaction owns its output contract.
   const shape: Record<string, unknown> = { keys: Object.keys(body) }
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Measuring JSON length does not parse or validate the retained raw parameter values.
   const params: Record<string, unknown> = {}

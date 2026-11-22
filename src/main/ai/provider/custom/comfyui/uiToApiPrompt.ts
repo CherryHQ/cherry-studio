@@ -436,7 +436,7 @@ export function convertUiWorkflowToPrompt(
     return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
   }
 
-  const namedValues = (values: JsonObject, linked: Set<string>): Record<string, WorkflowValue> => {
+  const namedValues = (values: JsonObject, linked: Set<string>) => {
     const out: Record<string, WorkflowValue> = {}
     for (const [name, value] of Object.entries(values)) {
       if (!linked.has(name)) out[name] = wrapWidgetValue(value)
@@ -446,10 +446,7 @@ export function convertUiWorkflowToPrompt(
 
   /** Widget values, aligned to the backend's declaration order, and the
    * control_after_generate mode of each widget that has one. */
-  function widgetValues(
-    node: UiNode,
-    linked: Set<string>
-  ): { values: Record<string, WorkflowValue>; controls: Map<string, string> } {
+  function widgetValues(node: UiNode, linked: Set<string>) {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     const controls = new Map<string, string>()

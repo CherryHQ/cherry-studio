@@ -236,29 +236,27 @@ export function buildResolvedEnv(
   env: Record<string, string>,
   extractDir: string,
   userConfig?: Parameters<typeof performVariableSubstitution>[2]
-): Record<string, string> {
-  const resolvedEnv: Record<string, string> = {}
+) {
+  return Object.fromEntries(
+    Object.entries(env).map(([key, value]) => {
+      if (key.includes('\0')) {
+        throw new Error('Invalid MCP package env: null byte detected in environment variable name')
+      }
 
-  for (const [key, value] of Object.entries(env)) {
-    if (key.includes('\0')) {
-      throw new Error('Invalid MCP package env: null byte detected in environment variable name')
-    }
+      // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
+      const canonicalKey = key.toUpperCase()
+      if (DXT_ENV_DENYLIST.includes(canonicalKey) || canonicalKey.startsWith('DYLD_')) {
+        throw new Error(`Invalid MCP package env: environment variable "${key}" is not allowed`)
+      }
 
-    // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
-    const canonicalKey = key.toUpperCase()
-    if (DXT_ENV_DENYLIST.includes(canonicalKey) || canonicalKey.startsWith('DYLD_')) {
-      throw new Error(`Invalid MCP package env: environment variable "${key}" is not allowed`)
-    }
+      const substituted = performVariableSubstitution(value, extractDir, userConfig)
+      if (substituted.includes('\0')) {
+        throw new Error(`Invalid MCP package env: null byte detected in value of environment variable "${key}"`)
+      }
 
-    const substituted = performVariableSubstitution(value, extractDir, userConfig)
-    if (substituted.includes('\0')) {
-      throw new Error(`Invalid MCP package env: null byte detected in value of environment variable "${key}"`)
-    }
-
-    resolvedEnv[key] = substituted
-  }
-
-  return resolvedEnv
+      return [key, substituted] as const
+    })
+  )
 }
 
 export function validatePackageUploadPayload(

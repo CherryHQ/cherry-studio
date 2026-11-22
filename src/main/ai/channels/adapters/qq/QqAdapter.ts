@@ -34,12 +34,12 @@ type QqMessageBody = {
  * is on. Single chat (C2C) gets 60 min; group / guild subchannel / guild DM get 5 min.
  * See https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/send-receive/send.html
  */
-const QQ_PASSIVE_REPLY_TTL: Record<string, number> = {
-  c2c: 60 * 60 * 1000,
-  group: 5 * 60 * 1000,
-  channel: 5 * 60 * 1000,
-  dm: 5 * 60 * 1000
-}
+const QQ_PASSIVE_REPLY_TTL: ReadonlyMap<string, number> = new Map([
+  ['c2c', 60 * 60 * 1000],
+  ['group', 5 * 60 * 1000],
+  ['channel', 5 * 60 * 1000],
+  ['dm', 5 * 60 * 1000]
+])
 const QQ_PASSIVE_REPLY_TTL_DEFAULT = 5 * 60 * 1000
 /** QQ accepts at most 5 passive replies per inbound msg_id; the 6th is rejected. */
 const QQ_MAX_PASSIVE_REPLIES = 5
@@ -738,7 +738,7 @@ class QqAdapter extends ChannelAdapter {
     const key = `${chatId}:${msgId}`
     const entry = this.passiveReplies.get(key)
     if (!entry) return undefined
-    const ttl = QQ_PASSIVE_REPLY_TTL[type] ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
+    const ttl = QQ_PASSIVE_REPLY_TTL.get(type) ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
     if (Date.now() - entry.receivedAt > ttl) {
       this.passiveReplies.delete(key)
       // The inbound msg_id has expired, so this reply degrades to an active push, which QQ

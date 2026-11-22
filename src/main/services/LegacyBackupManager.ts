@@ -708,11 +708,7 @@ class BackupManager {
     })
   }
 
-  private createUploadReadStream(
-    filePath: string,
-    signal: AbortSignal,
-    onProgress: () => void
-  ): { stream: Transform; cleanup: () => void } {
+  private createUploadReadStream(filePath: string, signal: AbortSignal, onProgress: () => void) {
     const source = fs.createReadStream(filePath)
     const stream = new Transform({
       transform(chunk, _encoding, callback) {

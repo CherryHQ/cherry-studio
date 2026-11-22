@@ -148,8 +148,13 @@ describe('available generic anti-slop rules', () => {
     'probe.test.mts',
     '__tests__/helper.ts',
     '__mocks__/helper.ts',
+    'nested/test_utils/helper.ts',
+    'packages/agent-behavior/src/contract/helper.ts',
+    'packages/agent-behavior/src/fake/helper.ts',
     'scripts/e2e/regression/helper.ts',
+    'scripts/test-doc2x-e2e.ts',
     'scripts/utility-process-smoke/harness/helper.ts',
+    'scripts/voice-runtime-smoke/helper.ts',
     'nested/tests/helper.ts'
   ])('exempts test code from anti-slop while retaining other lint rules in %s', (filename) => {
     const boundary = lint(

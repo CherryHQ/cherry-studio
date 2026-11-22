@@ -94,16 +94,14 @@ type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_block
 // one hands back a build Cherry's BabelDOC progress parser predates — which the
 // next availability check flags as outdated, costing a second full download.
 // Explicit updates still target latest.
-const FRESH_INSTALL_VERSIONS: Record<string, string> = { [BABELDOC_TOOL_NAME]: BABELDOC_MINIMUM_VERSION }
+const FRESH_INSTALL_VERSIONS: ReadonlyMap<string, string> = new Map([[BABELDOC_TOOL_NAME, BABELDOC_MINIMUM_VERSION]])
 
 // Tools whose brand mark isn't in an icon font (iconify) ship a bundled image instead, keyed by
 // preset name. Lives here rather than on the shared preset, which must not import renderer assets.
-const TOOL_IMAGE_ICONS: Record<string, string> = {
-  'babeldoc-stream': babeldocIcon
-}
+const TOOL_IMAGE_ICONS: ReadonlyMap<string, string> = new Map([['babeldoc-stream', babeldocIcon]])
 
 const ToolIcon: FC<{ name?: string; icon?: string; className?: string }> = ({ name, icon, className }) => {
-  const imageSrc = name ? TOOL_IMAGE_ICONS[name] : undefined
+  const imageSrc = name ? TOOL_IMAGE_ICONS.get(name) : undefined
   if (imageSrc) {
     return <img src={imageSrc} alt="" className={cn('size-5 rounded-[5px]', className)} />
   }
@@ -457,7 +455,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                   tool.name,
                   snapshot?.operation?.status === 'failed'
                     ? snapshot.operation.targetVersion
-                    : FRESH_INSTALL_VERSIONS[tool.name]
+                    : FRESH_INSTALL_VERSIONS.get(tool.name)
                 )
               }
               onUpdate={() => installTool(tool.name, latestVersion ?? 'latest')}

@@ -7,6 +7,11 @@ import { describe, expect, it } from 'vitest'
 import { getFileIconName } from '../fileIconName'
 
 describe('getFileIconName', () => {
+  it.each(['constructor', '__proto__', 'toString'])('uses the generic icon for inherited names: %s', (name) => {
+    expect(getFileIconName(name)).toBe('document')
+    expect(getFileIconName(`file.${name}`)).toBe('document')
+  })
+
   it('strips the directory part of Windows paths too', () => {
     // Artifact cards render tool-provided absolute paths, which are backslash
     // separated on Windows. Splitting on `/` only left the whole path in place,

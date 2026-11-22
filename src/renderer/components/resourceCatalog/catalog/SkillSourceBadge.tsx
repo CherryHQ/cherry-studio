@@ -4,13 +4,13 @@ import { Badge } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 
-const SOURCE_LABEL_KEYS: Record<string, string> = {
-  builtin: 'settings.skills.source.builtin',
-  local: 'settings.skills.source.local',
-  marketplace: 'settings.skills.source.marketplace',
-  system: 'settings.skills.source.system',
-  zip: 'settings.skills.source.zip'
-}
+const SOURCE_LABEL_KEYS: ReadonlyMap<string, string> = new Map([
+  ['builtin', 'settings.skills.source.builtin'],
+  ['local', 'settings.skills.source.local'],
+  ['marketplace', 'settings.skills.source.marketplace'],
+  ['system', 'settings.skills.source.system'],
+  ['zip', 'settings.skills.source.zip']
+])
 
 export function SkillSourceBadge({
   source,
@@ -22,7 +22,7 @@ export function SkillSourceBadge({
   className?: string
 }) {
   const { t } = useTranslation()
-  const labelKey = SOURCE_LABEL_KEYS[source]
+  const labelKey = SOURCE_LABEL_KEYS.get(source)
   const label = labelKey ? t(labelKey) : source
   const sourceRegistry = source === 'marketplace' && sourceUrl ? parseSkillSourceUrl(sourceUrl)?.sourceRegistry : null
 

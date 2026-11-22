@@ -100,12 +100,12 @@ class DmxapiTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     normalized: NormalizedInput
   ): Promise<{ imageUrls?: string[] }> {
-    const body: JSONObject = {
+    const body = {
       model: normalized.modelId,
       prompt: normalized.prompt,
-      n: normalized.n
+      n: normalized.n,
+      ...(normalized.size && { size: normalized.size })
     }
-    if (normalized.size) body.size = normalized.size
 
     const data = await this.requestJson(dmxapiAsyncResponseSchema, '/v1/images/generations', body, input.signal)
     return { imageUrls: parseDmxapiAsyncResults(data) }
@@ -119,22 +119,22 @@ class DmxapiTransport implements ImageGenerationTransport {
     normalized: NormalizedInput,
     params: DmxapiProviderParams
   ): Promise<{ imageUrls?: string[] }> {
-    const body: JSONObject = {
+    const body = {
       model: normalized.modelId,
       input: normalized.prompt,
-      stream: false
+      stream: false,
+      ...(normalized.size && { size: normalized.size }),
+      ...(typeof normalized.seed === 'number' && { seed: normalized.seed }),
+      ...(params.sequentialImageGeneration && {
+        sequential_image_generation: params.sequentialImageGeneration,
+        ...(typeof params.maxImages === 'number' && {
+          sequential_image_generation_options: { max_images: params.maxImages }
+        })
+      }),
+      ...(params.outputFormat && { output_format: params.outputFormat }),
+      ...(params.addWatermark !== undefined && { watermark: params.addWatermark }),
+      ...(params.webSearch && { tools: [{ type: 'web_search' }] })
     }
-    if (normalized.size) body.size = normalized.size
-    if (typeof normalized.seed === 'number') body.seed = normalized.seed
-    if (params.sequentialImageGeneration) {
-      body.sequential_image_generation = params.sequentialImageGeneration
-      if (typeof params.maxImages === 'number') {
-        body.sequential_image_generation_options = { max_images: params.maxImages }
-      }
-    }
-    if (params.outputFormat) body.output_format = params.outputFormat
-    if (params.addWatermark !== undefined) body.watermark = params.addWatermark
-    if (params.webSearch) body.tools = [{ type: 'web_search' }]
 
     const data = await this.requestJson(responsesApiResponseSchema, '/v1/responses', body, input.signal)
     return { imageUrls: parseResponsesApiOutput(data) }
@@ -150,15 +150,16 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (normalized.prompt) content.push({ text: normalized.prompt })
     for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
-    const parameters: JSONObject = {}
-    if (normalized.size) parameters.size = normalized.size.replace(/x/i, '*')
-    if (normalized.n && normalized.n > 1) parameters.n = normalized.n
-    if (typeof normalized.seed === 'number') parameters.seed = normalized.seed
-    if (params.negativePrompt) parameters.negative_prompt = params.negativePrompt
-    if (params.promptExtend !== undefined) parameters.prompt_extend = params.promptExtend
-    if (params.addWatermark !== undefined) parameters.watermark = params.addWatermark
+    const parameters = {
+      ...(normalized.size && { size: normalized.size.replace(/x/i, '*') }),
+      ...(normalized.n && normalized.n > 1 && { n: normalized.n }),
+      ...(typeof normalized.seed === 'number' && { seed: normalized.seed }),
+      ...(params.negativePrompt && { negative_prompt: params.negativePrompt }),
+      ...(params.promptExtend !== undefined && { prompt_extend: params.promptExtend }),
+      ...(params.addWatermark !== undefined && { watermark: params.addWatermark })
+    }
 
-    const body: JSONObject = {
+    const body = {
       model: normalized.modelId,
       input: { messages: [{ role: 'user', content }] },
       ...(Object.keys(parameters).length > 0 && { parameters })
@@ -176,13 +177,13 @@ class DmxapiTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     normalized: NormalizedInput
   ): Promise<{ imageUrls?: string[] }> {
-    const body: JSONObject = {
+    const body = {
       model: normalized.modelId,
       prompt: normalized.prompt,
       n: normalized.n,
-      response_format: 'url'
+      response_format: 'url',
+      ...(normalized.size && { size: normalized.size })
     }
-    if (normalized.size) body.size = normalized.size
 
     const data = await this.requestJson(openAiFlatResponseSchema, '/v1/images/generations', body, input.signal)
     return { imageUrls: parseOpenAIFlatResults(data) }

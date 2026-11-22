@@ -23,6 +23,16 @@ afterEach(() => {
 })
 
 describe('generateIndex', () => {
+  it('uses the ordinary title fallback for a domain matching an inherited object member', () => {
+    const root = makeRepo({
+      'docs/dev/contrib/dev.md': '---\ndescription: Setup\n---\n\n# Setup\n',
+      'docs/dev/i18n/README.md': '---\ndescription: Translation\n---\n\n# Translation\n',
+      'docs/dev/references/constructor/README.md': '---\ndescription: Constructor contracts\n---\n\n# Constructor\n'
+    })
+
+    expect(generateIndex(root)).toContain('\n### Constructor\n')
+  })
+
   it('lists every doc under its domain with title from H1 and description from frontmatter', () => {
     const root = makeRepo({
       'docs/dev/contrib/dev.md': '---\ndescription: Set up the environment\n---\n\n# Development Setup\n',

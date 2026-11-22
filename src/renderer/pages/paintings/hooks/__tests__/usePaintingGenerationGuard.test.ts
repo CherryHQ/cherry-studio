@@ -36,14 +36,16 @@ describe('usePaintingGenerationGuard', () => {
   beforeEach(() => {
     vi.mocked(usePaintingProviderRuntime).mockReturnValue({
       provider: createRuntimeProvider(),
-      isLoading: false
+      isLoading: false,
+      error: undefined
     })
   })
 
   it('blocks disabled providers before generation', async () => {
     vi.mocked(usePaintingProviderRuntime).mockReturnValue({
       provider: createRuntimeProvider(false),
-      isLoading: false
+      isLoading: false,
+      error: undefined
     })
     const { result } = renderGuard()
 
@@ -61,7 +63,8 @@ describe('usePaintingGenerationGuard', () => {
         ...createRuntimeProvider(),
         getApiKey: vi.fn(async () => '')
       },
-      isLoading: false
+      isLoading: false,
+      error: undefined
     })
     const { result } = renderGuard()
 

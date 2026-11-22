@@ -610,7 +610,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 }
 
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
-  const headers: Record<string, string> = {
+  const headers = {
     ...getProviderAppHeaders(ctx.actualProvider),
     ...getExtraHeaders(ctx.actualProvider)
   }
@@ -686,7 +686,7 @@ function buildVertexConfig(
   }
 
   const { project, location, credentials } = authConfig
-  const googleCredentials = credentials as Record<string, string> | undefined
+  const googleCredentials = credentials
 
   const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
   const creds = googleCredentials

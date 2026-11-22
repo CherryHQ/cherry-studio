@@ -15,13 +15,14 @@ export type LanguageConfig = Record<string, LanguageData>
 // Custom language file extension mapping
 // key: language name in lowercase
 // value: file extension
-const _customLanguageExtensions: Record<string, string> = {
-  svg: 'xml',
-  vab: 'vb',
-  graphviz: 'dot'
-}
+const _customLanguageExtensions: ReadonlyMap<string, string> = new Map([
+  ['svg', 'xml'],
+  ['vab', 'vb'],
+  ['graphviz', 'dot']
+])
 
 // Default minimal language configuration for common languages
+// oxlint-disable-next-line anti-slop/no-known-value-widening -- Built-in and caller-provided language tables share this open configuration contract for arbitrary-name lookup.
 const _defaultLanguageConfig: LanguageConfig = {
   JavaScript: {
     type: 'programming',
@@ -187,7 +188,7 @@ function normalizeExtension(language: string, languageConfig?: LanguageConfig) {
   const lowerLanguage = lang.toLowerCase()
 
   // 1. Search for custom extensions
-  const customExt = _customLanguageExtensions[lowerLanguage]
+  const customExt = _customLanguageExtensions.get(lowerLanguage)
   if (customExt) {
     return customExt
   }

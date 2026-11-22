@@ -54,4 +54,13 @@ describe('SelectionActionIcon', () => {
     await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith('custom-icon'))
     expect(icon).toHaveAttribute('data-icon-name', 'custom-icon')
   })
+
+  it.each(['constructor', '__proto__', 'toString'])(
+    'passes an unknown %s name to the dynamic icon loader',
+    async (name) => {
+      render(<SelectionActionIcon name={name} />)
+
+      expect(await screen.findByTestId('dynamic-icon')).toHaveAttribute('data-icon-name', name)
+    }
+  )
 })

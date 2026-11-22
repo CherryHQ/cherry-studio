@@ -59,44 +59,44 @@ export interface ToolHeaderProps {
   variant?: 'standalone' | 'collapse-label'
 }
 
-export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
-  [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
-  [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
-  [AgentToolsType.Task]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.task' },
-  [AgentToolsType.TaskCreate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskCreate' },
-  [AgentToolsType.TaskGet]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskGet' },
-  [AgentToolsType.TaskUpdate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskUpdate' },
-  [AgentToolsType.TaskList]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskList' },
-  [AgentToolsType.TaskOutput]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskOutput' },
-  [AgentToolsType.TaskStop]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskStop' },
-  [AgentToolsType.Bash]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' },
-  [AgentToolsType.BashOutput]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' },
-  [AgentToolsType.Search]: { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' },
-  [AgentToolsType.Glob]: { icon: <FolderSearch size={14} />, labelKey: 'message.tools.labels.glob' },
-  [AgentToolsType.Grep]: { icon: <FileSearch size={14} />, labelKey: 'message.tools.labels.grep' },
-  [AgentToolsType.Write]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.write' },
-  [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
-  [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
-  [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
-  [PROVIDER_WEB_SEARCH_TOOL_NAME]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
-  [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
-  [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
-  [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
-  [AgentToolsType.ExitPlanMode]: { icon: <DoorOpen size={14} />, labelKey: 'message.tools.labels.exitPlanMode' },
-  [AgentToolsType.SendMessage]: { icon: <Send size={14} /> },
-  [AgentToolsType.TeamCreate]: { icon: <Bot size={14} /> },
-  [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
-  [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
-  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' },
-  [TO_MARKDOWN_RUNTIME_TOOL_NAME]: { icon: <FileType size={14} />, labelKey: 'message.tools.labels.toMarkdown' }
-}
+export const TOOL_HEADER_UI: ReadonlyMap<string, { icon: ReactNode; labelKey?: string }> = new Map([
+  [AgentToolsType.Agent, { icon: <Bot size={14} /> }],
+  [AgentToolsType.Read, { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' }],
+  [AgentToolsType.Task, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.task' }],
+  [AgentToolsType.TaskCreate, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskCreate' }],
+  [AgentToolsType.TaskGet, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskGet' }],
+  [AgentToolsType.TaskUpdate, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskUpdate' }],
+  [AgentToolsType.TaskList, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskList' }],
+  [AgentToolsType.TaskOutput, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskOutput' }],
+  [AgentToolsType.TaskStop, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskStop' }],
+  [AgentToolsType.Bash, { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' }],
+  [AgentToolsType.BashOutput, { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' }],
+  [AgentToolsType.Search, { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' }],
+  [AgentToolsType.Glob, { icon: <FolderSearch size={14} />, labelKey: 'message.tools.labels.glob' }],
+  [AgentToolsType.Grep, { icon: <FileSearch size={14} />, labelKey: 'message.tools.labels.grep' }],
+  [AgentToolsType.Write, { icon: <FileText size={14} />, labelKey: 'message.tools.labels.write' }],
+  [AgentToolsType.Edit, { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' }],
+  [AgentToolsType.MultiEdit, { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' }],
+  [AgentToolsType.WebSearch, { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' }],
+  [PROVIDER_WEB_SEARCH_TOOL_NAME, { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' }],
+  [AgentToolsType.WebFetch, { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' }],
+  [AgentToolsType.NotebookEdit, { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' }],
+  [AgentToolsType.TodoWrite, { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' }],
+  [AgentToolsType.ExitPlanMode, { icon: <DoorOpen size={14} />, labelKey: 'message.tools.labels.exitPlanMode' }],
+  [AgentToolsType.SendMessage, { icon: <Send size={14} /> }],
+  [AgentToolsType.TeamCreate, { icon: <Bot size={14} /> }],
+  [AgentToolsType.TeamDelete, { icon: <Bot size={14} /> }],
+  [AgentToolsType.EnterWorktree, { icon: <DoorOpen size={14} /> }],
+  [AgentToolsType.ExitWorktree, { icon: <DoorOpen size={14} /> }],
+  [AgentToolsType.Workflow, { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' }],
+  [AgentToolsType.Skill, { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }],
+  [TO_MARKDOWN_RUNTIME_TOOL_NAME, { icon: <FileType size={14} />, labelKey: 'message.tools.labels.toMarkdown' }]
+])
 
-const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
+const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI.get(toolName)?.icon ?? <Wrench size={14} />
 
 const getAgentToolLabel = (toolName: string, t: Translate): string => {
-  const labelKey = TOOL_HEADER_UI[toolName]?.labelKey
+  const labelKey = TOOL_HEADER_UI.get(toolName)?.labelKey
   return labelKey ? t(labelKey) : toolName
 }
 

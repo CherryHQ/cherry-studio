@@ -447,7 +447,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /** Headers an internal Agent consumer sends so gateway hops are attributed to its session. */
-  getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
+  getAgentSessionUsageHeaders(sessionId: string) {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
@@ -455,7 +455,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     sessionId: string,
     ownerSessionId = sessionId,
     traceContext?: InProcessUsageContext['traceContext']
-  ): { headers: Record<string, string>; release(): void } {
+  ) {
     const current = application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
     const usage =
       current && ownerSessionId === sessionId

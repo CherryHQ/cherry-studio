@@ -49,7 +49,7 @@ async function captureRequest(
   }
   const canonicalParams = imageParamsSchema.parse(parsed)
   const { structured, vendorBag } = splitParamValues(canonicalParams)
-  const registration = WIRE_REGISTRY['xai'] ?? DEFAULT_DIFFUSION_REGISTRATION
+  const registration = WIRE_REGISTRY.get('xai') ?? DEFAULT_DIFFUSION_REGISTRATION
   const providerOptions = buildVendorProviderOptions('xai', canonicalParams, registration, vendorBag)
   const result = await createXai({ apiKey: 'test', baseURL: BASE_URL, fetch })
     .image('grok-imagine-image-2.0')

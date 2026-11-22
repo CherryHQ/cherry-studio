@@ -398,6 +398,35 @@ describe('overflow cleanup', () => {
     expect(input).toEqual(before)
   })
 
+  it('keeps native bytes and opaque tool inputs when copying an overflow marker path', async () => {
+    const bytes = new Uint8Array([1, 2, 3])
+    const opaqueInput = Object.freeze({ onProgress: () => undefined, bytes, timestamp: new Date(0) })
+    const message: LanguageModelV3Message = {
+      role: 'assistant',
+      content: [
+        { type: 'file', data: bytes, mediaType: 'image/png' },
+        { type: 'tool-call', toolCallId: 'call-1', toolName: 'opaque-tool', input: opaqueInput }
+      ],
+      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' }, cache_control: { type: 'ephemeral' } } }
+    }
+    const input: LanguageModelV3CallOptions = {
+      tools: ['a', 'z'].map((name) => ({ ...makeTool(name), providerOptions: mark })),
+      prompt: [
+        { ...textMessage('system', 'one'), providerOptions: mark },
+        { ...textMessage('system', 'two'), providerOptions: mark },
+        message
+      ]
+    }
+
+    const out = await transform(input, makeProvider({ enabled: true, tokenThreshold: 999999 }))
+
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(hasCacheControl(out.prompt[2])).toBe(false)
+    expect(out.prompt[2].content).toBe(message.content)
+    expect(hasCacheControl(message)).toBe(true)
+    expect(opaqueInput.bytes).toBe(bytes)
+  })
+
   it('cleans empty prompts without reordering tools', async () => {
     const tools = ['e', 'd', 'c', 'b', 'a'].map((name) => ({ ...makeTool(name), providerOptions: mark }))
     const out = await transform({ prompt: [], tools }, provider)

@@ -21,18 +21,18 @@ import telegramIcon from '@renderer/assets/images/channel/telegram.png'
 import wechatIcon from '@renderer/assets/images/channel/wechat.png'
 import wecomIcon from '@renderer/assets/images/channel/wecom.png'
 
-const CHANNEL_TYPE_ICONS: Record<string, string> = {
-  telegram: telegramIcon,
-  feishu: feishuIcon,
-  qq: qqIcon,
-  wechat: wechatIcon,
-  wecom: wecomIcon,
-  dingtalk: dingtalkIcon,
-  discord: discordIcon,
-  slack: slackIcon
-}
+const CHANNEL_TYPE_ICONS: ReadonlyMap<string, string> = new Map([
+  ['telegram', telegramIcon],
+  ['feishu', feishuIcon],
+  ['qq', qqIcon],
+  ['wechat', wechatIcon],
+  ['wecom', wecomIcon],
+  ['dingtalk', dingtalkIcon],
+  ['discord', discordIcon],
+  ['slack', slackIcon]
+])
 
 export const getChannelTypeIcon = (channelType: string | undefined): string | undefined => {
   if (!channelType) return undefined
-  return CHANNEL_TYPE_ICONS[channelType]
+  return CHANNEL_TYPE_ICONS.get(channelType)
 }

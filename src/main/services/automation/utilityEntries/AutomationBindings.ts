@@ -55,7 +55,7 @@ export class AutomationBindings {
     }
   }
 
-  inspect(vm: QuickJS): { bindings: AutomationBinding[]; truncated: boolean } {
+  inspect(vm: QuickJS) {
     const names = new Set([
       ...this.lexical.keys(),
       ...vm.global.getOwnPropertyNames().filter((name) => !this.builtins.has(name))

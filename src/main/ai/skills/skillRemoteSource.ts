@@ -101,12 +101,12 @@ export interface FetchedSkill {
 /** `openTempDir` is lazy so a malformed identifier is rejected before anything is written to disk. */
 type Fetcher = (identifier: string, openTempDir: () => Promise<string>) => Promise<Omit<FetchedSkill, 'tempDir'>>
 
-const FETCHERS: Record<string, Fetcher> = {
-  'claude-plugins': fetchFromClaudePlugins,
-  'skills.sh': fetchFromSkillsSh,
-  clawhub: fetchFromClawhub,
-  github: fetchFromGithub
-}
+const FETCHERS: ReadonlyMap<string, Fetcher> = new Map([
+  ['claude-plugins', fetchFromClaudePlugins],
+  ['skills.sh', fetchFromSkillsSh],
+  ['clawhub', fetchFromClawhub],
+  ['github', fetchFromGithub]
+])
 
 /**
  * Fetch from a marketplace installSource handle.
@@ -115,7 +115,7 @@ const FETCHERS: Record<string, Fetcher> = {
  * or "github:{https URL of the skill's SKILL.md}".
  */
 export async function fetchRemoteSkill(source: string, identifier: string): Promise<FetchedSkill> {
-  const fetcher = FETCHERS[source]
+  const fetcher = FETCHERS.get(source)
   if (!fetcher) {
     throw new Error(`Unknown install source: ${source}`)
   }

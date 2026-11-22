@@ -194,19 +194,21 @@ const RichEditor = ({
     disabledCommands,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
-      const iconMap: Record<string, React.ReactNode> = {
-        insertRowBefore: <ArrowUp size={16} />,
-        insertColumnBefore: <ArrowLeft size={16} />,
-        insertRowAfter: <ArrowDown size={16} />,
-        insertColumnAfter: <ArrowRight size={16} />,
-        deleteRow: <Trash2 size={16} />,
-        deleteColumn: <Trash2 size={16} />
-      }
+      const iconMap: ReadonlyMap<string, React.ReactNode> = new Map(
+        Object.entries({
+          insertRowBefore: <ArrowUp size={16} />,
+          insertColumnBefore: <ArrowLeft size={16} />,
+          insertRowAfter: <ArrowDown size={16} />,
+          insertColumnAfter: <ArrowRight size={16} />,
+          deleteRow: <Trash2 size={16} />,
+          deleteColumn: <Trash2 size={16} />
+        })
+      )
 
       const items: ActionMenuItem[] = actions.map((a, idx) => ({
         key: String(idx),
         label: a.label,
-        icon: iconMap[a.id],
+        icon: iconMap.get(a.id),
         onClick: a.action
       }))
       setTableActionMenu({ show: true, position, items })

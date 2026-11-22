@@ -186,6 +186,20 @@ Body`)
       }
     }
 
+    it('does not inherit metadata from a recovered __proto__ field', async () => {
+      vi.mocked(fs.promises.readFile).mockResolvedValue(`---
+__proto__: {name: inherited-name, description: inherited-description, tools: [Write]}
+broken: [
+---
+Body`)
+
+      const metadata = await read()
+
+      expect(metadata.name).toBe(api === 'skill' ? 'skill' : 'plugin')
+      expect(metadata.description).toBeUndefined()
+      expect(metadata.tools).toBeUndefined()
+    })
+
     it.each(['javascript', 'js', 'JAVASCRIPT', 'JS'])('does not execute %s frontmatter', async (language) => {
       const execute = vi.fn(() => 'executed-frontmatter')
       vi.stubGlobal('__cherryFrontmatterProbe', execute)

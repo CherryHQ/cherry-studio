@@ -130,12 +130,9 @@ export function decideApproval(
 }
 
 /** D35: what the person's answer does to the call; memoized under `cherry.approval:<callKey>`. */
-export function answerVerdict(
-  answer: ApprovalAnswer,
-  args: JsonValue | undefined
-): { readonly block?: string; readonly args?: JsonValue } {
-  if (answer.kind === 'denied') return { block: deniedReason(answer.feedback) }
-  if (answer.kind === 'unavailable') return { block: NOBODY_TO_APPROVE }
+export function answerVerdict(answer: ApprovalAnswer, args: JsonValue | undefined) {
+  if (answer.kind === 'denied') return { block: deniedReason(answer.feedback) } as const
+  if (answer.kind === 'unavailable') return { block: NOBODY_TO_APPROVE } as const
   const edited = answer.args ?? args
-  return edited === undefined ? {} : { args: edited }
+  return edited === undefined ? {} : ({ args: edited } as const)
 }

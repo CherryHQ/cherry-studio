@@ -6,22 +6,22 @@ import {
   isShortcutModifier,
   normalizeShortcutToken,
   type ShortcutBinding,
-  type ShortcutToken
+  type ShortcutModifier
 } from '@shared/utils/shortcut'
 
-const MODIFIER_CODES: Record<string, ShortcutToken> = {
-  ControlLeft: 'Ctrl',
-  ControlRight: 'Ctrl',
-  AltLeft: 'Alt',
-  AltRight: 'Alt',
-  ShiftLeft: 'Shift',
-  ShiftRight: 'Shift',
-  MetaLeft: 'Meta',
-  MetaRight: 'Meta'
-}
+const MODIFIER_CODES: ReadonlyMap<string, ShortcutModifier> = new Map([
+  ['ControlLeft', 'Ctrl'],
+  ['ControlRight', 'Ctrl'],
+  ['AltLeft', 'Alt'],
+  ['AltRight', 'Alt'],
+  ['ShiftLeft', 'Shift'],
+  ['ShiftRight', 'Shift'],
+  ['MetaLeft', 'Meta'],
+  ['MetaRight', 'Meta']
+])
 
 export function isDictationShortcutModifier(code: string): boolean {
-  return Object.hasOwn(MODIFIER_CODES, code)
+  return MODIFIER_CODES.has(code)
 }
 
 export function parseDictationShortcut(value: string): string[] {
@@ -29,7 +29,7 @@ export function parseDictationShortcut(value: string): string[] {
   const codes = value.split('+')
   const modifiers = codes.filter(isDictationShortcutModifier)
   if (codes.length > 3 || modifiers.length === 0 || codes.length - modifiers.length > 1) return []
-  if (new Set(modifiers.map((code) => MODIFIER_CODES[code])).size !== modifiers.length) return []
+  if (new Set(modifiers.map((code) => MODIFIER_CODES.get(code))).size !== modifiers.length) return []
   if (new Set(codes).size !== codes.length) return []
   if (
     codes.some((code) => {
@@ -56,9 +56,10 @@ export function formatDictationShortcut(value: string, isMac: boolean, left: str
   return parseDictationShortcut(value)
     .sort((a, b) => (order.includes(a) ? order.indexOf(a) : 8) - (order.includes(b) ? order.indexOf(b) : 8))
     .map((code) => {
-      const token = MODIFIER_CODES[code] ?? normalizeShortcutToken(code)!
+      const modifier = MODIFIER_CODES.get(code)
+      const token = modifier ?? normalizeShortcutToken(code)!
       const label = formatKeyDisplay(token, isMac)
-      return MODIFIER_CODES[code] ? `${code.endsWith('Left') ? left : right} ${label}` : label
+      return modifier ? `${code.endsWith('Left') ? left : right} ${label}` : label
     })
     .join(' + ')
 }
@@ -69,12 +70,12 @@ export function getDictationShortcutBinding(
   keyByCode?: ReadonlyMap<string, string>
 ): ShortcutBinding {
   const codes = parseDictationShortcut(value)
-  const keyCode = codes.find((code) => !MODIFIER_CODES[code]) ?? codes[0] ?? ''
+  const keyCode = codes.find((code) => !MODIFIER_CODES.has(code)) ?? codes[0] ?? ''
   // An unfinished chord has no character identity until that key is observed.
   const code = !keyByCode || keyByCode.has(keyCode) ? keyCode : ''
   return getShortcutBindingFromKeyboardEvent(
     {
-      key: keyByCode?.get(code) ?? MODIFIER_CODES[code] ?? code,
+      key: keyByCode?.get(code) ?? MODIFIER_CODES.get(code) ?? code,
       code,
       ctrlKey: codes.some((code) => code.startsWith('Control')),
       altKey: codes.some((code) => code.startsWith('Alt')),

@@ -50,17 +50,17 @@ const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'tr-TR': dataEN
 }
 
-const GROUP_TO_CATEGORY: Partial<Record<number, Categories>> = {
-  0: Categories.SMILEYS_PEOPLE,
-  1: Categories.SMILEYS_PEOPLE,
-  3: Categories.ANIMALS_NATURE,
-  4: Categories.FOOD_DRINK,
-  5: Categories.TRAVEL_PLACES,
-  6: Categories.ACTIVITIES,
-  7: Categories.OBJECTS,
-  8: Categories.SYMBOLS,
-  9: Categories.FLAGS
-}
+const GROUP_TO_CATEGORY: ReadonlyMap<number, Categories> = new Map([
+  [0, Categories.SMILEYS_PEOPLE],
+  [1, Categories.SMILEYS_PEOPLE],
+  [3, Categories.ANIMALS_NATURE],
+  [4, Categories.FOOD_DRINK],
+  [5, Categories.TRAVEL_PLACES],
+  [6, Categories.ACTIVITIES],
+  [7, Categories.OBJECTS],
+  [8, Categories.SYMBOLS],
+  [9, Categories.FLAGS]
+])
 
 const dataCache = new Map<string, Promise<EmojiData>>()
 
@@ -101,7 +101,7 @@ export const convertEmojiRecords = (records: EmojiRecord[]): EmojiData => {
   }
 
   for (const record of [...records].sort((left, right) => left.order - right.order)) {
-    const category = GROUP_TO_CATEGORY[record.group]
+    const category = GROUP_TO_CATEGORY.get(record.group)
     if (!category) continue
 
     const variations = record.skins?.map((skin) => nativeEmojiToUnified(skin.emoji))

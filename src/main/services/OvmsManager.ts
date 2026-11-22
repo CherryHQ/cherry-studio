@@ -389,7 +389,7 @@ export class OvmsManager extends BaseService {
         '--overwrite_models'
       ]
 
-      const env: Record<string, string | undefined> = {
+      const env: NodeJS.ProcessEnv = {
         ...process.env,
         OVMS_DIR: ovdndDir,
         PYTHONHOME: path.join(ovdndDir, 'python'),

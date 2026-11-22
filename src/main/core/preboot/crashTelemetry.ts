@@ -105,8 +105,8 @@ function hardenWebContents(): void {
   })
 }
 
-function filterByteStringResponseHeaders(headers: Record<string, string[]> | undefined): Record<string, string[]> {
-  const filteredHeaders: Record<string, string[]> = {}
+function filterByteStringResponseHeaders(headers: Record<string, string[]> | undefined) {
+  const filteredHeaders = new Map<string, string[]>()
 
   for (const [name, values] of Object.entries(headers ?? {})) {
     const compatibleValues = values.filter((value) => {
@@ -117,9 +117,9 @@ function filterByteStringResponseHeaders(headers: Record<string, string[]> | und
     })
 
     if (compatibleValues.length > 0) {
-      filteredHeaders[name] = compatibleValues
+      filteredHeaders.set(name, compatibleValues)
     }
   }
 
-  return filteredHeaders
+  return Object.fromEntries(filteredHeaders)
 }

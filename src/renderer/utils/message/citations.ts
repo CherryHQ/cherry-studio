@@ -435,10 +435,7 @@ export interface ResolvedCitationMarkers {
   cited: Citation[]
 }
 
-function createCitationLookup(citations: MessageCitations): {
-  lookup: Map<string, Citation>
-  markerNumberMap: Map<number, Citation>
-} {
+function createCitationLookup(citations: MessageCitations) {
   const cleanCache = new Map<Citation, Citation>()
   const clean = (citation: Citation): Citation => {
     const cached = cleanCache.get(citation)
@@ -566,7 +563,7 @@ export function toExportableCitations(
   content: string,
   parts: readonly CherryMessagePart[],
   priorParts: readonly CherryMessagePart[] = EMPTY_PARTS
-): { content: string; cited: Citation[] } {
+) {
   // Earlier turns only answer ids own parts do not mint, so fold them only on an unresolved
   // marker: eager folding made a whole-topic export quadratic in the number of search calls.
   let resolution = resolveCitationMarkers(content, resolveMessageCitations(parts))
@@ -622,7 +619,7 @@ export function withToolCitationTags(
   content: string,
   citations: MessageCitations,
   displayByMarker?: ReadonlyMap<string, Citation>
-): { content: string; cited: Citation[] } {
+) {
   let projection: ResolvedCitationMarkers
   if (displayByMarker) {
     const { markerNumberMap } = createCitationLookup(citations)

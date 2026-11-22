@@ -14,7 +14,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 
 function mimeForFilename(filename: string): string {
   const ext = path.extname(filename).slice(1).toLowerCase()
-  return FILE_EXTENSION_MIME_MAP[ext] ?? 'application/octet-stream'
+  return FILE_EXTENSION_MIME_MAP.get(ext) ?? 'application/octet-stream'
 }
 
 /**

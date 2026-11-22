@@ -14,6 +14,7 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import type { ManagedToolStatusState } from '@shared/types/managedTool'
 import { redactSecretText } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('HermesDashboardService')
@@ -64,7 +65,7 @@ export class HermesDashboardService extends BaseService {
     await this.stop()
   }
 
-  getStatus(): { status: HermesDashboardStatus; url?: string } {
+  getStatus(): ManagedToolStatusState {
     const snapshot = { status: this.status }
     if (this.url) Object.assign(snapshot, { url: this.url })
     return snapshot

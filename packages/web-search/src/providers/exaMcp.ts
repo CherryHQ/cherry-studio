@@ -20,7 +20,7 @@ const responseSchema = z.object({
     .optional()
 })
 
-function readTexts(context: ProtocolContext, response: string): { texts: string[]; empty: boolean } {
+function readTexts(context: ProtocolContext, response: string) {
   const frames: string[] = []
   if (/^data:/m.test(response)) {
     const parser = createParser({

@@ -3,15 +3,17 @@ import { createCodeBlockDocument } from './document'
 import { getCodeBlockPalette } from './palette'
 
 function tokenStyle(className: string | undefined, palette: Record<string, string>) {
-  const style: Record<string, string> = { color: palette['--code-foreground'] }
+  const style: [string, string][] = [['color', palette['--code-foreground']]]
   for (const name of className?.split(' ') ?? []) {
     const role = name.replace(/^code-syntax-/, '')
     if (!palette[`--code-syntax-${role}`]) continue
-    style.color = palette[`--code-syntax-${role}`]
-    style['font-style'] = palette[`--code-syntax-${role}-style`]
-    style['font-weight'] = palette[`--code-syntax-${role}-weight`]
+    style.push(
+      ['color', palette[`--code-syntax-${role}`]],
+      ['font-style', palette[`--code-syntax-${role}-style`]],
+      ['font-weight', palette[`--code-syntax-${role}-weight`]]
+    )
   }
-  return style
+  return Object.fromEntries(style)
 }
 
 export function createCodeBlockSnapshotExecutor(): SnapshotExecutor {

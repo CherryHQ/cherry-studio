@@ -223,6 +223,17 @@ describe('validateArgs', () => {
 describe('buildResolvedEnv', () => {
   const extractDir = path.join('/', 'tmp', 'dxt')
 
+  it.each(['__proto__', 'constructor', 'toString'])('preserves the own environment variable %s', (key) => {
+    const input = Object.freeze({ [key]: '${__dirname}', API_KEY: 'secret' })
+    const result = buildResolvedEnv(input, extractDir)
+
+    expect(Object.hasOwn(result, key)).toBe(true)
+    expect(result[key]).toBe(extractDir)
+    expect(result.API_KEY).toBe('secret')
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(input[key]).toBe('${__dirname}')
+  })
+
   it('substitutes variables and returns a new object without mutating the input', () => {
     const input = { API_KEY: 'secret', ROOT: '${__dirname}' }
     const result = buildResolvedEnv(input, extractDir)

@@ -10,67 +10,71 @@ const navigationInputSchema = z.object({
   query: z.unknown().optional()
 })
 
-const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
-  // Top-level pages
-  '/app/chat': { icon: '💬', labelKey: 'agent.session.group.conversation' },
-  '/app/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
-  '/app/paintings': { icon: '🎨', labelKey: 'title.paintings' },
-  '/app/translate': { icon: '🌐', labelKey: 'title.translate' },
-  '/app/files': { icon: '📁', labelKey: 'title.files' },
-  '/app/notes': { icon: '📝', labelKey: 'title.notes' },
-  '/app/knowledge': { icon: '📚', labelKey: 'title.knowledge' },
-  '/app/mini-app': { icon: '📦', labelKey: 'title.apps' },
-  '/app/code': { icon: '💻', labelKey: 'title.code' },
-  '/app/launchpad': { icon: '🚀', labelKey: 'title.launchpad' },
-  '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
+const ROUTE_LABELS = new Map(
+  Object.entries({
+    // Top-level pages
+    '/app/chat': { icon: '💬', labelKey: 'agent.session.group.conversation' },
+    '/app/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
+    '/app/paintings': { icon: '🎨', labelKey: 'title.paintings' },
+    '/app/translate': { icon: '🌐', labelKey: 'title.translate' },
+    '/app/files': { icon: '📁', labelKey: 'title.files' },
+    '/app/notes': { icon: '📝', labelKey: 'title.notes' },
+    '/app/knowledge': { icon: '📚', labelKey: 'title.knowledge' },
+    '/app/mini-app': { icon: '📦', labelKey: 'title.apps' },
+    '/app/code': { icon: '💻', labelKey: 'title.code' },
+    '/app/launchpad': { icon: '🚀', labelKey: 'title.launchpad' },
+    '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
 
-  // Settings pages
-  '/settings/general': { icon: '⚙️', labelKey: 'settings.general.common.title' },
-  '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
-  '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
-  '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
-  '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
-  '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
-  '/settings/data': { icon: '💾', labelKey: 'settings.data.title' },
-  '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
-  '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
-  '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
-  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
-  '/settings/file-processing': {
-    icon: '📄',
-    labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
-  },
-  '/settings/ocr': { icon: '🔤', labelKey: 'settings.tool.file_processing.features.image_to_text.title' },
-  '/settings/shortcut': { icon: '⌨️', labelKey: 'settings.shortcuts.title' },
-  '/settings/quick-assistant': { icon: '🪟', labelKey: 'settings.quickAssistant.title' },
-  '/settings/selection-assistant': { icon: '✂️', labelKey: 'selection.name' },
-  '/settings/about': { icon: 'ℹ️', labelKey: 'settings.about.label' },
-  '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
-  '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
-  '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
-  '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
-  '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
-  '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },
+    // Settings pages
+    '/settings/general': { icon: '⚙️', labelKey: 'settings.general.common.title' },
+    '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
+    '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
+    '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
+    '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
+    '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
+    '/settings/data': { icon: '💾', labelKey: 'settings.data.title' },
+    '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
+    '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
+    '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+    '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
+    '/settings/file-processing': {
+      icon: '📄',
+      labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
+    },
+    '/settings/ocr': { icon: '🔤', labelKey: 'settings.tool.file_processing.features.image_to_text.title' },
+    '/settings/shortcut': { icon: '⌨️', labelKey: 'settings.shortcuts.title' },
+    '/settings/quick-assistant': { icon: '🪟', labelKey: 'settings.quickAssistant.title' },
+    '/settings/selection-assistant': { icon: '✂️', labelKey: 'selection.name' },
+    '/settings/about': { icon: 'ℹ️', labelKey: 'settings.about.label' },
+    '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
+    '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
+    '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
+    '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
+    '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
+    '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },
 
-  // MCP sub-pages
-  '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },
-  '/settings/mcp/builtin': { icon: '📦', labelKey: 'settings.mcp.builtinServers' },
-  '/settings/mcp/marketplaces': { icon: '🛒', labelKey: 'settings.mcp.marketplaces' },
-  '/settings/mcp/npx-search': { icon: '🔍', labelKey: 'settings.mcp.searchNpx' },
-  '/settings/mcp/mcp-install': { icon: '📥', labelKey: 'settings.mcp.install' },
-  '/settings/mcp/settings': { icon: '⚙️', labelKey: 'settings.mcp.system' }
-}
+    // MCP sub-pages
+    '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },
+    '/settings/mcp/builtin': { icon: '📦', labelKey: 'settings.mcp.builtinServers' },
+    '/settings/mcp/marketplaces': { icon: '🛒', labelKey: 'settings.mcp.marketplaces' },
+    '/settings/mcp/npx-search': { icon: '🔍', labelKey: 'settings.mcp.searchNpx' },
+    '/settings/mcp/mcp-install': { icon: '📥', labelKey: 'settings.mcp.install' },
+    '/settings/mcp/settings': { icon: '⚙️', labelKey: 'settings.mcp.system' }
+  })
+)
 
 // Sorted by path length descending for longest prefix match
-const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
+const SORTED_ROUTES = [...ROUTE_LABELS].sort((a, b) => b[0].length - a[0].length)
 
-function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
+function getRouteInfo(path: string) {
   // Exact match first
-  if (Object.hasOwn(ROUTE_LABELS, path)) return ROUTE_LABELS[path]
+  const exact = ROUTE_LABELS.get(path)
+  if (exact) return exact
 
   // Strip query string for matching
   const cleanPath = path.split('?')[0]
-  if (Object.hasOwn(ROUTE_LABELS, cleanPath)) return ROUTE_LABELS[cleanPath]
+  const clean = ROUTE_LABELS.get(cleanPath)
+  if (clean) return clean
 
   // Longest prefix match
   for (const [route, info] of SORTED_ROUTES) {
@@ -126,7 +130,7 @@ export function NavigateToolInline({ input, output }: { input?: unknown; output?
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>
-        {routeInfo.icon} {routeInfo.labelKey ? t(routeInfo.labelKey) : routeInfo.label}
+        {routeInfo.icon} {'label' in routeInfo ? routeInfo.label : t(routeInfo.labelKey)}
       </span>
       {isSuccess && <span className="text-success">✓</span>}
     </button>

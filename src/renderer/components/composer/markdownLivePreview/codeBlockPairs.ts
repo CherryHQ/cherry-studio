@@ -5,8 +5,14 @@ import { type MarkdownCodeBlock, type SourceLine, TOKEN_PLACEHOLDER } from './ma
 
 type FindCodeLine = (state: EditorState, position: number) => { block: MarkdownCodeBlock; line: SourceLine } | null
 
-const CLOSERS: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" }
-const CLOSER_CHARACTERS = new Set(Object.values(CLOSERS))
+const CLOSERS: ReadonlyMap<string, string> = new Map([
+  ['(', ')'],
+  ['[', ']'],
+  ['{', '}'],
+  ['"', '"'],
+  ["'", "'"]
+])
+const CLOSER_CHARACTERS = new Set(CLOSERS.values())
 const CAN_PAIR_BEFORE = /^$|^[\s)\]}:;,]/
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u
 
@@ -36,7 +42,7 @@ function handlePairInput(
 ) {
   const { state } = view
   if (view.composing || text.length !== 1 || !isCodeLine(from)) return false
-  const closer = CLOSERS[text]
+  const closer = CLOSERS.get(text)
 
   if (from !== to) {
     if (!closer || !isCodeLine(to)) return false
@@ -71,7 +77,7 @@ function handlePairBackspace(view: EditorView, event: KeyboardEvent) {
   if (view.composing || !empty || !pairKey.getState(state)?.includes(from)) return false
 
   const { previous, next } = readNeighbors(state, from)
-  if (CLOSERS[previous] !== next) return false
+  if (CLOSERS.get(previous) !== next) return false
   view.dispatch(state.tr.delete(from - 1, from + 1).scrollIntoView())
   return true
 }

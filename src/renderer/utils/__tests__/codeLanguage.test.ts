@@ -28,6 +28,14 @@ describe('codeLanguage', () => {
     it('returns the raw normalized extension when no language claims it', () => {
       expect(getLanguageByExtension('made-up-ext')).toBe('made-up-ext')
     })
+
+    it.each(['constructor', '__proto__', 'toString'])(
+      'treats inherited names as unknown extensions: %s',
+      (extension) => {
+        expect(getLanguageByExtension(extension)).toBe(extension.toLowerCase())
+        expect(getLanguageByExtension(`.${extension}`)).toBe(extension.toLowerCase())
+      }
+    )
   })
 
   describe('getLanguageByFilePath', () => {

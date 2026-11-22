@@ -64,4 +64,8 @@ describe('imageMimeForExtension', () => {
     expect(imageMimeForExtension('html')).toBeUndefined()
     expect(imageMimeForExtension(undefined)).toBeUndefined()
   })
+
+  it.each(['constructor', '__proto__'])('rejects the inherited name %s as an image extension', (extension) => {
+    expect(imageMimeForExtension(extension)).toBeUndefined()
+  })
 })

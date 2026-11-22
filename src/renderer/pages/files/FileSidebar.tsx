@@ -4,6 +4,9 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
+import type { FileType } from '@shared/types/file'
+
+export type FileCounts = { all: number } & Partial<Record<`type_${FileType}`, number>>
 
 export type SidebarFilter =
   | { kind: 'library'; value: 'all' }
@@ -14,7 +17,7 @@ type SidebarEntry = {
   value: string
   label: (t: TFunction) => string
   icon: FC<{ size?: number; strokeWidth?: number; className?: string }>
-  countKey: string
+  countKey: keyof FileCounts
 }
 
 const TYPE_ENTRIES: SidebarEntry[] = [
@@ -37,7 +40,7 @@ export function FileSidebar({
 }: {
   filter: SidebarFilter
   onFilterChange: (f: SidebarFilter) => void
-  fileCounts: Record<string, number>
+  fileCounts: FileCounts
 }) {
   const { t } = useTranslation()
   const isActive = (kind: string, value: string) => filter.kind === kind && filter.value === value

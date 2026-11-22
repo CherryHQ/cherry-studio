@@ -240,7 +240,7 @@ function consumeWhitespace(text: string, start: number): number {
   return index
 }
 
-function findChunkBoundary(text: string, start: number, end: number): { end: number; next: number } {
+function findChunkBoundary(text: string, start: number, end: number) {
   const paragraph = text.lastIndexOf('\n\n', end - 1)
   if (paragraph >= start) return { end: paragraph, next: consumeWhitespace(text, paragraph + 2) }
 

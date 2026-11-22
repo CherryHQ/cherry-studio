@@ -830,7 +830,7 @@ function redactJsonValue(value: Serializable): Serializable {
   )
 }
 
-function formDataToRecord(formData: FormData): Record<string, string> {
+function formDataToRecord(formData: FormData) {
   const entries: [string, string][] = []
   for (const [key, value] of formData.entries()) {
     entries.push([key, isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : describeFormDataValue(value)])

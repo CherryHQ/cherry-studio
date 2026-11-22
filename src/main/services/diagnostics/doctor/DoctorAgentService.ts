@@ -243,18 +243,12 @@ export class DoctorAgentService extends BaseService {
     return this.runForSession(sessionId).incident
   }
 
-  reportBindingForSession(sessionId: string): { scope: DoctorScopeKey; reportRunId: string } {
+  reportBindingForSession(sessionId: string) {
     const { scope, reportRunId } = this.runForSession(sessionId)
     return { scope, reportRunId }
   }
 
-  private runForSession(sessionId: string): {
-    key: DoctorAgentKey
-    scope: DoctorScopeKey
-    runId: string
-    reportRunId: string
-    incident?: DoctorAgentIncident
-  } {
+  private runForSession(sessionId: string) {
     const key = this.sessions.get(sessionId)
     const state = key ? this.currentState(key) : undefined
     if (!key || !state || state.status !== 'running' || state.sessionId !== sessionId) {

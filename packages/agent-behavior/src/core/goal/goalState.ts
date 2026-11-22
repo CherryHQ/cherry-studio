@@ -135,7 +135,7 @@ export function editGoal(
   now: number,
   usage: GoalUsage
 ): GoalSnapshot {
-  const next: { objective?: string; maxGoalRounds?: number; budget?: GoalBudget } = {}
+  const next: { -readonly [K in keyof typeof patch]: (typeof patch)[K] } = {}
   if (patch.objective !== undefined) next.objective = checkObjective(patch.objective)
   if (patch.maxGoalRounds !== undefined) next.maxGoalRounds = checkCap(patch.maxGoalRounds, ceiling)
   if (patch.budget !== undefined) next.budget = checkBudget({ ...goal.budget, ...patch.budget })

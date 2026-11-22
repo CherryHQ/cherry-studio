@@ -55,5 +55,7 @@ export const AI_SDK_NATIVE_BINDINGS = {
 
 /** The binding entry for a canonical `key`, or `undefined` for vendor-bag params. */
 export function nativeBindingFor(key: string): NativeBinding | undefined {
-  return (AI_SDK_NATIVE_BINDINGS as Record<string, NativeBinding | undefined>)[key]
+  if (!Object.hasOwn(AI_SDK_NATIVE_BINDINGS, key)) return undefined
+  // SAFETY: The own-key check restricts the lookup to this finite binding table.
+  return AI_SDK_NATIVE_BINDINGS[key as keyof typeof AI_SDK_NATIVE_BINDINGS]
 }

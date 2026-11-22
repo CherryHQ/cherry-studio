@@ -97,6 +97,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
 function useTitleLabel(toolResponse: NormalToolResponse): string {
   const { tool, arguments: args } = toolResponse
   const name = tool.name as MetaToolName
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native, streamed and persisted arguments may be arrays or text; this guard verifies the envelope before each field is checked.
   const argRecord = isRecord(args) ? args : undefined
 
   switch (name) {

@@ -236,14 +236,17 @@ describe('Browser encryption keys', () => {
     expect(commands).toEqual([])
   })
 
-  it('waits for the system helper to exit when import is cancelled', async () => {
-    respond = () => 'setInterval(() => {}, 1000)'
-    const abort = new AbortController()
-    const pending = readBrowserCookiePassword('chrome', abort.signal)
-    abort.abort(new Error('import cancelled'))
-    await expect(pending).rejects.toThrow('import cancelled')
-    expect(children[0].exitCode !== null || children[0].signalCode !== null).toBe(true)
-  })
+  it.each([new Error('import cancelled'), null, false, 0, ''])(
+    'preserves cancellation reason %s after the system helper exits',
+    async (reason) => {
+      respond = () => 'setInterval(() => {}, 1000)'
+      const abort = new AbortController()
+      const pending = readBrowserCookiePassword('chrome', abort.signal)
+      abort.abort(reason)
+      await expect(pending).rejects.toBe(reason)
+      expect(children[0].exitCode !== null || children[0].signalCode !== null).toBe(true)
+    }
+  )
 })
 
 // This round trip uses only synthetic input and runs on Windows CI without browser/profile access.

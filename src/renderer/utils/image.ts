@@ -1040,7 +1040,7 @@ export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePr
  * @param element 要测量的元素
  * @returns 渲染元素的宽度和高度（以像素为单位）
  */
-function measureElementSize(element: Element): { width: number; height: number } {
+function measureElementSize(element: Element) {
   const clone = element.cloneNode(true) as Element
 
   // 检查元素类型并重置样式

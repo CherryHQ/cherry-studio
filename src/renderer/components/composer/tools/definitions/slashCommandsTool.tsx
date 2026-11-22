@@ -7,18 +7,18 @@ import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 
 import { getBuiltinSlashCommands } from './agentSlashCommands'
 
-const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
-  '/clear': 'chat.input.slash_commands.commands.clear',
-  '/compact': 'chat.input.slash_commands.commands.compact',
-  '/context': 'chat.input.slash_commands.commands.context',
-  '/goal': 'chat.input.slash_commands.commands.goal',
-  '/insights': 'chat.input.slash_commands.commands.insights',
-  '/list-agents': 'chat.input.slash_commands.commands.list_agents',
-  '/recap': 'chat.input.slash_commands.commands.recap',
-  '/security-review': 'chat.input.slash_commands.commands.security_review',
-  '/team-onboarding': 'chat.input.slash_commands.commands.team_onboarding',
-  '/usage': 'chat.input.slash_commands.commands.usage'
-}
+const SLASH_COMMAND_DESCRIPTION_KEYS: ReadonlyMap<string, string> = new Map([
+  ['/clear', 'chat.input.slash_commands.commands.clear'],
+  ['/compact', 'chat.input.slash_commands.commands.compact'],
+  ['/context', 'chat.input.slash_commands.commands.context'],
+  ['/goal', 'chat.input.slash_commands.commands.goal'],
+  ['/insights', 'chat.input.slash_commands.commands.insights'],
+  ['/list-agents', 'chat.input.slash_commands.commands.list_agents'],
+  ['/recap', 'chat.input.slash_commands.commands.recap'],
+  ['/security-review', 'chat.input.slash_commands.commands.security_review'],
+  ['/team-onboarding', 'chat.input.slash_commands.commands.team_onboarding'],
+  ['/usage', 'chat.input.slash_commands.commands.usage']
+])
 
 /**
  * Helper function to insert slash command through the composer adapter.
@@ -82,9 +82,9 @@ const slashCommandsTool = defineTool({
           const isGoal = cmd.command === '/goal' && cmd.builtin !== false
           const descriptionKey = liveCommands
             ? cmd.builtin === true
-              ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+              ? SLASH_COMMAND_DESCRIPTION_KEYS.get(cmd.command)
               : undefined
-            : SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+            : SLASH_COMMAND_DESCRIPTION_KEYS.get(cmd.command)
 
           return {
             id: `slash-command:${cmd.command}`,

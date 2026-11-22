@@ -84,7 +84,7 @@ const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platfor
 }
 
 /** Remove internal metadata only; equal values cannot prove that Cherry owns a shell proxy variable. */
-export const stripInheritedCherryProxyMarkers = (environment: Environment): Record<string, string | undefined> => {
+export const stripInheritedCherryProxyMarkers = (environment: Environment) => {
   const result = { ...environment }
 
   delete result[CHERRY_NODE_PROXY_RULES_ENV]
@@ -125,10 +125,7 @@ export const isAgentProxyEnvironmentKey = (key: string, options: AgentProxyEnvir
   return isProxyKey || CHERRY_PROXY_MARKER_KEY_SET.has(key.toUpperCase())
 }
 
-export const mergeAgentLoopbackProxyBypass = (
-  environment: Environment,
-  options: AgentProxyEnvironmentOptions = {}
-): Record<string, string | undefined> => {
+export const mergeAgentLoopbackProxyBypass = (environment: Environment, options: AgentProxyEnvironmentOptions = {}) => {
   const platform = options.platform ?? process.platform
   const result = { ...environment }
   const activeProxyValues =

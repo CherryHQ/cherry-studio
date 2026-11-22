@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, Size } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
   KeyboardEventData,
@@ -129,7 +129,7 @@ export class SelectionService extends BaseService implements Activatable {
   private readonly ACTION_WINDOW_WIDTH = 500
   private readonly ACTION_WINDOW_HEIGHT = 400
 
-  private lastActionWindowSize: { width: number; height: number } = {
+  private lastActionWindowSize: Size = {
     width: this.ACTION_WINDOW_WIDTH,
     height: this.ACTION_WINDOW_HEIGHT
   }
@@ -379,12 +379,7 @@ export class SelectionService extends BaseService implements Activatable {
     return this.selectionHook
   }
 
-  public getLinuxEnvInfo(): {
-    isLinuxWaylandDisplay: boolean
-    isLinuxXWaylandMode: boolean
-    hasLinuxInputDeviceAccess: boolean
-    isLinuxCompositorCompatible: boolean
-  } {
+  public getLinuxEnvInfo() {
     // The env is only read when the native module loads (normally on activation); load it now so
     // the settings page sees the real env even while the feature is still disabled.
     if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
@@ -885,7 +880,7 @@ export class SelectionService extends BaseService implements Activatable {
     }
 
     // Determine reference point and position for toolbar
-    let refPoint: { x: number; y: number } = { x: 0, y: 0 }
+    let refPoint: Point = { x: 0, y: 0 }
     let isLogical = false
     let refOrientation: RelativeOrientation = 'bottomRight'
 

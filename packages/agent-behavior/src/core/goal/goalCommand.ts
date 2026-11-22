@@ -92,7 +92,7 @@ export function decideGoalCommand(
         const current = requireGoal(facts)
         // Only an active, armed goal drives the running turn; otherwise the turn is the person's to keep. Inputs a
         // failed run left are no run: stopping then would withdraw a person's queued message.
-        const stopTurn = (cause: 'goal-pause' | 'goal-clear'): { ops: TxOp[]; effects: Effect[] } => {
+        const stopTurn = (cause: 'goal-pause' | 'goal-clear') => {
           if (current.phase !== 'active' || !current.armed || !runActive(facts.live)) return { ops: [], effects: [] }
           const key = keys.turnStop(requestKey)
           const turn = stoppedTurn(facts.history, key)
@@ -103,9 +103,10 @@ export function decideGoalCommand(
                 thread: facts.thread,
                 record: { type: 'turn-stop', value: { cause: 'goal-command', at: inputs.now } },
                 key
-              }
+              } satisfies TxOp
             ],
-            effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn }]
+            effects:
+              turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn } satisfies Effect]
           }
         }
         if (keyword === 'pause') {

@@ -41,6 +41,7 @@ function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
  * UiDataSlot can merge slot props itself — see the UiDataSlot comment.
  */
 function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotProps<Result>): SlotProps<Result> {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Slot props remain open so native and custom child fields survive event composition verbatim.
   const overrideProps: SlotProps<Result> = { ...childProps }
   for (const propName in childProps) {
     const slotPropValue = slotProps[propName]
@@ -63,6 +64,7 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
       overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(' ')
     }
   }
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The merged child keeps the same opaque prop and callback-result contract as both inputs.
   return { ...slotProps, ...overrideProps }
 }
 

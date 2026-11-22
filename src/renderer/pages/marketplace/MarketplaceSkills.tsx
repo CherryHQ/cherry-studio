@@ -7,7 +7,7 @@ import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
 
 import { MarketplaceCard, MarketplaceCardAction, MarketplaceGrid, MarketplaceLoadState } from './MarketplaceComponents'
-import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
+import { getMarketplaceCategoryLabel } from './marketplaceLabels'
 import { MarketplaceSkillDialog } from './MarketplaceSkillDialog'
 import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 import type { useMarketplace } from './useMarketplace'
@@ -91,11 +91,7 @@ export function MarketplaceSkills({
       ) : null}
       {groups.map(([domain, skills]) => (
         <section key={domain} className="mb-7 last:mb-0">
-          {domain ? (
-            <h2 className="mb-3 text-sm font-medium">
-              {MARKETPLACE_CATEGORY_KEYS[domain] ? t(MARKETPLACE_CATEGORY_KEYS[domain]) : domain}
-            </h2>
-          ) : null}
+          {domain ? <h2 className="mb-3 text-sm font-medium">{getMarketplaceCategoryLabel(domain, t)}</h2> : null}
           <MarketplaceGrid
             items={skills}
             renderItem={(skill) => {

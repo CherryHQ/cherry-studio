@@ -33,7 +33,7 @@ export async function resolveStdioLaunch({
   let command = server.command ?? ''
   signal?.throwIfAborted()
   let launchArgs = args
-  const serverEnv: Record<string, string> = { ...server.env }
+  let serverEnv = { ...server.env }
 
   if (server.dxtPath) {
     const packages = application.get('McpPackageService')
@@ -42,7 +42,7 @@ export async function resolveStdioLaunch({
     if (resolvedConfig) {
       command = resolvedConfig.command
       launchArgs = resolvedConfig.args
-      Object.assign(serverEnv, resolvedConfig.env)
+      serverEnv = { ...serverEnv, ...resolvedConfig.env }
       logger.debug('Using resolved package config', { command, args: launchArgs })
     } else {
       logger.warn('Failed to resolve package config, falling back to manifest values')

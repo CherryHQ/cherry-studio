@@ -45,26 +45,26 @@ const SUPPORTED_BORDER_STYLES: ReadonlySet<BorderEdge['style']> = new Set([
   'double',
   'hair'
 ])
-const HORIZONTAL_ALIGNMENT_MAP: Record<string, CellStyle['hAlign']> = {
-  left: 'left',
-  center: 'center',
-  centerContinuous: 'center',
-  right: 'right',
-  justify: 'justify'
-}
-const VERTICAL_ALIGNMENT_MAP: Record<string, CellStyle['vAlign']> = {
-  top: 'top',
-  middle: 'middle',
-  bottom: 'bottom'
-}
-const IMAGE_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
-  png: 'image/png',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  gif: 'image/gif',
-  bmp: 'image/bmp',
-  webp: 'image/webp'
-}
+const HORIZONTAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['hAlign']>> = new Map([
+  ['left', 'left'],
+  ['center', 'center'],
+  ['centerContinuous', 'center'],
+  ['right', 'right'],
+  ['justify', 'justify']
+])
+const VERTICAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['vAlign']>> = new Map([
+  ['top', 'top'],
+  ['middle', 'middle'],
+  ['bottom', 'bottom']
+])
+const IMAGE_MIME_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ['png', 'image/png'],
+  ['jpeg', 'image/jpeg'],
+  ['jpg', 'image/jpeg'],
+  ['gif', 'image/gif'],
+  ['bmp', 'image/bmp'],
+  ['webp', 'image/webp']
+])
 const FORMULA_DATE_KEY_STRIDE = MAX_COLS + 1
 
 /** Internal formula cell collected during the first parsing pass for later evaluation. */
@@ -368,7 +368,7 @@ export function axisCountForPxExtent(
 
 /** Only emit browser-safe bitmap MIME types for embedded workbook images. */
 export function imageMimeForExtension(extension: string | undefined): string | undefined {
-  return extension === undefined ? undefined : IMAGE_MIME_BY_EXTENSION[extension.toLowerCase()]
+  return extension === undefined ? undefined : IMAGE_MIME_BY_EXTENSION.get(extension.toLowerCase())
 }
 
 /** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
@@ -450,14 +450,14 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   const alignment = cell.alignment
   if (alignment) {
     if (alignment.horizontal) {
-      const mapped = HORIZONTAL_ALIGNMENT_MAP[alignment.horizontal]
+      const mapped = HORIZONTAL_ALIGNMENT_MAP.get(alignment.horizontal)
       if (mapped) {
         style.hAlign = mapped
         hasAny = true
       }
     }
     if (alignment.vertical) {
-      const mapped = VERTICAL_ALIGNMENT_MAP[alignment.vertical]
+      const mapped = VERTICAL_ALIGNMENT_MAP.get(alignment.vertical)
       if (mapped) {
         style.vAlign = mapped
         hasAny = true

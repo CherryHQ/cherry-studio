@@ -18,10 +18,10 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     data?: unknown,
     opts?: Parameters<Lark.HttpInstance['request']>[0]
   ): Promise<any> {
-    const headers: Record<string, string> = { ...opts?.headers }
+    const headers = new Headers(opts?.headers)
     let body: string | FormData | undefined
 
-    const isMultipart = (headers['Content-Type'] || headers['content-type'] || '').includes('multipart/form-data')
+    const isMultipart = headers.get('content-type')?.includes('multipart/form-data') ?? false
 
     if (data !== undefined && data !== null) {
       if (typeof data === 'string') {
@@ -46,12 +46,11 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
           }
         }
         body = form
-        delete headers['Content-Type']
-        delete headers['content-type']
+        headers.delete('content-type')
       } else {
         body = JSON.stringify(data)
-        if (!headers['Content-Type'] && !headers['content-type']) {
-          headers['Content-Type'] = 'application/json'
+        if (!headers.get('content-type')) {
+          headers.set('content-type', 'application/json')
         }
       }
     }

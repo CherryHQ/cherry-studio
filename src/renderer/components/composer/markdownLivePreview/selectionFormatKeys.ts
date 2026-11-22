@@ -10,7 +10,10 @@ type Style = 'bold' | 'italic' | 'code'
 
 /** Bold and italic share the emphasis nodes, so they nest and combine independently. */
 const STYLE_NODES: Record<Style, string> = { bold: 'StrongEmphasis', italic: 'Emphasis', code: 'InlineCode' }
-const SHORTCUT_STYLES: Record<string, Style> = { b: 'bold', i: 'italic' }
+const SHORTCUT_STYLES: ReadonlyMap<string, Style> = new Map([
+  ['b', 'bold'],
+  ['i', 'italic']
+])
 const LINE_PREFIX = /^\s*(?:(?:#{1,6}|>|[-*+]|\d+[.)])\s+)*/
 
 /** A parsed span in line columns, with its delimiters in [from, contentFrom) and [contentTo, to). */
@@ -233,7 +236,7 @@ export function handleMarkdownFormatKey(view: EditorView, event: KeyboardEvent):
   // Handled before input: a typed backtick that matches the selection's edge reaches ProseMirror as a deletion.
   if (event.key === '`') return !event.metaKey && !event.ctrlKey && toggleStyle(view, 'code')
 
-  const style = SHORTCUT_STYLES[event.key.toLowerCase()]
+  const style = SHORTCUT_STYLES.get(event.key.toLowerCase())
   const hasPrimaryModifier = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
   if (!style || !hasPrimaryModifier || event.shiftKey) return false
   return toggleStyle(view, style)

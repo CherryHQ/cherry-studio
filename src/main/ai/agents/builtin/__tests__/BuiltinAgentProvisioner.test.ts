@@ -17,7 +17,12 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
-import { BUILTIN_AGENT_PLUGIN_NAME, loadBuiltinAgentDefaults } from '../builtinAgentDefinition'
+import {
+  BUILTIN_AGENT_PLUGIN_NAME,
+  getBuiltinAgentPluginTemplateDirectory,
+  getBuiltinAgentTemplateDirectory,
+  loadBuiltinAgentDefaults
+} from '../builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
@@ -47,6 +52,15 @@ function writeFile(filePath: string, content: string): void {
 }
 
 describe('BuiltinAgentProvisioner', () => {
+  it.each(['constructor', '__proto__', 'toString'])(
+    'skips unregistered roles instead of treating inherited values as paths: %s',
+    (role) => {
+      expect(getBuiltinAgentTemplateDirectory(role)).toBeUndefined()
+      expect(getBuiltinAgentPluginTemplateDirectory(role)).toBeUndefined()
+      expect(loadBuiltinAgentDefinition(role)).toBeUndefined()
+    }
+  )
+
   let templateRoot: string
   let templateDir: string
   let agentDataPath: string

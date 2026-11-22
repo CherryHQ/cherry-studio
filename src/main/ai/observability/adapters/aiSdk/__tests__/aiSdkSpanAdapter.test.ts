@@ -91,6 +91,26 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)'
   })
 })
 
+describe('AiSdkSpanAdapter.convertToSpanEntity — attributes', () => {
+  it('preserves custom attribute keys without changing the output prototype', () => {
+    const attributes: Attributes = Object.freeze({
+      'ai.operationId': 'ai.streamText',
+      ['__proto__']: ['custom value'],
+      constructor: 'custom constructor',
+      'ai.prompt': 'prompt payload'
+    })
+
+    const entity = AiSdkSpanAdapter.convertToSpanEntity({ span: fakeSpan({ _attributes: attributes }) })
+
+    expect(Object.getOwnPropertyDescriptor(entity.attributes ?? {}, '__proto__')?.value).toEqual(['custom value'])
+    expect(entity.attributes?.constructor).toBe('custom constructor')
+    expect(Object.getPrototypeOf(entity.attributes)).toBe(Object.prototype)
+    expect(Object.hasOwn(entity.attributes ?? {}, 'ai.prompt')).toBe(false)
+    expect(entity.attributes?.inputs).toEqual({ prompt: 'prompt payload' })
+    expect(Object.getOwnPropertyDescriptor(attributes, '__proto__')?.value).toEqual(['custom value'])
+  })
+})
+
 describe('AiSdkSpanAdapter.convertToSpanEntity — decoded payloads', () => {
   it('retains nested provider inputs and tool-call outputs for trace display', () => {
     const messages = [{ role: 'user', content: [{ type: 'text', text: 'Find the item' }] }]

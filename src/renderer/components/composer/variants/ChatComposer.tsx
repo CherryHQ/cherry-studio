@@ -625,9 +625,7 @@ const ChatComposerInner = ({
       // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel`
       // with the provider data owned by that operation. Repeating it here would duplicate the
       // state transition against the composer's presentation-oriented provider list.
-      const extraSettings: {
-        reasoning_effort?: ReasoningEffortOption
-      } = {}
+      const extraSettings: Parameters<typeof setModel>[1] = {}
       if (reasoningOverride?.assistantId === assistant.id) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }

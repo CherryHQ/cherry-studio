@@ -4,7 +4,7 @@ export function getMessageGroupKey(message: MessageListItem): string {
   return message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
 }
 
-export function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
+export function groupMessageListItems(messages: MessageListItem[]) {
   const grouped: Record<string, MessageListItem[]> = {}
 
   for (const message of messages) {

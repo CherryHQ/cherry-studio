@@ -157,15 +157,26 @@ describe('download', () => {
     })
 
     describe('Network download', () => {
-      it('should handle successful network request', async () => {
+      it.each(['constructor', '__proto__', 'toString'])(
+        'uses a binary extension for unknown Content-Type %s',
+        async (contentType) => {
+          vi.spyOn(Date, 'now').mockReturnValue(1234)
+          mockFetch.mockResolvedValue(createMockResponse({ headers: new Headers({ 'Content-Type': contentType }) }))
+
+          await download('https://example.com/download')
+
+          const element = mockCreateElement.mock.results[0].value
+          expect(element.download).toBe('1234_download.bin')
+        }
+      )
+
+      it('preserves an explicitly supplied filename for a network download', async () => {
         mockFetch.mockResolvedValue(createMockResponse())
 
-        void download('https://example.com/file.pdf', 'custom.pdf')
-        await waitForAsync()
+        await download('https://example.com/file.pdf', 'custom.pdf')
 
-        expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
-        expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
-        expect(mockClick).toHaveBeenCalled()
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe('custom.pdf')
       })
 
       it('parses a quoted Content-Disposition filename without a trailing quote', async () => {

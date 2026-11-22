@@ -789,20 +789,19 @@ export class KnowledgeItemService {
         })
       }
 
-      // Item schemas validate string-valued fields; null is only the patch's removal sentinel.
-      const nextData: Record<string, string | null | undefined> = { ...existingItem.data, ...patch }
+      const nextData = new Map(Object.entries({ ...existingItem.data, ...patch }))
       for (const [key, value] of Object.entries(patch)) {
         if (value === null) {
-          delete nextData[key]
+          nextData.delete(key)
         }
       }
 
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
-          // Runtime guards above narrow the item kind; Drizzle cannot carry that correlation through the spread.
+          // SAFETY: the allowed-type guard limits each patch to a field owned by that item kind.
           // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-          data: nextData as KnowledgeItemData
+          data: Object.fromEntries(nextData) as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()

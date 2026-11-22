@@ -101,19 +101,16 @@ const FormRow = ({ label, children }: FormRowProps) => (
 
 // 转换文件信息数组为树形结构
 const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
-  const treeData: TreeSelectOption[] = [
-    {
-      title: i18n.t('chat.topics.export.obsidian_root_directory'),
-      value: '',
-      isLeaf: false,
-      selectable: true
-    }
-  ]
+  const root: TreeSelectOption = {
+    title: i18n.t('chat.topics.export.obsidian_root_directory'),
+    value: '',
+    isLeaf: false,
+    selectable: true
+  }
+  const treeData = [root]
 
   // 记录已创建的节点路径
-  const pathMap: Record<string, TreeSelectOption> = {
-    '': treeData[0]
-  }
+  const pathMap = new Map<string, TreeSelectOption>([['', root]])
 
   // 先按类型分组，确保先处理文件夹
   const folders = files.filter((file) => file.type === 'folder')
@@ -136,7 +133,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
       currentPath = currentPath ? `${currentPath}/${part}` : part
 
       // 如果这个路径节点还没创建
-      if (!pathMap[currentPath]) {
+      if (!pathMap.has(currentPath)) {
         const node = {
           title: part,
           value: currentPath,
@@ -147,7 +144,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
         }
 
         // 获取父节点，将当前节点添加到父节点的children中
-        const parentNode = pathMap[parentPath]
+        const parentNode = pathMap.get(parentPath)
         if (parentNode) {
           if (!parentNode.children) {
             parentNode.children = []
@@ -155,7 +152,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
           parentNode.children.push(node)
         }
 
-        pathMap[currentPath] = node
+        pathMap.set(currentPath, node)
       }
 
       // 更新父路径为当前路径，为下一级做准备
@@ -170,7 +167,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
     const fileName = file.name
 
     // 获取父文件夹节点
-    const parentNode = pathMap[dirPath] || pathMap['']
+    const parentNode = pathMap.get(dirPath) ?? root
 
     // 创建文件节点
     const fileNode = {

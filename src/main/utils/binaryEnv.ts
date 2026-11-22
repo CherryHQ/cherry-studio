@@ -90,7 +90,7 @@ export function getBinarySearchDirs(): string[] {
  * home for their config and credentials. HOME/XDG isolation belongs only to the
  * mise *install* subprocess — see `getBinaryIsolatedHomeEnv()`.
  */
-export function getBinaryExecutionEnv(): Record<string, string> {
+export function getBinaryExecutionEnv() {
   const dataDir = binaryDataDir()
   return {
     MISE_DATA_DIR: dataDir,
@@ -117,28 +117,32 @@ export function getBinaryExecutionEnv(): Record<string, string> {
  * the launched CLIs read their config/creds from the isolated dir and appear
  * logged-out on every run.
  */
-export function getBinaryIsolatedHomeEnv(): Record<string, string> {
+export function getBinaryIsolatedHomeEnv() {
   const dataDir = binaryDataDir()
-  const env: Record<string, string> = {
+  const env = {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
   }
+  let uvCache: { UV_CACHE_DIR: string } | undefined
   if (isMac && /\s/u.test(env.XDG_CACHE_HOME)) {
     const uvCacheDir = application.getPath('feature.binary.data.uv_cache')
-    if (!/\s/u.test(uvCacheDir)) env.UV_CACHE_DIR = uvCacheDir
+    if (!/\s/u.test(uvCacheDir)) uvCache = { UV_CACHE_DIR: uvCacheDir }
   }
   // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
   // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
   // strips the user's real values (they aren't in MISE_PASSTHROUGH_ENV), so without
   // these the verify step fails with "Could not determine cache directory" (#16719).
   // Point them into the isolated data dir alongside HOME/XDG.
-  if (isWin) {
-    env.LOCALAPPDATA = application.getPath('feature.binary.data.isolated.localappdata')
-    env.APPDATA = application.getPath('feature.binary.data.isolated.appdata')
+  return {
+    ...env,
+    ...uvCache,
+    ...(isWin && {
+      LOCALAPPDATA: application.getPath('feature.binary.data.isolated.localappdata'),
+      APPDATA: application.getPath('feature.binary.data.isolated.appdata')
+    })
   }
-  return env
 }
 
 function mergePathEntries(
@@ -146,7 +150,7 @@ function mergePathEntries(
   prefixes: string[],
   suffixes: string[],
   excludedEntries: string[] = []
-): Record<string, string> {
+) {
   const pathSeparator = isWin ? ';' : path.delimiter
   // Windows env keys are case-insensitive, so the input can carry several PATH
   // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
@@ -196,7 +200,7 @@ export function mergePathSuffixes(
 export function mergeBinaryExecutionEnv(
   env: Record<string, string>,
   extraPathPrefixes: string[] = []
-): Record<string, string> {
+): ReturnType<typeof getBinaryExecutionEnv> & Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
   return {
     ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),

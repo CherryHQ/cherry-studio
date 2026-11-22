@@ -20,13 +20,13 @@ const RESERVED_PREFIXES = ['NODE_', 'ELECTRON_', 'CHERRY_UTILITY_PROCESS_', 'LD_
 export function createUtilityProcessEnvironment(
   inputs: EnvironmentInputs,
   additions?: Readonly<Record<string, string>>
-): Record<string, string> {
+) {
   const parentEnv = inputs.parentEnv ?? process.env
   const platform = inputs.platform ?? process.platform
   const parentEntries = Object.entries(parentEnv).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string'
   )
-  const env: Record<string, string> = {}
+  const env = new Map<string, string>()
 
   const wanted = [
     ...COMMON_KEYS,
@@ -36,18 +36,18 @@ export function createUtilityProcessEnvironment(
   for (const name of wanted) {
     // Windows env keys are case-insensitive (`Path`); keep the parent's spelling.
     const match = parentEntries.find(([key]) => key.toUpperCase() === name)
-    if (match) env[match[0]] = match[1]
+    if (match) env.set(match[0], match[1])
   }
   for (const [key, value] of parentEntries) {
-    if (key.toUpperCase().startsWith('LC_')) env[key] = value
+    if (key.toUpperCase().startsWith('LC_')) env.set(key, value)
   }
-  env.NODE_ENV = inputs.nodeEnv ?? parentEnv.NODE_ENV ?? 'production'
-  env.TMPDIR = inputs.tempDir
-  env.TEMP = inputs.tempDir
-  env.TMP = inputs.tempDir
+  env.set('NODE_ENV', inputs.nodeEnv ?? parentEnv.NODE_ENV ?? 'production')
+  env.set('TMPDIR', inputs.tempDir)
+  env.set('TEMP', inputs.tempDir)
+  env.set('TMP', inputs.tempDir)
 
-  if (additions === undefined) return env
-  const baseline = new Set(Object.keys(env).map((key) => key.toUpperCase()))
+  if (additions === undefined) return Object.fromEntries(env)
+  const baseline = new Set([...env.keys()].map((key) => key.toUpperCase()))
   for (const [key, value] of Object.entries(additions)) {
     const upper = key.toUpperCase()
     if (typeof value !== 'string') {
@@ -61,7 +61,7 @@ export function createUtilityProcessEnvironment(
         `utility process env '${key}' is reserved (NODE_*, ELECTRON_*, CHERRY_UTILITY_PROCESS_*, LD_*, DYLD_*)`
       )
     }
-    env[key] = value
+    env.set(key, value)
   }
-  return env
+  return Object.fromEntries(env)
 }

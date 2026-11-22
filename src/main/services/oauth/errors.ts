@@ -40,7 +40,7 @@ export class OAuthTransientError extends OAuthServiceError {
  * to `logger.error(msg, describeOAuthError(err))` instead of the raw error.
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- OAuth can reject arbitrary values; expose only verified names/messages/statuses and never raw token-response bodies.
-export function describeOAuthError(error: unknown): { name: string; message: string; status?: number } {
+export function describeOAuthError(error: unknown) {
   try {
     let current: unknown = error
     // Walk down to the most specific cause so an HTTP status is not hidden behind

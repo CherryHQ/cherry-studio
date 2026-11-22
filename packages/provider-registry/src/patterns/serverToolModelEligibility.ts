@@ -14,7 +14,7 @@ interface EligibilityDeclaration {
 }
 
 const ELIGIBLE_DECLARATIONS = new Map(
-  Object.entries(PROVIDER_SERVER_TOOL_MODEL_IDS).map(([providerId, tools]) => [
+  Array.from(PROVIDER_SERVER_TOOL_MODEL_IDS, ([providerId, tools]) => [
     providerId,
     new Map(
       Object.entries(tools).map(([tool, declarations]) => [

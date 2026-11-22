@@ -235,13 +235,9 @@ class PpioTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     painting: PpioProviderParams,
     descriptor: PpioModelDescriptor
-  ): JSONObject {
+  ) {
     const modelId = descriptor.id
-    const params: JSONObject = {}
-
-    if (input.prompt) {
-      params.prompt = input.prompt
-    }
+    const params = input.prompt ? { prompt: input.prompt } : {}
 
     switch (modelId) {
       case 'jimeng-txt2img-v3.1':
@@ -271,31 +267,29 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
-    const params: JSONObject = {
-      prompt: input.prompt,
-      use_pre_llm: painting.usePreLlm ?? true,
-      seed: painting.ppioSeed ?? -1
-    }
+  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
+    const prompt = input.prompt
+    const usePreLlm = painting.usePreLlm ?? true
+    const seed = painting.ppioSeed ?? -1
+    let dimensions: { width: number; height: number } | undefined
 
     if (painting.size) {
       const [width, height] = painting.size.split('x').map(Number)
       if (width && height) {
-        params.width = width
-        params.height = height
+        dimensions = { width, height }
       }
     }
 
-    if (painting.addWatermark) {
-      params.logo_info = {
-        add_logo: true
-      }
+    return {
+      prompt,
+      use_pre_llm: usePreLlm,
+      seed,
+      ...dimensions,
+      ...(painting.addWatermark && { logo_info: { add_logo: true } })
     }
-
-    return params
   }
 
-  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -304,7 +298,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildQwenTxt2ImgParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildQwenTxt2ImgParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -312,7 +306,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildQwenEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildQwenEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     const firstFile = input.files?.[0]
     return {
       prompt: input.prompt,
@@ -323,7 +317,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size || '1280x1280',
@@ -332,7 +326,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -340,7 +334,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildZImageLoraParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildZImageLoraParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -349,7 +343,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildSeedreamDrawParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): JSONObject {
+  private buildSeedreamDrawParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     return {
       prompt: input.prompt,
       size: painting.size || '2048x2048',
@@ -358,11 +352,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  private buildSeedreamEditParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams,
-    modelId: string
-  ): JSONObject {
+  private buildSeedreamEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams, modelId: string) {
     const firstFile = input.files?.[0]
     const rawImage = firstFile ? fileToDataUrl(firstFile) : ''
     if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {

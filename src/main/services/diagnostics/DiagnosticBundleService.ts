@@ -121,7 +121,7 @@ function toTimeRange(range: DiagnosticRange, now: number): DiagnosticTimeRange {
   return { fromMs: now - RANGE_DURATION_MS[range], toMs: now }
 }
 
-function serializeTimeRange(range: DiagnosticTimeRange): { from: string; to: string } {
+function serializeTimeRange(range: DiagnosticTimeRange) {
   return { from: new Date(range.fromMs).toISOString(), to: new Date(range.toMs).toISOString() }
 }
 

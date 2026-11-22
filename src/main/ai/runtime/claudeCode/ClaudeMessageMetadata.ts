@@ -195,7 +195,7 @@ export class ClaudeMessageMetadata {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
-  private buildToolProviderMetadata(state: ToolMetadata): Record<string, JSONObject> {
+  private buildToolProviderMetadata(state: ToolMetadata) {
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null
     }

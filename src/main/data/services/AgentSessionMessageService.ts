@@ -1174,7 +1174,7 @@ export class AgentSessionMessageService {
     return message
   }
 
-  deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+  deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const existing = tx
       .select({
         role: sessionMessagesTable.role,
@@ -1721,7 +1721,7 @@ export class AgentSessionMessageService {
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto & { parentId?: string },
     expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
-  ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
+  ) {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
@@ -1783,7 +1783,7 @@ export class AgentSessionMessageService {
     sessionName: string
     workspace: AgentSessionWorkspaceSource
     content: string
-  }): { session: AgentSessionEntity; message: AgentSessionMessageEntity } {
+  }) {
     const content = input.content.trim()
     if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
 

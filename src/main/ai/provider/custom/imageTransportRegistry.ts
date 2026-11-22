@@ -33,75 +33,77 @@ function createLazyTransport(
   }
 }
 
-const TRANSPORTS: Record<string, TransportRegistration> = {
-  ppio: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildPpioTransport } = await import('./ppio/ppioProvider')
-      return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
+const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
+  Object.entries<TransportRegistration>({
+    ppio: {
+      supports: () => true,
+      poll: true,
+      load: async (settings) => {
+        const { buildPpioTransport } = await import('./ppio/ppioProvider')
+        return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
+      }
+    },
+    dashscope: {
+      supports: () => true,
+      poll: true,
+      cancel: true,
+      load: async (settings) => {
+        const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+        return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+      }
+    },
+    // QwenCloud (international) serves the same DashScope AIGC endpoints under
+    // its own origin — the transport is identical, only the origin differs
+    // (derived into `imageBaseURL` by the provider config builder).
+    qwencloud: {
+      supports: () => true,
+      poll: true,
+      cancel: true,
+      load: async (settings) => {
+        const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+        return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+      }
+    },
+    modelscope: {
+      supports: () => true,
+      poll: true,
+      load: async (settings) => {
+        const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
+        return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
+      }
+    },
+    dmxapi: {
+      supports: dmxapiUsesCustomTransport,
+      load: async (settings) => {
+        const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
+        return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
+      }
+    },
+    // ComfyUI owns the whole generation lifecycle: `/prompt` returns a task id, the job
+    // polls `/history/{id}` until the graph reports outputs, and cancel is id-scoped.
+    // Declaring `poll` + `cancel` here is what lets a running generation be aborted.
+    comfyui: {
+      supports: () => true,
+      poll: true,
+      cancel: true,
+      load: async (settings) => {
+        const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+        return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
+      }
+    },
+    tokenhub: {
+      supports: () => true,
+      poll: true,
+      load: async (settings) => {
+        const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
+        return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
+      }
     }
-  },
-  dashscope: {
-    supports: () => true,
-    poll: true,
-    cancel: true,
-    load: async (settings) => {
-      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
-    }
-  },
-  // QwenCloud (international) serves the same DashScope AIGC endpoints under
-  // its own origin — the transport is identical, only the origin differs
-  // (derived into `imageBaseURL` by the provider config builder).
-  qwencloud: {
-    supports: () => true,
-    poll: true,
-    cancel: true,
-    load: async (settings) => {
-      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
-    }
-  },
-  modelscope: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
-      return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
-    }
-  },
-  dmxapi: {
-    supports: dmxapiUsesCustomTransport,
-    load: async (settings) => {
-      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
-      return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
-    }
-  },
-  // ComfyUI owns the whole generation lifecycle: `/prompt` returns a task id, the job
-  // polls `/history/{id}` until the graph reports outputs, and cancel is id-scoped.
-  // Declaring `poll` + `cancel` here is what lets a running generation be aborted.
-  comfyui: {
-    supports: () => true,
-    poll: true,
-    cancel: true,
-    load: async (settings) => {
-      const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
-      return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
-    }
-  },
-  tokenhub: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
-      return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
-    }
-  }
-}
+  })
+)
 
 export function hasImageTransport(providerId: string, modelId: string): boolean {
-  return TRANSPORTS[providerId]?.supports(modelId) ?? false
+  return TRANSPORTS.get(providerId)?.supports(modelId) ?? false
 }
 
 export function resolveImageTransport(
@@ -109,6 +111,6 @@ export function resolveImageTransport(
   modelId: string,
   providerSettings: ProviderConfig['providerSettings']
 ): ImageGenerationTransport | null {
-  const registration = TRANSPORTS[aiSdkProviderId]
+  const registration = TRANSPORTS.get(aiSdkProviderId)
   return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
 }

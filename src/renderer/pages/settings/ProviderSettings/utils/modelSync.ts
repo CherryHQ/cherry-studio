@@ -2,6 +2,7 @@ import { isEmpty } from 'es-toolkit/compat'
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -41,7 +42,7 @@ export function resolveCreateModelEndpointTypes(
     return [...model.endpointTypes]
   }
 
-  if (!provider || !isNewApiProvider(provider as Provider)) {
+  if (!provider || !isNewApiProvider(provider)) {
     return undefined
   }
 
@@ -88,15 +89,13 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     return []
   }
 
+  const modelIds = filteredModels.map(getRawModelId)
+  if (modelIds.some((modelId) => !modelId)) {
+    throw new Error(i18n.t('settings.models.manage.sync_pull_failed'))
+  }
+
   const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
-  const resolved = (await dataApiService.get(resolveModelsPath, {
-    query: {
-      ids: filteredModels.flatMap((model) => {
-        const id = model.apiModelId
-        return id ? [id] : []
-      })
-    }
-  })) as Model[]
+  const resolved = await dataApiService.get(resolveModelsPath, { query: { ids: modelIds } })
 
   const resolvedMap = new Map<string, Model>()
   for (const model of resolved) {
@@ -124,24 +123,29 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     'ownedBy'
   ] as const
 
-  return filteredModels.map((fetched) => {
-    const base = fetched as Model
-    const apiId = fetched.apiModelId ?? ''
-    // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
-    // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
-    // row, collapsing their distinct display names).
-    const registry = resolvedMap.get(apiId)
+  return filteredModels.map((fetched, index) => {
+    // Match the exact raw model ID so normalized catalog names cannot collapse distinct SKUs.
+    const registry = resolvedMap.get(modelIds[index])
 
     if (!registry) {
-      return base
+      throw new Error(i18n.t('settings.models.manage.sync_pull_failed'))
     }
 
-    const merged = { ...base }
+    const merged = {
+      ...fetched,
+      id: fetched.id ?? registry.id,
+      providerId: fetched.providerId ?? registry.providerId,
+      name: fetched.name ?? registry.name,
+      capabilities: fetched.capabilities ?? registry.capabilities,
+      supportsStreaming: fetched.supportsStreaming ?? registry.supportsStreaming,
+      isEnabled: fetched.isEnabled ?? registry.isEnabled,
+      isHidden: fetched.isHidden ?? registry.isHidden
+    } satisfies Model
     // Fetchers use the raw id when the API has no display name; only then use the registry name.
-    const keepFetchedName = !!base.name && base.name !== base.apiModelId
+    const keepFetchedName = !!fetched.name && fetched.name !== fetched.apiModelId
 
     for (const field of REGISTRY_FIELDS) {
-      if (field === 'endpointTypes' && base.endpointTypes?.length) {
+      if (field === 'endpointTypes' && fetched.endpointTypes?.length) {
         continue
       }
       if (field === 'name' && keepFetchedName) {

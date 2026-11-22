@@ -121,10 +121,7 @@ function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): Language
   })
 }
 
-function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']): {
-  totalTokens: number
-  markerIndex: number
-} {
+function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']) {
   let totalTokens = 0
   let markerIndex = -1
   for (let i = 0; i < (sortedTools?.length ?? 0); i++) {
@@ -232,6 +229,7 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       rank = holder.rank
       continue
     }
+    /* oxlint-disable anti-slop/no-known-value-widening -- This inspected SDK path crosses heterogeneous containers; copying it must preserve opaque payloads and untouched references. */
     // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Inspected paths cross native SDK containers with non-JSON tool inputs; copying the path preserves opaque fields and untouched references.
     const remove = (node: unknown, depth: number): Record<string, unknown> | unknown[] => {
       if (depth === path.length) {
@@ -250,6 +248,7 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       ;(copy as typeof source)[index] = remove(source[index], depth + 1)
       return copy
     }
+    /* oxlint-enable anti-slop/no-known-value-widening */
     result = remove(result, 0)
   }
   // Removing a higher-precedence hint can expose a previously shadowed fallback.

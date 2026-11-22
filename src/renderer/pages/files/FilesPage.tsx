@@ -39,7 +39,7 @@ import type { FileItem } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList, FileListHeader } from './FileList'
-import type { SidebarFilter } from './FileSidebar'
+import type { FileCounts, SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
 import { useFileHydration } from './useFileHydration'
 
@@ -555,7 +555,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   }, [files, filter])
 
   const fileCounts = useMemo(() => {
-    const counts: Record<string, number> = {
+    const counts: FileCounts = {
       all: fileStats?.activeTotal ?? activeFilesTotal
     }
 

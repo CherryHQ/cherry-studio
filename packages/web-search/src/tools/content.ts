@@ -1,12 +1,6 @@
 import { sliceByTokens } from 'tokenx'
 
-export function sliceContent(
-  content: string,
-  limits: { maxTokens: number; maxCharacters?: number }
-): {
-  content: string
-  truncated: boolean
-} {
+export function sliceContent(content: string, limits: { maxTokens: number; maxCharacters?: number }) {
   if (
     !Number.isInteger(limits.maxTokens) ||
     limits.maxTokens < 0 ||

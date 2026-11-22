@@ -410,7 +410,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
     }
 
     const hashCache = await loadHashCache()
-    const newHashCache: HashCache = { ...hashCache }
+    const newHashCache = { ...hashCache }
     let generated = 0
     let skipped = 0
 
@@ -473,7 +473,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
   console.log(`Found ${svgFiles.length} SVG files in ${inputDir}\n`)
 
   const hashCache = await loadHashCache()
-  const newHashCache: HashCache = { ...hashCache }
+  const newHashCache = { ...hashCache }
   const components: Array<{ filename: string; componentName: string }> = []
   let skipped = 0
 

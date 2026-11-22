@@ -73,34 +73,34 @@ function getArtifactFileName(path: string): string {
   return segments.at(-1) ?? path
 }
 
-const artifactDocumentFormats: Record<string, [string, string]> = {
-  doc: ['chat.input.tools.file_type.document', 'Word'],
-  docx: ['chat.input.tools.file_type.document', 'Word'],
-  pdf: ['chat.input.tools.file_type.document', 'PDF'],
-  md: ['chat.input.tools.file_type.document', 'Markdown'],
-  markdown: ['chat.input.tools.file_type.document', 'Markdown'],
-  mdx: ['chat.input.tools.file_type.document', 'Markdown'],
-  rtf: ['chat.input.tools.file_type.document', 'RTF'],
-  odt: ['chat.input.tools.file_type.document', 'OpenDocument'],
-  epub: ['chat.input.tools.file_type.document', 'EPUB'],
-  ppt: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
-  pptx: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
-  odp: ['chat.input.tools.file_type.presentation', 'OpenDocument'],
-  xls: ['chat.input.tools.file_type.spreadsheet', 'Excel'],
-  xlsx: ['chat.input.tools.file_type.spreadsheet', 'Excel'],
-  ods: ['chat.input.tools.file_type.spreadsheet', 'OpenDocument'],
-  csv: ['chat.input.tools.file_type.spreadsheet', 'CSV'],
-  tsv: ['chat.input.tools.file_type.spreadsheet', 'TSV'],
-  html: ['chat.input.tools.file_type.webpage', 'HTML'],
-  htm: ['chat.input.tools.file_type.webpage', 'HTML']
-}
+const artifactDocumentFormats: ReadonlyMap<string, readonly [string, string]> = new Map([
+  ['doc', ['chat.input.tools.file_type.document', 'Word']],
+  ['docx', ['chat.input.tools.file_type.document', 'Word']],
+  ['pdf', ['chat.input.tools.file_type.document', 'PDF']],
+  ['md', ['chat.input.tools.file_type.document', 'Markdown']],
+  ['markdown', ['chat.input.tools.file_type.document', 'Markdown']],
+  ['mdx', ['chat.input.tools.file_type.document', 'Markdown']],
+  ['rtf', ['chat.input.tools.file_type.document', 'RTF']],
+  ['odt', ['chat.input.tools.file_type.document', 'OpenDocument']],
+  ['epub', ['chat.input.tools.file_type.document', 'EPUB']],
+  ['ppt', ['chat.input.tools.file_type.presentation', 'PowerPoint']],
+  ['pptx', ['chat.input.tools.file_type.presentation', 'PowerPoint']],
+  ['odp', ['chat.input.tools.file_type.presentation', 'OpenDocument']],
+  ['xls', ['chat.input.tools.file_type.spreadsheet', 'Excel']],
+  ['xlsx', ['chat.input.tools.file_type.spreadsheet', 'Excel']],
+  ['ods', ['chat.input.tools.file_type.spreadsheet', 'OpenDocument']],
+  ['csv', ['chat.input.tools.file_type.spreadsheet', 'CSV']],
+  ['tsv', ['chat.input.tools.file_type.spreadsheet', 'TSV']],
+  ['html', ['chat.input.tools.file_type.webpage', 'HTML']],
+  ['htm', ['chat.input.tools.file_type.webpage', 'HTML']]
+])
 
 function getArtifactFileTypeLabel(fileName: string, t: TFunction): string {
   const dot = fileName.lastIndexOf('.')
   const extension = dot > 0 ? fileName.slice(dot + 1).toLowerCase() : ''
   if (!extension) return t('chat.input.tools.file_type.file')
 
-  const format = Object.hasOwn(artifactDocumentFormats, extension) ? artifactDocumentFormats[extension] : undefined
+  const format = artifactDocumentFormats.get(extension)
   if (format) return t(format[0], { format: format[1] })
   if (archiveExts.some((ext) => ext === `.${extension}`)) return t('chat.input.tools.file_type.archive')
 

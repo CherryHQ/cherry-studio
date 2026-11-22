@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { Wrench } from 'lucide-react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
-import { ToolBlockGroup, ToolBlockGroupContent, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
+import { getToolGroupIcon, ToolBlockGroup, ToolBlockGroupContent, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
@@ -120,6 +121,10 @@ const errorEditItem = {
 } as ToolRenderItem
 
 describe('ToolBlockGroup', () => {
+  it.each(['constructor', '__proto__', 'toString'])('uses the generic icon for a provider tool named %s', (name) => {
+    expect(getToolGroupIcon({ id: `custom-${name}`, name, type: 'provider' })).toBe(Wrench)
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })

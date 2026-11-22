@@ -15,6 +15,7 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import type { LanguageModelV3ToolResultOutput } from '@ai-sdk/provider'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -77,7 +78,9 @@ export function isPaintingError(output: PaintingResult): output is PaintingError
 }
 
 /** Shared model-output projection: an error renders its note; success renders a one-line summary. */
-export function paintingModelOutput(output: PaintingResult): { type: 'text'; value: string } {
+export function paintingModelOutput(
+  output: PaintingResult
+): Extract<LanguageModelV3ToolResultOutput, { type: 'text' }> {
   if (isPaintingError(output)) {
     return { type: 'text', value: output.error }
   }

@@ -2307,11 +2307,7 @@ export class MessageService {
    * the original conversation run, while the duplicated topic starts without
    * trace linkage.
    */
-  copyPathRowsTx(
-    tx: DbOrTx,
-    rows: MessageRow[],
-    options: { topicId: string }
-  ): { copiedMessageIds: Map<string, string>; copiedActiveNodeId: string } {
+  copyPathRowsTx(tx: DbOrTx, rows: MessageRow[], options: { topicId: string }) {
     if (rows.length === 0) {
       throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
     }

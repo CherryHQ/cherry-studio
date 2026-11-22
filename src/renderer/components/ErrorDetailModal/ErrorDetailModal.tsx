@@ -72,10 +72,7 @@ interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
 
 const ignoreDoctorNavigation = () => undefined
 
-const truncateLargeData = (
-  data: string,
-  t: (key: string) => string
-): { content: string; truncated: boolean; isLikelyBase64: boolean } => {
+const truncateLargeData = (data: string, t: (key: string) => string) => {
   const parsed = parseDataUrl(data)
   const isLikelyBase64 = parsed?.isBase64 ?? false
 

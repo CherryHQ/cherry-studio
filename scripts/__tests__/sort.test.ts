@@ -4,7 +4,9 @@ describe('sortedObjectByKeys', () => {
   test('should sort keys of a flat object alphabetically', () => {
     const obj = { b: 2, a: 1, c: 3 }
     const sortedObj = { a: 1, b: 2, c: 3 }
-    expect(sortedObjectByKeys(obj)).toEqual(sortedObj)
+    const result = sortedObjectByKeys(obj)
+    expect(result).toEqual(sortedObj)
+    expect(Object.keys(result)).toEqual(['a', 'b', 'c'])
   })
 
   test('should sort keys of nested objects alphabetically', () => {
@@ -18,7 +20,40 @@ describe('sortedObjectByKeys', () => {
       b: { d: 4, e: 5, f: 6 },
       c: { x: 1, y: 2, z: 3 }
     }
-    expect(sortedObjectByKeys(obj)).toEqual(sortedObj)
+    const result = sortedObjectByKeys(obj)
+    expect(result).toEqual(sortedObj)
+    expect(Object.keys(result)).toEqual(['a', 'b', 'c'])
+    expect(Object.keys(result.b as object)).toEqual(['d', 'e', 'f'])
+    expect(Object.keys(result.c as object)).toEqual(['x', 'y', 'z'])
+  })
+
+  test('preserves reserved own keys as sorted catalog data', () => {
+    const obj = Object.freeze(JSON.parse('{"z":1,"toString":"literal","__proto__":{"kept":true},"constructor":2}'))
+
+    const result = sortedObjectByKeys(obj)
+
+    expect(Object.keys(result)).toEqual(['__proto__', 'constructor', 'toString', 'z'])
+    expect(Object.hasOwn(result, '__proto__')).toBe(true)
+    expect(result.__proto__).toEqual({ kept: true })
+    expect(result.constructor).toBe(2)
+    expect(result.toString).toBe('literal')
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(Object.keys(obj)).toEqual(['z', 'toString', '__proto__', 'constructor'])
+  })
+
+  test('keeps array identity while sorting frozen object containers', () => {
+    const array = [{ z: 1, a: 2 }]
+    Object.freeze(array)
+    const nested = Object.freeze({ z: 1, a: 2 })
+    const obj = Object.freeze({ z: array, a: nested })
+
+    const result = sortedObjectByKeys(obj)
+
+    expect(Object.keys(result)).toEqual(['a', 'z'])
+    expect(Object.keys(result.a as object)).toEqual(['a', 'z'])
+    expect(result.z).toBe(array)
+    expect(array).toEqual([{ z: 1, a: 2 }])
+    expect(Object.keys(nested)).toEqual(['z', 'a'])
   })
 
   test('should handle empty objects', () => {

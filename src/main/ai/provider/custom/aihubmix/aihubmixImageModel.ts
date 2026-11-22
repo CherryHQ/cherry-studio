@@ -157,12 +157,12 @@ function wireNameAihubmixBag(
   providerOptions: ImageModelV3CallOptions['providerOptions']
 ): ImageModelV3CallOptions['providerOptions'] {
   if (!providerOptions?.aihubmix) return providerOptions
-  const aihubmix = providerOptions.aihubmix as Record<string, JSONValue>
-  const renamed: Record<string, JSONValue> = {}
-  for (const [key, value] of Object.entries(aihubmix)) {
-    const wireKey = CANONICAL_KEYS.has(key) ? wireName(key as CanonicalParamKey) : key
-    renamed[wireKey] = value
-  }
+  const renamed = Object.fromEntries(
+    Object.entries(providerOptions.aihubmix).map(([key, value]): [string, JSONValue | undefined] => [
+      CANONICAL_KEYS.has(key) ? wireName(key as CanonicalParamKey) : key,
+      value
+    ])
+  )
   return { ...providerOptions, aihubmix: renamed }
 }
 
@@ -202,7 +202,7 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
       const googleDefaults: JSONObject = {}
       if (aspectRatio) googleDefaults.aspectRatio = aspectRatio
       if (personGeneration) googleDefaults.personGeneration = personGeneration
-      const googleOptions: JSONObject = { ...googleDefaults, ...existingGoogle }
+      const googleOptions = { ...googleDefaults, ...existingGoogle }
 
       if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
         const imageConfig: JSONObject = { ...existingImageConfig }
@@ -257,7 +257,7 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
 
 /** Build the Doubao `/images/generations` body from native options + the
  *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
-function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): JSONObject {
+function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions) {
   const bag = options.providerOptions?.aihubmix ?? {}
   const parsed = DoubaoParamsSchema.parse({
     size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
@@ -269,28 +269,24 @@ function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): JSO
     responseFormat: bag.responseFormat
   })
 
-  const body: JSONObject = {
-    model: modelId,
-    prompt: options.prompt ?? '',
-    response_format: parsed.responseFormat
-  }
-  if (parsed.size && parsed.size !== 'auto') body.size = parsed.size
-  if (parsed.n !== undefined && parsed.n > 1) body.n = parsed.n
-  if (parsed.seed !== undefined) body.seed = parsed.seed
-  if (parsed.watermark !== undefined) body.watermark = parsed.watermark
-  if (parsed.sequentialImageGeneration) {
-    body.sequential_image_generation = parsed.sequentialImageGeneration
-    if (parsed.maxImages !== undefined) {
-      body.sequential_image_generation_options = { max_images: parsed.maxImages }
-    }
-  }
-
+  const prompt = options.prompt ?? ''
   // Image edit: Doubao takes `image` as a single data URL or an array of them.
   const images = (options.files ?? []).map(fileToDataUrl)
-  if (images.length === 1) body.image = images[0]
-  else if (images.length > 1) body.image = images
-
-  return body
+  return {
+    model: modelId,
+    prompt,
+    response_format: parsed.responseFormat,
+    ...(parsed.size && parsed.size !== 'auto' && { size: parsed.size }),
+    ...(parsed.n !== undefined && parsed.n > 1 && { n: parsed.n }),
+    ...(parsed.seed !== undefined && { seed: parsed.seed }),
+    ...(parsed.watermark !== undefined && { watermark: parsed.watermark }),
+    ...(parsed.sequentialImageGeneration && {
+      sequential_image_generation: parsed.sequentialImageGeneration,
+      ...(parsed.maxImages !== undefined && { sequential_image_generation_options: { max_images: parsed.maxImages } })
+    }),
+    ...(images.length === 1 && { image: images[0] }),
+    ...(images.length > 1 && { image: images })
+  }
 }
 
 /** Parse a `/images/generations` response into URLs / base64 data URLs. */
@@ -363,9 +359,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     if (ASYNC_FLUX_MODELS.has(modelId)) {
       const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
       // The transport reads aspect_ratio from the bag after the SDK normalizes the native option.
-      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve legacy upload bytes and other opaque extensions; the FLUX transport checks the fields it reads.
-      const transportBag: Record<string, unknown> = { ...bag }
-      if (typeof aspectRatio === 'string') transportBag.aspect_ratio = aspectRatio
+      const transportBag = { ...bag, ...(typeof aspectRatio === 'string' && { aspect_ratio: aspectRatio }) }
       const { taskId } = await transport.submit({
         modelId,
         prompt,
@@ -491,6 +485,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // (it forces `b64_json`, which Doubao rejects).
     if (mode === 'generate' && isDoubaoSeedreamModel(modelId)) {
       const doubaoBody = buildDoubaoBody(modelId, options)
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- Provider headers add runtime names below; preserve their spelling and copy only non-null string values.
       const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
       for (const [key, value] of Object.entries(headers())) {
         if (value != null) reqHeaders[key] = value
@@ -529,6 +524,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
     // ---- Ideogram V_1/V_2 (non-default) + V_3 upscale branch (relocated verbatim) ----
     let body: string | FormData = ''
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The same HTTP header map serves JSON and multipart requests; set Content-Type only for the JSON branch.
     const reqHeaders: Record<string, string> = { 'Api-Key': resolveApiKey() }
     const url = `${apiRoot}/ideogram/${MODE_TO_CONFIG[mode]}`
 

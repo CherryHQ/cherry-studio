@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { groupTranslations } from '../marketplaceGroupTranslations'
+import { getMarketplaceCategoryLabel } from '../marketplaceLabels'
 import { buildMarketplaceTemplates } from '../marketplaceTemplateCatalog'
 
 const original = {
@@ -22,6 +24,12 @@ const assistant = {
 }
 
 describe('merged marketplace templates', () => {
+  it.each(['constructor', '__proto__', 'toString'])('keeps an unrecognized %s category literal', (category) => {
+    expect(getMarketplaceCategoryLabel(category, (key) => `translated:${key}`)).toBe(category)
+    expect(groupTranslations.get(category)).toBeUndefined()
+    expect(groupTranslations.get('我的')?.get(category)).toBeUndefined()
+  })
+
   it('keeps both sources when IDs overlap without dropping either template', () => {
     const templates = buildMarketplaceTemplates([original], [assistant], 'zh-CN')
     expect(templates.map(({ id, name }) => ({ id, name }))).toEqual([

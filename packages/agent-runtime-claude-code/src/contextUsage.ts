@@ -4,30 +4,30 @@ import type { SDKControlGetContextUsageResponse } from '@anthropic-ai/claude-age
 
 import type { ContextCategoryKey, ContextResource, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 
-const keys: Record<string, ContextCategoryKey> = {
-  messages: 'messages',
-  system_prompt: 'system-prompt',
-  system_tools: 'system-tools',
-  mcp_tools: 'mcp-tools',
-  mcp_instructions: 'mcp-instructions',
-  memory_files: 'memory-files',
-  skills: 'skills',
-  custom_agents: 'agents',
-  mcp_tools_deferred: 'mcp-tools',
-  system_tools_deferred: 'system-tools'
-}
-const names: Record<string, string> = {
-  'System prompt': 'system_prompt',
-  'System tools': 'system_tools',
-  'MCP tools': 'mcp_tools',
-  'MCP server instructions': 'mcp_instructions',
-  'MCP tools (deferred)': 'mcp_tools_deferred',
-  'System tools (deferred)': 'system_tools_deferred',
-  'Memory files': 'memory_files',
-  Messages: 'messages',
-  Skills: 'skills',
-  'Custom agents': 'custom_agents'
-}
+const keys: ReadonlyMap<string, ContextCategoryKey> = new Map([
+  ['messages', 'messages'],
+  ['system_prompt', 'system-prompt'],
+  ['system_tools', 'system-tools'],
+  ['mcp_tools', 'mcp-tools'],
+  ['mcp_instructions', 'mcp-instructions'],
+  ['memory_files', 'memory-files'],
+  ['skills', 'skills'],
+  ['custom_agents', 'agents'],
+  ['mcp_tools_deferred', 'mcp-tools'],
+  ['system_tools_deferred', 'system-tools']
+])
+const names: ReadonlyMap<string, string> = new Map([
+  ['System prompt', 'system_prompt'],
+  ['System tools', 'system_tools'],
+  ['MCP tools', 'mcp_tools'],
+  ['MCP server instructions', 'mcp_instructions'],
+  ['MCP tools (deferred)', 'mcp_tools_deferred'],
+  ['System tools (deferred)', 'system_tools_deferred'],
+  ['Memory files', 'memory_files'],
+  ['Messages', 'messages'],
+  ['Skills', 'skills'],
+  ['Custom agents', 'custom_agents']
+])
 const estimated = (tokens: number) => ({ tokens, precision: 'estimated' as const })
 
 export function normalizeContextUsage(
@@ -37,10 +37,10 @@ export function normalizeContextUsage(
   const categories = native.categories
     .filter((row) => row.kind !== 'free' && row.kind !== 'buffer')
     .map((row) => {
-      const id = (row.id && keys[row.id] ? row.id : names[row.name]) ?? row.name
+      const id = (row.id && keys.has(row.id) ? row.id : names.get(row.name)) ?? row.name
       return {
         id,
-        key: keys[id] ?? 'other',
+        key: keys.get(id) ?? 'other',
         label: row.name,
         occupancy: row.kind === 'deferred' || row.isDeferred ? ('deferred' as const) : ('included' as const),
         ...estimated(row.tokens)

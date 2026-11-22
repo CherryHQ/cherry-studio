@@ -48,7 +48,7 @@ export function assertRelocationPaths(
   fromValue: string,
   toValue: string,
   options: { allowRelocationArtifacts?: boolean; taskId?: string } = {}
-): { targetExists: boolean; targetEmpty: boolean } {
+) {
   if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
   if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
 
@@ -209,7 +209,7 @@ function assertDirectory(value: string, label: string, reason: UserDataRelocatio
  * target (same volume, so promotion is a rename) and embed the task ID so
  * recovery can tell this task's artifacts from anything else.
  */
-export function relocationArtifactPaths(target: string, taskId: string): { workPath: string; asidePath: string } {
+export function relocationArtifactPaths(target: string, taskId: string) {
   const parent = path.dirname(target)
   const name = path.basename(target)
   return {
@@ -228,7 +228,7 @@ export function resolveEffectivePath(value: string): string {
  * missing tail re-appended — what the target will really resolve to once
  * created, which is what all symlink-safe comparisons must use.
  */
-export function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
+export function resolveExistingAncestor(value: string) {
   let cursor = path.resolve(value)
   const missingParts: string[] = []
   while (!pathEntryExists(cursor)) {

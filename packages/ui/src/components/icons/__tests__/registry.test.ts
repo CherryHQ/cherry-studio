@@ -16,6 +16,10 @@ describe('resolveProviderIconRef', () => {
     expect(resolveProviderIconRef('definitely-not-a-provider')).toBeUndefined()
     expect(resolveProviderIconRef('')).toBeUndefined()
   })
+
+  it.each(['constructor', '__proto__', 'toString'])('does not resolve inherited catalog names: %s', (providerId) => {
+    expect(resolveProviderIconRef(providerId)).toBeUndefined()
+  })
 })
 
 describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {

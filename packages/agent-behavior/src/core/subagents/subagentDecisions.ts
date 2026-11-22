@@ -372,11 +372,7 @@ function listed(facts: Facts, inputs: CallInputs): string[] {
  * here as stopped (`ended`), so its report job sends nothing and nobody waits for it (G-C4); a started run gets the stop
  * record and a `stop-child` effect, and its end is recorded once it has wound down.
  */
-function stopRun(
-  facts: Facts,
-  record: SubagentRunRecord,
-  by: SubagentStopper
-): { readonly ops: TxOp[]; readonly effects: Effect[]; readonly ended: boolean } {
+function stopRun(facts: Facts, record: SubagentRunRecord, by: SubagentStopper) {
   const { sessionId: child, run } = record
   const value: SubagentRunRecord = {
     ...record,
@@ -391,9 +387,9 @@ function stopRun(
           thread: facts.thread,
           record: { type: 'subagent-run', value },
           key: keys.subagentStop(child, run, by)
-        }
+        } satisfies TxOp
       ],
-      effects: [{ type: 'stop-child', child, run }],
+      effects: [{ type: 'stop-child', child, run } satisfies Effect],
       ended: false
     }
   const ended: SubagentRunRecord = { ...value, status: 'finished', outcome: 'stopped' }
@@ -404,7 +400,7 @@ function stopRun(
         thread: facts.thread,
         record: { type: 'subagent-run', value: ended },
         key: keys.subagentEnd(child, run)
-      }
+      } satisfies TxOp
     ],
     effects: [],
     ended: true

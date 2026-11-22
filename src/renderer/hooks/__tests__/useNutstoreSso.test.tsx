@@ -124,6 +124,20 @@ describe('useNutstoreSso', () => {
     expect(mocks.activeListeners.size).toBe(0)
   })
 
+  it('releases a subscription that delivers the callback before registration returns', async () => {
+    mocks.on.mockImplementationOnce((_event: string, listener: ProtocolListener) => {
+      mocks.activeListeners.add(listener)
+      listener({ url: 'cherrystudio://nutstore-sync/sso?s=immediate-token' })
+      return () => mocks.activeListeners.delete(listener)
+    })
+    const { result } = renderHook(() => useNutstoreSso())
+
+    await expect(result.current()).resolves.toBe('immediate-token')
+
+    expect(mocks.activeListeners.size).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('removes the active attempt when the owner unmounts without settling it', async () => {
     const { result, unmount } = renderHook(() => useNutstoreSso())
     const pending = result.current()

@@ -67,20 +67,20 @@ export function buildMiniAppCsp(): string {
   ].join('; ')
 }
 
-const CONTENT_TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.woff2': 'font/woff2',
-  '.wasm': 'application/wasm'
-}
+const CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
+  ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'text/javascript; charset=utf-8'],
+  ['.css', 'text/css; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.svg', 'image/svg+xml'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.gif', 'image/gif'],
+  ['.webp', 'image/webp'],
+  ['.woff2', 'font/woff2'],
+  ['.wasm', 'application/wasm']
+])
 
 /**
  * Bounds how many package reads can be in flight at once.
@@ -239,7 +239,7 @@ export function createMiniAppProtocolHandler(
     return new Response(body as typeof body & ReadableStream<Uint8Array>, {
       headers: {
         ...BASE_HEADERS,
-        'content-type': CONTENT_TYPES[path.extname(real).toLowerCase()] ?? 'application/octet-stream',
+        'content-type': CONTENT_TYPES.get(path.extname(real).toLowerCase()) ?? 'application/octet-stream',
         'content-length': String(stat.size)
       }
     })

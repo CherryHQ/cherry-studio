@@ -154,7 +154,7 @@ function compileBlacklistPatterns(patterns: readonly string[]) {
 export function filterResultsByUrlRules<T extends { readonly url: string }>(
   results: readonly T[],
   patterns: readonly string[]
-): { results: T[]; diagnostics: UrlFilterDiagnostic[] } {
+) {
   const { matchPatterns, regexPatterns, diagnostics } = compileBlacklistPatterns(patterns)
   return {
     diagnostics,

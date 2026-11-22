@@ -175,7 +175,9 @@ class WeChatAdapter extends ChannelAdapter {
               filename: r.filename,
               data: r.data.toString('base64'),
               media_type:
-                r.mediaType === 'application/octet-stream' ? FILE_EXTENSION_MIME_MAP[ext] || r.mediaType : r.mediaType,
+                r.mediaType === 'application/octet-stream'
+                  ? FILE_EXTENSION_MIME_MAP.get(ext) || r.mediaType
+                  : r.mediaType,
               size: r.data.length
             } satisfies FileAttachment
           })

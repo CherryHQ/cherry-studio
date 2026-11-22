@@ -212,7 +212,7 @@ export class TemporaryChatService {
     return structuredClone(applyMaxMessagesWindow(rows, maxMessages)).map(rowToMessage)
   }
 
-  persist(topicId: string): { topicId: string; messageCount: number } {
+  persist(topicId: string) {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction is awaiting.
     const topic = this.topics.get(topicId)

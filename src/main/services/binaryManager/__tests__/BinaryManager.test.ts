@@ -3653,6 +3653,32 @@ describe('BinaryManager', () => {
       expect(version).toBe('1.2.3')
     })
 
+    it.each(['constructor', '__proto__', 'toString'])(
+      'does not infer a runtime dependency for the unregistered backend %s',
+      async (backend) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        const tool = `${backend}:custom-tool`
+        mockExecFileAsync
+          .mockResolvedValueOnce({ stdout: '', stderr: '' })
+          .mockResolvedValueOnce({ stdout: '', stderr: '' })
+          .mockResolvedValueOnce({
+            stdout: JSON.stringify({ [tool]: [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          })
+
+        await expect(
+          (service as any).installWithMise({ name: 'custom-tool', tool, requestedVersion: '1.2.3' }, undefined, [])
+        ).resolves.toBe('1.2.3')
+        expect(mockExecFileAsync.mock.calls.find(([, args]) => args[0] === 'use')?.[1]).toEqual([
+          'use',
+          '-g',
+          `${tool}@1.2.3`
+        ])
+      }
+    )
+
     it('rejects malformed mise output instead of fabricating install success', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

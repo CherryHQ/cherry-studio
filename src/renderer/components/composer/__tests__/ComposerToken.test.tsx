@@ -322,6 +322,16 @@ function expectTokenPathTooltip(container: HTMLElement, path: string, sizeLabel?
 }
 
 describe('ComposerToken', () => {
+  it.each(['constructor', '__proto__', 'toString', '🍒'])('renders an unnamed token icon as text: %s', (icon) => {
+    const { container } = render(
+      <ComposerToken token={{ id: 'skill:custom-icon', kind: 'skill', label: 'Custom skill', icon }} />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="skill"]')
+    expect(token).toHaveTextContent(icon)
+    expect(token).toHaveTextContent('Custom skill')
+  })
+
   it('maps active composer token kinds to explicit components', () => {
     expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
       [...ACTIVE_COMPOSER_INPUT_TOKEN_KINDS].toSorted()

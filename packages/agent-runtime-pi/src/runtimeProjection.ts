@@ -215,12 +215,7 @@ export class PiProjection {
   }
 
   /** Committed native entries and their proven live identities; copied parent context is excluded. */
-  archive(): {
-    messages: RuntimeMessage[]
-    responseIds: Record<string, string>
-    aliases: Record<string, string>
-    legacy: Record<string, { messageId: string; parts: number[] }>
-  } {
+  archive() {
     const branch = this.session.sessionManager.getBranch()
     const start = branch.findLastIndex(
       (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin

@@ -155,6 +155,36 @@ describe('parseWorkbook — styles: extraction + dedup', () => {
   it('fully default cell has no styleId', () => {
     expect(model.sheets[0].cells['1:3'].styleId).toBeUndefined()
   })
+
+  it.each(['constructor', '__proto__', 'toString'])(
+    'ignores unknown XML alignment %s while preserving the cell and its supported style',
+    async (alignment) => {
+      const workbook = new ExcelJS.Workbook()
+      const cell = workbook.addWorksheet('Data').getCell('A1')
+      cell.value = 'hello'
+      cell.font = { bold: true }
+      cell.alignment = { horizontal: 'center', vertical: 'top' }
+      const zip = await JSZip.loadAsync(await toArrayBuffer(workbook))
+      const styles = zip.file('xl/styles.xml')
+      if (!styles) throw new Error('Workbook fixture has no styles')
+      const xml = await styles.async('string')
+      zip.file(
+        'xl/styles.xml',
+        xml
+          .replace('horizontal="center"', `horizontal="${alignment}"`)
+          .replace('vertical="top"', `vertical="${alignment}"`)
+      )
+
+      const parsed = await parseWorkbook(await zip.generateAsync({ type: 'arraybuffer' }), 'unknown-alignment.xlsx')
+      const parsedCell = parsed.sheets[0].cells['1:1']
+      expect(parsedCell.text).toBe('hello')
+      expect(parsedCell.styleId).toBeDefined()
+      const style = parsed.styles[parsedCell.styleId!]
+      expect(style.bold).toBe(true)
+      expect(style.hAlign).toBeUndefined()
+      expect(style.vAlign).toBeUndefined()
+    }
+  )
 })
 
 describe('parseWorkbook — merges, row/col sizing, hidden', () => {

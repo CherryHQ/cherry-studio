@@ -39,32 +39,20 @@ export function createDraftSnapshot(draft: ConfigDraft): string {
   })
 }
 
-export function createInitialConfigDraftState(
-  cliTool: CodeCli,
-  providerConfig: CliProviderConfig | null | undefined
-): {
-  modelId: UniqueModelId | undefined
-  config: ConfigDraft['config']
-  claudeModelMode: ClaudeModelMode
-  draft: ConfigDraft
-} {
+export function createInitialConfigDraftState(cliTool: CodeCli, providerConfig: CliProviderConfig | null | undefined) {
   const modelId = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
   const claudeModelMode: ClaudeModelMode =
     cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config) ? 'detailed' : 'common'
-  return {
+  const draft: ConfigDraft = {
     modelId,
     config,
-    claudeModelMode,
-    draft: {
-      modelId,
-      config,
-      files: [],
-      connection: null,
-      mode: 'managed',
-      error: ''
-    }
+    files: [],
+    connection: null,
+    mode: 'managed',
+    error: ''
   }
+  return { modelId, config, claudeModelMode, draft }
 }
 
 export function isConfigDraftDirty({

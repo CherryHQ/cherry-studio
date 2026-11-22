@@ -8,6 +8,7 @@ import {
   type CommandId,
   commandShortcutPreferenceKey,
   findCommandDefinition,
+  findKeybindingRule,
   REGISTERED_COMMANDS,
   REGISTERED_KEYBINDINGS
 } from '../definitions'
@@ -32,6 +33,18 @@ const testRule = (
 })
 
 describe('command definitions', () => {
+  it('resolves a raw string ID to its registered rule', () => {
+    const id: string = 'app.search'
+    expect(findKeybindingRule(id)?.command).toBe('app.search')
+  })
+
+  it.each(['missing.command', 'constructor', '__proto__', 'toString'])(
+    'returns no keybinding rule for unknown ID %s',
+    (id) => {
+      expect(findKeybindingRule(id)).toBeUndefined()
+    }
+  )
+
   it('has a keybinding rule for every command', () => {
     const keybindingCommands = new Set(REGISTERED_KEYBINDINGS.map((rule) => rule.command))
 

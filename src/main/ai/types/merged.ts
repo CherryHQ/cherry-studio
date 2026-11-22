@@ -9,7 +9,6 @@ import type {
   ExtensionConfigToIdResolutionMap,
   ExtensionToSettingsMap,
   ExtractProviderIds,
-  ProviderExtensionConfig,
   StringKeys,
   UnionToIntersection
 } from '@cherrystudio/ai-core/provider'
@@ -37,30 +36,29 @@ export function getAllProviderIds(): string[] {
 type ProviderIdsMap = UnionToIntersection<ExtensionConfigToIdResolutionMap<AllExtensionConfigs>>
 
 function buildAppProviderIds(): ProviderIdsMap {
-  const map = {} as ProviderIdsMap
+  const map = new Map<string, string>()
 
   allExtensions.forEach((ext) => {
-    const config = ext.config as ProviderExtensionConfig<any, any, KnownAppProviderId>
+    const config = ext.config
     const name = config.name
-    ;(map as Record<string, KnownAppProviderId>)[name] = name
+    map.set(name, name)
 
-    if (config.aliases) {
+    if ('aliases' in config && config.aliases) {
       config.aliases.forEach((alias) => {
-        ;(map as Record<string, KnownAppProviderId>)[alias] = name
+        map.set(alias, name)
       })
     }
 
-    if (config.variants) {
+    if ('variants' in config && config.variants) {
       config.variants.forEach((variant) => {
-        // Variants self-map: 'azure-responses' → 'azure-responses'.
-        // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-        const variantId = `${name}-${variant.suffix}` as KnownAppProviderId
-        ;(map as Record<string, KnownAppProviderId>)[variantId] = variantId
+        const variantId = `${name}-${variant.suffix}`
+        map.set(variantId, variantId)
       })
     }
   })
 
-  return map
+  // SAFETY: Every declared name, alias and variant is populated with the resolution encoded by ProviderIdsMap.
+  return Object.fromEntries(map) as ProviderIdsMap
 }
 
 export const appProviderIds = buildAppProviderIds()

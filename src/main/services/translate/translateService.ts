@@ -18,7 +18,6 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { CallOverrides } from '@main/ai/types'
 import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
 import {
   normalizeRequestedSelection,
@@ -150,7 +149,7 @@ export class TranslateService {
    * re-projects against the endpoint the request actually uses. #19693 is the
    * exit — it moves this gate inside the pipeline, where both are known.
    */
-  resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
+  resolveRequestParameters(model: Model) {
     const preferenceService = application.get('PreferenceService')
     const reasoningEffort = preferenceService.get('feature.translate.reasoning_effort')
     const settings = {

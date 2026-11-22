@@ -64,7 +64,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
   // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
   // image edits with "invalid character '-' in numeric literal" on the server.
-  const authHeaders = (): Record<string, string> => ({
+  const authHeaders = () => ({
     Authorization: `Bearer ${resolveApiKey()}`,
     ...options.headers
   })

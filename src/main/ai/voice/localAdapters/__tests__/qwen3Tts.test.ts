@@ -8,7 +8,7 @@ import { application } from '@application'
 import { QWEN3_TTS_BUNDLE_ID, VoiceModelSupport } from '@shared/ai/localVoice'
 
 import { mlxVoiceSupport } from '../../voicePlatform'
-import { createQwen3SpeechModel } from '../qwen3Tts'
+import { createQwen3SpeechModel, qwen3SpeechDefinition } from '../qwen3Tts'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -82,11 +82,16 @@ describe('Qwen3-TTS adapter', () => {
 
   it.each([
     { voice: 'missing', language: 'en-US' },
-    { voice: 'vivian', language: 'ar-SA' }
+    { voice: 'vivian', language: 'ar-SA' },
+    { voice: 'vivian', language: '__proto__' },
+    { voice: 'vivian', language: 'constructor' }
   ])('rejects unsupported selection %j', async (options) => {
     await expect(createQwen3SpeechModel(options).doGenerate({ text: 'Hello' })).rejects.toMatchObject({
       reason: 'invalid_request'
     })
+    if (options.language !== 'en-US') {
+      await expect(qwen3SpeechDefinition.getDefaultVoice(options.language)).resolves.toBeNull()
+    }
     expect(await readdir(directory)).toEqual([])
   })
 

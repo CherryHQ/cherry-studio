@@ -29,6 +29,12 @@ describe('structured command policy', () => {
     'launchctl list',
     'crontab -l',
     'custom-tool ordinary arguments',
+    'constructor --version',
+    '__proto__ --version',
+    'toString --version',
+    'git constructor --version',
+    'git __proto__ --version',
+    'git toString --version',
     'python script.py',
     'python -u script.py',
     'node --enable-source-maps --require ./setup.js app.js',
@@ -191,7 +197,9 @@ describe('structured command policy', () => {
     ['npm --foo=bar run build', 'bash'],
     ['cd "$PROJECT_DIR"', 'bash'],
     ['Get-ChildItem | Where-Object { $_.Length -gt 1 }', 'powershell'],
-    ['$items = Get-ChildItem', 'powershell']
+    ['$items = Get-ChildItem', 'powershell'],
+    ['constructor --version', 'powershell'],
+    ['__proto__ --version', 'powershell']
   ])('does not ask for an ordinary invocation: %s', async (command, dialect) => {
     expect((await evaluate(command, undefined, dialect)).effect).toBe('allow')
   })

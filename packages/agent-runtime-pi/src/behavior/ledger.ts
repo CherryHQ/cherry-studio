@@ -110,6 +110,7 @@ export function commit<R extends JsonValue>(
   }
   const applied: Applied = { spawned: [], children: [], jobs: [] }
   for (const { register } of prepared) register?.(applied)
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Keep the transaction result readonly so callers cannot replace the committed decision or its registered effects.
   return { step, applied }
 }
 

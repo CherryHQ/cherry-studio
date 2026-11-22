@@ -17,77 +17,81 @@ export interface CommandSemantics {
   inline?: { language: string; code?: string; word: CommandWord }
 }
 
-const WRAPPERS: Readonly<Record<string, readonly string[]>> = {
-  sudo: [
-    '-u',
-    '--user',
-    '-g',
-    '--group',
-    '-p',
-    '--prompt',
-    '-C',
-    '--close-from',
-    '-T',
-    '-r',
-    '-t',
-    '-U',
-    '-D',
-    '--chdir',
-    '--host'
-  ],
-  doas: ['-u', '-C'],
-  pkexec: ['--user'],
-  time: ['-f', '--format', '-o', '--output'],
-  exec: ['-a'],
-  env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string', '--argv0'],
-  nice: ['-n', '--adjustment'],
-  ionice: ['-c', '--class', '-n', '--classdata', '-p', '--pid'],
-  stdbuf: ['-i', '--input', '-o', '--output', '-e', '--error'],
-  xargs: [
-    '-n',
-    '--max-args',
-    '-I',
-    '--replace',
-    '-P',
-    '--max-procs',
-    '-L',
-    '--max-lines',
-    '-s',
-    '--max-chars',
-    '-d',
-    '--delimiter',
-    '-E',
-    '-e',
-    '-a',
-    '--arg-file'
-  ],
-  timeout: ['-s', '--signal', '-k', '--kill-after'],
-  command: [],
-  builtin: [],
-  nohup: [],
-  busybox: [],
-  toybox: [],
-  rtk: []
-}
-const WRAPPER_FLAGS: Readonly<Record<string, readonly string[]>> = {
-  sudo: ['-A', '-b', '-E', '-H', '-k', '-K', '-n', '-P', '-S', '-v', '-V'],
-  doas: ['-n', '-s', '-L'],
-  pkexec: ['--disable-internal-agent'],
-  time: ['-p', '-a', '-v'],
-  exec: ['-c', '-l'],
-  env: ['-i', '--ignore-environment', '-0', '--null'],
-  nice: [],
-  ionice: ['-t', '--ignore'],
-  stdbuf: [],
-  xargs: ['-0', '--null', '-r', '--no-run-if-empty', '-t', '--verbose', '-p', '--interactive', '-x', '--exit'],
-  timeout: ['--preserve-status', '--foreground', '-v', '--verbose'],
-  command: ['-p'],
-  builtin: [],
-  nohup: [],
-  busybox: [],
-  toybox: [],
-  rtk: []
-}
+const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map(
+  Object.entries({
+    sudo: [
+      '-u',
+      '--user',
+      '-g',
+      '--group',
+      '-p',
+      '--prompt',
+      '-C',
+      '--close-from',
+      '-T',
+      '-r',
+      '-t',
+      '-U',
+      '-D',
+      '--chdir',
+      '--host'
+    ],
+    doas: ['-u', '-C'],
+    pkexec: ['--user'],
+    time: ['-f', '--format', '-o', '--output'],
+    exec: ['-a'],
+    env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string', '--argv0'],
+    nice: ['-n', '--adjustment'],
+    ionice: ['-c', '--class', '-n', '--classdata', '-p', '--pid'],
+    stdbuf: ['-i', '--input', '-o', '--output', '-e', '--error'],
+    xargs: [
+      '-n',
+      '--max-args',
+      '-I',
+      '--replace',
+      '-P',
+      '--max-procs',
+      '-L',
+      '--max-lines',
+      '-s',
+      '--max-chars',
+      '-d',
+      '--delimiter',
+      '-E',
+      '-e',
+      '-a',
+      '--arg-file'
+    ],
+    timeout: ['-s', '--signal', '-k', '--kill-after'],
+    command: [],
+    builtin: [],
+    nohup: [],
+    busybox: [],
+    toybox: [],
+    rtk: []
+  })
+)
+const WRAPPER_FLAGS: ReadonlyMap<string, readonly string[]> = new Map(
+  Object.entries({
+    sudo: ['-A', '-b', '-E', '-H', '-k', '-K', '-n', '-P', '-S', '-v', '-V'],
+    doas: ['-n', '-s', '-L'],
+    pkexec: ['--disable-internal-agent'],
+    time: ['-p', '-a', '-v'],
+    exec: ['-c', '-l'],
+    env: ['-i', '--ignore-environment', '-0', '--null'],
+    nice: [],
+    ionice: ['-t', '--ignore'],
+    stdbuf: [],
+    xargs: ['-0', '--null', '-r', '--no-run-if-empty', '-t', '--verbose', '-p', '--interactive', '-x', '--exit'],
+    timeout: ['--preserve-status', '--foreground', '-v', '--verbose'],
+    command: ['-p'],
+    builtin: [],
+    nohup: [],
+    busybox: [],
+    toybox: [],
+    rtk: []
+  })
+)
 const PACKAGE_GLOBAL_FLAGS = new Set([
   '--dry-run',
   '--no-dry-run',
@@ -126,153 +130,180 @@ const GIT_GLOBAL_FLAGS = new Set([
   '--help',
   '-h'
 ])
-const OPTION_VALUES: Readonly<Record<string, readonly string[]>> = {
-  reset: ['--pathspec-from-file'],
-  push: ['-o', '--push-option', '--repo', '--receive-pack', '--exec'],
-  checkout: ['-b', '-B', '--orphan', '--conflict', '--pathspec-from-file'],
-  switch: ['-c', '-C', '--create', '--force-create', '--conflict'],
-  restore: ['-s', '--source', '--pathspec-from-file', '--conflict'],
-  clean: ['-e', '--exclude'],
-  log: ['--format', '--pretty', '--author', '--grep', '--since', '--until', '-n', '--max-count'],
-  publish: ['--tag', '--access', '--registry', '--otp', '--provenance-file']
-}
-const GIT_OPERATION_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  push: [
-    '--force',
-    '--force-with-lease',
-    '--force-if-includes',
-    '--no-force',
-    '--no-force-with-lease',
-    '--no-force-if-includes',
-    '-u',
-    '--set-upstream',
-    '-d',
-    '--delete',
-    '--tags',
-    '--all',
-    '--mirror',
-    '--atomic',
-    '-n',
-    '--dry-run',
-    '-v',
-    '--verbose',
-    '-q',
-    '--quiet',
-    '--porcelain',
-    '--progress',
-    '--no-verify',
-    '--follow-tags',
-    '--signed',
-    '--recurse-submodules',
-    '--thin',
-    '--no-thin'
+const OPTION_VALUES: ReadonlyMap<string, readonly string[]> = new Map(
+  Object.entries({
+    reset: ['--pathspec-from-file'],
+    push: ['-o', '--push-option', '--repo', '--receive-pack', '--exec'],
+    checkout: ['-b', '-B', '--orphan', '--conflict', '--pathspec-from-file'],
+    switch: ['-c', '-C', '--create', '--force-create', '--conflict'],
+    restore: ['-s', '--source', '--pathspec-from-file', '--conflict'],
+    clean: ['-e', '--exclude'],
+    log: ['--format', '--pretty', '--author', '--grep', '--since', '--until', '-n', '--max-count'],
+    publish: ['--tag', '--access', '--registry', '--otp', '--provenance-file']
+  })
+)
+const GIT_OPERATION_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map(
+  Object.entries({
+    push: [
+      '--force',
+      '--force-with-lease',
+      '--force-if-includes',
+      '--no-force',
+      '--no-force-with-lease',
+      '--no-force-if-includes',
+      '-u',
+      '--set-upstream',
+      '-d',
+      '--delete',
+      '--tags',
+      '--all',
+      '--mirror',
+      '--atomic',
+      '-n',
+      '--dry-run',
+      '-v',
+      '--verbose',
+      '-q',
+      '--quiet',
+      '--porcelain',
+      '--progress',
+      '--no-verify',
+      '--follow-tags',
+      '--signed',
+      '--recurse-submodules',
+      '--thin',
+      '--no-thin'
+    ],
+    reset: [
+      '--hard',
+      '--soft',
+      '--mixed',
+      '--merge',
+      '--keep',
+      '-q',
+      '--quiet',
+      '--recurse-submodules',
+      '--no-recurse-submodules',
+      '-p',
+      '--patch',
+      '-N',
+      '--intent-to-add',
+      '--pathspec-from-file',
+      '--pathspec-file-nul'
+    ],
+    checkout: [
+      '--force',
+      '-b',
+      '-B',
+      '--orphan',
+      '-t',
+      '--track',
+      '--no-track',
+      '--detach',
+      '-m',
+      '--merge',
+      '-p',
+      '--patch',
+      '-q',
+      '--quiet',
+      '--progress',
+      '--no-progress',
+      '--ours',
+      '--theirs',
+      '--ignore-skip-worktree-bits',
+      '--pathspec-file-nul',
+      '--recurse-submodules',
+      '--no-recurse-submodules',
+      '--overlay',
+      '--no-overlay'
+    ],
+    switch: [
+      '--discard-changes',
+      '-c',
+      '-C',
+      '--create',
+      '--force-create',
+      '--detach',
+      '-d',
+      '-m',
+      '--merge',
+      '--orphan',
+      '-q',
+      '--quiet',
+      '-t',
+      '--track',
+      '--no-track',
+      '--guess',
+      '--no-guess',
+      '--recurse-submodules',
+      '--no-recurse-submodules'
+    ],
+    restore: [
+      '--staged',
+      '--worktree',
+      '-p',
+      '--patch',
+      '--ours',
+      '--theirs',
+      '-m',
+      '--merge',
+      '--ignore-unmerged',
+      '--ignore-skip-worktree-bits',
+      '--pathspec-file-nul',
+      '-q',
+      '--quiet',
+      '--progress',
+      '--no-progress',
+      '--overlay',
+      '--no-overlay',
+      '--recurse-submodules',
+      '--no-recurse-submodules'
+    ],
+    clean: ['--force', '--dry-run', '-d', '-x', '-X', '-i', '--interactive', '-q', '--quiet']
+  })
+)
+const ALIASES: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([
+  ['push', new Map([['-f', '--force']])],
+  ['checkout', new Map([['-f', '--force']])],
+  [
+    'clean',
+    new Map([
+      ['-f', '--force'],
+      ['-n', '--dry-run']
+    ])
   ],
-  reset: [
-    '--hard',
-    '--soft',
-    '--mixed',
-    '--merge',
-    '--keep',
-    '-q',
-    '--quiet',
-    '--recurse-submodules',
-    '--no-recurse-submodules',
-    '-p',
-    '--patch',
-    '-N',
-    '--intent-to-add',
-    '--pathspec-from-file',
-    '--pathspec-file-nul'
+  [
+    'restore',
+    new Map([
+      ['-S', '--staged'],
+      ['-W', '--worktree']
+    ])
   ],
-  checkout: [
-    '--force',
-    '-b',
-    '-B',
-    '--orphan',
-    '-t',
-    '--track',
-    '--no-track',
-    '--detach',
-    '-m',
-    '--merge',
-    '-p',
-    '--patch',
-    '-q',
-    '--quiet',
-    '--progress',
-    '--no-progress',
-    '--ours',
-    '--theirs',
-    '--ignore-skip-worktree-bits',
-    '--pathspec-file-nul',
-    '--recurse-submodules',
-    '--no-recurse-submodules',
-    '--overlay',
-    '--no-overlay'
-  ],
-  switch: [
-    '--discard-changes',
-    '-c',
-    '-C',
-    '--create',
-    '--force-create',
-    '--detach',
-    '-d',
-    '-m',
-    '--merge',
-    '--orphan',
-    '-q',
-    '--quiet',
-    '-t',
-    '--track',
-    '--no-track',
-    '--guess',
-    '--no-guess',
-    '--recurse-submodules',
-    '--no-recurse-submodules'
-  ],
-  restore: [
-    '--staged',
-    '--worktree',
-    '-p',
-    '--patch',
-    '--ours',
-    '--theirs',
-    '-m',
-    '--merge',
-    '--ignore-unmerged',
-    '--ignore-skip-worktree-bits',
-    '--pathspec-file-nul',
-    '-q',
-    '--quiet',
-    '--progress',
-    '--no-progress',
-    '--overlay',
-    '--no-overlay',
-    '--recurse-submodules',
-    '--no-recurse-submodules'
-  ],
-  clean: ['--force', '--dry-run', '-d', '-x', '-X', '-i', '--interactive', '-q', '--quiet']
-}
-const ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  push: { '-f': '--force' },
-  checkout: { '-f': '--force' },
-  clean: { '-f': '--force', '-n': '--dry-run' },
-  restore: { '-S': '--staged', '-W': '--worktree' },
-  switch: { '-f': '--discard-changes', '--force': '--discard-changes' }
-}
+  [
+    'switch',
+    new Map([
+      ['-f', '--discard-changes'],
+      ['--force', '--discard-changes']
+    ])
+  ]
+])
 
 const SCRIPT_RUNNERS = new Set([
   ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash', 'fish', 'source', '.'],
   ...['node', 'nodejs', 'python', 'python3', 'py', 'ruby', 'perl', 'deno', 'bun', 'powershell', 'pwsh']
 ])
-const EXEC_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  find: ['-exec', '-execdir', '-ok', '-okdir'],
-  fd: ['-x', '--exec', '-X', '--exec-batch']
-}
+const EXEC_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map(
+  Object.entries({
+    find: ['-exec', '-execdir', '-ok', '-okdir'],
+    fd: ['-x', '--exec', '-X', '--exec-batch']
+  })
+)
 
 // PowerShell built-in aliases whose cmdlet a rule selects; `ri` is Ruby's doc tool elsewhere.
-const POWERSHELL_ALIASES: Readonly<Record<string, string>> = { ri: 'remove-item', clc: 'clear-content' }
+const POWERSHELL_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['ri', 'remove-item'],
+  ['clc', 'clear-content']
+])
 
 export function executableName(value: string, insensitive = false): string {
   const name = value.replace(/\\/g, '/').split('/').at(-1) ?? value
@@ -295,8 +326,9 @@ export function resolveCommandWords(
       continue
     }
     const base = executableName(words[index], insensitive)
-    const name = (powershellAliases && POWERSHELL_ALIASES[base]) || base
-    if (!(name in WRAPPERS)) return { command: name, args: words.slice(index + 1), offset: index, elevated, wrappers }
+    const name = (powershellAliases && POWERSHELL_ALIASES.get(base)) || base
+    const wrapperOptions = WRAPPERS.get(name)
+    if (!wrapperOptions) return { command: name, args: words.slice(index + 1), offset: index, elevated, wrappers }
     elevated ||= ['sudo', 'doas', 'pkexec'].includes(name)
     const start = index++
     let incomplete = false
@@ -307,9 +339,9 @@ export function resolveCommandWords(
         break
       }
       const option = words[index].split('=')[0]
-      const attached = option.length > 2 && !option.startsWith('--') && WRAPPERS[name].includes(option.slice(0, 2))
-      if (!attached && !WRAPPERS[name].includes(option) && !WRAPPER_FLAGS[name]?.includes(option)) incomplete = true
-      index += WRAPPERS[name].includes(option) && !words[index].includes('=') ? 2 : 1
+      const attached = option.length > 2 && !option.startsWith('--') && wrapperOptions.includes(option.slice(0, 2))
+      if (!attached && !wrapperOptions.includes(option) && !WRAPPER_FLAGS.get(name)?.includes(option)) incomplete = true
+      index += wrapperOptions.includes(option) && !words[index].includes('=') ? 2 : 1
     }
     if (name === 'timeout') index++
     wrappers.push({ executable: name, args: words.slice(start + 1, index), incomplete })
@@ -318,7 +350,7 @@ export function resolveCommandWords(
 }
 
 export function canonicalOption(command: CommandSemantics, option: string): string {
-  return ALIASES[command.subcommands[0]]?.[option] ?? option
+  return ALIASES.get(command.subcommands[0] ?? '')?.get(option) ?? option
 }
 
 export function interpretCommand(node: ExecutableCommand): CommandSemantics | undefined {
@@ -434,7 +466,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     if (!hasSubcommand) result.operands.push(first)
     index++
   }
-  const valueOptions = new Set(OPTION_VALUES[result.subcommands[0]] ?? [])
+  const valueOptions = new Set(OPTION_VALUES.get(result.subcommands[0] ?? '') ?? [])
   let literal = false
   for (; index < result.args.length; index++) {
     const word = result.args[index]
@@ -490,7 +522,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     )
   )
     result.incomplete = true
-  const known = result.executable === 'git' ? GIT_OPERATION_OPTIONS[result.subcommands[0]] : undefined
+  const known = result.executable === 'git' ? GIT_OPERATION_OPTIONS.get(result.subcommands[0] ?? '') : undefined
   if (known && [...result.options.keys()].some((option) => !known.includes(option) && !valueOptions.has(option)))
     result.incomplete = true
   const executable = result.executable
@@ -562,7 +594,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
 
 /** Argv that `find` or `fd` executes for each match, up to its terminator. */
 export function executedCommandWords(command: CommandSemantics): CommandWord[][] {
-  const starts = EXEC_OPTIONS[command.executable] ?? []
+  const starts = EXEC_OPTIONS.get(command.executable) ?? []
   const result: CommandWord[][] = []
   for (let index = 0; index < command.args.length; index++) {
     if (!starts.includes(command.args[index].value ?? '')) continue

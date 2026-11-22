@@ -35,7 +35,7 @@ export const normalizeProxyBypassRules = (rules?: string | string[]): string[] =
     : []
 }
 
-export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env): Record<string, string> => {
+export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env) => {
   const proxyEnv: Record<string, string> = {}
 
   for (const key of NODE_PROXY_ENV_KEYS) {
@@ -75,7 +75,7 @@ export const isSocksProxyProtocol = (protocol: string | null): boolean => {
   return protocol !== null && protocol.startsWith('socks')
 }
 
-export const buildNodeProxyEnvironment = (config: NodeProxyConfig): Record<string, string> => {
+export const buildNodeProxyEnvironment = (config: NodeProxyConfig) => {
   const proxyUrl = config.proxyRules?.trim()
   if (!proxyUrl) {
     return {}
@@ -83,31 +83,33 @@ export const buildNodeProxyEnvironment = (config: NodeProxyConfig): Record<strin
 
   const normalizedByPassRules = normalizeProxyBypassRules(config.proxyBypassRules)
   const proxyProtocol = getProxyProtocol(proxyUrl)
-  const env: Record<string, string> = {
+  const env = {
     [CHERRY_NODE_PROXY_RULES_ENV]: proxyUrl,
-    [CHERRY_NODE_PROXY_BYPASS_RULES_ENV]: normalizedByPassRules.join(',')
-  }
-
-  if (normalizedByPassRules.length > 0) {
-    env.NO_PROXY = normalizedByPassRules.join(',')
-    env.no_proxy = normalizedByPassRules.join(',')
+    [CHERRY_NODE_PROXY_BYPASS_RULES_ENV]: normalizedByPassRules.join(','),
+    ...(normalizedByPassRules.length > 0 && {
+      NO_PROXY: normalizedByPassRules.join(','),
+      no_proxy: normalizedByPassRules.join(',')
+    })
   }
 
   if (isSocksProxyProtocol(proxyProtocol)) {
-    env.SOCKS_PROXY = proxyUrl
-    env.socks_proxy = proxyUrl
-    env.ALL_PROXY = proxyUrl
-    env.all_proxy = proxyUrl
-    return env
+    return {
+      ...env,
+      SOCKS_PROXY: proxyUrl,
+      socks_proxy: proxyUrl,
+      ALL_PROXY: proxyUrl,
+      all_proxy: proxyUrl
+    }
   }
 
-  env.grpc_proxy = proxyUrl
-  env.HTTP_PROXY = proxyUrl
-  env.HTTPS_PROXY = proxyUrl
-  env.http_proxy = proxyUrl
-  env.https_proxy = proxyUrl
-  env.ALL_PROXY = proxyUrl
-  env.all_proxy = proxyUrl
-
-  return env
+  return {
+    ...env,
+    grpc_proxy: proxyUrl,
+    HTTP_PROXY: proxyUrl,
+    HTTPS_PROXY: proxyUrl,
+    http_proxy: proxyUrl,
+    https_proxy: proxyUrl,
+    ALL_PROXY: proxyUrl,
+    all_proxy: proxyUrl
+  }
 }

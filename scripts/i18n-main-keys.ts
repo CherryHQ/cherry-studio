@@ -1,7 +1,7 @@
 import ts from 'typescript'
 
 /** Collect literal translation keys without interpreting comments, strings or regexes as calls. */
-export function collectMainTranslationKeys(content: string, filename: string): { keys: string[]; dynamic: string[] } {
+export function collectMainTranslationKeys(content: string, filename: string) {
   const source = ts.createSourceFile(filename, content, ts.ScriptTarget.Latest, true)
   const names = new Set<string>()
   for (const statement of source.statements) {

@@ -238,10 +238,7 @@ export class AiSdkSpanAdapter {
    * Extract inputs and outputs from AI SDK attributes.
    * Maps precisely by span type per the AI SDK documentation.
    */
-  private static extractInputsOutputs(attributes: Attributes): {
-    inputs?: TraceAttributeValue
-    outputs?: TraceAttributeValue
-  } {
+  private static extractInputsOutputs(attributes: Attributes) {
     const operationId = attributes['ai.operationId']
     let inputs: TraceAttributeValue = undefined
     let outputs: TraceAttributeValue = undefined
@@ -548,19 +545,11 @@ export class AiSdkSpanAdapter {
   /**
    * Filter relevant attributes, removing unneeded system attributes.
    */
-  private static filterRelevantAttributes(attributes: Attributes): Attributes {
-    const filtered: Attributes = {}
-
+  private static filterRelevantAttributes(attributes: Attributes) {
     // Keep useful attributes; drop those already handled separately.
     const excludeKeys = ['ai.usage', 'ai.prompt', 'ai.response', 'ai.input', 'ai.output', 'inputs', 'outputs']
 
-    Object.entries(attributes).forEach(([key, value]) => {
-      if (!excludeKeys.includes(key)) {
-        filtered[key] = value
-      }
-    })
-
-    return filtered
+    return Object.fromEntries(Object.entries(attributes).filter(([key]) => !excludeKeys.includes(key)))
   }
 
   /**

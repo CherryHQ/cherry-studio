@@ -3,7 +3,7 @@ export function scopeModelRefresh<M extends { id: string }, O extends { modelId:
   current: { models: M[]; overrides: O[] },
   generated: { models: M[]; overrides: O[] },
   modelIds: readonly string[]
-): { models: M[]; overrides: O[] } {
+) {
   const selected = new Set(modelIds)
   const generatedIds = new Set(generated.models.map((model) => model.id))
   for (const id of selected) {

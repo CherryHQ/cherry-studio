@@ -245,11 +245,7 @@ export class AgentWorkspaceService {
     return rowToAgentWorkspace(result.row)
   }
 
-  private findOrCreateRowByNormalizedPathTx(
-    tx: DbOrTx,
-    workspacePath: string,
-    options: { name?: string } = {}
-  ): { row: AgentWorkspaceRow; created: boolean } {
+  private findOrCreateRowByNormalizedPathTx(tx: DbOrTx, workspacePath: string, options: { name?: string } = {}) {
     const [existing] = tx
       .select()
       .from(agentWorkspaceTable)

@@ -151,7 +151,7 @@ async function resolveFallback(
     return null
   }
 
-  const repairUsagePlugins: { current?: AiPlugin[] } = {}
+  let repairUsagePlugins: AiPlugin[] | undefined
   const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
@@ -159,7 +159,7 @@ async function resolveFallback(
     model,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
-    getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
+    getRepairUsagePlugins: () => repairUsagePlugins ?? []
   })
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
@@ -173,7 +173,7 @@ async function resolveFallback(
   }
 
   const usagePlugin = args.createUsagePlugin({ provider, model, sdkModelId: sdkConfig.modelId, credentialReceipt })
-  repairUsagePlugins.current = [usagePlugin]
+  repairUsagePlugins = [usagePlugin]
   const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
     sdkConfig.providerId,
     sdkConfig.providerSettings,

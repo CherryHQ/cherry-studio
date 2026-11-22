@@ -12,6 +12,10 @@ function isPlainObject(v: JSONValue | undefined): v is JSONObject {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+function setOwnField(body: JSONObject, key: string, value: JSONValue | undefined): void {
+  Object.defineProperty(body, key, { value, enumerable: true, configurable: true, writable: true })
+}
+
 /**
  * Merge a `contribute()` result into the body: deep-merge nested plain objects
  * (google's `imageConfig` assembled from `aspectRatio` + `size`) and drop empty
@@ -22,11 +26,12 @@ function isPlainObject(v: JSONValue | undefined): v is JSONObject {
 function mergeContribution(body: JSONObject, contribution: JSONObject): void {
   for (const [k, v] of Object.entries(contribution)) {
     if (isPlainObject(v)) {
-      const target = isPlainObject(body[k]) ? body[k] : {}
+      const previous = Object.hasOwn(body, k) ? body[k] : undefined
+      const target = isPlainObject(previous) ? previous : {}
       mergeContribution(target, v)
-      if (Object.keys(target).length > 0) body[k] = target
+      if (Object.keys(target).length > 0) setOwnField(body, k, target)
     } else if (v !== undefined && v !== '' && v !== 'auto') {
-      body[k] = v
+      setOwnField(body, k, v)
     }
   }
 }
@@ -41,13 +46,13 @@ function mergeContribution(body: JSONObject, contribution: JSONObject): void {
  * `aspectRatio`) are routed elsewhere except where a profile re-declares one in
  * the body (silicon duplicates `seed`; google nests `aspectRatio`/`size`).
  */
-export function buildImageRequest(paramValues: ParamValues, profile: WireProfile): Record<string, JSONValue> {
+export function buildImageRequest(paramValues: ParamValues, profile: WireProfile) {
   const values: Record<string, ParamValues[keyof ParamValues]> = paramValues
   const body: Record<string, JSONValue> = {}
   for (const key of profile.forward ?? []) {
     const value = values[key]
     if (skipValue(value)) continue
-    body[wireName(key)] = value
+    setOwnField(body, wireName(key), value)
   }
   for (const [key, rule] of Object.entries(profile.fields ?? {})) {
     if (!rule) continue
@@ -56,7 +61,7 @@ export function buildImageRequest(paramValues: ParamValues, profile: WireProfile
     if (rule.contribute) {
       mergeContribution(body, rule.contribute(value, paramValues))
     } else if (rule.to) {
-      body[rule.to] = rule.map ? rule.map(value, paramValues) : value
+      setOwnField(body, rule.to, rule.map ? rule.map(value, paramValues) : value)
     }
   }
   return body
@@ -69,25 +74,19 @@ export function buildImageRequest(paramValues: ParamValues, profile: WireProfile
  * undefined; remaining values keep their downstream SDK/serialization behavior.
  * Mirrors the legacy `diffusion` emitter's `jsonBagFields` filter.
  */
-// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Vendor extensions may include runtime callbacks; retain the existing top-level filter before downstream serialization.
-function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
-  const out: Record<string, JSONValue> = {}
-  for (const [k, v] of Object.entries(bag)) {
-    if (typeof v === 'function' || typeof v === 'symbol' || v === undefined) continue
-    out[k] = v as JSONValue
-  }
-  return out
+function jsonBag<T>(bag: Record<string, T>) {
+  return Object.fromEntries(
+    Object.entries(bag).filter(
+      ([, value]) => typeof value !== 'function' && typeof value !== 'symbol' && value !== undefined
+    )
+  )
 }
 
 /** The vendor-bag entries the profile does NOT map (via `forward` or `fields`) —
  *  what `passthrough` forwards. */
-function passthroughExtras<T>(vendorBag: Record<string, T>, profile: WireProfile): Record<string, T> {
+function passthroughExtras<T>(vendorBag: Record<string, T>, profile: WireProfile) {
   const mapped = new Set<string>([...(profile.forward ?? []), ...Object.keys(profile.fields ?? {})])
-  const out: Record<string, T> = {}
-  for (const [k, v] of Object.entries(vendorBag)) {
-    if (!mapped.has(k)) out[k] = v
-  }
-  return out
+  return Object.fromEntries(Object.entries(vendorBag).filter(([key]) => !mapped.has(key)))
 }
 
 /**
@@ -105,13 +104,12 @@ function passthroughExtras<T>(vendorBag: Record<string, T>, profile: WireProfile
  * fields win over passthrough on name collision, exactly as the legacy emitter's
  * `{ ...jsonBagFields(bag), ...diffusionBody }` spread did.
  */
-export function buildVendorProviderOptions(
+export function buildVendorProviderOptions<T = never>(
   providerId: string,
   paramValues: ParamValues,
   registration: WireRegistration,
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unmapped provider extensions and callbacks stay opaque until the passthrough filter and SDK/serialization boundary.
-  vendorBag: Record<string, unknown> = {}
-): Record<string, Record<string, JSONValue>> {
+  vendorBag: Record<string, T> = {}
+) {
   const mapped = buildImageRequest(paramValues, registration.profile)
   // passthrough forwards vendor-bag fields the profile does NOT map (cfg,
   // imageResolution, …) — never the canonical keys the profile already
@@ -119,20 +117,20 @@ export function buildVendorProviderOptions(
   // profile). Native params (n/size/seed/aspectRatio) never reach the bag.
   const extras = passthroughExtras(vendorBag, registration.profile)
   const body = registration.passthrough ? { ...jsonBag(extras), ...mapped } : mapped
-  const result: Record<string, Record<string, JSONValue>> = {}
+  const result = new Map<string, Record<string, JSONValue | T>>()
   // The primary body rides under the registration's delivery key when it overrides
   // the provider id (Vertex: id `google-vertex`, but the SDK reads `providerOptions.vertex`).
-  if (Object.keys(body).length > 0) result[registration.key ?? providerId] = body
+  if (Object.keys(body).length > 0) result.set(registration.key ?? providerId, body)
   // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
   // never the passthrough vendor bag: `@ai-sdk/openai` rejects unknown fields,
   // while the provider's own key (e.g. aihubmix, whose custom model reads the bag)
   // gets the full body. With no passthrough (the openai family) body === mapped, so
   // this is unchanged for them.
-  if (registration.dualOpenAI && Object.keys(mapped).length > 0) result.openai = mapped
+  if (registration.dualOpenAI && Object.keys(mapped).length > 0) result.set('openai', mapped)
   // Sibling-key bodies (dmxapi → google.imageConfig), emitted only when non-empty.
   for (const extra of registration.also ?? []) {
     const extraBody = buildImageRequest(paramValues, extra.profile)
-    if (Object.keys(extraBody).length > 0) result[extra.key] = extraBody
+    if (Object.keys(extraBody).length > 0) result.set(extra.key, extraBody)
   }
-  return result
+  return Object.fromEntries(result)
 }

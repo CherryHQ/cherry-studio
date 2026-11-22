@@ -23,7 +23,7 @@ const roles = {
   invalid: 'error'
 }
 
-export function getCodeBlockPalette(theme: Theme): Record<string, string> {
+export function getCodeBlockPalette(theme: Theme) {
   const variables = typeof theme.cssVariables === 'object' ? theme.cssVariables : undefined
   // Palette themes store variable suffixes instead of colors.
   const color = (value: string | undefined) => {
@@ -34,20 +34,23 @@ export function getCodeBlockPalette(theme: Theme): Record<string, string> {
   const foreground = color(theme.style['editor.foreground'] ?? theme.style.text) ?? 'var(--foreground)'
   const background = color(theme.style['editor.background'] ?? theme.style.background) ?? 'var(--background)'
   const player = theme.style.players?.[0]
-  const palette: Record<string, string> = {
-    '--code-foreground': foreground,
-    '--code-background': background,
-    '--code-selection': color(player?.selection) ?? 'var(--accent)',
-    '--code-caret': color(player?.cursor) ?? foreground
-  }
+  const palette: [string, string][] = [
+    ['--code-foreground', foreground],
+    ['--code-background', background],
+    ['--code-selection', color(player?.selection) ?? 'var(--accent)'],
+    ['--code-caret', color(player?.cursor) ?? foreground]
+  ]
   for (const [role, scope] of Object.entries(roles)) {
     const syntax = theme.style.syntax?.[scope]
     const settings = typeof syntax === 'string' ? { color: syntax } : syntax
-    palette[`--code-syntax-${role}`] = color(settings?.color) ?? foreground
-    palette[`--code-syntax-${role}-style`] = settings?.font_style ?? (role === 'emphasis' ? 'italic' : 'normal')
-    palette[`--code-syntax-${role}-weight`] = String(
-      settings?.font_weight ?? (role === 'strong' || role === 'heading' ? 700 : 400)
+    palette.push(
+      [`--code-syntax-${role}`, color(settings?.color) ?? foreground],
+      [`--code-syntax-${role}-style`, settings?.font_style ?? (role === 'emphasis' ? 'italic' : 'normal')],
+      [
+        `--code-syntax-${role}-weight`,
+        String(settings?.font_weight ?? (role === 'strong' || role === 'heading' ? 700 : 400))
+      ]
     )
   }
-  return palette
+  return Object.fromEntries(palette)
 }

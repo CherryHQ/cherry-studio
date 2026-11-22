@@ -107,16 +107,16 @@ export const download = (url: string, filename?: string) => {
 function getExtensionFromMimeType(mimeType: string | null): string {
   if (!mimeType) return '.bin' // 默认二进制文件扩展名
 
-  const mimeToExtension: { [key: string]: string } = {
-    'image/jpeg': '.jpg',
-    'image/png': '.png',
-    'image/gif': '.gif',
-    'image/svg+xml': '.svg',
-    'application/pdf': '.pdf',
-    'text/plain': '.txt',
-    'application/msword': '.doc',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
-  }
+  const mimeToExtension: ReadonlyMap<string, string> = new Map([
+    ['image/jpeg', '.jpg'],
+    ['image/png', '.png'],
+    ['image/gif', '.gif'],
+    ['image/svg+xml', '.svg'],
+    ['application/pdf', '.pdf'],
+    ['text/plain', '.txt'],
+    ['application/msword', '.doc'],
+    ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx']
+  ])
 
-  return mimeToExtension[mimeType] || '.bin'
+  return mimeToExtension.get(mimeType) ?? '.bin'
 }

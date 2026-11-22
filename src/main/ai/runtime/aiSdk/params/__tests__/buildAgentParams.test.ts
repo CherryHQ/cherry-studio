@@ -2204,6 +2204,30 @@ describe('applyCallOverrides', () => {
     providerOptions: {}
   })
 
+  it('adds a reserved provider namespace as own data without mutating either input', () => {
+    const existing = Object.freeze({ openai: Object.freeze({ keep: true, shared: 'base' }) })
+    const overrides = Object.freeze({
+      ['__proto__']: Object.freeze({ literal: true }),
+      openai: Object.freeze({ shared: 'override' })
+    })
+
+    const result = applyCallOverrides(
+      { standardParams: {}, providerOptions: existing },
+      { providerOptions: overrides },
+      makeModel()
+    )
+
+    expect(result.providerOptions.openai).toEqual({ keep: true, shared: 'override' })
+    expect(Object.getOwnPropertyDescriptor(result.providerOptions, '__proto__')).toMatchObject({
+      value: { literal: true },
+      enumerable: true
+    })
+    expect(Object.getPrototypeOf(result.providerOptions)).toBe(Object.prototype)
+    expect(existing.openai).toEqual({ keep: true, shared: 'base' })
+    expect(Object.hasOwn(existing, '__proto__')).toBe(false)
+    expect(Object.getPrototypeOf(existing)).toBe(Object.prototype)
+  })
+
   it('applies sampling overrides at highest precedence', () => {
     const overrides: CallOverrides = { temperature: 0.9, topP: 0.5, maxOutputTokens: 100, stopSequences: ['STOP'] }
     const result = applyCallOverrides(

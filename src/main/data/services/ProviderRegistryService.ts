@@ -348,22 +348,22 @@ export function inferCustomModelReasoning(
 }
 
 /** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
-const MODEL_NAME_ACRONYMS: Record<string, string> = {
-  api: 'API',
-  asr: 'ASR',
-  glm: 'GLM',
-  gpt: 'GPT',
-  hd: 'HD',
-  llm: 'LLM',
-  mt: 'MT',
-  ocr: 'OCR',
-  tts: 'TTS',
-  vl: 'VL'
-}
+const MODEL_NAME_ACRONYMS: ReadonlyMap<string, string> = new Map([
+  ['api', 'API'],
+  ['asr', 'ASR'],
+  ['glm', 'GLM'],
+  ['gpt', 'GPT'],
+  ['hd', 'HD'],
+  ['llm', 'LLM'],
+  ['mt', 'MT'],
+  ['ocr', 'OCR'],
+  ['tts', 'TTS'],
+  ['vl', 'VL']
+])
 
 /** Title-case a single id token: acronyms upper-case, a leading lowercase letter capitalized, existing casing preserved. */
 function titleCaseIdToken(token: string): string {
-  const acronym = MODEL_NAME_ACRONYMS[token.toLowerCase()]
+  const acronym = MODEL_NAME_ACRONYMS.get(token.toLowerCase())
   if (acronym) return acronym
   if (/^[a-z]/.test(token)) return token.charAt(0).toUpperCase() + token.slice(1)
   return token
@@ -1135,16 +1135,7 @@ class ProviderRegistryService {
   }
 
   /** Resolve registry metadata from explicit provider context without querying SQLite. */
-  resolveModel(
-    providerContext: ReasoningProviderContext,
-    modelId: string
-  ): {
-    providerModel?: Model
-    presetModel: ProtoModelConfig | null
-    registryOverride: ProtoProviderModelOverride | null
-    reasoningProfile: ResolvedReasoningProfile
-    serviceTierControl?: ResolvedServiceTierControl
-  } {
+  resolveModel(providerContext: ReasoningProviderContext, modelId: string) {
     const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
     if (presetProvider?.modelResolution?.source === 'provider') {
@@ -1161,7 +1152,7 @@ class ProviderRegistryService {
           ownedBy: presetProvider.id,
           isEnabled: true,
           isHidden: false
-        },
+        } satisfies Model,
         reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
       }
     }

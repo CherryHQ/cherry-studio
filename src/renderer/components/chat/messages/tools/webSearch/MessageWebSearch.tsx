@@ -9,7 +9,7 @@ import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema }
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 
 /** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
-function parseResultUrl(url: string): { hostname: string; domain: string } {
+function parseResultUrl(url: string) {
   try {
     const hostname = new URL(url).hostname
     return { hostname, domain: hostname.replace(/^www\./, '') }

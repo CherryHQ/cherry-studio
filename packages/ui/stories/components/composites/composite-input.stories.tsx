@@ -431,12 +431,8 @@ export const SelectVariantSizes: Story = {
 
 export const SelectVariantInteractive: Story = {
   render: function SelectVariantInteractiveExample() {
-    const [amount, setAmount] = useState('')
-    const [currency] = useState('usd')
-    const [converted, setConverted] = useState<{ value: number; currency: string } | null>(null)
-
     // Mock exchange rates
-    const rates: Record<string, number> = {
+    const rates = {
       usd: 1,
       eur: 0.92,
       gbp: 0.79,
@@ -444,6 +440,9 @@ export const SelectVariantInteractive: Story = {
       cny: 7.24,
       aud: 1.52
     }
+    const [amount, setAmount] = useState('')
+    const [currency] = useState<keyof typeof rates>('usd')
+    const [converted, setConverted] = useState<{ value: number; currency: string } | null>(null)
 
     const handleConvert = () => {
       const numAmount = parseFloat(amount)

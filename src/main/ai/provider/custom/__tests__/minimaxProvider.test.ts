@@ -3,6 +3,30 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMinimaxProvider } from '../minimax/minimaxProvider'
 
 describe('createMinimaxProvider', () => {
+  it('retains reserved response header names as own metadata fields', async () => {
+    const provider = createMinimaxProvider({
+      apiKey: 'sk-test',
+      fetch: async () =>
+        new Response(JSON.stringify({ data: { image_urls: ['https://cdn.example.com/image.png'] } }), {
+          headers: { ['__proto__']: 'trace-marker' }
+        })
+    })
+
+    const result = await provider.imageModel('image-01').doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+
+    expect(Object.hasOwn(result.response.headers ?? {}, '__proto__')).toBe(true)
+    expect(result.response.headers?.__proto__).toBe('trace-marker')
+  })
+
   it('posts the complete text-to-image request and parses URL output', async () => {
     const imageUrl = 'https://cdn.example.com/minimax.png'
     const fetch = vi.fn().mockResolvedValue(

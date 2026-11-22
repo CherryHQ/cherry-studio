@@ -806,13 +806,13 @@ export async function exportMessagesToTarget(
 const ALERT_MARKER_RE = /^\[!([A-Za-z][\w-]*)\]/
 
 // Fixed alert-type → Notion callout icon/color pairs (issue #16388 spec)
-const ALERT_CALLOUT_MAP: Record<string, { emoji: string; color: string }> = {
-  NOTE: { emoji: '💡', color: 'blue_background' },
-  TIP: { emoji: '✅', color: 'green_background' },
-  IMPORTANT: { emoji: '⭐', color: 'purple_background' },
-  WARNING: { emoji: '⚠️', color: 'yellow_background' },
-  CAUTION: { emoji: '🚫', color: 'red_background' }
-}
+const ALERT_CALLOUT_MAP: ReadonlyMap<string, { emoji: string; color: string }> = new Map([
+  ['NOTE', { emoji: '💡', color: 'blue_background' }],
+  ['TIP', { emoji: '✅', color: 'green_background' }],
+  ['IMPORTANT', { emoji: '⭐', color: 'purple_background' }],
+  ['WARNING', { emoji: '⚠️', color: 'yellow_background' }],
+  ['CAUTION', { emoji: '🚫', color: 'red_background' }]
+])
 const UNKNOWN_ALERT_CALLOUT = { emoji: '📝', color: 'gray_background' }
 
 const stripLeadingNewline = (segment: any): any =>
@@ -866,7 +866,7 @@ const quoteToCallout = (block: any, isAlert: boolean): any => {
   if (!match) {
     return block
   }
-  const style = ALERT_CALLOUT_MAP[match[1].toUpperCase()] ?? UNKNOWN_ALERT_CALLOUT
+  const style = ALERT_CALLOUT_MAP.get(match[1].toUpperCase()) ?? UNKNOWN_ALERT_CALLOUT
   return {
     object: 'block',
     type: 'callout',

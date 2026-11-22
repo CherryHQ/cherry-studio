@@ -95,7 +95,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
   return isManagedCherryProviderId(provider.id) || provider.presetProviderId === CHERRYAI_PROVIDER_ID
 }
 
-export function isNewApiProvider(provider: Provider): boolean {
+export function isNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>): boolean {
   return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 

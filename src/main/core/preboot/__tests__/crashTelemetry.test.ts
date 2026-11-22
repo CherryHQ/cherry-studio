@@ -135,12 +135,16 @@ describe('initCrashTelemetry', () => {
 
     const listener = onHeadersReceived.mock.calls[0]?.[0]
     const callback = vi.fn()
+    const responseHeaders = Object.freeze({
+      'Content-Type': ['application/json'],
+      'X-Proxy-Message': ['机器已连接'],
+      ['__proto__']: ['literal header'],
+      constructor: ['literal constructor'],
+      toString: ['literal string']
+    })
     listener(
       {
-        responseHeaders: {
-          'Content-Type': ['application/json'],
-          'X-Proxy-Message': ['机器已连接']
-        }
+        responseHeaders
       },
       callback
     )
@@ -148,9 +152,14 @@ describe('initCrashTelemetry', () => {
     expect(callback).toHaveBeenCalledWith({
       responseHeaders: {
         'Content-Type': ['application/json'],
+        ['__proto__']: ['literal header'],
+        constructor: ['literal constructor'],
+        toString: ['literal string'],
         'Document-Policy': ['include-js-call-stacks-in-crash-reports']
       }
     })
+    expect(Object.getPrototypeOf(callback.mock.calls[0][0].responseHeaders)).toBe(Object.prototype)
+    expect(responseHeaders['X-Proxy-Message']).toEqual(['机器已连接'])
   })
 
   describe('production-only process error handlers', () => {

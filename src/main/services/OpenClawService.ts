@@ -387,11 +387,11 @@ const OPENCLAW_API_TYPES = {
  * OpenClaw requires a non-empty apiKey value even for local providers.
  * Keys are matched by provider preset/id first, then by provider type.
  */
-const NO_KEY_PLACEHOLDERS: Record<string, string> = {
-  gpustack: 'gpustack',
-  ollama: 'ollama',
-  lmstudio: 'lmstudio'
-}
+const NO_KEY_PLACEHOLDERS: ReadonlyMap<string, string> = new Map([
+  ['gpustack', 'gpustack'],
+  ['ollama', 'ollama'],
+  ['lmstudio', 'lmstudio']
+])
 
 /**
  * Providers that always use Anthropic API format
@@ -485,7 +485,7 @@ export class OpenClawService extends BaseService {
    * (covers stop→start cycles that revisit the same status) plus the port,
    * which can change without a transition via syncConfig.
    */
-  private gatewayGeneration(): { transitionId: number; port: number } {
+  private gatewayGeneration() {
     return { transitionId: this.gatewayTransitionId, port: this.gatewayPort }
   }
 
@@ -1362,9 +1362,9 @@ export class OpenClawService extends BaseService {
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
     const providerKey = provider.presetProviderId ?? provider.id
     return (
-      NO_KEY_PLACEHOLDERS[providerKey] ??
-      NO_KEY_PLACEHOLDERS[provider.id] ??
-      (provider.type ? NO_KEY_PLACEHOLDERS[provider.type] : undefined)
+      NO_KEY_PLACEHOLDERS.get(providerKey) ??
+      NO_KEY_PLACEHOLDERS.get(provider.id) ??
+      (provider.type ? NO_KEY_PLACEHOLDERS.get(provider.type) : undefined)
     )
   }
 

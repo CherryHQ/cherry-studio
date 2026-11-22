@@ -11,12 +11,15 @@ import { getNormalizedExtension } from './utils'
 /** 语言对应的 linter 加载器
  * key: 语言文件扩展名（不包含 `.`）
  */
-const linterLoaders: Record<string, () => Promise<any>> = {
-  json: async () => {
-    const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
-    return linter(jsonParseLinter())
-  }
-}
+const linterLoaders: ReadonlyMap<string, () => Promise<Extension>> = new Map([
+  [
+    'json',
+    async () => {
+      const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
+      return linter(jsonParseLinter())
+    }
+  ]
+])
 
 /**
  * 加载 linter 扩展
@@ -24,7 +27,7 @@ const linterLoaders: Record<string, () => Promise<any>> = {
 async function loadLinterExtension(language: string, languageConfig?: LanguageConfig): Promise<Extension | null> {
   const fileExt = await getNormalizedExtension(language, languageConfig)
 
-  const loader = linterLoaders[fileExt]
+  const loader = linterLoaders.get(fileExt)
   if (!loader) return null
 
   try {

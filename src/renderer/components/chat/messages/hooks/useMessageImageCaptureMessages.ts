@@ -1,30 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { MessageExportView } from '@renderer/types/messageExport'
-import { createPartsByMessageId, exportViewToUIMessage } from '@renderer/utils/message/exportView'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createPartsByMessageId } from '@renderer/utils/message/exportView'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 interface UseMessageImageCaptureMessagesOptions<TMessage> {
   loadMessages: () => Promise<TMessage[]>
-  mapMessage?: (message: TMessage) => CherryUIMessage
+  mapMessage: (message: TMessage) => CherryUIMessage
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Injected message loading or projection can throw arbitrary values; pass the current failure to the owning capture host.
   onError: (error: unknown) => void
 }
 
-export function useMessageImageCaptureMessages<TMessage = MessageExportView>({
+export function useMessageImageCaptureMessages<TMessage>({
   loadMessages,
   mapMessage,
   onError
-}: UseMessageImageCaptureMessagesOptions<TMessage>): {
-  messages: CherryUIMessage[] | null
-  partsByMessageId: Record<string, CherryMessagePart[]>
-} {
+}: UseMessageImageCaptureMessagesOptions<TMessage>) {
   const [messages, setMessages] = useState<CherryUIMessage[] | null>(null)
-
-  const toUIMessage = useMemo(
-    () => mapMessage ?? ((message: TMessage) => exportViewToUIMessage(message as MessageExportView)),
-    [mapMessage]
-  )
 
   useEffect(() => {
     let cancelled = false
@@ -32,7 +23,7 @@ export function useMessageImageCaptureMessages<TMessage = MessageExportView>({
 
     void loadMessages()
       .then((loadedMessages) => {
-        if (!cancelled) setMessages(loadedMessages.map(toUIMessage))
+        if (!cancelled) setMessages(loadedMessages.map(mapMessage))
       })
       .catch((error) => {
         if (!cancelled) onError(error)
@@ -41,7 +32,7 @@ export function useMessageImageCaptureMessages<TMessage = MessageExportView>({
     return () => {
       cancelled = true
     }
-  }, [loadMessages, onError, toUIMessage])
+  }, [loadMessages, onError, mapMessage])
 
   const partsByMessageId = useMemo(() => (messages ? createPartsByMessageId(messages) : {}), [messages])
 

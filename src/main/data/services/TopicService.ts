@@ -627,7 +627,7 @@ export class TopicService {
     )
   }
 
-  setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
+  setActiveNode(topicId: string, nodeId: string) {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
     notifyDataApiDataChange([
       {
