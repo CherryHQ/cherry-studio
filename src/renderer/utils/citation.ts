@@ -15,7 +15,7 @@ import type { Root, RootContent } from 'mdast'
 import remarkDefinitionList from 'remark-definition-list'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
-import { unified, type Pluggable } from 'unified'
+import { unified, type Plugin } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
@@ -26,7 +26,7 @@ import { cleanMarkdownContent } from '@renderer/utils/formats'
 const markdownParser = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkDefinitionList as Pluggable)
+  .use(remarkDefinitionList as Plugin)
 
 type CodeRange = { start: number; end: number }
 

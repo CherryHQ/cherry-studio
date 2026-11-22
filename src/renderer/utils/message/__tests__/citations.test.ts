@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import type * as citationUtils from '../../citation'
 import { mapMarkdownOutsideCode } from '../../citation'
 
 vi.mock('../../citation', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../citation')>()
+  const actual = await importOriginal<typeof citationUtils>()
   return { ...actual, mapMarkdownOutsideCode: vi.fn(actual.mapMarkdownOutsideCode) }
 })
 
