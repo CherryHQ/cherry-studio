@@ -113,23 +113,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         SELECT min(fts_rowid) FROM agent_session_message WHERE session_id = ${owner.sessionId} AND id IN (${inputIds})
       ))`
       : sql``
-  const eligibleInput = (onSelectedBranch: boolean) => sql`
-    ${currentInputs.length ? sql`AND m.id NOT IN (${inputIds})` : sql``}
-    ${
-      agent
-        ? sql`AND NOT (m.role = 'user' AND m.reply_id IS NULL
-      AND (m.input_context_id IS NOT NULL OR m.native_input_id IS NOT NULL ${pendingAfterCurrent})
-      AND NOT EXISTS (
-        SELECT 1 FROM agent_session_message r
-        WHERE r.session_id = m.session_id AND r.parent_id = m.id AND r.role = 'assistant' AND r.status = 'success'
-          ${onSelectedBranch ? sql`AND r.id IN (SELECT id FROM branch)` : sql``}
-          AND NOT EXISTS (
-            SELECT 1 FROM agent_session_message u WHERE u.session_id = r.session_id AND u.reply_id = r.id
-          )
-      ))`
-        : sql``
-    }
-  `
+  const excludeCurrent = currentInputs.length ? sql`AND m.id NOT IN (${inputIds})` : sql``
   const rows = database.all<RecallRow>(sql`
     SELECT m.id AS messageId, ${conversationId} AS conversationId,
            m.created_at AS createdAt, m.searchable_text AS text, m.role, c.active_node_id AS activeNodeId
@@ -137,7 +121,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
     JOIN ${conversations} c ON c.id = ${conversationId}
     WHERE ${condition} AND ${ownerCondition} AND c.deleted_at IS NULL
       AND ${target?.messageId ? sql`m.role IN ('user', 'assistant')` : sql`m.role = 'user'`} AND m.status = 'success'
-      ${eligibleInput(false)}
+      ${excludeCurrent}
     ORDER BY ${order}, m.id DESC LIMIT 64
   `)
   const branches = new Map<string, string[]>()
@@ -146,7 +130,13 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
     let branch = branches.get(row.conversationId)
     if (!branch) {
       // Walk IDs to the real beginning; only selected excerpts load message bodies.
-      const nodes = database.all<{ id: string; parentId: string | null; eligible: number }>(sql`
+      const nodes = database.all<{
+        id: string
+        parentId: string | null
+        eligible: number
+        legacyInput: number
+        completion: number
+      }>(sql`
         WITH RECURSIVE branch(id, parent_id) AS (
           SELECT p.id, p.parent_id FROM ${table} p
           WHERE p.id = ${row.activeNodeId} AND ${parentConversationId} = ${row.conversationId}
@@ -156,25 +146,56 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
           WHERE ${parentConversationId} = ${row.conversationId} ${agent ? sql`` : sql`AND p.deleted_at IS NULL`}
         )
         SELECT b.id, b.parent_id AS parentId,
+          ${
+            agent
+              ? sql`(m.role = 'user' AND m.reply_id IS NULL AND
+            (m.input_context_id IS NOT NULL OR m.native_input_id IS NOT NULL ${pendingAfterCurrent}))`
+              : sql`0`
+          } AS legacyInput,
+          ${
+            agent
+              ? sql`(m.role = 'assistant' AND m.status = 'success' AND m.delivery IS NULL
+            AND m.id NOT IN (SELECT u.reply_id FROM agent_session_message u
+              WHERE u.session_id = ${row.conversationId} AND u.reply_id IS NOT NULL))`
+              : sql`0`
+          } AS completion,
           (${ownerCondition} AND m.status = 'success' AND m.role IN ('user', 'assistant')
             AND length(trim(m.searchable_text)) > 0
-            ${eligibleInput(true)}
+            ${excludeCurrent}
           ) AS eligible
         FROM branch b JOIN ${table} m ON m.id = b.id
         JOIN ${conversations} c ON c.id = ${conversationId}
       `)
       const byId = new Map(nodes.map((node) => [node.id, node]))
       const visited = new Set<string>()
-      branch = []
+      const selectedIds: string[] = []
+      // Before reply links existed, consecutive queued inputs could be followed by their
+      // replies in FIFO order. Require enough unclaimed completions for the entire group.
+      const legacyGroup: typeof nodes = []
+      let completions = 0
+      const finishGroup = () => {
+        if (!legacyGroup.length) return
+        if (completions >= legacyGroup.length) {
+          for (const input of legacyGroup) if (input.eligible) selectedIds.push(input.id)
+        }
+        legacyGroup.length = 0
+        completions = 0
+      }
       let id = row.activeNodeId
       while (id && !visited.has(id)) {
         visited.add(id)
         const node = byId.get(id)
         if (!node) break
-        if (node.eligible) branch.push(id)
+        if (node.legacyInput) legacyGroup.push(node)
+        else {
+          finishGroup()
+          completions = node.completion ? completions + 1 : 0
+          if (node.eligible) selectedIds.push(id)
+        }
         id = node.parentId
       }
-      branch.reverse()
+      finishGroup()
+      branch = selectedIds.reverse()
       branches.set(row.conversationId, branch)
     }
     if (branch.includes(row.messageId)) matches.push(row)

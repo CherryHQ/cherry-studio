@@ -220,6 +220,40 @@ describe('FTS conversation recall in memory references', () => {
     expect(await lookup()).toEqual([false, false])
   })
 
+  it('recalls completed pre-link queued inputs whose replies follow the later input', async () => {
+    const {
+      id,
+      ids: [b, c, replyB, replyC]
+    } = conversation('agent', ['Older needle', 'Later needle', 'Answer B', 'Answer C'])
+    for (const input of [b, c]) {
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ role: 'user', nativeInputId: input })
+        .where(eq(agentSessionMessageTable.id, input))
+        .run()
+    }
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ role: 'assistant' })
+      .where(eq(agentSessionMessageTable.id, replyB))
+      .run()
+    const owner = { sessionId }
+    for (const [tip, visible] of [
+      [replyC, true],
+      [replyB, false]
+    ] as const) {
+      dbh.db.update(agentSessionTable).set({ activeNodeId: tip }).where(eq(agentSessionTable.id, id)).run()
+      const hits = excerpts(await conversationRecallReference(owner, 'needle', turn))
+      for (const input of [b, c]) {
+        expect(hits.some((item) => item.messageId === input)).toBe(visible)
+        const direct = excerpts(
+          await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: input })
+        )
+        expect(direct.some((item) => item.messageId === input)).toBe(visible)
+      }
+    }
+  })
+
   it('pairs a queued Agent input with its linked reply instead of the later branch tip', async () => {
     const { id, ids } = conversation('agent', ['Earlier needle', 'Current needle B', 'Queued needle C', 'Answer B'])
     const [, b, c, reply] = ids
