@@ -2,8 +2,9 @@ import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 
 export type ShellIntegrationEvent =
-  | { kind: 'program'; revision: number }
+  | { kind: 'program'; revision: number; command?: string }
   | { kind: 'prompt'; revision: number; exitCode: number; cwd: string }
+  | { kind: 'ready'; revision: number; promptRevision: number }
   | { kind: 'unknown' }
 
 /** Recognizes only this managed shell's bounded, monotonically numbered integration frames. */
@@ -47,8 +48,31 @@ export class ShellIntegration {
       const revision = Number(fields[0])
       if (!Number.isSafeInteger(revision) || revision <= this.revision) continue
       this.revision = revision
-      if (fields.length === 2 && fields[1] === 'B') this.event({ kind: 'program', revision })
-      else if (
+      if ((fields.length === 2 || fields.length === 3) && fields[1] === 'B') {
+        const encoded = fields.length === 3 ? fields[2] : ''
+        const bytes = Buffer.from(encoded, 'base64')
+        const command = bytes.toString('utf8')
+        this.event({
+          kind: 'program',
+          revision,
+          ...(encoded &&
+          bytes.toString('base64') === encoded &&
+          !command.includes('\0') &&
+          Buffer.byteLength(command) <= 8192 &&
+          Buffer.from(command).equals(bytes)
+            ? { command }
+            : {})
+        })
+      } else if (
+        fields.length === 3 &&
+        fields[1] === 'R' &&
+        /^\d+$/.test(fields[2]) &&
+        Number.isSafeInteger(Number(fields[2])) &&
+        Number(fields[2]) > 0 &&
+        Number(fields[2]) < revision
+      ) {
+        this.event({ kind: 'ready', revision, promptRevision: Number(fields[2]) })
+      } else if (
         fields.length === 4 &&
         fields[1] === 'P' &&
         /^-?\d{1,10}$/.test(fields[2]) &&

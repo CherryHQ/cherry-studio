@@ -11,7 +11,7 @@ __cherry_zsh_prompt() {
 __cherry_zsh_before_command() {
   emulate -L zsh
   (( __cherry_sequence++ ))
-  builtin printf '\033]633;Cherry;%s;%s;B\007' "$__cherry_token" "$__cherry_sequence"
+  builtin printf '\033]633;Cherry;%s;%s;B;%s\007' "$__cherry_token" "$__cherry_sequence" "$(builtin printf '%s' "$1" | head -c 8193 | base64 | tr -d '\r\n')"
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd __cherry_zsh_prompt

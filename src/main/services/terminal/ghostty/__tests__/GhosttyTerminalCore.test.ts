@@ -5,6 +5,8 @@ import path from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 import manifest from '../../../../../../resources/terminal/ghostty/manifest.json'
+import { TerminalBlockIndex } from '../../utilityEntries/TerminalBlockIndex'
+import { TerminalSearch } from '../../utilityEntries/TerminalSearch'
 import { GhosttyRuntime, type GhosttyRuntimeOptions } from '../GhosttyRuntime'
 import {
   GHOSTTY_CELL_WIDE,
@@ -61,6 +63,173 @@ function rowText(screen: GhosttySnapshot, row: number) {
 }
 
 describe('headless Ghostty engine', () => {
+  it('finishes native history search through bounded Host turns without relying on a view to feed it', () => {
+    const core = terminal()
+    core.write(Array.from({ length: 5000 }, (_, n) => `row ${n} find\r\n`).join(''))
+    const index = new TerminalBlockIndex(core, 'scheduled')
+    const query = new TerminalSearch('scheduled-query', 1, { kind: 'terminal' }, 'find', core, index)
+    let result = query.step(core.revision)
+    for (let n = 0; n < 200 && result.status === 'searching'; n++) result = query.step(core.revision)
+    expect(result).toMatchObject({ status: 'caught-up', count: 5000 })
+    query.close()
+    index.dispose()
+  })
+  it('does not expose a disclosure for ANSI-only output that moves the cursor through blank rows', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'empty')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ true\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'true' })
+    core.write('\x1b[2B')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    expect(index.summaries()[0]).toMatchObject({ outputEmpty: true, status: 'completed' })
+    index.dispose()
+  })
+  it('refreshes block search geometry after reflow and refuses navigation using its old result revision', () => {
+    const core = terminal()
+    core.resize(80, 10, 8, 16)
+    const index = new TerminalBlockIndex(core, 'reflow')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ run\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'run' })
+    core.write('prefix 中文🙂1234567890 tail\r\n')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const block = index.summaries()[0]
+    const query = new TerminalSearch('reflow-query', 1, { kind: 'block', blockId: block.id }, '中文🙂', core, index)
+    const before = structuredClone(query.step(core.revision))
+    expect(before.count).toBe(1)
+    expect(before.matches).toHaveLength(1)
+    core.resize(10, 10, 8, 16)
+    expect(query.navigate(before.resultRevision, 'next', core.revision)).toBeNull()
+    const after = query.step(core.revision)
+    expect(after.count).toBe(1)
+    expect(after.matches[0].end.y).toBeGreaterThan(before.matches[0].end.y)
+    expect(query.navigate(after.resultRevision, 'next', core.revision)?.selected?.range).toEqual(after.matches[0])
+    query.close()
+    index.dispose()
+  })
+  it('returns an explicit bounded suffix for large blocks and preserves complete command metadata', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'large')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ large\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'large' })
+    for (let n = 0; n < 2000; n++) core.write(`row-${n}: ${'中文🙂'.repeat(12)}\r\n`)
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const block = index.summaries()[0]
+    const read = index.read(block.id, 'block')
+    expect(read.kind).toBe('content')
+    if (read.kind !== 'content') throw new Error('No captured output')
+    expect(read.partial).toContain('size')
+    expect(read.text).toContain('"partial":["size"]')
+    expect(read.text).toContain('\nlarge\n')
+    expect(read.text).toContain('row-1999:')
+    expect(read.text).not.toContain('row-0:')
+    expect(Buffer.byteLength(JSON.stringify(read))).toBeLessThanOrEqual(60 * 1024)
+    expect(read.text).not.toContain('\ufffd')
+    index.dispose()
+  })
+
+  it('retires old metadata at its byte budget without losing the active or newest command', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'metadata')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    let first = ''
+    for (let n = 0; n < 270; n++) {
+      core.write('❯ run\r\n')
+      index.boundary({ kind: 'program', revision: n * 2 + 2, command: `${n}:` + 'x'.repeat(8000) })
+      if (n === 0) first = index.summaries()[0].id
+      core.write('done\r\n')
+      index.written()
+      index.boundary({ kind: 'prompt', revision: n * 2 + 3, exitCode: 0, cwd: '/tmp' })
+    }
+    const blocks = index.summaries()
+    expect(blocks.length).toBeLessThan(256)
+    expect(Buffer.byteLength(JSON.stringify(blocks))).toBeLessThanOrEqual(256 * 1024)
+    expect(blocks.at(-1)?.command).toMatch(/^269:/)
+    expect(index.read(first, 'block')).toEqual({ kind: 'unavailable' })
+    index.dispose()
+  })
+
+  it('releases block query capacity on close so a failed allocation cannot damage execution', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'queries')
+    const queries = Array.from(
+      { length: 33 },
+      (_, n) => new TerminalSearch(`block-${n}`, 1, { kind: 'block', blockId: 'missing' }, 'find', core, index)
+    )
+    expect(queries.at(-1)?.projection.status).toBe('capacity')
+    for (const query of queries) query.close()
+    const next = new TerminalSearch('reused', 2, { kind: 'block', blockId: 'missing' }, 'find', core, index)
+    expect(next.projection.status).toBe('searching')
+    next.close()
+    core.write('usable')
+    expect(rowText(core.snapshot(), 0)).toBe('usable')
+    index.dispose()
+  })
+  it('keeps immutable command/output ranges across scrolling and reflow, and invalidates overwritten regions', () => {
+    const core = terminal()
+    core.resize(80, 10, 8, 16)
+    const index = new TerminalBlockIndex(core, 'resource')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ printf test\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'printf test' })
+    core.write('中文🙂\r\nsecond\r\n')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ ')
+    const [block] = index.summaries()
+    expect(block).toMatchObject({ command: 'printf test', status: 'completed', reliable: true })
+    expect(index.read(block.id, 'output')).toMatchObject({ kind: 'content', text: '中文🙂\nsecond' })
+    core.resize(10, 10, 8, 16)
+    expect(index.read(block.id, 'output')).toMatchObject({ kind: 'content', text: '中文🙂\nsecond' })
+    core.write('\x1b[3;1HREPLACED')
+    expect(index.summaries()[0].reliable).toBe(false)
+    expect(index.read(block.id, 'output')).toEqual({ kind: 'unavailable' })
+    expect(index.read(block.id, 'command')).toMatchObject({ kind: 'content', text: 'printf test' })
+    index.dispose()
+  })
+
+  it('refuses an exact expired block revision and keeps normal selections while formatting offscreen output', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'resource')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ run\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'run' })
+    for (let i = 0; i < 30; i++) core.write(`line ${i}\r\n`)
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ ')
+    const block = index.summaries()[0]
+    core.setSelection({ x: 0, y: 0 }, { x: 3, y: 0 })
+    const selected = core.selectionText()
+    expect(index.read(block.id, 'output')).toMatchObject({ kind: 'content' })
+    expect(core.selectionText()).toBe(selected)
+    expect(index.read(block.id, 'output', block.contentRevision - 1)).toEqual({ kind: 'stale' })
+    index.dispose()
+  })
+
+  it('encodes printable UTF-8 keys and an IME commit using the current string ABI', () => {
+    const core = terminal()
+    const event = {
+      key: 20,
+      mods: 0,
+      consumedMods: 0,
+      composing: false,
+      unshiftedCodepoint: 97,
+      text: 'a',
+      repeat: false
+    }
+    expect(core.encodeKey(event)).toBe('a')
+    expect(core.encodeKey({ ...event, key: 0, text: '中文🙂', unshiftedCodepoint: 0 })).toBe('中文🙂')
+    expect(core.encodeKey({ ...event, key: 0, text: 'echo hello', unshiftedCodepoint: 0 })).toBe('echo hello')
+    expect(core.encodeKey(arrowUp)).toBe('\x1b[A')
+    expect(core.encodePaste('中文🙂')).toBe('中文🙂')
+  })
+
   it('rejects an engine missing a required search entry before creating a terminal', async () => {
     const wasm = Buffer.from(assets.wasm)
     const symbol = Buffer.from('ghostty_search_tick')

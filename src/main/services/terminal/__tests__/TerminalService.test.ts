@@ -440,6 +440,41 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
     expect(created.length).toBe(1)
   })
 
+  it('reports unavailable semantic reads after Host retirement without recreating execution or bypassing view ownership', async () => {
+    const lease = await service.attachRuntime({
+      conversationId: 'retired-read',
+      contextId: 'runtime',
+      bindingId: 'one'
+    })
+    const receipt = await service.start({ lease, replayKey: 'one', turnId: 'turn', launch: launch('printf RETIRED') })
+    if (receipt.kind !== 'resource') throw new Error('No terminal receipt')
+    await expect.poll(() => service.list(lease.conversationId)[0]?.cleanup).toBe('confirmed')
+    await expect.poll(() => stopRequests).toBe(1)
+    const view = service.openView({ host: receipt.resource.host, id: receipt.resource.id }, 'window')
+    expect(
+      await service.listBlocks(view, 'window', { cursor: null, expectedIndexRevision: null, limit: 32 })
+    ).toMatchObject({
+      kind: 'blocks',
+      blocks: [],
+      cursor: null
+    })
+    expect(
+      await service.readBlock(view, 'window', { blockId: 'old', part: 'output', consistency: { kind: 'latest' } })
+    ).toEqual({ kind: 'unavailable' })
+    expect(
+      await service.setSearch(view, 'window', { queryRevision: 1, scope: { kind: 'terminal' }, needle: 'RETIRED' })
+    ).toMatchObject({ status: 'unavailable', count: 0, matches: [] })
+    expect(
+      await service.navigateSearch(view, 'window', { queryRevision: 1, resultRevision: 0, direction: 'next' })
+    ).toBeNull()
+    await service.closeSearch(view, 'window', 1)
+    await expect(
+      service.readBlock(view, 'other-window', { blockId: 'old', part: 'output', consistency: { kind: 'latest' } })
+    ).rejects.toThrow()
+    expect(created.length).toBe(1)
+    await service.closeView(view, 'window')
+  })
+
   it('waits for confirmed old Host exit before admitting its replacement', async () => {
     const lease = await service.attachRuntime({
       conversationId: 'conversation',
