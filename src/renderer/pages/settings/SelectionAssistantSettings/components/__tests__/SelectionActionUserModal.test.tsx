@@ -9,36 +9,52 @@ import type { CustomSelectionAction } from '@shared/types/selection'
 import SelectionActionUserModal from '../SelectionActionUserModal'
 
 // Persistence is owned by the modal; picker interactions are covered with real UI in its own suite.
-vi.mock('../SelectionActionIconPicker', () => ({
-  default: ({
-    value,
-    onChange,
-    onRoll
-  }: {
-    value: string
-    onChange: (icon: string) => void
-    onRoll?: (roll: Promise<string | null>) => void
-  }) => (
-    <div>
-      <output data-testid="saved-icon">{value}</output>
-      <button
-        onClick={() =>
-          onRoll?.(
-            new Promise<string | null>((resolve) => {
-              ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll = () => {
-                onChange('dice-icon')
-                resolve('dice-icon')
-              }
-            })
-          )
-        }>
-        start slow roll
-      </button>
-      <button onClick={() => onChange('heart-pulse')}>pick heart-pulse</button>
-      <button onClick={() => onChange('')}>use default icon</button>
-    </div>
-  )
-}))
+vi.mock('../SelectionActionIconPicker', async () => {
+  const { useEffect, useRef } = await import('react')
+  const useMountedFlag = () => {
+    const mounted = useRef(true)
+    useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
+    return mounted
+  }
+  return {
+    default: ({
+      value,
+      onChange,
+      onRoll
+    }: {
+      value: string
+      onChange: (icon: string) => void
+      onRoll?: (roll: Promise<string | null>) => void
+    }) => {
+      const mounted = useMountedFlag()
+      return (
+        <div>
+          <output data-testid="saved-icon">{value}</output>
+          <button
+            onClick={() =>
+              onRoll?.(
+                new Promise<string | null>((resolve) => {
+                  ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll = () => {
+                    if (mounted.current) onChange('dice-icon')
+                    resolve('dice-icon')
+                  }
+                })
+              )
+            }>
+            start slow roll
+          </button>
+          <button onClick={() => onChange('heart-pulse')}>pick heart-pulse</button>
+          <button onClick={() => onChange('')}>use default icon</button>
+        </div>
+      )
+    }
+  }
+})
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
@@ -190,6 +206,25 @@ describe('SelectionActionUserModal', () => {
     fireEvent.click(screen.getByText('common.confirm'))
     await waitFor(() => expect(onOk).toHaveBeenCalledTimes(1))
     expect(onOk.mock.calls[0][0].icon).toBe('')
+  })
+
+  it('does not carry a roll from a cancelled editor into the next one', async () => {
+    const onOk = vi.fn()
+    const actionA = { id: 'a', name: 'A', prompt: 'pa', icon: '', enabled: true, isBuiltIn: false } as never
+    const actionB = { id: 'b', name: 'B', prompt: 'pb', icon: 'heart', enabled: true, isBuiltIn: false } as never
+    const { rerender } = render(
+      <SelectionActionUserModal isModalOpen editingAction={actionA} onOk={onOk} onCancel={vi.fn()} />
+    )
+    fireEvent.click(screen.getByText('start slow roll'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    fireEvent.click(screen.getByText('common.cancel'))
+    rerender(<SelectionActionUserModal isModalOpen={false} editingAction={actionA} onOk={onOk} onCancel={vi.fn()} />)
+    rerender(<SelectionActionUserModal isModalOpen editingAction={actionB} onOk={onOk} onCancel={vi.fn()} />)
+    ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll?.()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    fireEvent.click(screen.getByText('common.confirm'))
+    await waitFor(() => expect(onOk).toHaveBeenCalledTimes(1))
+    expect(onOk.mock.calls[0][0]).toMatchObject({ id: 'b', icon: 'heart' })
   })
 
   it('submits the complete long prompt', () => {

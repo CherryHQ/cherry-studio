@@ -1,5 +1,5 @@
 import { ChevronDown, Dices } from 'lucide-react'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip, usePortalContainer } from '@cherrystudio/ui'
@@ -20,6 +20,13 @@ const SelectionActionIconPicker = ({ value, onChange, onRoll }: SelectionActionI
   const portalContainer = usePortalContainer()
   // Any newer choice invalidates a dice roll that is still loading the icon list.
   const choiceRef = useRef(0)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
   const selectIcon = (icon: string) => {
     choiceRef.current += 1
     onChange(icon)
@@ -27,13 +34,14 @@ const SelectionActionIconPicker = ({ value, onChange, onRoll }: SelectionActionI
   }
   const rollIcon = async (choice: number): Promise<string | null> => {
     const { iconNames } = await import('lucide-react/dynamic')
-    if (choice !== choiceRef.current) return null
+    if (choice !== choiceRef.current || !mountedRef.current) return null
     const icon = iconNames[Math.floor(Math.random() * iconNames.length)]
     selectIcon(icon)
     return icon
   }
   const selectRandomIcon = () => {
-    const roll = rollIcon(++choiceRef.current)
+    // A failed icon-list import falls back to no roll, so nothing rejects unhandled.
+    const roll = rollIcon(++choiceRef.current).catch(() => null)
     onRoll?.(roll)
     return roll
   }

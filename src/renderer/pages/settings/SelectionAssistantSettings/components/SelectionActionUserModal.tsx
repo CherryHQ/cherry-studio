@@ -96,14 +96,18 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   const submitTokenRef = useRef(0)
   const submittingRef = useRef(false)
 
+  // Each open editor is its own session: a roll or submit started in one never reaches the next.
+  const [editorSession, setEditorSession] = useState(0)
   const invalidatePendingSubmit = () => {
     submitTokenRef.current += 1
     submittingRef.current = false
+    pendingRollRef.current = null
   }
 
   useEffect(() => {
-    if (!isModalOpen) invalidatePendingSubmit()
-  }, [isModalOpen])
+    invalidatePendingSubmit()
+    if (isModalOpen) setEditorSession((session) => session + 1)
+  }, [isModalOpen, editingAction])
 
   const handleCancel = () => {
     invalidatePendingSubmit()
@@ -187,13 +191,15 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 </ModalSectionTitle>
                 <Suspense fallback={<div aria-busy="true" className="h-9 w-full rounded-md border border-border" />}>
                   <SelectionActionIconPicker
+                    key={editorSession}
                     value={formData.icon || ''}
                     onChange={(icon) => handleInputChange('icon', icon)}
                     onRoll={(roll) => {
                       pendingRollRef.current = roll
-                      void roll.finally(() => {
+                      const clear = () => {
                         if (pendingRollRef.current === roll) pendingRollRef.current = null
-                      })
+                      }
+                      roll.then(clear, clear)
                     }}
                   />
                 </Suspense>
