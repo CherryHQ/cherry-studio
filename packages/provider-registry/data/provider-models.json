@@ -45442,7 +45442,89 @@
       },
       "modelId": "glm-image",
       "providerId": "zhipu"
+    },
+    {
+      "apiModelId": "claude-opus-4-7",
+      "family": "claude",
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "modelId": "claude-opus-4-7",
+      "name": "Claude Opus 4.7",
+      "ownedBy": "anthropic",
+      "providerId": "crowllm"
+    },
+    {
+      "apiModelId": "deepseek-v4-flash",
+      "family": "deepseek",
+      "limits": {
+        "contextWindow": 128000,
+        "maxOutputTokens": 16384
+      },
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "ownedBy": "deepseek",
+      "providerId": "crowllm"
+    },
+    {
+      "apiModelId": "gemini-3.7-flash",
+      "family": "gemini",
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "gemini-3.7-flash",
+      "name": "Gemini 3.7 Flash",
+      "ownedBy": "google",
+      "providerId": "crowllm"
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "family": "glm",
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "glm-5.3",
+      "name": "GLM 5.3",
+      "ownedBy": "zhipu",
+      "providerId": "crowllm"
+    },
+    {
+      "apiModelId": "kimi-k3",
+      "family": "kimi",
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "kimi-k3",
+      "name": "Kimi K3",
+      "ownedBy": "moonshot",
+      "providerId": "crowllm"
+    },
+    {
+      "apiModelId": "qwen-3.8-27b:free",
+      "family": "qwen",
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 16384
+      },
+      "modelId": "qwen-3.8-27b:free",
+      "name": "Qwen 3.8 27B (free)",
+      "ownedBy": "alibaba",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "crowllm"
     }
   ],
-  "version": "d9eec2e6194d7b65"
+  "version": "93a76c006f389cea"
 }
