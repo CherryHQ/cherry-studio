@@ -12,11 +12,17 @@
 
 import type { GroundingSupport } from '@google/genai'
 import type { Root, RootContent } from 'mdast'
-import { fromMarkdown } from 'mdast-util-from-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+
+// Same syntax extensions the chat renderer parses with, so table cells and strikethrough split code
+// spans exactly as they do on screen.
+const markdownParser = unified().use(remarkParse).use(remarkGfm)
 
 type CodeRange = { start: number; end: number }
 
@@ -35,7 +41,11 @@ function isCitationOpaqueCode(node: Root | RootContent, content: string, start: 
   if (!opener) return false
   if (opener[1][0] === '~') return true
   const lastLine = raw.slice(raw.lastIndexOf('\n') + 1)
-  return raw.includes('\n') && /^[ \t]*`{3,}[ \t]*$/.test(lastLine) && lastLine.trim().length >= opener[1].length
+  return (
+    raw.includes('\n') &&
+    /^[ \t>]*`{3,}[ \t]*$/.test(lastLine) &&
+    lastLine.replace(/[ \t>]/g, '').length >= opener[1].length
+  )
 }
 
 /**
@@ -46,7 +56,7 @@ function isCitationOpaqueCode(node: Root | RootContent, content: string, start: 
 export function findMarkdownCodeRanges(content: string): CodeRange[] {
   if (content === cachedRangesContent) return cachedRanges
   const ranges: CodeRange[] = []
-  const stack: Array<Root | RootContent> = [fromMarkdown(content)]
+  const stack: Array<Root | RootContent> = [markdownParser.parse(content)]
   while (stack.length > 0) {
     const node = stack.pop()!
     if ((node.type === 'code' || node.type === 'inlineCode') && node.position) {

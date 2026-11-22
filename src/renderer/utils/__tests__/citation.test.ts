@@ -666,6 +666,18 @@ Numbered list:
       expect(text.slice(range.end)).toContain('Claim [cite:1].')
     })
 
+    it('ends a fence inside a blockquote at its prefixed closer', () => {
+      const text = '> ```\n> sample [cite:2]\n> ```\n\nClaim [cite:1].'
+      const [range] = findMarkdownCodeRanges(text)
+      expect(text.slice(range.start, range.end)).toContain('sample [cite:2]')
+      expect(text.slice(range.end)).toBe('\n\nClaim [cite:1].')
+    })
+
+    it('does not pair lone backticks across GFM table rows', () => {
+      const text = '| a | b |\n| - | - |\n| lone ` | See [cite:1]. |\n| stray ` | Comment |'
+      expect(findMarkdownCodeRanges(text)).toEqual([])
+    })
+
     it('treats inline code and unrelated text separately', () => {
       expect(codeOf('a `x` b `y [cite:1]` c')).toEqual(['`x`', '`y [cite:1]`'])
     })
