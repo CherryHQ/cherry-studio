@@ -101,12 +101,27 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
             AND topic_id = ${owner.topicId} AND role = 'assistant' AND parent_id IS NOT NULL
         `)
           .map((row) => row.id)
-  const excludeCurrent = currentInputs.length
-    ? sql`AND m.id NOT IN (${sql.join(
-        currentInputs.map((id) => sql`${id}`),
-        sql`, `
-      )})`
-    : sql``
+  const inputIds = sql.join(
+    currentInputs.map((id) => sql`${id}`),
+    sql`, `
+  )
+  // Native admission persists inputs before placement. A linked reply is evidence of placement.
+  // In the live session, later inputs can also be waiting for their native binding.
+  const pendingAfterCurrent =
+    agent && currentInputs.length
+      ? sql`OR (m.session_id = ${owner.sessionId} AND m.fts_rowid > (
+        SELECT min(fts_rowid) FROM agent_session_message WHERE session_id = ${owner.sessionId} AND id IN (${inputIds})
+      ))`
+      : sql``
+  const eligibleInput = sql`
+    ${currentInputs.length ? sql`AND m.id NOT IN (${inputIds})` : sql``}
+    ${
+      agent
+        ? sql`AND NOT (m.role = 'user' AND m.reply_id IS NULL
+      AND (m.input_context_id IS NOT NULL OR m.native_input_id IS NOT NULL ${pendingAfterCurrent}))`
+        : sql``
+    }
+  `
   const rows = database.all<RecallRow>(sql`
     SELECT m.id AS messageId, ${conversationId} AS conversationId,
            m.created_at AS createdAt, m.searchable_text AS text, m.role, c.active_node_id AS activeNodeId
@@ -114,7 +129,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
     JOIN ${conversations} c ON c.id = ${conversationId}
     WHERE ${condition} AND ${ownerCondition} AND c.deleted_at IS NULL
       AND ${target?.messageId ? sql`m.role IN ('user', 'assistant')` : sql`m.role = 'user'`} AND m.status = 'success'
-      ${excludeCurrent}
+      ${eligibleInput}
     ORDER BY ${order}, m.id DESC LIMIT 64
   `)
   const branches = new Map<string, string[]>()
@@ -135,7 +150,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         SELECT b.id, b.parent_id AS parentId,
           (${ownerCondition} AND m.status = 'success' AND m.role IN ('user', 'assistant')
             AND length(trim(m.searchable_text)) > 0
-            ${excludeCurrent}
+            ${eligibleInput}
           ) AS eligible
         FROM branch b JOIN ${table} m ON m.id = b.id
         JOIN ${conversations} c ON c.id = ${conversationId}

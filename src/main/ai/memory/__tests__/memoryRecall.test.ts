@@ -207,10 +207,16 @@ describe('FTS conversation recall in memory references', () => {
     const owner = { sessionId: id, assistantMessageId: reply }
     const hits = excerpts(await conversationRecallReference(owner, 'needle', turn)).map((item) => item.messageId)
     expect(hits).toContain(ids[0])
-    expect(hits).not.toContain(b)
-    expect(excerpts(await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: b }))).toEqual(
-      []
+    for (const hidden of [b, c]) {
+      expect(hits).not.toContain(hidden)
+      expect(
+        excerpts(await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: hidden }))
+      ).toEqual([])
+    }
+    const expanded = excerpts(
+      await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: ids[0] })
     )
+    expect(expanded.map((item) => item.messageId)).not.toContain(c)
     const input = { kind: 'agent' as const, sessionId: id, responseId: reply, userMessageId: b }
     const source = readExtractionSource(input)
     expect(() => readExtractionSource({ ...input, userMessageId: c })).toThrow()
