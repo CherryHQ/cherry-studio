@@ -15,6 +15,7 @@ import {
   type KnowledgeItem,
   KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
+import type { KnowledgeChunkHistoryPage, KnowledgeChunkHistoryQuery } from '@shared/data/types/knowledgeChunkGovernance'
 
 import { OrderRequestSchema } from './_endpointHelpers'
 
@@ -143,6 +144,14 @@ export interface KnowledgeItemListResponse extends CursorPaginationResponse<Know
 }
 
 export type KnowledgeSchemas = {
+  '/knowledge-bases/:baseId/items/:itemId/chunks/:unitId/history': {
+    GET: {
+      params: { baseId: string; itemId: string; unitId: string }
+      query?: KnowledgeChunkHistoryQuery
+      response: KnowledgeChunkHistoryPage
+    }
+  }
+
   '/knowledge-bases': {
     GET: {
       query?: ListKnowledgeBasesQueryParams

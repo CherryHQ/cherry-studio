@@ -13,6 +13,7 @@ import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import type { KnowledgeChunkBatchAction, KnowledgeChunkBatchInput } from '@shared/data/types/knowledgeChunkGovernance'
 
+import { KnowledgeChunkHistory } from './KnowledgeChunkHistory'
 import KnowledgeChunkReviewPanel from './KnowledgeChunkReviewPanel'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -306,6 +307,14 @@ const KnowledgeItemChunkDetailPanel = ({
                     </span>
                   ))}
                 </div>
+              ) : null}
+              {chunk.governance && chunk.governance.revision > 0 ? (
+                <KnowledgeChunkHistory
+                  baseId={baseId}
+                  itemId={itemId}
+                  unitId={chunk.id}
+                  revision={chunk.governance.revision}
+                />
               ) : null}
               <div className="px-3 pb-3">
                 <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{chunk.content}</p>

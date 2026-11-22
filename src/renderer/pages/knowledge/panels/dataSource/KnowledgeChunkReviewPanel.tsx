@@ -7,6 +7,8 @@ import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import type { KnowledgeChunkReviewInput, KnowledgeChunkReviewList } from '@shared/data/types/knowledgeChunkGovernance'
 
+import { KnowledgeChunkHistory } from './KnowledgeChunkHistory'
+
 interface Props {
   baseId: string
   itemId: string
@@ -192,6 +194,7 @@ const KnowledgeChunkReviewPanel = ({ baseId, itemId, chunks, onChanged }: Props)
           ) : (
             <p>{t('knowledge.governance.restore_explain')}</p>
           )}
+          <KnowledgeChunkHistory baseId={baseId} itemId={itemId} unitId={record.unitId} revision={record.revision} />
           {preview ? (
             <div className="space-y-2 border-t border-border pt-2">
               <p>

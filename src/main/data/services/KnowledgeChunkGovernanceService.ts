@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, lt } from 'drizzle-orm'
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -12,6 +12,9 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
+  KnowledgeChunkHistoryQuerySchema,
+  type KnowledgeChunkHistoryQuery,
+  type KnowledgeChunkHistoryPage,
   hasKnowledgeChunkDecision,
   KnowledgeChunkBatchActionSchema,
   KnowledgeChunkGovernanceSourceSchema,
@@ -280,6 +283,48 @@ export class KnowledgeChunkGovernanceService {
   /** One coherent, deterministic read for retrieval revision checks. No source text is logged. */
   listByBase(baseId: string): KnowledgeChunkGovernanceRow[] {
     return this.dbService.getDb().select().from(tables).where(eq(tables.baseId, baseId)).orderBy(asc(tables.id)).all()
+  }
+
+  readHistoryPage(
+    baseId: string,
+    itemId: string,
+    unitId: string,
+    query: KnowledgeChunkHistoryQuery = {}
+  ): KnowledgeChunkHistoryPage {
+    const { beforeRevision, limit } = KnowledgeChunkHistoryQuerySchema.parse(query)
+    const db = this.dbService.getDb()
+    this.assertItem(db, baseId, itemId)
+    const row = this.find(db, baseId, itemId, unitId)
+    if (!row) return { binding: null, items: [] }
+    const history = knowledgeChunkGovernanceHistoryTable
+    const rows = db
+      .select({
+        operation: history.operation,
+        relatedGovernanceId: history.relatedGovernanceId,
+        revision: history.revision,
+        state: history.state,
+        createdAt: history.createdAt
+      })
+      .from(history)
+      .where(and(eq(history.governanceId, row.id), beforeRevision ? lt(history.revision, beforeRevision) : undefined))
+      .orderBy(desc(history.revision))
+      .limit(limit + 1)
+      .all()
+    const items = rows.slice(0, limit)
+    return {
+      binding: {
+        id: row.id,
+        unitId: row.unitId,
+        sourceContentHash: row.sourceContentHash,
+        originalText: row.originalText,
+        charStart: row.charStart,
+        charEnd: row.charEnd,
+        revision: row.revision,
+        retired: row.retired
+      },
+      items,
+      ...(rows.length > limit ? { nextBeforeRevision: items[items.length - 1].revision } : {})
+    }
   }
 
   listHistory(baseId: string, itemId: string, unitId: string) {

@@ -3,6 +3,8 @@ description: Durable Knowledge chunk decisions, retrieval guards and atomic insp
 sources:
   - src/main/data/db/schemas/knowledgeChunkGovernance.ts
   - src/main/data/services/KnowledgeChunkGovernanceService.ts
+  - src/main/data/api/handlers/knowledges.ts
+  - src/renderer/pages/knowledge/panels/dataSource/KnowledgeChunkHistory.tsx
   - src/shared/data/types/knowledgeChunkGovernance.ts
   - src/main/features/knowledge/governance
   - src/main/features/knowledge/query/governance.ts
@@ -61,6 +63,12 @@ Main reads only the two latest history entries, authenticates owning completed i
 
 Restoration does not guess a replacement. Changed or missing sources become review-needed and pause retrieval again. A same-identity source reuses its original decision. Corrections remain pending and suppressed. No provider, embedding, index or source-file work runs. Rebinding remains a separate explicit review after restoration, and a transferred-away record cannot be restored through this action. Repeated discard/restore cycles append revisions rather than erasing history.
 
+## Browsing accepted decisions
+
+Decision history in current chunk cards and source review loads on request, five entries per page; older pages replace the current page. The read-only DataApi endpoint scopes by base, item and exact unit identity, rechecks completed ownership, and refuses directories and mismatched owners. `beforeRevision` selects older revisions with a server maximum of 25 entries. New decisions during browsing do not reorder earlier revisions; the returned binding revision can be newer than the displayed entries.
+
+History shows recorded original text, hash, offsets, operation, revision, time, labels, exclusion and correction, with retired bindings and related transfer identities labeled. A recorded correction is not proof of indexing, and historical decisions are not current retrieval state. Empty history creates no records. Opening, paging and closing do not write, restore arbitrary revisions or call a provider. Close, source switches and parent revision refresh clear evidence and ignore late responses; access or malformed-response errors clear the page and show a generic refreshable error.
+
 ## Retrieval authority
 
 Before search, `KnowledgeQueryService` reads durable record IDs/revisions and derives exclusions from the actual index. Exact unit/material IDs, source/content hashes, offsets and body text must match. There is no title, ordinal-only or similarity matching.
@@ -75,7 +83,7 @@ Main revalidates revisions and exact-index reconciliation before reranking and b
 ## Boundaries Still Pending
 
 - Effective-text/embedding jobs, complete lexical/vector publication, crash recovery and correction editing/removal.
-- General history browsing, arbitrary revision restoration and undoing a rebind.
+- Arbitrary revision restoration and undoing a rebind.
 - Base backup/restore of durable decisions and history.
 - Original/corrected citation revisions and historical references.
 - Provider-cost disclosure for future correction work and native Electron acceptance.

@@ -3,6 +3,8 @@ description: Knowledge 分块决策的持久化、检索防护和原子检查器
 sources:
   - src/main/data/db/schemas/knowledgeChunkGovernance.ts
   - src/main/data/services/KnowledgeChunkGovernanceService.ts
+  - src/main/data/api/handlers/knowledges.ts
+  - src/renderer/pages/knowledge/panels/dataSource/KnowledgeChunkHistory.tsx
   - src/shared/data/types/knowledgeChunkGovernance.ts
   - src/main/features/knowledge/governance
   - src/main/features/knowledge/query/governance.ts
@@ -61,6 +63,12 @@ Main 只读取最近两条历史，在同一变更锁内验证所属条目和知
 
 恢复不会猜测替换目标。源已变化或缺失时，记录重新进入待复核状态并暂停检索；源身份完全相同时则复用原始决定。修正仍待处理且不参与检索。不执行提供商、嵌入、索引或源文件工作。恢复后重新绑定仍需单独显式复核，已转出的记录不能通过此操作恢复。重复丢弃和恢复会追加修订，不会擦除历史。
 
+## 浏览已接受的决策
+
+当前分块及源复核中的“决策历史”按需加载，每页五条，旧页替换当前页。只读 DataApi 端点按知识库、条目和精确分块身份限定读取，重新检查所属条目和知识库均已完成，拒绝目录和不匹配的所有权。可通过 `beforeRevision` 读取更早修订，服务端每页最多 25 条。浏览过程中新增决策不会重排之前的修订；页面展示时的绑定修订可比历史条目更新。
+
+历史显示记录的原文、哈希、偏移、操作、修订、时间、标签、排除状态及修正文，并标明停用绑定和转移关联身份。记录的修正不代表已索引，历史决策不代表当前检索状态。没有决策时不会创建记录。打开、翻页和关闭不写入，不恢复任意修订，也不运行提供商。关闭、源切换或父级修订刷新会清除证据并忽略延迟响应；权限或格式错误会清除页面并显示通用错误，要求刷新。
+
 ## 检索权威边界
 
 搜索前，`KnowledgeQueryService` 读取持久记录 ID/修订，并根据实际索引计算排除集合。精确分块/材料 ID、源/内容哈希、偏移及正文必须匹配。不按标题、单独序号或相似度匹配。
@@ -75,7 +83,7 @@ Main 在重排前和返回前重新验证修订及精确索引匹配。并发变
 ## 仍待完成的边界
 
 - 有效文字/嵌入任务、完整词法/向量发布、崩溃恢复及修正编辑/移除。
-- 通用历史浏览、任意修订恢复以及撤销重新绑定。
+- 任意修订恢复以及撤销重新绑定。
 - 持久决策与历史的知识库备份/恢复。
 - 原文/修正文引用修订及历史引用。
 - 后续修正工作的提供商费用说明及原生 Electron 验收。
