@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire, stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -155,6 +155,95 @@ it('forks a completed native reply after renamed-workspace recovery retains the 
 
 it('forks a later original reply when recovery copied history but the workspace rebind was rejected', async () => {
   const f = await fixture()
+  const messageUuid = randomUUID()
+  const user = JSON.parse(f.content)
+  const assistant = {
+    type: 'assistant',
+    sessionId: f.nativeThreadId,
+    uuid: messageUuid,
+    parentUuid: user.uuid,
+    timestamp: '2026-01-01T00:00:01.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'Retained reply' }] }
+  }
+  const content = f.content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, content)
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  // Recovery has already published its record, but the final service probe rejects B.
+  // A remains bound and receives another reply after that copy was verified.
+  assistant.uuid = randomUUID()
+  const later = content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, later)
+  const checkpoint = {
+    runtime: 'claude-code',
+    runtimeSessionId: f.nativeThreadId,
+    messageUuid: assistant.uuid,
+    configDir: f.configDir
+  }
+  const fork = await forkClaudeSession({
+    sourceSessionId: 'source',
+    targetSessionId: 'fork',
+    checkpoint,
+    checkpoints: [checkpoint],
+    targetCwd: f.sourceCwd,
+    artifactDirectory: path.join(f.configDir, 'fork-test'),
+    signal: AbortSignal.timeout(15_000)
+  })
+  expect(fork.resumeToken).not.toBe(f.nativeThreadId)
+  expect(fork.checkpoints).toHaveLength(1)
+  expect(await readFile(f.source, 'utf8')).toBe(later)
+  expect(await readFile(f.target, 'utf8')).toBe(content)
+})
+
+it('keeps a committed B archive address after a competing A-to-C recovery publishes', async () => {
+  const f = await fixture()
+  const messageUuid = randomUUID()
+  const user = JSON.parse(f.content)
+  const assistant = {
+    type: 'assistant',
+    sessionId: f.nativeThreadId,
+    uuid: messageUuid,
+    parentUuid: user.uuid,
+    timestamp: '2026-01-01T00:00:01.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'Retained reply' }] }
+  }
+  const content = f.content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.source, content)
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  const third = path.join(f.configDir, 'workspace-c')
+  await mkdir(third, { recursive: true })
+  await nativeWorker('workspaceRecoveryWorker.ts', { ...f, targetCwd: third }, f.configDir)
+  // Recovery has already published its record, but the final service probe rejects B.
+  // A remains bound and receives another reply after that copy was verified.
+  assistant.uuid = randomUUID()
+  const later = content + JSON.stringify(assistant) + '\n'
+  await writeFile(f.target, later)
+  const checkpoint = {
+    runtime: 'claude-code',
+    runtimeSessionId: f.nativeThreadId,
+    messageUuid: assistant.uuid,
+    configDir: f.configDir
+  }
+  const fork = await forkClaudeSession({
+    sourceSessionId: 'source',
+    targetSessionId: 'fork',
+    checkpoint,
+    checkpoints: [checkpoint],
+    targetCwd: f.targetCwd,
+    artifactDirectory: path.join(f.configDir, 'fork-test'),
+    signal: AbortSignal.timeout(15_000)
+  })
+  expect(fork.resumeToken).not.toBe(f.nativeThreadId)
+  expect(fork.checkpoints).toHaveLength(1)
+  expect(await readFile(f.source, 'utf8')).toBe(content)
+  expect(await readFile(f.target, 'utf8')).toBe(later)
+})
+
+it('retains the actual unique fallback project key for a rejected disconnected-alias recovery', async () => {
+  const f = await fixture()
+  const canonical = path.join(f.configDir, 'projects', 'canonical-saved-key')
+  await mkdir(canonical, { recursive: true })
+  await rename(f.source, path.join(canonical, `${f.nativeThreadId}.jsonl`))
+  f.source = path.join(canonical, `${f.nativeThreadId}.jsonl`)
   const messageUuid = randomUUID()
   const user = JSON.parse(f.content)
   const assistant = {

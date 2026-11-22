@@ -35,7 +35,7 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     return key
   }
   const projectKey = await keyFor(cwd)
-  const sourceKey = await keyFor(input.sourceCwd)
+  let sourceKey = await keyFor(input.sourceCwd)
   const projects = path.join(input.configDir, 'projects')
   async function regularTree(file: string): Promise<void> {
     const stat = await lstat(file)
@@ -110,6 +110,7 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     }
     if (candidates.length !== 1) throw new Error('Claude history is missing or ambiguous')
     const sourceFile = candidates[0]
+    sourceKey = path.basename(path.dirname(sourceFile))
     const sourceProjectStat = await lstat(path.dirname(sourceFile))
     if (!sourceProjectStat.isDirectory() || sourceProjectStat.isSymbolicLink())
       throw new Error('Invalid Claude source project')
@@ -147,27 +148,31 @@ async function run(input: ClaudeRecoveryWorkerInput) {
   const recordsStat = await lstat(records)
   if (!recordsStat.isDirectory() || recordsStat.isSymbolicLink())
     throw new Error('Invalid Claude recovery record directory')
-  const temporary = path.join(records, `${input.nativeThreadId}.${randomUUID()}.tmp`)
-  try {
-    await writeFile(
-      temporary,
-      JSON.stringify({
-        version: 2,
-        sessionId: input.nativeThreadId,
-        projectKey,
-        sourceProjectKey: sourceKey,
-        sourceCwd: path.resolve(input.sourceCwd),
-        targetCwd: path.resolve(input.targetCwd)
-      }),
-      {
-        flag: 'wx',
-        mode: 0o600
+  async function publish(cwd: string, key: string, exclusive: boolean) {
+    const resolved = path.resolve(cwd)
+    const hash = createHash('sha256').update(resolved).digest('hex')
+    const record = path.join(records, `${input.nativeThreadId}.${hash}.json`)
+    const content = JSON.stringify({ version: 3, sessionId: input.nativeThreadId, cwd: resolved, projectKey: key })
+    if (exclusive) {
+      try {
+        await writeFile(record, content, { flag: 'wx', mode: 0o600 })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       }
-    )
-    await rename(temporary, path.join(records, `${input.nativeThreadId}.json`))
-  } finally {
-    await rm(temporary, { force: true })
+      return
+    }
+    const temporary = path.join(records, `${input.nativeThreadId}.${randomUUID()}.tmp`)
+    try {
+      await writeFile(temporary, content, { flag: 'wx', mode: 0o600 })
+      await rename(temporary, record)
+    } finally {
+      await rm(temporary, { force: true })
+    }
   }
+  // Separate workspace addresses prevent a losing A-to-C request from replacing B's mapping.
+  // Never overwrite an earlier verified source address from another recovery.
+  await publish(input.sourceCwd, sourceKey, true)
+  await publish(input.targetCwd, projectKey, false)
   return { verified: true }
 }
 
