@@ -104,6 +104,36 @@ describe('ErrorBlock', () => {
   })
 
   it.each([
+    {
+      language: 'en-US',
+      catalog: enUS,
+      guidance: 'The Work session could not be found. Start a new conversation to continue.'
+    },
+    { language: 'zh-CN', catalog: zhCN, guidance: '找不到此工作会话。请新建对话后继续。' }
+  ])(
+    'explains a missing Work session and preserves its diagnostic ($language)',
+    async ({ language, catalog, guidance }) => {
+      const user = userEvent.setup()
+      const openErrorDetail = vi.fn()
+      const diagnoseMessageError = vi.fn().mockResolvedValue('Unexpected diagnosis')
+      mocks.actions = { openErrorDetail, diagnoseMessageError, navigateErrorTarget: vi.fn() }
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+      const error = { name: 'Error', message: 'No conversation found with session ID: missing-session', stack: null }
+
+      render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+      expect(screen.getByText(guidance, { exact: true })).toBeInTheDocument()
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      expect(screen.queryByText(error.message, { exact: true })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: catalog['error.diagnosis.go_to_settings'] })).not.toBeInTheDocument()
+      expect(diagnoseMessageError).not.toHaveBeenCalled()
+      await user.click(screen.getByText(catalog['common.detail'], { exact: true }))
+      expect(openErrorDetail).toHaveBeenCalledWith(expect.objectContaining({ error, localizedErrorMessage: guidance }))
+    }
+  )
+
+  it.each([
     { language: 'en-US', detail: '' },
     { language: 'en-US', detail: 'Provider unavailable' },
     { language: 'zh-CN', detail: '' },

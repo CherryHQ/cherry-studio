@@ -10,6 +10,7 @@ export const ERROR_CATEGORIES = [
   'permission',
   'region',
   'model',
+  'session',
   'quota',
   'rate_limit',
   'context_length',
@@ -185,6 +186,13 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('not logged in')
   ) {
     return 'auth'
+  }
+
+  if (
+    (status === undefined || status === 400 || status === 404) &&
+    /\bno conversation found with session id\b/.test(msg)
+  ) {
+    return 'session'
   }
 
   // Model not found (404)

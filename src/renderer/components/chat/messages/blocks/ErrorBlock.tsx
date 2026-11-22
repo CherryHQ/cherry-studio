@@ -106,9 +106,9 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
     return t(errorKey)
   }
 
-  // The headline supplies either the missing model or configuration guidance; the raw local
-  // resolution message adds no useful recovery detail.
-  if (localModelFailure) return null
+  // The headline supplies recovery for local model or session lookup failures.
+  // Raw identifiers remain available in the detail view instead of repeating in the card.
+  if (localModelFailure || category === 'session') return null
 
   if (
     typeof errorStatus === 'number' &&
@@ -256,7 +256,7 @@ const MessageErrorInfo: React.FC<{
   return (
     <div
       className={cn(
-        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
+        'group relative my-2 rounded-lg border border-l-[3px] border-border border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
         canOpenDetail && 'cursor-pointer'
       )}
       onClick={canOpenDetail ? showErrorDetail : undefined}>
@@ -277,7 +277,7 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
+        <div className="pr-5 text-[13px] leading-[1.4] font-medium">{aiSummary || localizedErrorMessage}</div>
       </div>
 
       {/* Description */}

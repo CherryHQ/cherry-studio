@@ -17,6 +17,7 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   permission: { type: 'warning' },
   region: { type: 'warning' },
   model: { type: 'warning', action: 'switchModel' },
+  session: { type: 'warning' },
   quota: { type: 'warning', action: 'billing' },
   rate_limit: { type: 'info', action: 'retry' },
   context_length: { type: 'warning', action: 'trimContext' },

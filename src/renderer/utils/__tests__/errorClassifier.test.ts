@@ -53,6 +53,19 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it('keeps a missing Work session out of provider settings and the stream fallback', () => {
+    const error = makeError({
+      message: 'No conversation found with session ID: missing-session',
+      streamStage: 'response-stream'
+    })
+    expect(classifyError(error, 'deepseek')).toEqual({
+      category: 'session',
+      i18nKey: 'error.diagnosis.session',
+      navTarget: null
+    })
+    expect(classifyError(makeCopiedRetry(error.message!, [error]), 'deepseek').category).toBe('session')
+  })
+
   it.each([
     'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
     'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'

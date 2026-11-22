@@ -119,6 +119,20 @@ submitted as an Agent turn. See [Agent Session Runtime](../ai/agent-session-runt
 for ownership and cancellation. Other runtimes retain the four-message text-only
 fallback. Failures or unusable predictions leave the input unchanged.
 
+## Missing Work sessions
+
+The shared error classifier recognizes the SDK's missing-conversation error as a
+`session` failure, rather than an unknown error or a missing model. The error card
+asks the user to start a new conversation, without directing them to provider
+settings or requesting an automatic AI diagnosis. The card does not repeat raw
+session identifiers; the existing Detail action still receives the original
+serialized error. Sanitized CLI exits retain their diagnostic reference instead
+of exposing private stderr.
+
+Displaying this guidance does not reset session tokens, replay messages, retry a
+send, or create a conversation. Authentication, rate-limit, and server errors
+retain their existing classification.
+
 ## Ordinary persisted chat context
 
 These settings, budgets, and recovery paths apply to ordinary persisted chat
