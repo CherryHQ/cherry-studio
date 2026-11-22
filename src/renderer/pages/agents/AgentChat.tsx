@@ -27,9 +27,11 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import PermissionRequestComposer, {
+  type PermissionRequestComposerProps
+} from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -50,7 +52,13 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
-import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import {
+  type AgentFileNavigationRequest,
+  AgentRightPane,
+  AgentTaskProgressCapsule,
+  useAgentRightPaneActions
+} from './components/AgentRightPane'
+import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -59,7 +67,22 @@ import type { AgentConversationBootstrap } from './useAgentConversationBootstrap
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
+function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
+  const { openAgentToolFlow, canOpenAgentToolFlow } = useAgentRightPaneActions()
+  return (
+    <PermissionRequestComposer
+      {...props}
+      onOpenSource={
+        canOpenAgentToolFlow
+          ? (source) => openAgentToolFlow({ toolCallId: source.toolCallId, title: source.title })
+          : undefined
+      }
+    />
+  )
+}
+
 interface ModelSwitchTarget {
+  sessionId: string
   agentId: string
   model: Model
 }
@@ -78,12 +101,25 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
+  session?: Pick<AgentSessionEntity, 'id' | 'name'>
+}
 
-function AgentTopBarControls(props: AgentTopBarControlsProps) {
+function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <>
+      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+      {session && !iconOnly ? (
+        <AgentSessionNameControl
+          sessionId={session.id}
+          sessionName={session.name}
+          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
+        />
+      ) : null}
+    </>
+  )
 }
 
 interface AgentChatProps {
@@ -213,7 +249,6 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -257,6 +292,8 @@ const AgentChat = ({
     sessionId: sessionSnapshot?.id ?? '',
     modelId: activeModel?.id,
     agentType: activeAgent?.type,
+    agentName: activeAgent?.name,
+    permissionRequestComponent: AgentPermissionRequestComposer,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -308,16 +345,24 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        if (!activeAgent) return
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: activeAgent.id, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      await updateSession({ id: sessionSnapshot.id, model: nextModel.id }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [
+      activeAgent,
+      activeModel?.id,
+      isEmptyConversation,
+      sessionSnapshot,
+      skipModelSwitchConfirmationsForAppRun,
+      updateSession
+    ]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -449,6 +494,7 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
+              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
@@ -567,18 +613,19 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (
-            !activeAgent ||
+            !sessionSnapshot ||
             !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
+            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
             modelSwitchTarget.model.id === activeModel?.id
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}
@@ -641,6 +688,7 @@ const AgentChatSessionCenter = ({
         sendMessage={runtime.sendMessage}
         stop={runtime.stop}
         isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
         sendDisabled={composerPending}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}

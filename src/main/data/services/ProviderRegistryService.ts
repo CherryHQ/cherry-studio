@@ -60,12 +60,12 @@ import type {
   Model,
   ReasoningSummary,
   RuntimeModelPricing,
-  RuntimeParameterSupport,
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -141,10 +141,12 @@ export interface ResolvedServiceTierControl {
   wire: ServiceTierRequestControl['wire']
 }
 
-type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'>
+type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'> & {
+  values?: ResolvedServiceTierControl['wire']['values']
+}
 
-function projectServiceTierControl(control: RuntimeServiceTierControl): RuntimeServiceTierControl {
-  return { default: control.default, options: control.options }
+function projectServiceTierControl(control: ResolvedServiceTierControl): RuntimeServiceTierControl {
+  return { default: control.default, options: control.options, values: control.wire.values }
 }
 
 export interface ReasoningProviderContext {
@@ -419,7 +421,7 @@ export function createCustomModel(
   providerId: string,
   modelId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
@@ -480,7 +482,7 @@ export function mergePresetModel(
   providerId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
   reasoningSupport?: ProtoReasoningSupport,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const {
     capabilities,
@@ -521,7 +523,7 @@ export function mergePresetModel(
     reasoning,
     ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
-    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
+    parameterSupport: projectModelParameterSupport(parameterSupport),
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -1035,6 +1037,9 @@ class ProviderRegistryService {
 
     const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+    if (support && model.userDefaultReasoningEffort !== undefined) {
+      support.defaultEffort = model.userDefaultReasoningEffort
+    }
 
     // The dialect is a CATALOG fact that is deliberately not persisted on the
     // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —

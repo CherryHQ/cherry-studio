@@ -1,4 +1,4 @@
-import type { ComponentType, FC, SVGProps } from 'react'
+import type { FC } from 'react'
 
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
@@ -39,44 +39,57 @@ export const CLI_TOOLS = [
   { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
-type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
-
-const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
-
-// Crop transparent source-canvas padding so the artwork shares a consistent optical size.
-const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
-  [CodeCli.OPEN_CODE]: '16 16 88 88',
-  [CodeCli.HERMES]: '26 26 68 68',
-  [CodeCli.OPENCLAW]: '26 26 68 68',
-  [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68',
-  [CodeCli.MINIMAX_CODE]: '26 26 68 68'
-}
+const CLI_ICONS: Record<string, (typeof CLI_TOOLS)[number]['icon'] | undefined> = Object.fromEntries(
+  CLI_TOOLS.map((tool) => [tool.value, tool.icon])
+)
 
 interface CliIconProps {
   id: string
   size?: number
+  glyphSize?: number
+  shape?: 'circle' | 'rounded'
   className?: string
 }
 
-export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
+export const CliIcon: FC<CliIconProps> = ({ id, size = 28, glyphSize, shape = 'rounded', className }) => {
   const Icon = CLI_ICONS[id]
-  if (!Icon) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-md bg-accent/50 font-medium text-muted-foreground',
-          className
-        )}
-        style={{ width: size, height: size, fontSize: size * 0.4 }}>
-        {id.charAt(0).toUpperCase()}
-      </div>
-    )
-  }
+  const hasTileArtwork =
+    Icon && ('Avatar' in Icon || id === CodeCli.OPENAI_CODEX || id === CodeCli.GEMINI_CLI || id === CodeCli.KIMI_CODE)
+  const artworkSize =
+    id === CodeCli.GEMINI_CLI
+      ? shape === 'circle'
+        ? 'size-[80%]'
+        : 'size-[90%]'
+      : hasTileArtwork
+        ? 'size-full'
+        : 'size-[70%]'
 
-  const opticalViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
-  if (opticalViewBox) {
-    return <Icon width={size} height={size} viewBox={opticalViewBox} className={className} />
-  }
+  // OpenCode's source has transparent padding around the mark.
+  const opticalViewBox = id === CodeCli.OPEN_CODE ? { viewBox: '16 16 88 88' } : {}
 
-  return <Icon width={size} height={size} className={className} />
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="cli-icon"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center overflow-hidden [--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]',
+        shape === 'circle' ? 'rounded-full' : 'rounded-[32%]',
+        !hasTileArtwork && 'bg-muted',
+        id === CodeCli.OPEN_CODE && 'text-foreground',
+        className
+      )}
+      style={{ width: size, height: size }}>
+      {Icon ? (
+        <Icon
+          {...opticalViewBox}
+          className={artworkSize}
+          style={hasTileArtwork || glyphSize === undefined ? undefined : { width: glyphSize, height: glyphSize }}
+        />
+      ) : (
+        <span className="font-medium text-muted-foreground" style={{ fontSize: size * 0.4 }}>
+          {id.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  )
 }

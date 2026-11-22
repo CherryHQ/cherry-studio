@@ -26,7 +26,7 @@ Status: proposed
 
 ### 保留范围与有意修正
 
-保留 PKCE/state/loopback 校验、请求签名、先持久化凭证再发布 session、token-refresh single flight、waiter 取消、本地优先登出、重试/idempotency 规则及 quota-refusal floors。保留 HTTP 方法、路径、query/body 字段与响应解析；公共套餐和账户套餐 DTO 仍保持区分。保留模型行身份、active/upcoming 语义、版本差异、六种订阅来源、flow 参数、consent 和粗粒度归因。
+保留 PKCE/state/loopback 校验、请求签名、先持久化凭证再发布 session、token-refresh single flight、waiter 取消、本地优先登出、重试/idempotency 规则及 quota-refusal floors。其中 quota-refusal floors 已由 [额度拒绝修复](../../implemented/bug-fix/2026-11-16-cherry-cloud-quota-refusal-snapshot.md) 取代：只有某个窗口的已结算用量达到上限时，额度池才视为耗尽。保留 HTTP 方法、路径、query/body 字段与响应解析；公共套餐和账户套餐 DTO 仍保持区分。保留模型行身份、active/upcoming 语义、版本差异、六种订阅来源、flow 参数、consent 和粗粒度归因。
 
 有意修正包括登录只结算一次、跨窗口只有一个进行中的订阅操作、阻止过期账号门户和收据、通知刷新失败可重试、排队提交不受编辑器额度状态影响、区分 quota 与普通限流、动态 Free 过滤准确，以及套餐未知时不伪造未订阅。这些修正必须有代码反例和合同测试；不授权新增结账行为或 analytics 事件值。
 

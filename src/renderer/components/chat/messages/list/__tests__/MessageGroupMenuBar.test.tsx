@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as Ui from '@cherrystudio/ui'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 import MessageGroupMenuBar from '../MessageGroupMenuBar'
@@ -12,17 +13,10 @@ const mocks = vi.hoisted(() => ({
   t: vi.fn((...args: [key: string, options?: unknown]) => args[0])
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  RowFlex: ({ children, className }: ComponentPropsWithoutRef<'div'>) => <div className={className}>{children}</div>,
-  Tooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-    <span data-tooltip-content={typeof content === 'string' ? content : undefined}>{children}</span>
-  )
-}))
+vi.mock('@cherrystudio/ui', async (original) => {
+  const actual = await original<typeof Ui>()
+  return { Button: actual.Button, RowFlex: actual.RowFlex, Tooltip: actual.Tooltip }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -35,7 +29,10 @@ vi.mock('../../blocks/MessagePartsContext', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageListActions: () => mocks.actions
+  useMessageListActions: () => mocks.actions,
+  useMessageRenderConfig: () => ({
+    multiModelFoldDisplayMode: 'expanded'
+  })
 }))
 
 vi.mock('../MessageGroupModelList', () => ({
@@ -171,7 +168,7 @@ describe('MessageGroupMenuBar', () => {
       />
     )
 
-    expect(document.querySelector('[data-tooltip-content="message.group.retry_failed"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'message.group.retry_failed' })).not.toBeInTheDocument()
   })
 
   it('retries at most one failed reply per model with deterministic selection', async () => {

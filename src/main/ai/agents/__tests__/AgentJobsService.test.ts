@@ -787,6 +787,14 @@ describe('AgentJobsService', () => {
         unrelated: 'keep-me'
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      const binding = { scheduleId: task.id, reuseRevision: 0 }
+      service.releaseOverflowedTaskSession({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseOverflowedTaskSession(binding, 'stale-session')
+      expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+      service.releaseOverflowedTaskSession(binding, session.id)
+      expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+      expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })
   })
 
@@ -1027,7 +1035,9 @@ describe('AgentJobsService', () => {
       for (const session of [sticky, fresh, legacy]) {
         agentSessionService.restore(session.id)
       }
-      const restoredIds = agentSessionService.listByCursor({ agentId: AGENT_ID }).items.map((session) => session.id)
+      const restoredIds = agentSessionService
+        .listByCursor({ scope: 'ordinary', agentId: AGENT_ID })
+        .items.map((session) => session.id)
       expect(restoredIds.sort()).toEqual([ordinary.id, sticky.id, fresh.id, legacy.id].sort())
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(jobService.getById('fresh')?.metadata.sessionId).toBe(fresh.id)

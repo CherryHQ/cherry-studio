@@ -1,6 +1,8 @@
 ---
 description: Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling
 sources:
+  - packages/aiCore/src/contextOverflow.ts
+  - packages/aiCore/src/core/context
   - src/renderer/components/chat
   - src/renderer/components/composer
   - src/renderer/pages/home/messages
@@ -16,6 +18,7 @@ sources:
   - src/main/ai/streamManager/context/PersistentChatContextProvider.ts
   - src/main/ai/runtime/aiSdk/params/features/contextBuild.ts
   - src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts
+  - src/main/ai/runtime/aiSdk/params/features/contextOverflowRecovery.ts
   - src/main/ai/streamManager/persistence/trimToolOutputs.ts
   - src/main/ai/messages/attachmentBudget.ts
   - src/main/ai/messages/attachmentRouting.ts
@@ -48,6 +51,39 @@ The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
 
+## Conversation list sorting
+
+The Chat and Agent conversation list menus expose separate Group by and Sort by
+controls. Each domain saves its sorting choice across the sidebar and right
+panel: Last updated, Date created, Name, or Manually. Automatic sorts support
+ascending and descending directions. Grouping controls section placement; the
+selected sort applies within each group, and pinned rows retain pin order.
+
+Last updated uses conversation activity (`lastActivityAt`), so renaming or
+reordering a conversation does not move it. Automatic sorting disables row
+reordering. Manually enables supported group-local drops and preserves custom
+order across activity changes and switches to other sorting modes. Collection
+queries apply the selected order before cursor pagination.
+
+Name sorting follows the application language using ICU/CLDR collation. It
+compares numeric runs naturally (`2` before `10`), ignores case, distinguishes
+accents and punctuation, and uses ascending id order for equivalent names in
+both directions. Simplified Chinese uses pinyin; Traditional Chinese uses stroke
+order. Japanese kanji are not automatically converted to readings. Mixed-script
+titles use the selected locale's collation rules. Changing application language
+starts a new localized page chain.
+
+The main process sorts matching name/id metadata with the shared comparator
+before hydrating the current page. This keeps database pagination and display
+groups consistent without a native SQLite ICU extension. Name pagination reads
+all matching name/id pairs per request; other modes retain SQL keyset pagination.
+
+On first upgrade, missing sorting settings are inferred separately from active
+Chat and ordinary Agent rows. A stored manual order that differs from creation
+time descending selects Manually; otherwise the default is Last updated descending.
+Equal creation timestamps do not imply a custom order. Existing sorting settings
+are preserved, and initialization never rewrites conversation order keys.
+
 ## Agent mode controls
 
 The Agent composer exposes Plan as an independent Quick Panel toggle on harnesses
@@ -60,6 +96,28 @@ Goal is selected separately in the Quick Panel through the existing native
 `/goal` command. Selection prefixes the draft once and leaves submission to the
 user. Pi and Durable provide a static command entry; Claude uses its live SDK
 catalog. Draft keywords and the input placeholder do not suggest modes.
+
+## Agent next-prompt suggestions
+
+Agent session input can show one muted next-prompt suggestion after an observed
+turn completes successfully. `agent.input.suggestions.enabled` defaults to
+`true` and can be disabled in the input settings. Ordinary chat, message
+editing and reopening history do not generate suggestions.
+
+Tab or the forward arrow (Right in LTR, Left in RTL) fills literal editable text without sending; Escape
+cancels it for that reply. Existing drafts, attachments and queued follow-ups
+suppress it. Quick-panel handling, prompt-variable navigation, Shift+Tab and
+IME composition keep their existing behavior. Unaccepted suggestions are not
+saved in drafts or session history, and stale results are ignored after a
+session/model change or new turn.
+
+Claude Code uses its native suggestion option and events, preserving the runtime's
+suppression rules. Pi and Pi Durable predict from their effective native context,
+including compaction, through a detached request that aborts tool calls using the active model
+and the Claude Code suggestion instruction. No prediction is written to history or
+submitted as an Agent turn. See [Agent Session Runtime](../ai/agent-session-runtime.md#next-prompt-suggestions)
+for ownership and cancellation. Other runtimes retain the four-message text-only
+fallback. Failures or unusable predictions leave the input unchanged.
 
 ## Ordinary persisted chat context
 
@@ -108,7 +166,7 @@ assistant and endpoint limits itself and uses the largest reservation across a m
 in-loop hook additionally sees the call override. Neither compaction path passes the custom output
 parameter.
 
-Compaction is attempted only when estimated history is **strictly greater** than
+Proactive compaction is attempted only when estimated history is **strictly greater** than
 `trigger`, with context building and compression enabled and a compression model
 resolved. The kept-recent fraction is `0.375` in `src/main/ai/constants.ts`.
 `model.maxInputTokens` is not an input to these formulas; filling it alone does not
@@ -136,6 +194,7 @@ With the context-build layer enabled, the following behavior applies:
 |---|---|
 | Turn-start durable compaction | Skipped with a warning log when durable compaction is otherwise eligible and no selected model declares a valid `contextWindow` |
 | In-loop compaction | No compaction hook is installed for the request |
+| Overflow recovery | Available if the selected compressor declares a valid window; otherwise skipped |
 | Window-relative in-flight tool-output truncation | Disabled; the absolute `truncate_threshold` character limit still applies |
 | Sliding-window fallback when no compression model resolves | Absent; it also requires a known window |
 | `max_messages` | Still applies, independently of the master toggle |
@@ -144,8 +203,8 @@ With the context-build layer enabled, the following behavior applies:
 
 There is no hidden default window. If no selected runtime model declares a valid window, that request
 has no window-derived compaction trigger, and it also runs without the in-loop hook. With unlimited
-`max_messages` and no applicable boundary, ordinary text history has no window-derived application cap
-and can grow until the endpoint rejects it.
+`max_messages` and no applicable boundary, ordinary text history has no window-derived application cap.
+If the compressor has its own known window, a recognized provider overflow can still trigger recovery.
 
 A custom row whose window field was left empty can still receive a window at read
 time from the bundled catalog when its API model id matches: `ModelService.ts`
@@ -154,9 +213,25 @@ itself prove that no window is in effect.
 
 ### Recovering from a context-length rejection
 
-`src/shared/utils/errorCategory.ts` maps provider-message patterns such as
+When context building and compression are enabled for a persistent Chat, a recognized context-length
+HTTP 400 before a model step produces output triggers one in-loop compaction and retries that model
+request. Completed tool calls are not replayed. If the request has no foldable history, compaction
+fails, or the retried request also fails, the error is returned instead of retrying indefinitely.
+The original conversation remains intact; this recovery's compacted view lasts for the current request.
+Temporary chats, Agent sessions, and caller-owned contexts do not use this recovery path.
+
+Summarization uses the compression model's window. Long inputs are summarized in ordered chunks,
+including splitting an oversized text message when possible. A context-length rejection reduces the
+chunk budget within a bounded retry limit. If a chunk cannot fit, or a summary is empty or truncated,
+the fold fails without advancing the durable summary boundary. Existing tool-result and attachment
+reduction still applies before summarization.
+
+The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long` to `context_length`.
+`context window`, `prompt is too long`, `input is too long`, and llama.cpp's
+`exceeds the available context size`. Both overflow recovery and
+`src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
+authentication, quota, and rate-limit failures.
 The error toast offers one action for that category: `trimContext`, wired in
 `src/renderer/utils/errorToast.ts` and handled in `useChatRuntimeState.ts`.
 
@@ -176,7 +251,7 @@ a second marker. The error-toast handler refuses to run on an existing boundary.
 assistant message does not pick up the new boundary: `PersistentChatContextProvider.ts`
 rebuilds history from that message's parent anchor, so the retry re-sends the
 pre-boundary history (settings resolution and compaction do run again for it). This
-recovery path has no automatic retry and no one-click compaction.
+manual recovery path does not itself perform an automatic retry or compaction.
 
 ## Documents
 

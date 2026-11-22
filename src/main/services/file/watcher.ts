@@ -1,37 +1,13 @@
-/**
- * DirectoryWatcher — generic FS-monitoring primitive.
- *
- * Wraps `chokidar@4` with a normalized event surface (`add` / `addDir` /
- * `unlink` / `unlinkDir` / `change` / `ready` / `error`) and auto-wires file
- * `add` / `unlink` events into
- * the file-module's `DanglingCache` singleton so external-entry presence
- * tracking stays coherent across all watchers.
- *
- * ## Positioning
- *
- * - **Not a lifecycle service.** Business modules (e.g. a future NoteService)
- *   instantiate their own watcher via `createDirectoryWatcher(path)` and
- *   dispose it themselves; the factory transparently forwards events into
- *   `DanglingCache`.
- * - **Open to the entire main process.** Like `@main/utils/file/*` primitives,
- *   the watcher has no entry-system awareness; it is a thin wrapper over
- *   `chokidar` with house conventions (built-in OS-junk ignores, optional
- *   debounce window).
- *
- * Rename detection is intentionally absent: chokidar renames remain
- * `unlink` + `add`. See [file-manager-architecture.md §8](../../../../docs/dev/references/file/file-manager-architecture.md).
- */
-
-import path from 'node:path'
-
-import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
+/** Chokidar adapter used by FileObservationService; also forwards presence changes to DanglingCache. */
 
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
-import { isWin } from '@main/core/platform'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { danglingCache } from './danglingCache'
+import { watcherReplySchema, type WatcherMessage, type WatcherOptions, type WatcherCommand } from './watcherProtocol'
+// oxlint-disable-next-line import/default -- Electron Vite exposes ?nodeWorker imports as default worker factories.
+import createWatcherWorker from './watcherWorker?nodeWorker'
 
 const logger = loggerService.withContext('file/watcher')
 
@@ -56,12 +32,6 @@ export type WatcherEvent =
 
 export type WatcherListener = (event: WatcherEvent) => void
 
-/** Internal shape before AbsoluteFilePath validation. */
-type RawWatcherPathEvent = {
-  readonly kind: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'
-  readonly path: string
-}
-
 export interface DirectoryWatcher {
   /**
    * Subscribe to normalized FS events. Returns an unsubscribe function.
@@ -76,92 +46,51 @@ export interface DirectoryWatcher {
   close(): Promise<void>
 }
 
-export interface CreateDirectoryWatcherOptions {
-  /** Recurse into subdirectories. Default: `true`. */
-  readonly recursive?: boolean
-  /** Maximum recursion depth when `recursive` is enabled. `undefined` keeps chokidar's default unlimited depth. */
-  readonly maxDepth?: number
-  /** Custom ignore predicate. Built-in ignores (`.DS_Store`, `Thumbs.db`, etc.) always apply. */
-  readonly ignore?: (path: AbsoluteFilePath) => boolean
-  /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
-  readonly stabilityThresholdMs?: number
-  /** Emit entries discovered by chokidar's initial scan. Default: `false`. */
-  readonly emitInitial?: boolean
+export type CreateDirectoryWatcherOptions = WatcherOptions
+
+type WatcherRuntime = {
+  worker: ReturnType<typeof createWatcherWorker>
+  completion: ReturnType<typeof Promise.withResolvers<void>>
+  stopped: boolean
+  failure?: Error
 }
 
-/** OS-junk basenames suppressed regardless of caller's `ignore` predicate. */
-const BUILTIN_IGNORE_BASENAMES = new Set(['.DS_Store', '.localized', 'Thumbs.db', 'desktop.ini'])
-
 class DirectoryWatcherImpl implements DirectoryWatcher {
-  private fsw: FSWatcher
   private readonly emitter = new Emitter<WatcherEvent>()
-  private readonly root: AbsoluteFilePath
-  private readonly opts: CreateDirectoryWatcherOptions
-  private usingPolling = false
+  private readonly completion = Promise.withResolvers<void>()
+  private readonly id: number
   private closed = false
+  private closing?: Promise<void>
 
-  constructor(root: AbsoluteFilePath, opts: CreateDirectoryWatcherOptions = {}) {
-    this.root = root
-    this.opts = opts
-    this.fsw = this.createWatcher(false)
+  constructor(
+    root: AbsoluteFilePath,
+    options: CreateDirectoryWatcherOptions,
+    private readonly host: DirectoryWatcherHost
+  ) {
+    void this.completion.promise.catch(() => {})
+    this.id = host.attach(this, root, options)
   }
 
-  private createWatcher(usePolling: boolean): FSWatcher {
-    const builtinIgnore = (p: string) => BUILTIN_IGNORE_BASENAMES.has(path.basename(p))
-    const userIgnore = this.opts.ignore
-    const recursive = this.opts.recursive !== false
-    const stability = this.opts.stabilityThresholdMs ?? 200
-    const depth = recursive ? this.opts.maxDepth : 0
-
-    const fsw = chokidarWatch(this.root, {
-      ignored: userIgnore
-        ? [
-            builtinIgnore,
-            (p) => {
-              const parsed = this.parseChokidarPath(p)
-              return !parsed || userIgnore(parsed)
-            }
-          ]
-        : [builtinIgnore],
-      ignoreInitial: this.opts.emitInitial !== true,
-      depth,
-      awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
-      usePolling
-    })
-
-    fsw.on('add', (p) => this.handle({ kind: 'add', path: p }))
-    fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p }))
-    fsw.on('change', (p) => this.handle({ kind: 'change', path: p }))
-    fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p }))
-    fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p }))
-    fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
-    fsw.on('error', (err) => this.handleError(err as Error))
-
-    return fsw
+  receive(event: WatcherMessage): void {
+    if (event.kind === 'closed') {
+      this.host.detach(this.id)
+      this.completion.resolve()
+    } else if (!this.closed) {
+      if (event.kind === 'warning') logger.warn(event.message, { error: event.error })
+      else if (event.kind === 'error') this.reportError(new Error(event.message))
+      else if (event.kind === 'ready') this.emitter.fire(event)
+      else this.handle(event)
+    }
   }
 
-  private handleError(err: Error): void {
-    const code = (err as NodeJS.ErrnoException).code
-    const isWindowsLockError =
-      isWin && (code === 'EPERM' || code === 'EBUSY' || err.message.includes('EPERM') || err.message.includes('EBUSY'))
-    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsLockError
-    if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
-      logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
-      const oldWatcher = this.fsw
-      oldWatcher.removeAllListeners()
-      this.usingPolling = true
-      this.fsw = this.createWatcher(true)
-      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr as Error))
-      return
-    }
+  failed(error: Error): void {
+    if (!this.closed) this.reportError(error)
+    this.completion.reject(error)
+  }
 
-    if (!this.closed) {
-      // Log proactively: chokidar errors (EMFILE, lost permissions on a
-      // parent dir, etc.) silently stop event delivery; without this log a
-      // dead watcher leaves the cache stale with no diagnostic trace.
-      logger.error('chokidar error', err)
-      this.emitter.fire({ kind: 'error', error: err })
-    }
+  private reportError(error: Error): void {
+    logger.error('File watcher failed', error)
+    this.emitter.fire({ kind: 'error', error })
   }
 
   /**
@@ -202,7 +131,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * `docs/dev/references/file/file-manager-architecture.md §11.3 "Watcher
    * Auto-Wiring"`.
    */
-  private handle(ev: RawWatcherPathEvent): void {
+  private handle(ev: { kind: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'; path: string }): void {
     if (this.closed) return
     const path = this.parseChokidarPath(ev.path)
     if (!path) {
@@ -221,21 +150,94 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     return () => subscription.dispose()
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
-    this.closed = true
-    await this.fsw.close()
-    this.emitter.dispose()
+  close(): Promise<void> {
+    if (!this.closing) {
+      this.closed = true
+      this.emitter.dispose()
+      this.host.send({ kind: 'close', id: this.id })
+      this.closing = this.completion.promise
+    }
+    return this.closing
   }
 }
 
-/**
- * Create a watcher rooted at `root`. The returned instance is ready to
- * subscribe immediately; a `'ready'` event fires once the initial scan
- * completes. The factory auto-wires `add` / `unlink` events into
- * `danglingCache.onFsEvent` so external-entry presence tracking is updated
- * regardless of whether the watcher's own subscriber consumes those events.
- */
-export function createDirectoryWatcher(root: AbsoluteFilePath, opts?: CreateDirectoryWatcherOptions): DirectoryWatcher {
-  return new DirectoryWatcherImpl(root, opts)
+/** One lazy observation thread shared by the lifecycle service's scopes. */
+export class DirectoryWatcherHost {
+  private nextId = 0
+  private readonly watchers = new Map<number, DirectoryWatcherImpl>()
+  private runtime?: WatcherRuntime
+  private stopping?: Promise<void>
+
+  attach(watcher: DirectoryWatcherImpl, root: AbsoluteFilePath, options: CreateDirectoryWatcherOptions): number {
+    if (this.stopping) throw new Error('File watcher host stopped')
+    if (!this.runtime) {
+      const runtime: WatcherRuntime = {
+        worker: createWatcherWorker({}),
+        completion: Promise.withResolvers<void>(),
+        stopped: false
+      }
+      this.runtime = runtime
+      void runtime.completion.promise.catch(() => {})
+      runtime.worker.on('message', (raw: unknown) => {
+        const reply = watcherReplySchema.safeParse(raw)
+        if (!reply.success) {
+          runtime.failure = reply.error
+          void runtime.worker
+            .terminate()
+            .catch((error: unknown) => logger.error('Watcher termination failed', { error }))
+        } else if (reply.data.kind === 'stopped') {
+          runtime.stopped = true
+          void runtime.worker.terminate().catch((error: unknown) => runtime.completion.reject(error))
+        } else this.watchers.get(reply.data.id)?.receive(reply.data.event)
+      })
+      runtime.worker.on('error', (error) => {
+        runtime.failure = error
+      })
+      runtime.worker.once('exit', (code) => {
+        if (this.runtime === runtime) this.runtime = undefined
+        const failure =
+          runtime.failure ??
+          (runtime.stopped ? undefined : new Error(`File watcher worker exited unexpectedly (${code})`))
+        if (failure) {
+          const clients = [...this.watchers.values()]
+          this.watchers.clear()
+          for (const client of clients) client.failed(failure)
+          runtime.completion.reject(failure)
+        } else runtime.completion.resolve()
+      })
+    }
+    const id = ++this.nextId
+    this.watchers.set(id, watcher)
+    this.send({ kind: 'create', id, input: { root, options } })
+    return id
+  }
+
+  detach(id: number): void {
+    this.watchers.delete(id)
+  }
+
+  send(command: WatcherCommand): void {
+    this.runtime?.worker.postMessage(command)
+  }
+
+  close(): Promise<void> {
+    this.stopping ??= (async () => {
+      await Promise.allSettled([...this.watchers.values()].map((watcher) => watcher.close()))
+      const runtime = this.runtime
+      if (runtime) {
+        this.send({ kind: 'stop' })
+        await runtime.completion.promise
+      }
+    })()
+    return this.stopping
+  }
+}
+
+/** Create a scope on the service-owned thread; presence changes still update DanglingCache on Main. */
+export function createDirectoryWatcher(
+  root: AbsoluteFilePath,
+  opts: CreateDirectoryWatcherOptions,
+  host: DirectoryWatcherHost
+): DirectoryWatcher {
+  return new DirectoryWatcherImpl(root, opts, host)
 }

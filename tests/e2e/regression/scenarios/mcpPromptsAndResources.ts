@@ -60,7 +60,7 @@ export async function mcpPromptsAndResources(app: RegressionApp, page: Page, tes
       expect(result.status).toBe(201)
       serverIds.push(McpServerSchema.parse(result.data).id)
     }
-    // Real configured provider proves instruction following and tool-based readback.
+    // Local mock model proves instruction following and tool-based readback.
     const config = app.config.customProvider
     const statuses = await page.evaluate(
       async ({ providerId, config }) => {
