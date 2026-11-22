@@ -34,7 +34,7 @@ import {
   type HostPorts,
   type CallRef,
   type SubagentOrigin
-} from '@cherrystudio/agent-behavior'
+} from '@cherrystudio/agent-behavior/policy'
 import {
   runtimeId,
   type AgentRuntime,
@@ -505,7 +505,8 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
-            projection.update(view, undefined, states, fold.history)
+            let backgroundVersion = fold.backgroundVersion
+            projection.update(view, undefined, states, fold.hasBackgroundEvidence ? fold.history : undefined)
             let currentView = view
             let publishedView = view
             detachCommits = native.observeCommits({
@@ -542,7 +543,9 @@ export async function createPiDurableRuntime(
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
                 publishedView = after
-                projection.update(after, publication.seq, changed, fold.history)
+                const backgroundChanged = fold.hasBackgroundEvidence && backgroundVersion !== fold.backgroundVersion
+                backgroundVersion = fold.backgroundVersion
+                projection.update(after, publication.seq, changed, backgroundChanged ? fold.history : undefined)
               },
               end() {}
             }).detach
@@ -554,7 +557,7 @@ export async function createPiDurableRuntime(
                 queueMicrotask(() => {
                   if (!closing && currentView === call.value && publishedView !== call.value) {
                     publishedView = call.value
-                    projection.update(call.value, undefined, [], fold.history)
+                    projection.update(call.value)
                   }
                 })
               },

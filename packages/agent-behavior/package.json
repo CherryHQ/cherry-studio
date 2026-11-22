@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.mts",
+      "default": "./dist/policy.mjs"
     }
   },
   "scripts": {

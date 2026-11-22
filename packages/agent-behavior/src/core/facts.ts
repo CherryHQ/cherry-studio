@@ -285,3 +285,19 @@ export type GateFacts = {
   /** [plan choice] In a goal round: that round's calls in call order, up to and including this one; otherwise empty (C16). */
   readonly callWindow: readonly ToolCallFact[]
 }
+
+export interface ToolSpec {
+  readonly name: string
+  /** [plan choice] Not in the design's draft; every harness hands it to the model. */
+  readonly description: string
+  readonly schema: JsonValue
+  /** After a crash a 'safe' call reruns; an 'unsafe' one gets an interrupted result. */
+  readonly replay: 'safe' | 'unsafe'
+  readonly executionMode: 'parallel' | 'sequential'
+  /**
+   * `'parent-only'` tools are not registered in child conversations. Adapters filter a child's tools by this field only,
+   * never by tool name.
+   */
+  readonly availability: 'all' | 'parent-only'
+  readonly modelOnly: true
+}

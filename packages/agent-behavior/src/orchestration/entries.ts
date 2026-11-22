@@ -8,10 +8,11 @@ import {
 } from '../core/driver/lifecycle'
 import { callKeyOf, type GoalNotice } from '../core/facts'
 import { decideGoalCommand } from '../core/goal/goalCommand'
+import type { SubagentMessageReceipt } from '../core/subagents/subagentText'
 import type { BoundPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { gatherInputs, step, type Context } from './step'
-import { messageSubagent, type SubagentMessageReceipt } from './tools/subagents'
+import { messageSubagent } from './tools/subagents'
 
 /**
  * What the host calls (design §3.3), each with the ports of one host call on the conversation (the adapter's
@@ -40,12 +41,12 @@ export type Entries = {
   ): Promise<SubagentMessageReceipt>
 }
 
-export async function stopManagedChild(context: Context, parent: ThreadId, child: ThreadId, requestKey: string) {
+async function stopManagedChild(context: Context, parent: ThreadId, child: ThreadId, requestKey: string) {
   const inputs = gatherInputs(context, parent)
   return (await step(context, parent, (facts) => decideStopSubagent(facts, inputs, child, requestKey))).result
 }
 
-export function messageManagedChild(
+function messageManagedChild(
   context: Context,
   parent: ThreadId,
   child: ThreadId,

@@ -117,7 +117,7 @@ export type {
   Settings,
   HostPorts
 } from './ports/host'
-export { behaviorHandlers, install } from './orchestration/install'
+export { install } from './orchestration/install'
 export { createToolPolicy } from './orchestration/gate'
 export {
   TOOL_INTENT_ARG,
@@ -128,8 +128,8 @@ export {
 } from './orchestration/toolIntent'
 export type { IntentTool } from './orchestration/toolIntent'
 export type { Installation } from './orchestration/install'
-export { messageManagedChild, stopManagedChild, type Entries } from './orchestration/entries'
-export type { SubagentMessageReceipt } from './orchestration/tools/subagents'
+export type { Entries } from './orchestration/entries'
+export type { SubagentMessageReceipt } from './core/subagents/subagentText'
 export { harnessContract } from './contract/cases'
 export type {
   ContractCase,

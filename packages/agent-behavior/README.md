@@ -14,7 +14,8 @@ freeing background capacity and allowing the idle driver to continue. Successful
 ## What this package is
 
 ```text
-Cherry host -> adapters (coding-agent, Durable, fake) -> agent-behavior -> agent-runtime (types only)
+Cherry host -> coding-agent and fake -> agent-behavior -> agent-runtime (types only)
+Cherry host -> Durable -> agent-behavior/policy
 ```
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
@@ -33,7 +34,7 @@ one job:
 The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
 without I/O ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
 and `install` wires them into a harness ([Installing the package](#installing-the-package)). Pi and Pi Durable
-both use these shared rules. Four pure projections and three constants are exported for
+both use these shared rules. Durable loads the `/policy` export for decisions, codecs, tool schemas and host policies. It runs those decisions through native commands and tasks. Its contract fixture adapts the older ports to the native operations. Four pure projections and three constants are exported for
 adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
 `subagentViews(facts)` lists the background children as the host shows them,
@@ -44,8 +45,9 @@ assigning its result to the original model call. `DEFAULT_MAX_BACKGROUND` is
 the default of the host's `Settings.maxBackground()`, and `FORK_PLACEHOLDER_RESULT` and `INTERRUPTED_CALL_RESULT` are
 the texts of the results an adapter gives a child's open tool calls ([Applying a step](#applying-a-step)).
 
-`"."` is the only export. Everything an adapter needs comes from `@cherrystudio/agent-behavior`; a deep import such as
-`@cherrystudio/agent-behavior/core/facts` is a lint error (`barrel/closed`). An adapter depends on the package as
+Pi and the test fixtures use `@cherrystudio/agent-behavior`. Pi Durable production code uses
+`@cherrystudio/agent-behavior/policy`. A deep import such as `@cherrystudio/agent-behavior/core/facts`
+is a lint error (`barrel/closed`). An adapter depends on the package as
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
 `pnpm --filter @cherrystudio/agent-behavior build`.
 
@@ -60,8 +62,8 @@ makes the call require approval. It does not save executable, command-prefix or 
 
 ## Ports
 
-The ports are the whole surface between the package and a harness or the host. Harness ports are `HarnessPorts` in
-`src/ports/harness.ts`; host ports are `HostPorts` in `src/ports/host.ts`.
+`HarnessPorts` in `src/ports/harness.ts` serves Pi, the fake, and the contract fixtures. Both production runtimes
+receive desktop capabilities through `HostPorts` in `src/ports/host.ts`.
 
 Each port's TSDoc is its specification: the intent, one `@harness` section each for `coding-agent`, `durable` and
 `fake` saying how that implementation realises it, and `@keys` and `@waits` where the port has keys or waits. This

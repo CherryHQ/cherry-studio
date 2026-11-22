@@ -32,6 +32,26 @@
       "rules": { "import/first": "off" }
     },
     {
+      "files": [
+        "packages/agent-runtime-pi-durable/src/**/*.ts",
+        "src/main/ai/runtime/piDurable/**/*.ts",
+        "src/main/ai/runtime/pi/piBehaviorHost.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cherrystudio/agent-behavior",
+                "message": "Use @cherrystudio/agent-behavior/policy for shared decisions and codecs."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/agent-runtime-pi-durable/src/runtime.ts"],
       "rules": {
         "no-restricted-imports": [
@@ -40,8 +60,7 @@
             "paths": [
               {
                 "name": "@cherrystudio/agent-behavior",
-                "importNames": ["install", "Entries", "HarnessPorts", "BoundPorts"],
-                "message": "Route inputs through native ownership and the Durable behavior commands."
+                "message": "Use @cherrystudio/agent-behavior/policy for shared decisions and codecs."
               },
               {
                 "name": "./behavior/history",

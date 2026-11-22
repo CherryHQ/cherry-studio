@@ -63,6 +63,12 @@ describe('agent-behavior boundary guards', () => {
       'barrel/closed'
     ],
     [
+      'adapter relative import into policy source',
+      'packages/agent-runtime-pi-durable/src/probe.ts',
+      `import { ENTRY_KINDS } from '../../agent-behavior/src/policy'\nexport { ENTRY_KINDS }`,
+      'barrel/closed'
+    ],
+    [
       'core → ports',
       `${SRC}/core/probe.ts`,
       `import type { Ledger } from '../ports/harness'\nexport type { Ledger }`,
@@ -206,6 +212,10 @@ describe('agent-behavior boundary guards', () => {
   // Catches a guard so broad it blocks the sanctioned shapes (type-only id imports, pure sync core, interface-only
   // ports, function-scoped let), which would push people to disable it.
   it.each([
+    [
+      'packages/agent-runtime-pi-durable/src/probe.ts',
+      `import { ENTRY_KINDS } from '@cherrystudio/agent-behavior/policy'\nexport { ENTRY_KINDS }`
+    ],
     [
       `${SRC}/core/probe.ts`,
       `import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'\nexport type Pair = [ThreadId, ItemId]\nexport const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0)`

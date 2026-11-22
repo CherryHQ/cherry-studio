@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
+import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior/policy'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -46,7 +46,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   host: HostPorts
   configureChild(child: { thread: Thread; modelKey: string }): Promise<Binding>
 }> {
-  const { DEFAULT_MAX_BACKGROUND } = await import('@cherrystudio/agent-behavior')
+  const { DEFAULT_MAX_BACKGROUND } = await import('@cherrystudio/agent-behavior/policy')
   const { input, approval, binding } = options
   const rootKey = options.rootModelKey ?? `${binding.model.provider}/${binding.model.id}`
   const models = new Map<string, Model>([[rootKey, options.model]])

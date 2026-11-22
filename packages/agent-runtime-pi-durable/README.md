@@ -162,13 +162,14 @@ of polling retained inputs or deriving completion from idle activity.
 
 The optional `behavior` factory option takes Cherry's `HostPorts` and a
 `configureChild({ thread, parent, modelKey })` model-binding callback. The native extension
-registers the tools and durable jobs, and consults the shared request-limit policy at the
-model boundary. Goal and subagent workflows still share the product decisions and their
-transactional behavior handlers.
+registers the tools and executes the durable jobs, commands and lifecycle transitions
+through its own transactions, submissions and task waits. It imports shared decisions,
+tool schemas, host services and record codecs from `@cherrystudio/agent-behavior/policy`.
+The older execution ports are adapted in the contract test fixture.
 
 Managed child input resolves its native parent and calls the shared continuation rules.
 It keeps the native child identity and creates the existing result job. Root `/goal` input
-uses the shared command entry. Explicit root `interrupt()` records user stop before
+applies the goal-command decision in a native transaction. Explicit root `interrupt()` records user stop before
 cancelling; child interruption follows its current shared ownership. Opening installs
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.

@@ -1,7 +1,6 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { fieldsOf, stringField } from '../../core/args'
-import type { ModelFacts } from '../../core/hostFacts'
 import type { Key } from '../../core/keys'
 import {
   decideMessage,
@@ -12,69 +11,18 @@ import {
   stoppedResult
 } from '../../core/subagents/subagentDecisions'
 import {
-  continuedText,
+  messageToolResult,
+  type SubagentMessageReceipt,
   notDeliveredText,
-  queuedText,
   startedText,
   TURN_STOPPED
 } from '../../core/subagents/subagentText'
+import { subagentToolSpecs } from '../../core/toolSpecs'
 import type { ToolCall, ToolDefinition, ToolOutcome, TransactResult } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
-import { abandonSpawn, runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
+import { abandonSpawn, runChild } from '../childRuns'
+import { modelFacts } from '../hostInputs'
 import { type Context, gatherInputs, step } from '../step'
-
-const DESCRIPTION = [
-  'Delegate a task to a subagent: a separate agent with the same tools that returns only its final report, so the work does not fill this conversation.',
-  '- By default the subagent starts with an empty context: put everything it needs in the prompt.',
-  '- With fork: true it starts from this conversation as it is now, so the prompt needs only what is new.',
-  '- Start independent subagents together in one message; they run at the same time.',
-  '- You see the final report, not the intermediate steps.',
-  '- Run it in the foreground when you need its result to go on. Use background: true only when you have independent work to do meanwhile; you are notified when it finishes.'
-].join('\n')
-const ID = { type: 'string', description: 'The id a subagent result or notification gave.' }
-const SPAWN_SCHEMA = {
-  type: 'object',
-  properties: {
-    description: { type: 'string', description: 'A short (3-5 word) title of the task, shown to the user.' },
-    prompt: { type: 'string', description: 'The task for the subagent.' },
-    fork: {
-      type: 'boolean',
-      description: 'Start from this conversation as it is now instead of an empty context. Default false.'
-    },
-    background: {
-      type: 'boolean',
-      description:
-        'Return at once and let the subagent work in the background; you are notified when it finishes. Default false.'
-    },
-    model: {
-      type: 'string',
-      description:
-        'Only when the user (or the agent instructions) names a model for this task: the name as they said it, with the provider if they gave one, e.g. "OpenRouter Claude Sonnet 4.5". Leave it out otherwise.'
-    }
-  },
-  required: ['description', 'prompt']
-}
-const MESSAGE_SCHEMA = {
-  type: 'object',
-  properties: { id: ID, message: { type: 'string', description: 'What to tell the subagent.' } },
-  required: ['id', 'message']
-}
-// Subagents cannot start or manage subagents: a child conversation never gets these tools.
-const SUBAGENT_TOOL = {
-  replay: 'safe',
-  executionMode: 'parallel',
-  availability: 'parent-only',
-  modelOnly: true
-} as const
-
-/** C7, C8: the conversation's model facts; candidates only for a model the call names. */
-async function modelFacts(host: HostPorts, thread: ThreadId, query: string | undefined): Promise<ModelFacts> {
-  const [candidates, { parentModelKey, defaultChildModelKey, supportsTools }] = await Promise.all([
-    query ? host.models.find(query, thread) : [],
-    host.models.current(thread)
-  ])
-  return { candidates, parentModelKey, defaultChildModelKey, supportsTools }
-}
 
 /** The child the commit created under `key` (H1 reports every spawn it applied). */
 function spawnedChild(spawned: TransactResult<JsonValue>['spawned'], key: Key): ThreadId {
@@ -106,10 +54,6 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
 }
 
 /** D17: a running child reads the message after its step; a finished one continues in the background. */
-export type SubagentMessageReceipt =
-  | { readonly status: 'refused'; readonly reason: string }
-  | { readonly status: 'queued' | 'continued'; readonly child: ThreadId }
-
 export async function messageSubagent(context: Context, call: ToolCall): Promise<SubagentMessageReceipt> {
   for (;;) {
     const inputs = gatherInputs(context, call.thread, { args: call.args })
@@ -153,38 +97,10 @@ async function stop(context: Context, call: ToolCall): Promise<ToolOutcome> {
 
 /** `subagent`, `message_subagent` (replay-safe) and `stop_subagent` (unsafe: a rerun could stop later work). */
 export function subagentTools(host: HostPorts): ToolDefinition[] {
+  const [start, message, interrupt] = subagentToolSpecs
   return [
-    {
-      ...SUBAGENT_TOOL,
-      name: SUBAGENT_TOOL_NAME,
-      description: DESCRIPTION,
-      schema: SPAWN_SCHEMA,
-      run: (call, ports) => spawn({ ports, host }, call)
-    },
-    {
-      ...SUBAGENT_TOOL,
-      name: 'message_subagent',
-      description:
-        'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step. A finished subagent continues in the background with the same id and history; you are notified when it finishes.',
-      schema: MESSAGE_SCHEMA,
-      run: async (call, ports) => {
-        const result = await messageSubagent({ ports, host }, call)
-        if (result.status === 'refused') return { text: result.reason, isError: true }
-        return {
-          text: result.status === 'continued' ? continuedText(result.child) : queuedText(result.child),
-          isError: false,
-          details: { sessionId: result.child, continued: result.status === 'continued' }
-        }
-      }
-    },
-    {
-      ...SUBAGENT_TOOL,
-      name: 'stop_subagent',
-      replay: 'unsafe',
-      description:
-        'Stop a running subagent by its id and get its partial output. You get no notification for it afterwards; message_subagent can continue it later.',
-      schema: { type: 'object', properties: { id: ID }, required: ['id'] },
-      run: (call, ports) => stop({ ports, host }, call)
-    }
+    { ...start, run: (call, ports) => spawn({ ports, host }, call) },
+    { ...message, run: async (call, ports) => messageToolResult(await messageSubagent({ ports, host }, call)) },
+    { ...interrupt, run: (call, ports) => stop({ ports, host }, call) }
   ]
 }

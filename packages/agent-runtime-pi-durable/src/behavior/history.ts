@@ -27,8 +27,8 @@ import {
   type PlanState,
   type SubagentOrigin,
   type UsageFact
-} from '@cherrystudio/agent-behavior'
-import type { GoalOwner } from '@cherrystudio/agent-behavior'
+} from '@cherrystudio/agent-behavior/policy'
+import type { GoalOwner } from '@cherrystudio/agent-behavior/policy'
 import { runtimeId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
 
 export const threadId = (id: ConversationId): ThreadId => runtimeId(String(id))
@@ -105,6 +105,8 @@ export function taskRun(task: Task): TaskId {
  */
 export class HistoryFold {
   readonly history: HistoryEntry[] = []
+  backgroundVersion = 0
+  hasBackgroundEvidence = false
   /** History length after each folded entry, for reads limited to an earlier entry. */
   readonly ends: { readonly entry: EntryId; readonly end: number }[] = []
   /** Newest folded task of each lineage conversation. */
@@ -165,7 +167,9 @@ export class HistoryFold {
     const call = `${input.assistant}:${input.callId}`
     const key = String(task.id)
     this.#toolTasks.set(call, key)
-    for (const { at, index } of this.#calls.get(call) ?? []) {
+    const assigned = this.#calls.get(call)
+    if (assigned) this.backgroundVersion++
+    for (const { at, index } of assigned ?? []) {
       const item = this.history[at] as AssistantItem
       this.history[at] = {
         ...item,
@@ -298,6 +302,18 @@ export class HistoryFold {
   #push(item: HistoryEntry) {
     const at = this.history.length
     this.history.push(item)
+    const notification = item.kind === 'marker' && item.marker.type === 'subagent-notification'
+    const childRun = item.kind === 'record' && item.record.type === 'subagent-run'
+    if (notification || childRun) this.hasBackgroundEvidence = true
+    if (
+      item.kind === 'user' ||
+      item.kind === 'assistant' ||
+      notification ||
+      childRun ||
+      (item.kind === 'marker' && item.marker.type === 'goal-round') ||
+      (item.kind === 'record' && item.record.type === 'subagent-origin')
+    )
+      this.backgroundVersion++
     if (item.kind === 'user' || item.kind === 'marker') this.turn = at
     if (item.kind !== 'record') return
     const { record } = item

@@ -1,9 +1,9 @@
 import { answerVerdict, ASK_WITHDRAWN, decideApproval, repeatBlock } from '../core/approval/approval'
 import { offloadPlan } from '../core/context/offload'
 import type { GateCall, GateFacts, ToolCallFact, ToolResultFact } from '../core/facts'
-import type { ApprovalHostFacts, CallRef } from '../core/hostFacts'
-import { keys } from '../core/keys'
-import type { GateHandlers, GateVerdict, Memory } from '../ports/harness'
+import type { ApprovalAnswer, ApprovalHostFacts, CallRef } from '../core/hostFacts'
+import { keys, type Key } from '../core/keys'
+import type { GateVerdict } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { storedMarker } from './output'
 
@@ -26,7 +26,7 @@ export function createToolPolicy(host: HostPorts) {
     async approve(
       call: GateCall & { readonly signal: AbortSignal },
       facts: GateFacts,
-      remember: Memory['remember']
+      remember: (key: Key, ask: () => Promise<ApprovalAnswer>) => Promise<ApprovalAnswer>
     ): Promise<GateVerdict> {
       const repeated = repeatBlock(call, facts)
       if (repeated !== undefined) return { block: repeated }
@@ -87,13 +87,5 @@ export function createToolPolicy(host: HostPorts) {
       const text = await storedMarker(host, { name, content: result.text, key: call.key, tool: call.tool })
       return { ...result, text }
     }
-  }
-}
-
-export function gateHandlers(host: HostPorts): GateHandlers {
-  const policy = createToolPolicy(host)
-  return {
-    before: (call, facts, ports) => policy.approve(call, facts, (key, ask) => ports.memory.remember(key, ask)),
-    after: policy.offload
   }
 }

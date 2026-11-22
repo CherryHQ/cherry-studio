@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import type { ConversationView, EntryRecord, LiveState, SubmissionRecord } from '@earendil-works/pi-durable'
 
-import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
+import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior/policy'
 import {
   projectNestedTool,
   runtimeId,
@@ -41,7 +41,8 @@ export class DurableProjection {
   private readonly admitting = new Set<InputId>()
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
-  private history: readonly HistoryEntry[] = []
+  private history?: readonly HistoryEntry[]
+  private backgroundRunActive = false
   private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = {
     status: 'confirmed',
@@ -125,10 +126,15 @@ export class DurableProjection {
     if (this.view) this.update(this.view, this.revision)
   }
 
-  update(view: ConversationView, revision?: number, changed: readonly InputState[] = [], history = this.history): void {
+  update(
+    view: ConversationView,
+    revision?: number,
+    changed: readonly InputState[] = [],
+    history?: readonly HistoryEntry[]
+  ): void {
     this.view = view
     this.revision = revision
-    this.history = history
+    if (history !== undefined) this.history = history
     const previousState = this.feed.state
     let inputs = previousState.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
@@ -187,17 +193,21 @@ export class DurableProjection {
     }
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
     const previousResults = this.backgroundResults
-    const results = subagentResults(history, Boolean(live?.run))
-    this.backgroundResults = results
-      ? { status: 'confirmed', value: results }
-      : {
-          status: 'unknown',
-          error: {
-            operation: 'backgroundResults',
-            code: 'missing-result-origin',
-            message: 'A Durable background result has no recorded triggering call'
+    const active = Boolean(live?.run)
+    if (this.history && (history !== undefined || this.backgroundRunActive !== active)) {
+      this.backgroundRunActive = active
+      const results = subagentResults(this.history, active)
+      this.backgroundResults = results
+        ? { status: 'confirmed', value: results }
+        : {
+            status: 'unknown',
+            error: {
+              operation: 'backgroundResults',
+              code: 'missing-result-origin',
+              message: 'A Durable background result has no recorded triggering call'
+            }
           }
-        }
+    }
     const completion =
       !pending && (this.pending || this.cycle.size > 0) && revision !== undefined
         ? {

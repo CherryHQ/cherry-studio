@@ -1,4 +1,6 @@
-import type { RunEndFacts, SubagentRunRecord, SubagentStopper } from '../facts'
+import type { ThreadId } from '@cherrystudio/agent-runtime'
+
+import type { RunEndFacts, SubagentRunRecord, SubagentStopper, ToolResultFact } from '../facts'
 import type { PendingResult } from './subagentLedger'
 
 /** Model requests one child run may make, compaction summaries included (agent-runtime-pi README subagents; Claude Code's fork limit). */
@@ -10,6 +12,7 @@ const LISTED = 20
 
 export const IN_SUBAGENT = 'Subagents cannot start or manage subagents.'
 /** A subagent call whose turn is stopping starts no run: the stop already took the children the turn owned. */
+export const SUBAGENT_TOOL_NAME = 'subagent'
 export const TURN_STOPPED = 'The turn was stopped; no subagent was started or continued.'
 const PREAMBLE =
   'You are a subagent working for another agent, not for the user. Do the task below with your tools, then finish with one final message that reports the result in full — the other agent sees only that final message. You cannot ask the user questions and you cannot start subagents.'
@@ -130,4 +133,17 @@ export function statusMessage(
     )
   ].slice(0, LISTED)
   return lines.length === 0 ? undefined : [STATUS_HEADER, ...lines, STATUS_FOOTER].join('\n')
+}
+
+export type SubagentMessageReceipt =
+  | { readonly status: 'refused'; readonly reason: string }
+  | { readonly status: 'queued' | 'continued'; readonly child: ThreadId }
+
+export function messageToolResult(result: SubagentMessageReceipt): ToolResultFact {
+  if (result.status === 'refused') return { text: result.reason, isError: true }
+  return {
+    text: result.status === 'continued' ? continuedText(result.child) : queuedText(result.child),
+    isError: false,
+    details: { sessionId: result.child, continued: result.status === 'continued' }
+  }
 }

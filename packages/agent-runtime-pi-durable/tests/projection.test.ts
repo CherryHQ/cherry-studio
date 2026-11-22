@@ -11,6 +11,7 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, ThreadFeed, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
+import { historyOf } from '../src/behavior/history'
 import { DurableProjection, type DurableObservation } from '../src/projection'
 
 const conversationId = 1 as ConversationId
@@ -49,9 +50,62 @@ const liveMessages = (batches: readonly DurableObservation[]) =>
       )
     )
   )
-const live = (attempt = 1): LiveState => ({
+const live = (attempt = 1, text = 'same text'): LiveState => ({
   run: { taskId, inputs: [], turns: 0 },
-  generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
+  generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage(text))) }
+})
+
+it.each([0, 2048])('keeps background evidence during previews without scanning %i prior entries', async (size) => {
+  const { projection } = setup(view([]))
+  const call = fauxAssistantMessage(fauxToolCall('subagent', {}, { id: 'delegation' }), { stopReason: 'toolUse' })
+  const assistant = { ...entry(size + 1, ''), data: {}, model: [call] }
+  const run = {
+    sessionId: '2',
+    run: 1,
+    background: true,
+    status: 'running',
+    parentToolCallId: `${assistant.id}:delegation`
+  }
+  const record: EntryRecord = {
+    id: (size + 2) as EntryId,
+    conversationId,
+    kind: 'cherry.subagent-state',
+    data: run
+  }
+  const entries = [
+    ...Array.from({ length: size }, (_, index) => ({ ...entry(index + 1, 'prior'), data: {} })),
+    assistant,
+    record
+  ]
+  const facts = historyOf(entries, [], conversationId)
+  let visited = 0
+  const tracked = new Proxy(facts, {
+    get(target, key, receiver) {
+      if (typeof key === 'string' && /^\d+$/.test(key)) visited++
+      return Reflect.get(target, key, receiver)
+    }
+  })
+  projection.update(view([], live()), 1, [], tracked)
+  const observed: DurableObservation[] = []
+  const observation = projection.observe((batch) => {
+    observed.push(batch)
+  })
+  visited = 0
+  for (const text of ['a', 'ab', 'abc']) projection.update(view([], live(1, text)))
+  await observation.drain()
+  expect(visited).toBe(0)
+  expect(observed.at(-1)?.backgroundResults).toMatchObject({ status: 'confirmed', value: { pending: ['delegation'] } })
+  const stopped = {
+    ...record,
+    id: (size + 3) as EntryId,
+    data: { ...run, status: 'finished', modelStopped: true }
+  }
+  projection.update(view([], live()), 2, [], historyOf([...entries, stopped], [], conversationId))
+  await observation.drain()
+  expect(observed.at(-1)?.backgroundResults).toMatchObject({
+    status: 'confirmed',
+    value: { active: false, pending: [] }
+  })
 })
 
 it.each(['', 'partial answer'])('retains the provider failure alongside %j content', (text) => {

@@ -23,10 +23,26 @@ import {
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { onTestFinished } from 'vitest'
 
-import type { ContractHarness, HarnessPorts, HostPorts, ScriptedReply } from '@cherrystudio/agent-behavior'
+import type {
+  BoundPorts,
+  ContractHarness,
+  GateHandlers,
+  HarnessPorts,
+  HostPorts,
+  JobHandler,
+  JobKind,
+  LifecycleHandlers,
+  RequestMeterHandler,
+  ScriptedReply
+} from '@cherrystudio/agent-behavior'
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableBehavior, type PiDurableBehavior, type PiDurableBehaviorOptions } from '../src/behavior/harness'
+import {
+  createPiDurableBehavior,
+  type BehaviorHooks,
+  type PiDurableBehavior,
+  type PiDurableBehaviorOptions
+} from '../src/behavior/harness'
 import { conversationId, DurableFolds, pages, threadId } from '../src/behavior/history'
 import { meteredModels } from '../src/behavior/models'
 
@@ -104,12 +120,110 @@ export async function openDurableHarness(
     const model = provider(thread).getModel()
     return { provider: model.provider, modelId: model.id }
   }
+  function operations() {
+    if (!behavior.operations) throw new Error('The port contract requires test hooks')
+    return behavior.operations
+  }
+  type Scope = Parameters<ReturnType<typeof operations>['scopedFacts']>[0]
+
+  function bound(scope: Scope): BoundPorts {
+    return {
+      ledger: {
+        read: (thread) => operations().scopedFacts(scope, thread),
+        async transact(thread, decide) {
+          const { result, effects, spawned } = await operations().transact(scope, thread, decide)
+          return { result, effects, spawned }
+        },
+        modelContext: (thread) => operations().modelContext(scope, thread)
+      },
+      turns: {
+        start: (thread, input, key) => operations().startTurn(scope, thread, input, key),
+        retract: (thread, key) => operations().retractTurn(scope, thread, key),
+        stop: (thread, _cause, turn) => operations().stopTurn(scope, thread, turn)
+      },
+      helpers: {
+        message: (child, input, key, run) => operations().messageChild(scope, child, input, key, run),
+        awaitAnswer: (child, run) => operations().awaitChild(scope, child, run),
+        stop: (child, run) => operations().stopChild(scope, child, run)
+      },
+      waits: {
+        untilIdle: (thread) => operations().waitForIdle(scope, thread),
+        untilDone: (thread, key) => operations().waitForSubmission(scope, thread, key)
+      },
+      memory: { remember: (key, produce) => operations().remember(scope, key, produce) },
+      clock: { now: Date.now }
+    }
+  }
+
+  function contractHooks(install: (ports: HarnessPorts) => void): BehaviorHooks {
+    const tools: BehaviorHooks['tools'][number][] = []
+    const jobs = new Map<JobKind, JobHandler>()
+    let lifecycle: LifecycleHandlers | undefined
+    let gate: GateHandlers | undefined
+    let meter: RequestMeterHandler | undefined
+    install({
+      ...bound({
+        ended: false,
+        context,
+        commit: (run) => native.commit(run, context),
+        memo: async () => {
+          throw new Error('Memory requires a call')
+        }
+      }),
+      tools: { register: ({ run, ...spec }) => tools.push({ ...spec, run: (scope, call) => run(call, bound(scope)) }) },
+      jobs: {
+        register: (kind, job) => {
+          jobs.set(kind, job)
+        }
+      },
+      lifecycle: {
+        register: (handler) => {
+          lifecycle = handler
+        }
+      },
+      toolGate: {
+        register: (handler) => {
+          gate = handler
+        }
+      },
+      requestMeter: {
+        register: (handler) => {
+          meter = handler
+        }
+      },
+      contextFilter: { register() {} }
+    })
+    const toolGate = gate
+    const lifecycleHooks = lifecycle
+    const onClose = lifecycleHooks?.onClose
+    return {
+      tools,
+      hasJob: (kind) => jobs.has(kind),
+      runJob(scope, job) {
+        const handler = jobs.get(job.kind)
+        if (!handler) throw new Error(`Missing behavior job ${job.kind}`)
+        return handler(bound(scope), job)
+      },
+      beforeTool:
+        toolGate &&
+        ((call, facts, remember) => toolGate.before(call, facts, { clock: { now: Date.now }, memory: { remember } })),
+      afterTool:
+        toolGate &&
+        ((call, result, remember) => toolGate.after(call, result, { clock: { now: Date.now }, memory: { remember } })),
+      checkRequest: meter?.allow,
+      onOpen:
+        lifecycleHooks && ((scope, thread, reopened) => lifecycleHooks.onOpen(thread, { reopened }, bound(scope))),
+      onCompacted: lifecycleHooks && ((scope, thread) => lifecycleHooks.onCompacted(thread, bound(scope))),
+      onClose: onClose && ((scope, thread) => onClose(thread, bound(scope)))
+    }
+  }
+
   async function open() {
     const registry = createRegistry()
     for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
       folds: options.folds?.() ?? new DurableFolds(),
-      ...(typeof setup === 'function' ? { install: setup } : { host: setup }),
+      ...(typeof setup === 'function' ? { hooks: contractHooks(setup) } : { host: setup }),
       configureChild: options.configureChild ?? ((child) => ({ model: modelOf(child) })),
       onError: (error) => errors.push(error)
     })
@@ -140,7 +254,7 @@ export async function openDurableHarness(
     },
     withCall(thread, use) {
       native.resume()
-      return behavior.withCall(thread, use)
+      return operations().withHostScope(thread, (scope) => use(bound(scope)))
     },
     script(thread, replies) {
       scripts.set(thread, [...(scripts.get(thread) ?? []), ...replies])

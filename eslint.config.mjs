@@ -446,6 +446,7 @@ const barrelPlugin = {
       create(ctx) {
         const f = barrelFilename(ctx)
         const check = (node, spec) => {
+          if (spec === '@cherrystudio/agent-behavior/policy') return
           const tgt = resolveBarrelSpec(spec, f)
           if (!tgt) return
           const d = outermostCrossedBarrelDir(tgt, f)

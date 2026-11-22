@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import type { Usage } from '@earendil-works/pi-ai'
 
-import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
+import type { BehaviorEvent } from '@cherrystudio/agent-behavior/policy'
 import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
   DurableObservation,
