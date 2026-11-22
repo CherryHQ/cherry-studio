@@ -152,7 +152,7 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     await writeFile(
       temporary,
       JSON.stringify({
-        version: 1,
+        version: 2,
         sessionId: input.nativeThreadId,
         projectKey,
         sourceProjectKey: sourceKey,
