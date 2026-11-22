@@ -16,11 +16,19 @@
  *   `countAgentImageAttachments` — one image definition for message parts,
  *   runtime payloads and composer attachments, so ordering and counts agree
  *   on every surface.
+ * - `countRoutedAgentImageFileParts` / `assertRoutedAgentImageLimit` — routed
+ *   count that ignores orphaned managed parts (saved history files whose
+ *   composer tokens are absent), matching what `prepareChatMessages` would
+ *   actually send. History-inclusive gates use this so a text-only
+ *   continuation with only orphaned history passes.
  * - `resolveMaxAgentImages` — the capability-driven limit from the production
  *   `Model` contract (`Model.maxAgentImages`): explicit per-model declarations
  *   win, vision models without one are unlimited, and non-vision models defer
  *   to the existing graceful fallbacks (OCR text, path references, Read
- *   guards) instead of a new upfront block.
+ *   guards) instead of a new upfront block. The bundled provider-registry
+ *   catalog declares no caps today, so with bundled data every vision model is
+ *   unlimited and preflight is a no-op — enforcement activates only when a
+ *   deployment declares a cap or an upstream rejection names one.
  * - `assertAgentImageLimit` — throws `AgentImageLimitError` (carrying the
  *   actual limit and count) before the provider call. Callers keep the draft
  *   and history intact so retry preserves attachments and instructions.
@@ -31,7 +39,9 @@
  *   normalize with `sent: true` so surfaces show the request was already sent.
  */
 
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { imageExts as sharedImageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
@@ -125,6 +135,70 @@ export function countAgentImageFileParts(parts: readonly unknown[] | undefined |
   return count
 }
 
+/**
+ * Collect active composer file-token ids from text parts.
+ *
+ * Mirrors `collectComposerFileTokenIds` in attachment routing: a managed file
+ * part is only routed when its `fileTokenSourceId` still has a live composer
+ * token. History replay carries saved file parts without their original tokens,
+ * so counting them raw would reject a text-only continuation that routing
+ * would send with zero images.
+ */
+export function collectActiveAgentFileTokenIds(parts: readonly unknown[] | undefined | null): Set<string> {
+  const ids = new Set<string>()
+  if (!parts) return ids
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null) continue
+    const candidate = part as { type?: unknown }
+    if (candidate.type !== 'text') continue
+    const meta = readCherryMeta(candidate as CherryMessagePart) as { composer?: { tokens?: unknown } } | undefined
+    const tokens = meta?.composer?.tokens
+    if (!Array.isArray(tokens)) continue
+    for (const token of tokens) {
+      if (typeof token !== 'object' || token === null) continue
+      const entry = token as { kind?: unknown; id?: unknown }
+      if (entry.kind === 'file' && typeof entry.id === 'string') ids.add(entry.id)
+    }
+  }
+  return ids
+}
+
+/**
+ * Whether the part would survive attachment routing and reach the model.
+ * Orphaned managed parts (a `fileTokenSourceId` with no live `file:` token)
+ * are dropped by `prepareChatMessages` before native blocks or path fallbacks
+ * are built, so pre-send admission must not count them.
+ */
+export function isRoutedAgentImagePart(
+  part: AgentImagePartLike | null | undefined,
+  activeTokenIds?: ReadonlySet<string>
+): boolean {
+  if (!isAgentImagePart(part)) return false
+  if (!part || typeof part !== 'object') return false
+  const meta = readCherryMeta(part as CherryMessagePart) as { fileTokenSourceId?: unknown } | undefined
+  const sourceId = typeof meta?.fileTokenSourceId === 'string' ? meta.fileTokenSourceId : undefined
+  if (!sourceId) return true
+  if (!activeTokenIds) return true
+  return activeTokenIds.has(`file:${sourceId}`)
+}
+
+/**
+ * Count only routed image `file` parts: orphaned managed parts are ignored,
+ * matching what `prepareChatMessages` would actually send.
+ */
+export function countRoutedAgentImageFileParts(parts: readonly unknown[] | undefined | null): number {
+  if (!parts) return 0
+  const tokenIds = collectActiveAgentFileTokenIds(parts)
+  let count = 0
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null) continue
+    const candidate = part as AgentImagePartLike
+    if (candidate.type !== 'file') continue
+    if (isRoutedAgentImagePart(candidate, tokenIds)) count += 1
+  }
+  return count
+}
+
 /** Count image attachments in order (composer attachments are file-only). */
 export function countAgentImageAttachments(attachments: readonly AgentImagePartLike[] | undefined | null): number {
   if (!attachments) return 0
@@ -208,6 +282,26 @@ export function assertAgentImageLimit(
   const limit = opts?.maxImages ?? resolveMaxAgentImages(model)
   if (limit === undefined) return
   const count = countAgentImageFileParts(parts)
+  if (count > limit) throw new AgentImageLimitError({ limit, count, runtime: opts?.runtime })
+}
+
+/**
+ * Throw `AgentImageLimitError` when the *routed* image count exceeds the
+ * turn model's limit. Unlike `assertAgentImageLimit` (raw structural count),
+ * orphaned managed parts — saved history files whose composer tokens are
+ * absent from the replay wrapper — are ignored, matching what
+ * `prepareChatMessages` would actually send. A text-only continuation with
+ * only orphaned history therefore passes, while two actually routed images
+ * still fail before the paid call.
+ */
+export function assertRoutedAgentImageLimit(
+  parts: readonly unknown[] | undefined | null,
+  model: Model | undefined | null,
+  opts?: { runtime?: string; maxImages?: number }
+): void {
+  const limit = opts?.maxImages ?? resolveMaxAgentImages(model)
+  if (limit === undefined) return
+  const count = countRoutedAgentImageFileParts(parts)
   if (count > limit) throw new AgentImageLimitError({ limit, count, runtime: opts?.runtime })
 }
 

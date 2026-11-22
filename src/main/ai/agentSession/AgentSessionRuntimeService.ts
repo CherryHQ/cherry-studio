@@ -33,7 +33,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { assertAgentImageLimit } from '@shared/ai/agentImageLimits'
+import { assertAgentImageLimit, assertRoutedAgentImageLimit } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -440,7 +440,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private assertTurnImageLimit(
     modelId: UniqueModelId | undefined,
     parts: readonly CherryMessagePart[] | undefined,
-    agentType: string | undefined
+    agentType: string | undefined,
+    opts?: { routed?: boolean }
   ): void {
     if (!modelId || !isUniqueModelId(modelId)) return
     let model: ReturnType<typeof modelService.getByKey> | undefined
@@ -449,6 +450,10 @@ export class AgentSessionRuntimeService extends BaseService {
       model = modelService.getByKey(providerId, rawModelId)
     } catch (error) {
       logger.warn('Failed to resolve model for agent image-limit validation; skipping', { modelId, error })
+      return
+    }
+    if (opts?.routed === true) {
+      assertRoutedAgentImageLimit(parts, model, { runtime: agentType })
       return
     }
     assertAgentImageLimit(parts, model, { runtime: agentType })
@@ -3372,12 +3377,15 @@ export class AgentSessionRuntimeService extends BaseService {
     // captured model, not the entry's latest default. The connection targets
     // `turn.modelId` while live (see `connectionTarget`), so an agent-default
     // change during connection opening must not re-gate the opening turn.
-    // Include replayed history: a fresh native context replays saved images,
-    // so a text-only send with two historical images must still fail here
-    // with the typed limit (and surface historical attachments) before the
-    // paid call, even though the draft itself is empty.
+    // Include replayed history, but count only routed images: orphaned managed
+    // history (saved files whose composer tokens are absent from the replay
+    // wrapper) is dropped by routing and must not reject a text-only
+    // continuation. Two actually routed images still fail here with the typed
+    // limit before the paid call.
     if (context?.length) {
-      this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType)
+      this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {
+        routed: true
+      })
     } else {
       this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
     }

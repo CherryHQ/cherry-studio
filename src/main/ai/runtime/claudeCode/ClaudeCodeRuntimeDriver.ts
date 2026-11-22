@@ -401,38 +401,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   /**
    * Consume the pending image count that best matches a provider `result`
-   * failure (first count exceeding the parsed limit, else the most recent).
-   * Returns undefined when no pending submission exists.
+   * failure (first count exceeding the parsed limit in submission order, else
+   * the most recent). Submission order matters: when a two-image request fails
+   * while a five-image steer is still queued unplaced, the failure belongs to
+   * the earlier submission — reporting the queued maximum would misattribute
+   * the count and drop the steer's entry. Returns undefined when no pending
+   * submission exists.
+   *
+   * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
+   * `requesting` membership from the 0.3.311 adapter) instead of order when
+   * placement tracking is available. The current FIFO heuristic preserves
+   * unplaced counts but cannot prove which UUID was placed.
    */
   private consumeImageCountForResult(failure: unknown): number | undefined {
     if (this.pendingImageCounts.length === 0) return this.lastImageCount
-    const message =
-      typeof failure === 'string'
-        ? failure
-        : failure instanceof Error
-          ? failure.message
-          : typeof (failure as { message?: unknown }).message === 'string'
-            ? String((failure as { message?: unknown }).message)
-            : undefined
-    const limit = parseUpstreamImageLimit(message)
-    if (limit !== undefined) {
-      let best = -1
-      for (let i = 0; i < this.pendingImageCounts.length; i++) {
-        if (
-          this.pendingImageCounts[i] > limit &&
-          (best === -1 || this.pendingImageCounts[i] > this.pendingImageCounts[best])
-        ) {
-          best = i
-        }
-      }
-      if (best !== -1) {
-        const [count] = this.pendingImageCounts.splice(best, 1)
-        this.lastImageCount = count
-        return count
-      }
-    }
-    const count = this.pendingImageCounts.pop()
-    this.lastImageCount = count
+    const count = consumePendingImageCount(this.pendingImageCounts, failure)
+    if (count !== undefined) this.lastImageCount = count
     return count
   }
 
@@ -1147,6 +1131,43 @@ function normalizeImageLimitRejection(message: string | undefined, parts: readon
   return (
     normalizeAgentImageLimitFailure(failure, countAgentImageFileParts(parts), { runtime: 'claude-code' }) ?? failure
   )
+}
+
+/**
+ * Consume the pending image count that best matches a provider `result`
+ * failure. Exported for regression coverage: the queue holds submitted native
+ * block counts in order, and a later `result` failure names only the limit.
+ * First over-limit in submission order wins (not the maximum), so a two-image
+ * failure while a five-image steer is still queued unplaced reports two and
+ * preserves the steer's entry. Mutates `pending` in place (splice/pop).
+ *
+ * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
+ * `requesting` membership from the 0.3.311 adapter) instead of order when
+ * placement tracking is available.
+ */
+export function consumePendingImageCount(pending: number[], failure: unknown): number | undefined {
+  if (pending.length === 0) return undefined
+  const message =
+    typeof failure === 'string'
+      ? failure
+      : failure instanceof Error
+        ? failure.message
+        : typeof (failure as { message?: unknown }).message === 'string'
+          ? String((failure as { message?: unknown }).message)
+          : undefined
+  const limit = parseUpstreamImageLimit(message)
+  if (limit !== undefined) {
+    // First over-limit in submission order: the provider reports the placed
+    // request, and queued steers have not been placed yet (see placement
+    // contract in packages/agent-runtime-claude-code/README).
+    for (let i = 0; i < pending.length; i++) {
+      if (pending[i] > limit) {
+        const [count] = pending.splice(i, 1)
+        return count
+      }
+    }
+  }
+  return pending.pop()
 }
 
 /**

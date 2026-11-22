@@ -843,6 +843,58 @@ describe('AgentSessionRuntimeService', () => {
       expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: unlimitedId }))
       await reader.cancel().catch(() => undefined)
     })
+
+    it('permits a text-only continuation with only orphaned history but rejects routed history', async () => {
+      // Regression for inv_9210c3c63f2e4d13: admitTurn counts history-inclusive
+      // parts with routed filtering, so orphaned managed history (tokens absent)
+      // does not reject a text-only send, while two actually routed images do.
+      const { withCherryMeta } = await import('@shared/data/types/uiParts')
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const orphaned = (filename: string, sourceId: string) =>
+        withCherryMeta(
+          { type: 'file', url: `file:///tmp/${filename}`, mediaType: 'image/png', filename } as never,
+          { fileEntryId: `entry-${sourceId}`, fileTokenSourceId: sourceId } as never
+        )
+      const routedParts = [
+        { type: 'text', text: 'Previous conversation history' },
+        ...[
+          { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' },
+          { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' }
+        ],
+        { type: 'text', text: 'continuation' }
+      ]
+      expect(() =>
+        (
+          service as unknown as {
+            assertTurnImageLimit: (
+              modelId: unknown,
+              parts: unknown,
+              agentType: string,
+              opts?: { routed?: boolean }
+            ) => void
+          }
+        ).assertTurnImageLimit(baseTurnInput.modelId, routedParts as never, 'claude-code', { routed: true })
+      ).toThrow(AgentImageLimitError)
+      const orphanedParts = [
+        { type: 'text', text: 'Previous conversation history' },
+        orphaned('a.png', 'source-a'),
+        orphaned('b.png', 'source-b'),
+        { type: 'text', text: 'continuation' }
+      ]
+      expect(() =>
+        (
+          service as unknown as {
+            assertTurnImageLimit: (
+              modelId: unknown,
+              parts: unknown,
+              agentType: string,
+              opts?: { routed?: boolean }
+            ) => void
+          }
+        ).assertTurnImageLimit(baseTurnInput.modelId, orphanedParts as never, 'claude-code', { routed: true })
+      ).not.toThrow()
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(

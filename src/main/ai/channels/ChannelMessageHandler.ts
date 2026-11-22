@@ -17,6 +17,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -452,10 +453,15 @@ export class ChannelMessageHandler {
       }
     } catch (error) {
       if (!streamStarted) {
+        // Capability-driven multi-image guard (#20030): preserve the actual
+        // limit/count instead of a generic processing error so channel users see
+        // why the turn was rejected before any paid provider call.
         const messageText =
-          isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError
+          error instanceof AgentImageLimitError
             ? error.message
-            : t('common.channel_message_processing_error')
+            : isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError
+              ? error.message
+              : t('common.channel_message_processing_error')
         await adapter.sendMessage(message.chatId, messageText, responseOptionsFor(message)).catch(() => {})
       }
       const context = {

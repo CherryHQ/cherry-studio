@@ -92,6 +92,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
@@ -1385,10 +1386,13 @@ const AgentComposerInner = ({
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         // Capability-driven multi-image guard (#20030): a main-side rejection
-        // carries the typed limit keys across IPC (see serializeError). Render
-        // the limit warning so retry preserves the draft instead of showing a
-        // generic processing error.
-        const serialized = error as Record<string, unknown> | null
+        // now arrives as AI_REQUEST_FAILED with serializeError data (limit/count
+        // via aiErrorDetail), while direct throws still carry the typed fields.
+        // Render the limit warning so retry preserves the draft instead of
+        // showing a generic processing error.
+        const direct = error as Record<string, unknown> | null
+        const detail = (aiErrorDetail(error) as Record<string, unknown> | undefined) ?? undefined
+        const serialized = (detail ?? direct) as Record<string, unknown> | undefined
         const i18nKey = typeof serialized?.i18nKey === 'string' ? serialized.i18nKey : undefined
         if (
           i18nKey === 'agent_image_limit_exceeded' ||

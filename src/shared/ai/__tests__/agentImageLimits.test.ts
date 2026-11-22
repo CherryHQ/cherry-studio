@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import { ModelSchema, type Model } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import {
   AgentImageLimitError,
   assertAgentImageLimit,
+  assertRoutedAgentImageLimit,
   countAgentImageAttachments,
   countAgentImageFileParts,
+  countRoutedAgentImageFileParts,
   isAgentImagePart,
   normalizeAgentImageLimitFailure,
   parseUpstreamImageLimit,
@@ -101,6 +104,64 @@ describe('countAgentImageAttachments', () => {
         { type: 'image', ext: '.jpg', name: 'c' }
       ])
     ).toBe(2)
+  })
+})
+
+describe('countRoutedAgentImageFileParts (#20030 replay)', () => {
+  const managedImage = (filename: string, sourceId: string) =>
+    withCherryMeta(
+      { type: 'file', url: `file:///tmp/${filename}`, mediaType: 'image/png', filename } as never,
+      { fileEntryId: `entry-${sourceId}`, fileTokenSourceId: sourceId } as never
+    )
+  const tokenText = (sourceId: string) =>
+    withCherryMeta(
+      { type: 'text', text: 'see' } as never,
+      {
+        composer: {
+          version: 1,
+          tokens: [{ id: `file:${sourceId}`, kind: 'file', label: sourceId, index: 0, textOffset: 0 }]
+        }
+      } as never
+    )
+
+  it('ignores orphaned managed history without live tokens', () => {
+    const parts = [
+      { type: 'text', text: 'Previous conversation history' },
+      managedImage('a.png', 'source-a'),
+      managedImage('b.png', 'source-b'),
+      { type: 'text', text: 'new text-only follow-up' }
+    ]
+    expect(countAgentImageFileParts(parts)).toBe(2)
+    expect(countRoutedAgentImageFileParts(parts)).toBe(0)
+  })
+
+  it('counts routed images when tokens are present', () => {
+    const parts = [tokenText('source-a'), managedImage('a.png', 'source-a'), managedImage('b.png', 'source-b')]
+    expect(countRoutedAgentImageFileParts(parts)).toBe(1)
+  })
+
+  it('counts external images without cherry meta as routed', () => {
+    const parts = [
+      { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' },
+      { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' }
+    ]
+    expect(countRoutedAgentImageFileParts(parts)).toBe(2)
+  })
+
+  it('assertRoutedAgentImageLimit permits orphaned history but rejects routed over-limit', () => {
+    const single = visionModel({ maxAgentImages: 1 })
+    const orphaned = [
+      { type: 'text', text: 'history' },
+      managedImage('a.png', 'source-a'),
+      managedImage('b.png', 'source-b'),
+      { type: 'text', text: 'continuation' }
+    ]
+    expect(() => assertRoutedAgentImageLimit(orphaned, single, { runtime: 'claude-code' })).not.toThrow()
+    const routed = [
+      { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' },
+      { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' }
+    ]
+    expect(() => assertRoutedAgentImageLimit(routed, single, { runtime: 'claude-code' })).toThrow(AgentImageLimitError)
   })
 })
 

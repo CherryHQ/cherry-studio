@@ -279,6 +279,32 @@ describe('ChannelMessageHandler', () => {
     ])
   })
 
+  it('preserves the actual limit for an over-limit agent image admission (#20030)', async () => {
+    const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+    const adapter = createMockAdapter({ channelType: 'wecom' })
+    vi.mocked(agentSessionService.create).mockReturnValueOnce({
+      id: 'session-image-limit',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+    mockStartAgentSessionRun.mockRejectedValueOnce(
+      new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+    )
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'compare',
+      messageId: 'inbound-1'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    const [chatId, text, options] = adapter.sendMessage.mock.calls[0]
+    expect(chatId).toBe('chat-1')
+    expect(text).toMatch(/at most 1 image/)
+    expect(text).toMatch(/2 image/)
+    expect(options).toEqual({ replyToMessageId: 'inbound-1' })
+  })
+
   it('leaves admitted stream errors to the listener without sending a second terminal reply', async () => {
     const adapter = createMockAdapter()
     vi.mocked(agentSessionService.create).mockReturnValueOnce({

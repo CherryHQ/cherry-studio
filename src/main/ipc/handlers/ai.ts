@@ -18,8 +18,10 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
@@ -44,6 +46,13 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    if (error instanceof AgentImageLimitError) {
+      // Capability-driven multi-image guard (#20030): preserve the typed limit
+      // across IPC so the renderer can render the limit/count warning instead of
+      // a generic processing error. Uses AI_REQUEST_FAILED + serializeError so
+      // aiErrorDetail() recovers limit/count/i18nKey/sent in the renderer.
+      throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, error.message, serializeError(error))
     }
     throw error
   }

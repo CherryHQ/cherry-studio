@@ -488,6 +488,25 @@ describe('aiHandlers — streaming', () => {
     })
   })
 
+  it('stream_open preserves the agent image limit across IPC with limit/count (#20030)', async () => {
+    const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+    const { aiErrorDetail } = await import('@shared/ipc/errors/ai')
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(
+      new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+    )
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'submit-message', topicId: 'agent-session:s1', userMessageParts: [] } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({ code: aiErrorCodes.AI_REQUEST_FAILED })
+    expect(error.data).toMatchObject({ limit: 1, count: 2, i18nKey: 'agent_image_limit_exceeded' })
+    // Renderer recovers the typed fields through aiErrorDetail.
+    expect(aiErrorDetail(error)).toMatchObject({ limit: 1, count: 2 })
+  })
+
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
     aiStreamManager.attach.mockReturnValue({ status: 'not-found' })
 
