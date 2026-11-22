@@ -44,6 +44,7 @@ export const terminalToolSchemas = {
       .min(1)
       .max(32 * 1024),
     prompt_revision: revision.optional(),
+    draft_revision: revision.optional(),
     command_id: id.optional(),
     program_revision: revision.optional(),
     yield_ms: z.number().int().min(0).max(30_000).default(1000)
@@ -66,7 +67,7 @@ const descriptions: Record<keyof typeof terminalToolSchemas, string> = {
   terminal_open:
     'Create a persistent interactive terminal in this conversation. Separate from fresh bash/powershell calls. Returns its identity, control revision and verified shell facts.',
   terminal_send:
-    'Send a command only at a verified prompt, or raw stdin to the expected running command. Commands require prompt_revision; stdin requires command_id and program_revision. Busy commands are refused. Yielding or cancelling the wait leaves the terminal running.',
+    'Send a command only at a verified prompt, or raw stdin to the expected running command. Commands require prompt_revision and draft_revision from a verified empty editor; stdin requires command_id and program_revision. Busy commands are refused. Yielding or cancelling the wait leaves the terminal running.',
   terminal_list:
     'List persistent terminals in this conversation, with their shell, control and command facts. Paged reads never acquire control.',
   terminal_signal:
@@ -419,7 +420,13 @@ export class TerminalTools {
       args.kind === 'command'
         ? await this.service.mutate(
             ref,
-            { kind: 'shell-command', ...common, commandId, promptRevision: z.number().parse(args.prompt_revision) },
+            {
+              kind: 'shell-command',
+              ...common,
+              commandId,
+              promptRevision: z.number().parse(args.prompt_revision),
+              draftRevision: z.number().parse(args.draft_revision)
+            },
             commandId
           )
         : await this.service.mutate(

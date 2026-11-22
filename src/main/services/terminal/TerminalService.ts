@@ -12,7 +12,7 @@ import { findExecutableInEnv, autoDiscoverGitBash } from '@main/utils/commandRes
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { terminalViewAction } from '@shared/ipc/schemas/terminal'
 import type { WindowId } from '@shared/ipc/types'
-import type { TerminalViewFrame, GhosttyTheme, TerminalResourceView } from '@shared/types/terminal'
+import type { TerminalViewFrame, GhosttyTheme, TerminalResourceView, TerminalViewLayout } from '@shared/types/terminal'
 
 import {
   terminalConversationId,
@@ -717,7 +717,8 @@ export class TerminalService extends BaseService {
     rowStart: number,
     offset: number,
     revision: number | null,
-    theme?: GhosttyTheme
+    theme?: GhosttyTheme,
+    layout?: TerminalViewLayout
   ): Promise<TerminalViewFrame> {
     const view = this.ownedView(viewId, owner)
     if (view.pending) throw new Error('Terminal view request is already pending')
@@ -740,7 +741,15 @@ export class TerminalService extends BaseService {
       const host = conversation?.host
       if (!host || host.identity.generation !== view.ref.host.generation || host.phase !== 'ready')
         throw new Error('Terminal Host is unavailable')
-      const frame = await host.instance.request('view', { ...view.ref, viewId, rowStart, offset, revision, theme })
+      const frame = await host.instance.request('view', {
+        ...view.ref,
+        viewId,
+        rowStart,
+        offset,
+        revision,
+        theme,
+        layout
+      })
       view.offset = frame.scrollOffset
       const latest = execution?.state
       if (latest && latest.revision > frame.resource.revision) frame.resource = structuredClone(latest)
@@ -782,7 +791,7 @@ export class TerminalService extends BaseService {
     if (command.id !== view.ref.id || !('actor' in command) || command.actor.kind !== 'user')
       throw new Error('Invalid terminal view command')
     if (
-      ['resize', 'key', 'paste', 'mouse', 'wheel', 'input'].includes(command.kind) &&
+      ['resize', 'key', 'paste', 'mouse', 'wheel', 'input', 'rerun'].includes(command.kind) &&
       this.controllingViews.get(command.id) !== viewId
     )
       return { kind: 'rejected' as const, reason: 'stale_control' as const }
@@ -823,6 +832,69 @@ export class TerminalService extends BaseService {
         reason: 'user'
       })
     return this.viewCommand(viewId, owner, operationId, { ...action, ...common })
+  }
+
+  private viewHost(viewId: string, owner: WindowId) {
+    const view = this.ownedView(viewId, owner)
+    const host = this.conversations.get(view.ref.host.conversationId)?.host
+    return {
+      host: host?.phase === 'ready' && host.identity.generation === view.ref.host.generation ? host : null,
+      ref: { ...view.ref, viewId }
+    }
+  }
+
+  async listBlocks(
+    viewId: string,
+    owner: WindowId,
+    input: Omit<TerminalHostContract['methods']['listBlocks']['input'], 'host' | 'id' | 'viewId'>
+  ): Promise<TerminalHostContract['methods']['listBlocks']['output']> {
+    const { host, ref } = this.viewHost(viewId, owner)
+    if (!host)
+      return input.cursor || (input.expectedIndexRevision !== null && input.expectedIndexRevision !== 0)
+        ? { kind: 'stale' }
+        : { kind: 'blocks', indexRevision: 0, blocks: [], cursor: null }
+    return host.instance.request('listBlocks', { ...ref, ...input })
+  }
+  async readBlock(
+    viewId: string,
+    owner: WindowId,
+    input: Omit<TerminalHostContract['methods']['readBlock']['input'], 'host' | 'id' | 'viewId'>
+  ): Promise<TerminalHostContract['methods']['readBlock']['output']> {
+    const { host, ref } = this.viewHost(viewId, owner)
+    if (!host) return { kind: 'unavailable' }
+    return host.instance.request('readBlock', { ...ref, ...input })
+  }
+  async setSearch(
+    viewId: string,
+    owner: WindowId,
+    input: Omit<TerminalHostContract['methods']['setSearch']['input'], 'host' | 'id' | 'viewId'>
+  ): Promise<TerminalHostContract['methods']['setSearch']['output']> {
+    const { host, ref } = this.viewHost(viewId, owner)
+    if (!host)
+      return {
+        queryRevision: input.queryRevision,
+        resultRevision: 0,
+        status: 'unavailable',
+        count: 0,
+        selected: null,
+        matches: [],
+        highlightsLimited: false,
+        partial: false
+      }
+    return host.instance.request('setSearch', { ...ref, ...input })
+  }
+  async navigateSearch(
+    viewId: string,
+    owner: WindowId,
+    input: Omit<TerminalHostContract['methods']['navigateSearch']['input'], 'host' | 'id' | 'viewId'>
+  ) {
+    const { host, ref } = this.viewHost(viewId, owner)
+    if (!host) return null
+    return host.instance.request('navigateSearch', { ...ref, ...input })
+  }
+  async closeSearch(viewId: string, owner: WindowId, queryRevision: number) {
+    const { host, ref } = this.viewHost(viewId, owner)
+    return host?.instance.request('closeSearch', { ...ref, queryRevision })
   }
 
   async closeView(viewId: string, owner: WindowId): Promise<void> {

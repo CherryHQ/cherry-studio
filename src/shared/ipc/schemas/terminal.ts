@@ -56,6 +56,54 @@ const mouse = z
     anyButtonPressed: z.boolean()
   })
   .strict()
+const point = z.object({ x: revision, y: revision })
+const block = z.object({
+  outputEmpty: z.boolean(),
+  id: z.string().max(128),
+  contentRevision: revision,
+  command: z.string().nullable(),
+  cwd: z.string().nullable(),
+  status: z.enum(['running', 'completed', 'unknown']),
+  exitCode: z.number().nullable(),
+  reliable: z.boolean(),
+  prompt: point.nullable(),
+  output: point.nullable(),
+  end: point.nullable()
+})
+export const terminalBlockReadInput = z.object({
+  blockId: z.string().min(1).max(128),
+  part: z.enum(['command', 'output', 'block']),
+  consistency: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('latest') }),
+    z.object({ kind: z.literal('exact'), contentRevision: revision })
+  ])
+})
+export const terminalSearchInput = z.object({
+  queryRevision: revision,
+  scope: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('terminal') }),
+    z.object({ kind: z.literal('block'), blockId: z.string().min(1).max(128) })
+  ]),
+  needle: z.string().refine((value) => new TextEncoder().encode(value).length <= 4096)
+})
+export const terminalSearchProjection = z.object({
+  queryRevision: revision,
+  resultRevision: revision,
+  status: z.enum(['searching', 'caught-up', 'limited', 'unavailable', 'capacity', 'failed']),
+  count: revision,
+  selected: z.object({ index: revision, range: z.object({ start: point, end: point }).nullable() }).nullable(),
+  matches: z.array(z.object({ start: point, end: point })).max(2000),
+  highlightsLimited: z.boolean(),
+  partial: z.boolean()
+})
+export const terminalViewLayout = z.object({
+  revision,
+  sourceRevision: revision,
+  geometryEpoch: revision,
+  spans: z
+    .array(z.object({ sourceStart: revision, count: z.number().int().min(1).max(128), targetStart: revision }))
+    .max(128)
+})
 export const terminalViewAction = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('wheel'),
@@ -66,6 +114,13 @@ export const terminalViewAction = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('take-control') }),
   z.object({ kind: z.literal('return-control') }),
   z.object({ kind: z.literal('stop') }),
+  z.object({
+    kind: z.literal('rerun'),
+    blockId: z.string().min(1).max(128),
+    contentRevision: revision,
+    promptRevision: revision,
+    draftRevision: revision
+  }),
   z.object({ kind: z.literal('paste'), data: text, geometryEpoch: revision }),
   z.object({ kind: z.literal('key'), event: key, geometryEpoch: revision }),
   z.object({ kind: z.literal('mouse'), event: mouse, geometryEpoch: revision }),
@@ -117,10 +172,63 @@ export const terminalRequestSchemas = {
         rowStart: z.number().int().min(0).max(128),
         offset: z.number().int().min(0).max(5000),
         revision: revision.nullable(),
-        theme: theme.optional()
+        theme: theme.optional(),
+        layout: terminalViewLayout.optional()
       })
       .strict(),
     output: z.custom<TerminalViewFrame>()
+  }),
+  'terminal.blocks.list': defineRoute({
+    input: z
+      .object({
+        viewId: z.uuid(),
+        cursor: z.string().max(256).nullable(),
+        expectedIndexRevision: revision.nullable(),
+        limit: z.number().int().min(1).max(32)
+      })
+      .strict(),
+    output: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('stale') }),
+      z.object({
+        kind: z.literal('blocks'),
+        indexRevision: revision,
+        blocks: z.array(block).max(32),
+        cursor: z.string().nullable()
+      })
+    ])
+  }),
+  'terminal.blocks.read': defineRoute({
+    input: terminalBlockReadInput.extend({ viewId: z.uuid() }).strict(),
+    output: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('stale') }),
+      z.object({ kind: z.literal('unavailable') }),
+      z.object({
+        kind: z.literal('content'),
+        block,
+        text: z.string(),
+        partial: z.array(z.enum(['history', 'size', 'metadata'])),
+        mapping: z.array(z.object({ start: revision, end: revision, from: point, to: point }))
+      })
+    ])
+  }),
+  'terminal.search.set': defineRoute({
+    input: terminalSearchInput.extend({ viewId: z.uuid() }).strict(),
+    output: terminalSearchProjection
+  }),
+  'terminal.search.navigate': defineRoute({
+    input: z
+      .object({
+        viewId: z.uuid(),
+        queryRevision: revision,
+        resultRevision: revision,
+        direction: z.enum(['next', 'previous'])
+      })
+      .strict(),
+    output: terminalSearchProjection.nullable()
+  }),
+  'terminal.search.close': defineRoute({
+    input: z.object({ viewId: z.uuid(), queryRevision: revision }).strict(),
+    output: z.void()
   }),
   'terminal.detach': defineRoute({ input: z.object({ viewId: z.uuid() }).strict(), output: z.void() }),
   'terminal.link': defineRoute({

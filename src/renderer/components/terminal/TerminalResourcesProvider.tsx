@@ -10,6 +10,7 @@ import type { TerminalResourceState, TerminalResourceView } from '@shared/types/
 import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { useRightPanelActions } from '../chat/panes/Shell'
+import { newTerminalPresentation, type TerminalPresentation } from './terminalBlockLayout'
 
 type TerminalRef = Pick<TerminalResourceView, 'id' | 'host'>
 type TerminalCloseResult = 'closed' | 'unconfirmed' | 'rejected' | 'cancelled'
@@ -21,6 +22,16 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   const [claimId, setClaimId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [closingIds, setClosingIds] = useState<string[]>([])
+  const presentations = useRef(new Map<string, TerminalPresentation>())
+  const presentation = (ref: TerminalRef) => {
+    const key = `${ref.host.generation}:${ref.id}`
+    let value = presentations.current.get(key)
+    if (!value) {
+      value = newTerminalPresentation()
+      presentations.current.set(key, value)
+    }
+    return value
+  }
   const closes = useRef(new Map<string, Promise<TerminalCloseResult>>())
   const [closeIntents, setCloseIntents] = useState<TerminalRef[]>([])
   const [closeError, setCloseError] = useState<{ ref: TerminalRef; message: string } | null>(null)
@@ -102,6 +113,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   }, [data, setTabs])
   const finishClose = useCallback(
     (closed: TerminalRef[]) => {
+      for (const ref of closed) presentations.current.delete(`${ref.host.generation}:${ref.id}`)
       const ids = new Set<string>(closed.map((ref) => ref.id))
       const matches = (ref: TerminalRef) =>
         closed.some((item) => item.id === ref.id && item.host.generation === ref.host.generation)
@@ -280,6 +292,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   }
   return {
     sessionId,
+    presentation,
     resources,
     tabs,
     setTabs,

@@ -65,6 +65,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
+import { onGeneratedTextAttachment, type GeneratedTextAttachmentResult } from '@renderer/services/EventService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -78,6 +79,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -735,6 +737,69 @@ const AgentComposerInner = ({
     skillByFilename,
     text
   ])
+  const generatedTextDraft = useRef({
+    generation: 0,
+    intents: new Map<
+      string,
+      { controller: AbortController; generation: number; result: Promise<GeneratedTextAttachmentResult> }
+    >()
+  })
+  const cancelGeneratedText = useCallback(() => {
+    generatedTextDraft.current.generation++
+    for (const intent of generatedTextDraft.current.intents.values()) intent.controller.abort()
+  }, [])
+  useEffect(() => {
+    if (!layerActive) {
+      cancelGeneratedText()
+      return
+    }
+    const dispose = onGeneratedTextAttachment((request) => {
+      if (request.topicId !== sessionTopicId) return
+      request.claim(() => {
+        const state = generatedTextDraft.current
+        const previous = state.intents.get(request.intentId)
+        if (previous)
+          return previous.generation === state.generation ? previous.result : Promise.resolve({ kind: 'cancelled' })
+        if (state.intents.size >= 128) return Promise.resolve({ kind: 'unavailable' })
+        const generation = state.generation
+        const controller = new AbortController()
+        const result = (async (): Promise<GeneratedTextAttachmentResult> => {
+          try {
+            const aborted = new Promise<never>((_resolve, reject) =>
+              controller.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+                once: true
+              })
+            )
+            const text = await Promise.race([request.capture(controller.signal), aborted])
+            if (controller.signal.aborted || generatedTextDraft.current.generation !== generation)
+              return { kind: 'cancelled' }
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+            const attachment: ComposerAttachment = {
+              fileTokenSourceId: createComposerFileTokenSourceId(),
+              blob,
+              name: request.name,
+              origin_name: request.name,
+              ext: '.txt',
+              size: blob.size,
+              type: 'text',
+              composerFileKind: 'pasted-text'
+            }
+            actionsRef.current.insertToken(agentFileToComposerToken(attachment))
+            setFiles((previous) => [...previous, attachment])
+            return { kind: 'attached', attachmentId: attachment.fileTokenSourceId }
+          } catch {
+            return { kind: controller.signal.aborted ? 'cancelled' : 'failed' }
+          }
+        })()
+        state.intents.set(request.intentId, { controller, generation, result })
+        return result
+      })
+    })
+    return () => {
+      dispose()
+      cancelGeneratedText()
+    }
+  }, [actionsRef, cancelGeneratedText, layerActive, sessionTopicId, setFiles])
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
@@ -742,6 +807,7 @@ const AgentComposerInner = ({
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       releaseFollowupEditRef.current()
+      cancelGeneratedText()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(nextDraftTokens)
@@ -767,7 +833,7 @@ const AgentComposerInner = ({
       setFiles(savedTools.files)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
     },
-    [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, cancelGeneratedText, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
@@ -832,6 +898,7 @@ const AgentComposerInner = ({
   }, [
     actionsRef,
     agentId,
+    cancelGeneratedText,
     draftCacheKey,
     draftPersistenceEnabled,
     draftTokens,
@@ -1331,6 +1398,7 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    cancelGeneratedText()
     releaseFollowupEditRef.current()
     setText('')
     setFiles([])
@@ -1357,6 +1425,7 @@ const AgentComposerInner = ({
     inputHistoryToolsRef.current = null
   }, [
     agentId,
+    cancelGeneratedText,
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
@@ -1419,6 +1488,7 @@ const AgentComposerInner = ({
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
+      cancelGeneratedText()
       actionsRef.current.replaceDraft(item.draft)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
@@ -1432,6 +1502,7 @@ const AgentComposerInner = ({
     },
     [
       actionsRef,
+      cancelGeneratedText,
       handleReasoningEffortChange,
       handleServiceTierChange,
       resetHistoryIndex,
@@ -1455,6 +1526,7 @@ const AgentComposerInner = ({
       }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
+      cancelGeneratedText()
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
@@ -1477,6 +1549,7 @@ const AgentComposerInner = ({
     },
     [
       buildQueuedPayload,
+      cancelGeneratedText,
       clearCurrentDraft,
       enqueueFollowup,
       isStreaming,

@@ -3,7 +3,13 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { GHOSTTY_KEY_CODES } from '@shared/types/terminal'
-import type { GhosttySnapshot, TerminalViewFrame, GhosttyTheme, GhosttyRow } from '@shared/types/terminal'
+import type {
+  GhosttySnapshot,
+  TerminalViewFrame,
+  GhosttyRow,
+  TerminalBlockSummary,
+  TerminalSearchProjection
+} from '@shared/types/terminal'
 import { encodeTerminalRows } from '@shared/utils/terminalFrame'
 
 import type {
@@ -13,6 +19,7 @@ import type {
 import type { UtilityProcessStreamFrame } from '../../../core/utilityProcess/types'
 import {
   terminalLaunch,
+  type TerminalHostContract,
   type TerminalActor,
   type TerminalContext,
   type TerminalHostIdentity,
@@ -30,12 +37,19 @@ import { GhosttyTerminalCore } from '../ghostty/GhosttyTerminalCore'
 import { TerminalCapture } from '../TerminalCapture'
 import { ManagedProcess } from './ManagedProcess'
 import { ShellIntegration, type ShellIntegrationEvent } from './ShellIntegration'
+import { TerminalBlockIndex } from './TerminalBlockIndex'
+import { TerminalSearch } from './TerminalSearch'
 
 interface Resource {
   state: TerminalResourceState
   backend: ManagedProcess
   capture: TerminalCapture
   core?: GhosttyTerminalCore
+  blocks?: TerminalBlockIndex
+  mutationRevision: number
+  boundary: 'initial' | 'prompt' | 'program' | 'unknown'
+  searches: Map<string, TerminalSearch>
+  searchRevisions: Map<string, number>
   themeSignature?: string
   integration?: ShellIntegration
   programRevision: number
@@ -48,6 +62,15 @@ interface Resource {
       baseRevision: number | null
       offset: number
       historyTotal: number
+      sourceContentEnd: number
+      sourceOrigin: number
+      sourceRows?: number[]
+      layoutRevision?: number
+      nativeRevision: number
+      alternate: boolean
+      blocks: TerminalBlockSummary[]
+      blockIndexRevision: number
+      search?: TerminalSearchProjection
     }
   >
   deadline?: ReturnType<typeof setTimeout>
@@ -78,6 +101,32 @@ export class TerminalHost {
   private sealed = false
   private version = 0
   private runtime?: Promise<GhosttyRuntime>
+  private searchPump?: ReturnType<typeof setImmediate>
+  private searchTurn = 0
+
+  private scheduleSearch(): void {
+    if (this.searchPump) return
+    this.searchPump = setImmediate(() => {
+      this.searchPump = undefined
+      const queries = [...this.resources.values()].flatMap((resource) =>
+        [...resource.searches.values()].map((query) => ({ resource, query }))
+      )
+      const deadline = performance.now() + 2
+      for (let index = 0; index < queries.length && performance.now() < deadline; index++) {
+        const { resource, query } = queries[(this.searchTurn + index) % queries.length]
+        if (resource.writes || resource.replies || resource.state.cleanup !== 'none') continue
+        query.step(resource.mutationRevision)
+      }
+      this.searchTurn++
+      if (
+        queries.some(
+          ({ query, resource }) => query.projection.status === 'searching' && !resource.writes && !resource.replies
+        )
+      )
+        this.scheduleSearch()
+    })
+    this.searchPump.unref()
+  }
 
   constructor(
     readonly init: TerminalHostInit,
@@ -274,18 +323,45 @@ export class TerminalHost {
         resource.state.controlRevision++
       }
     }
-    if (command.kind === 'shell-command') {
+    if (command.kind === 'shell-command' || command.kind === 'rerun') {
       if (resource.state.shellFacts?.kind !== 'prompt') return rejected('busy')
       if (resource.state.shellFacts.revision !== command.promptRevision) return rejected('stale_control')
-      if (Buffer.byteLength(command.data) > 32 * 1024 || !command.data || command.data.includes('\0'))
+      if (
+        resource.state.editor?.kind !== 'empty' ||
+        resource.state.editor.revision !== command.draftRevision ||
+        resource.writes
+      )
+        return rejected('busy')
+      if (command.kind === 'rerun' && (command.actor.kind !== 'user' || resource.state.control.kind !== 'user'))
+        return rejected('stale_control')
+      const submitted =
+        command.kind === 'rerun' ? resource.blocks?.command(command.blockId, command.contentRevision) : command.data
+      if (submitted === null || submitted === undefined) return rejected('outcome_unknown')
+      if (Buffer.byteLength(submitted) > 32 * 1024 || !submitted || submitted.includes('\0'))
         return rejected('unsupported')
-      const quoted = command.data.replaceAll("'", resource.state.shell === 'powershell' ? "''" : "'\\''")
+      const quoted =
+        resource.state.shell === 'bash'
+          ? Array.from(Buffer.from(submitted), (byte) => {
+              if (byte < 0x20 || byte > 0x7e) return `\\x${byte.toString(16).padStart(2, '0')}`
+              const character = String.fromCharCode(byte)
+              return character === "'" || character === '\\' ? `\\${character}` : character
+            }).join('')
+          : submitted.replaceAll("'", "'\\''")
+      const powershellScript = `${submitted}\n; $global:__CherryCommandResult = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }`
       const data =
-        resource.state.shell === 'powershell' ? `Invoke-Expression '${quoted}'\r` : `builtin eval -- '${quoted}'\r`
+        resource.state.shell === 'powershell'
+          ? `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(powershellScript).toString('base64')}')))\r`
+          : `builtin eval -- ${resource.state.shell === 'bash' ? '$' : ''}'${quoted}'\r`
       if (Buffer.byteLength(data) > 64 * 1024) return rejected('capacity_exceeded')
-      if (resource.writes >= 2) return rejected('busy')
+      if (resource.writes) return rejected('busy')
+      resource.state.editor = { kind: 'dirty', revision: resource.state.editor.revision + 1 }
+      resource.blocks?.submitted(submitted)
       claim()
-      resource.state.command = { id: command.commandId, start: resource.capture.cursor, status: 'running' }
+      resource.state.command = {
+        id: command.kind === 'rerun' ? `repeat:${input.operation.id}` : command.commandId,
+        start: resource.capture.cursor,
+        status: 'running'
+      }
       resource.state.shellFacts = { kind: 'unknown' }
       this.changed(resource)
       if (!(await this.write(resource, data))) {
@@ -307,6 +383,8 @@ export class TerminalHost {
         return rejected('unsupported')
       resource.backend.resize(command.cols, command.rows)
       resource.core?.resize(command.cols, command.rows, command.cellWidth ?? 8, command.cellHeight ?? 16)
+      resource.mutationRevision++
+      this.scheduleSearch()
       resource.state.geometryEpoch = (resource.state.geometryEpoch ?? 0) + 1
     } else {
       let data: string
@@ -348,6 +426,9 @@ export class TerminalHost {
           if (!data) return { ...this.result(resource), inputHandled: false }
         } else if (command.kind === 'input') data = command.data
         else return rejected('unsupported')
+      }
+      if (data && command.actor.kind === 'user' && resource.state.editor) {
+        resource.state.editor = { kind: 'dirty', revision: resource.state.editor.revision + 1 }
       }
       if (
         ((command.actor.kind === 'user' &&
@@ -440,6 +521,10 @@ export class TerminalHost {
       },
       capture,
       programRevision: 0,
+      mutationRevision: 0,
+      boundary: 'initial',
+      searches: new Map(),
+      searchRevisions: new Map(),
       views: new Map(),
       writes: 0,
       writeBytes: 0,
@@ -464,6 +549,9 @@ export class TerminalHost {
             if (resource.core) {
               const alternate = resource.core.isAlternateScreen()
               resource.core.write(chunk)
+              resource.mutationRevision++
+              resource.blocks?.written()
+              this.scheduleSearch()
               if (alternate !== resource.core.isAlternateScreen())
                 resource.state.geometryEpoch = (resource.state.geometryEpoch ?? 0) + 1
             }
@@ -534,6 +622,7 @@ export class TerminalHost {
           }
         })
       }
+      if (resource.core) resource.blocks = new TerminalBlockIndex(resource.core, resource.state.id)
       if (launch.kind === 'pipe' && launch.deadlineAt !== undefined) {
         const remaining = launch.deadlineAt - Date.now()
         if (remaining <= 0) {
@@ -563,8 +652,26 @@ export class TerminalHost {
   }
 
   private shellEvent(resource: Resource, event: ShellIntegrationEvent): void {
-    if (event.kind === 'unknown') resource.state.shellFacts = { kind: 'unknown' }
-    else if (event.kind === 'program') {
+    if (event.kind === 'ready') {
+      if (
+        resource.state.shell === 'powershell' &&
+        resource.state.shellFacts?.kind === 'prompt' &&
+        resource.state.shellFacts.revision === event.promptRevision &&
+        resource.state.editor?.kind === 'unknown'
+      ) {
+        resource.state.editor = { kind: 'empty', revision: resource.state.editor.revision + 1 }
+        this.changed(resource)
+      }
+      return
+    }
+    resource.blocks?.boundary(event)
+    if (event.kind === 'unknown') {
+      resource.state.shellFacts = { kind: 'unknown' }
+      resource.state.editor = { kind: 'unknown', revision: (resource.state.editor?.revision ?? 0) + 1 }
+      resource.boundary = 'unknown'
+    } else if (event.kind === 'program') {
+      resource.boundary = 'program'
+      resource.state.editor = { kind: 'unknown', revision: (resource.state.editor?.revision ?? 0) + 1 }
       const id = resource.state.command?.status === 'running' ? resource.state.command.id : `user:${event.revision}`
       resource.state.shellFacts = { kind: 'program', commandId: id, programRevision: ++resource.programRevision }
     } else {
@@ -575,101 +682,321 @@ export class TerminalHost {
           exitCode: event.exitCode,
           end: resource.capture.cursor
         }
+      if (resource.boundary === 'initial' || resource.boundary === 'program')
+        resource.state.editor = {
+          kind: resource.state.shell === 'powershell' ? 'unknown' : 'empty',
+          revision: (resource.state.editor?.revision ?? 0) + 1
+        }
+      resource.boundary = 'prompt'
       resource.state.shellFacts = { kind: 'prompt', revision: event.revision, cwd: event.cwd }
     }
     this.changed(resource)
   }
 
-  view(input: {
-    host: TerminalHostIdentity
-    id: TerminalResourceId
-    viewId: string
-    rowStart: number
-    offset: number
-    revision: number | null
-    theme?: GhosttyTheme
-  }): TerminalViewFrame {
+  view(input: TerminalHostContract['methods']['view']['input']): TerminalViewFrame {
     if (!this.matches(input.host)) throw new Error('Stale terminal generation')
     const resource = this.resources.get(input.id)
     if (!resource?.core) throw new Error('Terminal screen unavailable')
-    if (input.theme && JSON.stringify(input.theme) !== resource.themeSignature) {
-      resource.core.setTheme(input.theme)
-      resource.themeSignature = JSON.stringify(input.theme)
-      this.changed(resource)
-    }
-    let view = resource.views.get(input.viewId)
-    if (input.rowStart === 0 || !view || input.revision !== view.revision) {
-      if (
-        !view &&
-        resource.views.size >= 4 &&
-        !(input.viewId === 'retained-final' && resource.state.cleanup === 'confirmed')
-      )
-        throw new Error('Terminal view capacity exceeded')
-      resource.core.scrollToBottom()
-      const historyTotal = resource.core.scrollbarState()?.total ?? 0
-      const scrollOffset = Math.min(
-        5000,
-        Math.max(
-          0,
-          input.offset +
-            (input.offset > 0 && view?.offset === input.offset ? Math.max(0, historyTotal - view.historyTotal) : 0)
+    try {
+      if (input.theme && JSON.stringify(input.theme) !== resource.themeSignature) {
+        resource.core.setTheme(input.theme)
+        resource.themeSignature = JSON.stringify(input.theme)
+        this.changed(resource)
+      }
+      let view = resource.views.get(input.viewId)
+      if (input.rowStart === 0 || !view || input.revision !== view.revision) {
+        if (
+          !view &&
+          resource.views.size >= 4 &&
+          !(input.viewId === 'retained-final' && resource.state.cleanup === 'confirmed')
         )
-      )
-      if (scrollOffset) resource.core.scroll(-scrollOffset)
-      const snapshot = resource.core.snapshot()
-      const baseRevision =
-        view &&
-        input.revision === view.revision &&
-        view.geometryEpoch === resource.state.geometryEpoch &&
-        view.offset === input.offset
-          ? view.revision
-          : null
-      const dirtyRows = new Set<number>()
-      for (let i = 0; i < snapshot.rows; i++)
-        if (baseRevision === null || JSON.stringify(view!.snapshot.rowData[i]) !== JSON.stringify(snapshot.rowData[i]))
-          dirtyRows.add(i)
-      view = {
-        revision: resource.state.revision,
-        snapshot: { ...snapshot, dirtyRows, rowData: [...snapshot.rowData] },
-        geometryEpoch: resource.state.geometryEpoch ?? 0,
-        baseRevision,
-        offset: scrollOffset,
-        historyTotal
+          throw new Error('Terminal view capacity exceeded')
+        resource.core.scrollToBottom()
+        const summaries = resource.blocks?.summaries() ?? []
+        const historyTotal = resource.core.scrollbarState()?.total ?? 0
+        const scrollOffset = Math.min(
+          5000,
+          Math.max(
+            0,
+            input.offset +
+              (input.offset > 0 && view?.offset === input.offset ? Math.max(0, historyTotal - view.historyTotal) : 0)
+          )
+        )
+        let snapshot = resource.core.snapshot()
+        const lastContent = snapshot.rowData.findLastIndex(
+          (row) =>
+            row.text.trimEnd() ||
+            row.cells.some(
+              (cell) =>
+                cell.background.r !== snapshot.background.r ||
+                cell.background.g !== snapshot.background.g ||
+                cell.background.b !== snapshot.background.b ||
+                cell.underline ||
+                cell.overline ||
+                cell.strikethrough
+            )
+        )
+        const sourceContentEnd = historyTotal - snapshot.rows + Math.max(lastContent, snapshot.cursorY) + 1
+        if (scrollOffset) {
+          resource.core.scroll(-scrollOffset)
+          snapshot = resource.core.snapshot()
+        }
+        const sourceOrigin = resource.core.scrollbarState()?.offset ?? 0
+        const layout = input.layout
+        let sourceRows: number[] | undefined
+        let layoutRevision: number | undefined
+        if (
+          layout &&
+          layout.sourceRevision === resource.mutationRevision &&
+          layout.geometryEpoch === resource.state.geometryEpoch &&
+          !resource.core.isAlternateScreen()
+        ) {
+          sourceRows = Array.from({ length: snapshot.rows }, () => -1)
+          const blank = snapshot.rowData[0] && {
+            ...snapshot.rowData[0],
+            text: '',
+            cells: snapshot.rowData[0].cells.map((cell) => ({ ...cell, text: '', background: snapshot.background }))
+          }
+          const rows: GhosttyRow[] = Array.from({ length: snapshot.rows }, () => blank)
+          let lastTarget = 0
+          for (const span of layout.spans) {
+            if (
+              span.targetStart < lastTarget ||
+              span.targetStart + span.count > snapshot.rows ||
+              span.sourceStart + span.count > historyTotal
+            )
+              throw new Error('Invalid terminal layout')
+            const values = resource.core.sourceRows(span.sourceStart, span.count)
+            if (values.length !== span.count) throw new Error('Stale terminal layout')
+            values.forEach((row, index) => {
+              rows[span.targetStart + index] = row
+              sourceRows![span.targetStart + index] = span.sourceStart + index
+            })
+            lastTarget = span.targetStart + span.count
+          }
+          const liveOrigin = historyTotal - snapshot.rows
+          const cursorY = sourceRows.indexOf(liveOrigin + snapshot.cursorY)
+          snapshot = { ...snapshot, rowData: rows, cursorY, cursorVisible: snapshot.cursorVisible && cursorY >= 0 }
+          layoutRevision = layout.revision
+        }
+        const baseRevision =
+          view &&
+          input.revision === view.revision &&
+          view.geometryEpoch === resource.state.geometryEpoch &&
+          view.offset === input.offset &&
+          view.layoutRevision === layoutRevision
+            ? view.revision
+            : null
+        const dirtyRows = new Set<number>()
+        for (let i = 0; i < snapshot.rows; i++)
+          if (
+            baseRevision === null ||
+            JSON.stringify(view!.snapshot.rowData[i]) !== JSON.stringify(snapshot.rowData[i])
+          )
+            dirtyRows.add(i)
+        const search = resource.searches.get(input.viewId)
+        let searchProjection: TerminalSearchProjection | undefined
+        const visibleRows = new Set(
+          sourceRows ?? Array.from({ length: snapshot.rows }, (_, index) => sourceOrigin + index)
+        )
+        const visibleBlocks = summaries
+          .filter((block) => [block.prompt, block.output, block.end].some((point) => point && visibleRows.has(point.y)))
+          .slice(-32)
+        while (Buffer.byteLength(JSON.stringify(visibleBlocks)) > 8000) visibleBlocks.shift()
+        if (search) {
+          try {
+            const spans =
+              layoutRevision !== undefined
+                ? layout!.spans
+                : [{ sourceStart: sourceOrigin, count: snapshot.rows, targetStart: 0 }]
+            const matches: TerminalSearchProjection['matches'] = []
+            const deadline = performance.now() + 2
+            let limited = false
+            for (const span of spans) {
+              if (searchProjection && performance.now() > deadline) {
+                limited = true
+                break
+              }
+              resource.core.scrollToBottom()
+              resource.core.scroll(span.sourceStart - (resource.core.scrollbarState()?.offset ?? 0))
+              searchProjection = structuredClone(search.step(resource.mutationRevision, true))
+              matches.push(
+                ...searchProjection.matches.filter(
+                  (match) => match.start.y < span.sourceStart + span.count && match.end.y >= span.sourceStart
+                )
+              )
+            }
+            if (searchProjection) {
+              searchProjection.matches = matches
+              searchProjection.highlightsLimited ||= limited
+              if (Buffer.byteLength(JSON.stringify(searchProjection)) > 24 * 1024) {
+                searchProjection.matches = []
+                searchProjection.highlightsLimited = true
+              }
+            }
+          } finally {
+            resource.core.scrollToBottom()
+          }
+        }
+        view = {
+          revision: resource.state.revision,
+          snapshot: { ...snapshot, dirtyRows, rowData: [...snapshot.rowData] },
+          geometryEpoch: resource.state.geometryEpoch ?? 0,
+          baseRevision,
+          offset: scrollOffset,
+          historyTotal,
+          sourceContentEnd,
+          sourceOrigin,
+          sourceRows,
+          layoutRevision,
+          nativeRevision: resource.mutationRevision,
+          alternate: resource.core.isAlternateScreen(),
+          blocks: visibleBlocks,
+          blockIndexRevision: resource.blocks?.revision ?? 0,
+          search: searchProjection
+        }
+        resource.core.scrollToBottom()
+        resource.views.set(input.viewId, view)
       }
+      const rows: GhosttyRow[] = []
+      const indices = [...view.snapshot.dirtyRows]
+      for (let row = input.rowStart; row < indices.length; row++) {
+        const value = view.snapshot.rowData[indices[row]]
+        const candidate = [...rows, value]
+        if (Buffer.byteLength(JSON.stringify(encodeTerminalRows(candidate))) > 24 * 1024) {
+          if (!rows.length) throw new Error('Terminal row exceeds frame capacity')
+          break
+        }
+        rows.push(value)
+      }
+      const encoded = encodeTerminalRows(rows)
+      return {
+        nativeRevision: view.nativeRevision,
+        sourceOrigin: view.sourceOrigin,
+        sourceTotal: view.historyTotal,
+        sourceContentEnd: view.sourceContentEnd,
+        alternate: view.alternate,
+        blockIndexRevision: view.blockIndexRevision,
+        blocks: view.blocks,
+        search: view.search,
+        layoutRevision: view.layoutRevision,
+        controlling: false,
+        agentConnected: false,
+        scrollOffset: view.offset,
+        viewId: input.viewId,
+        resource: structuredClone(resource.state),
+        geometryEpoch: view.geometryEpoch,
+        revision: view.revision,
+        baseRevision: view.baseRevision,
+        rowStart: input.rowStart,
+        rowIndices: indices.slice(input.rowStart, input.rowStart + rows.length),
+        complete: input.rowStart + rows.length === indices.length,
+        styles: encoded.styles,
+        snapshot: { ...view.snapshot, rowData: encoded.rowData, dirtyRows: indices }
+      }
+    } finally {
       resource.core.scrollToBottom()
-      resource.views.set(input.viewId, view)
-    }
-    const rows: GhosttyRow[] = []
-    const indices = [...view.snapshot.dirtyRows]
-    for (let row = input.rowStart; row < indices.length; row++) {
-      const value = view.snapshot.rowData[indices[row]]
-      const candidate = [...rows, value]
-      if (Buffer.byteLength(JSON.stringify(encodeTerminalRows(candidate))) > 56 * 1024) {
-        if (!rows.length) throw new Error('Terminal row exceeds frame capacity')
-        break
-      }
-      rows.push(value)
-    }
-    const encoded = encodeTerminalRows(rows)
-    return {
-      controlling: false,
-      agentConnected: false,
-      scrollOffset: view.offset,
-      viewId: input.viewId,
-      resource: structuredClone(resource.state),
-      geometryEpoch: view.geometryEpoch,
-      revision: view.revision,
-      baseRevision: view.baseRevision,
-      rowStart: input.rowStart,
-      rowIndices: indices.slice(input.rowStart, input.rowStart + rows.length),
-      complete: input.rowStart + rows.length === indices.length,
-      styles: encoded.styles,
-      snapshot: { ...view.snapshot, rowData: encoded.rowData, dirtyRows: indices }
     }
   }
 
+  private queryResource(input: { host: TerminalHostIdentity; id: TerminalResourceId; viewId: string }): Resource {
+    if (!this.matches(input.host)) throw new Error('Stale terminal generation')
+    const resource = this.resources.get(input.id)
+    if (!resource?.core || !resource.blocks || !resource.views.has(input.viewId))
+      throw new Error('Terminal view unavailable')
+    return resource
+  }
+
+  listBlocks(
+    input: TerminalHostContract['methods']['listBlocks']['input']
+  ): TerminalHostContract['methods']['listBlocks']['output'] {
+    const resource = this.queryResource(input)
+    const blocks = resource.blocks!.summaries()
+    const revision = resource.blocks!.revision
+    const prefix = `${input.host.generation}:${revision}:`
+    if (
+      (input.expectedIndexRevision !== null && input.expectedIndexRevision !== revision) ||
+      (input.cursor && !input.cursor.startsWith(prefix))
+    )
+      return { kind: 'stale' }
+    const start = input.cursor ? Number(input.cursor.slice(prefix.length)) : 0
+    if (!Number.isSafeInteger(start) || start < 0 || start > blocks.length) return { kind: 'stale' }
+    const page = blocks.slice(start, start + Math.min(32, input.limit))
+    while (Buffer.byteLength(JSON.stringify(page)) > 48 * 1024) page.pop()
+    return {
+      kind: 'blocks',
+      indexRevision: revision,
+      blocks: page,
+      cursor: start + page.length < blocks.length ? `${prefix}${start + page.length}` : null
+    }
+  }
+
+  readBlock(input: TerminalHostContract['methods']['readBlock']['input']) {
+    return this.queryResource(input).blocks!.read(
+      input.blockId,
+      input.part,
+      input.consistency.kind === 'exact' ? input.consistency.contentRevision : undefined
+    )
+  }
+
+  setSearch(input: TerminalHostContract['methods']['setSearch']['input']) {
+    const resource = this.queryResource(input)
+    const previous = resource.searches.get(input.viewId)
+    const revision = resource.searchRevisions.get(input.viewId) ?? -1
+    if (
+      input.queryRevision < revision ||
+      (input.queryRevision === revision &&
+        previous?.signature !== JSON.stringify({ scope: input.scope, needle: input.needle }))
+    )
+      throw new Error('Stale terminal search')
+    if (previous && input.queryRevision === revision) return structuredClone(previous.projection)
+    previous?.close()
+    resource.searches.delete(input.viewId)
+    resource.searchRevisions.set(input.viewId, input.queryRevision)
+    const query = new TerminalSearch(
+      input.viewId,
+      input.queryRevision,
+      input.scope,
+      input.needle,
+      resource.core!,
+      resource.blocks!
+    )
+    if (!input.needle || resource.state.cleanup !== 'none') {
+      query.close()
+    } else {
+      this.scheduleSearch()
+    }
+    resource.searches.set(input.viewId, query)
+    return structuredClone(query.projection)
+  }
+
+  navigateSearch(input: TerminalHostContract['methods']['navigateSearch']['input']) {
+    const resource = this.queryResource(input)
+    const query = resource.searches.get(input.viewId)
+    if (query?.queryRevision !== input.queryRevision) return null
+    const projection = query.navigate(input.resultRevision, input.direction, resource.mutationRevision)
+    return projection && structuredClone(projection)
+  }
+
+  closeSearch(input: TerminalHostContract['methods']['closeSearch']['input']): void {
+    const resource = this.queryResource(input)
+    const query = resource.searches.get(input.viewId)
+    const revision = resource.searchRevisions.get(input.viewId) ?? -1
+    if (query?.queryRevision === input.queryRevision) {
+      query.close()
+      if (input.queryRevision < revision) resource.searches.delete(input.viewId)
+    }
+    if (input.queryRevision > revision) resource.searchRevisions.set(input.viewId, input.queryRevision)
+  }
+
   detachView(host: TerminalHostIdentity, id: TerminalResourceId, viewId: string): void {
-    if (this.matches(host)) this.resources.get(id)?.views.delete(viewId)
+    if (this.matches(host)) {
+      const resource = this.resources.get(id)
+      resource?.searches.get(viewId)?.close()
+      resource?.searches.delete(viewId)
+      resource?.searchRevisions.delete(viewId)
+      resource?.views.delete(viewId)
+    }
   }
 
   link(input: {
@@ -702,9 +1029,19 @@ export class TerminalHost {
     )
       return null
     resource.core.scrollToBottom()
-    if (view.offset) resource.core.scroll(-view.offset)
-    let url = resource.core.hyperlinkAt(input.x, input.y)
-    resource.core.scrollToBottom()
+    let row = input.y
+    if (view.sourceRows) {
+      const source = view.sourceRows[row]
+      if (source === undefined || source < 0) return null
+      resource.core.scroll(source - (resource.core.scrollbarState()?.offset ?? 0))
+      row = source - (resource.core.scrollbarState()?.offset ?? 0)
+    } else if (view.offset) resource.core.scroll(-view.offset)
+    let url: string | null
+    try {
+      url = resource.core.hyperlinkAt(input.x, row)
+    } finally {
+      resource.core.scrollToBottom()
+    }
     if (!url) {
       const row = view.snapshot.rowData[input.y]
       const offset = row.cells
@@ -741,11 +1078,14 @@ export class TerminalHost {
       resource.writes--
       resource.writeBytes -= bytes
       this.flushReplies(resource)
+      this.scheduleSearch()
     }
   }
 
   private async stop(resource: Resource, reason: TerminalStopReason): Promise<void> {
     if (resource.state.cleanup === 'confirmed') return
+    for (const query of resource.searches.values()) query.close()
+    resource.searches.clear()
     resource.state.stopReason ??= reason
     resource.state.cleanup = 'pending'
     if (resource.state.process.kind === 'running' || resource.state.process.kind === 'starting')
@@ -767,6 +1107,7 @@ export class TerminalHost {
     if (!this.matches(host)) return false
     const resource = this.resources.get(id)
     if (!resource || resource.state.cleanup !== 'confirmed' || resource.writes) return false
+    resource.blocks?.dispose()
     resource.core?.dispose()
     this.resources.delete(id)
     this.version++

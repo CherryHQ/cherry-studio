@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import type { InputFor } from '@shared/ipc/types'
-import type { TerminalResourceState, TerminalViewFrame } from '@shared/types/terminal'
+import type { TerminalBlockSummary, TerminalResourceState, TerminalViewFrame } from '@shared/types/terminal'
 
+import { newTerminalPresentation } from '../terminalBlockLayout'
 import { TerminalCanvas } from '../TerminalCanvas'
 vi.unmock('@cherrystudio/ui')
 
@@ -523,6 +524,38 @@ it('opens terminal operations without sending the menu gesture to the running pr
   ).toEqual([])
 })
 
+it.each([true, false])(
+  'pairs motion and a fast release with an accepted mouse press (tracking: %s)',
+  async (tracking) => {
+    const user = userEvent.setup()
+    const request = vi.mocked(window.api.ipcApi.request).getMockImplementation()!
+    const pressed = Promise.withResolvers<void>()
+    const reported: string[] = []
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value() {} })
+    Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', { configurable: true, value: () => false })
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route, payload) => {
+      if (route === 'terminal.action') {
+        const { action } = payload as InputFor<'terminal.action'>
+        if (action.kind === 'mouse') {
+          reported.push(action.event.action)
+          if (action.event.action === 'press') await pressed.promise
+          return { ok: true, data: { kind: 'resource', resource: current, inputHandled: tracking } }
+        }
+      }
+      return request(route, payload)
+    })
+    render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+    await input()
+    const region = screen.getByRole('region')
+    await user.pointer({ target: region, keys: '[MouseLeft>]' })
+    await waitFor(() => expect(reported).toEqual(['press']))
+    await user.pointer({ target: region, coords: { x: 12, y: 20 } })
+    await user.pointer({ keys: '[/MouseLeft]' })
+    await act(async () => pressed.resolve())
+    await waitFor(() => expect(reported).toEqual(tracking ? ['press', 'motion', 'release'] : ['press']))
+  }
+)
+
 it('keeps menu dismissal focused on terminal input', async () => {
   const user = userEvent.setup()
   render(
@@ -540,4 +573,155 @@ it('keeps menu dismissal focused on terminal input', async () => {
   expect(area).toHaveFocus()
   await user.keyboard('echo ready')
   await waitFor(() => expect(stdin).toBe('echo ready'))
+})
+
+it('releases the allocated search when Escape cancels a newer debounced needle without writing to the shell', async () => {
+  const request = vi.mocked(window.api.ipcApi.request).getMockImplementation()!
+  let allocatedQuery: number | null = null
+  vi.mocked(window.api.ipcApi.request).mockImplementation(async (route, payload) => {
+    if (route === 'terminal.search.set') {
+      const input = payload as InputFor<'terminal.search.set'>
+      allocatedQuery = input.needle ? input.queryRevision : null
+      return {
+        ok: true,
+        data: {
+          queryRevision: input.queryRevision,
+          resultRevision: 1,
+          status: 'caught-up',
+          count: 0,
+          selected: null,
+          matches: [],
+          highlightsLimited: false,
+          partial: false
+        }
+      }
+    }
+    if (route === 'terminal.search.close') {
+      if ((payload as InputFor<'terminal.search.close'>).queryRevision === allocatedQuery) allocatedQuery = null
+      return { ok: true, data: undefined }
+    }
+    return request(route, payload)
+  })
+  render(<TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} />)
+  const area = await input()
+  fireEvent.keyDown(area, { key: 'f', code: 'KeyF', metaKey: true })
+  const find = within(screen.getByRole('search')).getByRole('textbox')
+  fireEvent.change(find, { target: { value: 'first' } })
+  await waitFor(() => expect(allocatedQuery).not.toBeNull())
+  fireEvent.change(find, { target: { value: 'second' } })
+  fireEvent.keyDown(find, { key: 'Escape', code: 'Escape' })
+  await waitFor(() => expect(allocatedQuery).toBeNull())
+  expect(screen.queryByRole('search')).not.toBeInTheDocument()
+  expect(stdin).toBe('')
+  expect(area).toHaveFocus()
+})
+
+it('folds output in one view without resizing its shell or changing another view, and restores that intent after detach', async () => {
+  controlling = false
+  const request = vi.mocked(window.api.ipcApi.request).getMockImplementation()!
+  const block: TerminalBlockSummary = {
+    id: 'block',
+    contentRevision: 1,
+    command: 'run',
+    cwd: '/tmp',
+    status: 'completed',
+    exitCode: 0,
+    reliable: true,
+    outputEmpty: false,
+    prompt: { x: 0, y: 5 },
+    output: { x: 0, y: 7 },
+    end: { x: 0, y: 9 }
+  }
+  let attachments = 0
+  let resizes = 0
+  let alternate = false
+  let nativeRevision = 1
+  vi.mocked(window.api.ipcApi.request).mockImplementation(async (route, payload) => {
+    if (route === 'terminal.attach')
+      return { ok: true, data: `33333333-3333-4333-8333-${String(++attachments).padStart(12, '0')}` }
+    if (route === 'terminal.blocks.list')
+      return { ok: true, data: { kind: 'blocks', indexRevision: 1, blocks: alternate ? [] : [block], cursor: null } }
+    if (route === 'terminal.action' && (payload as InputFor<'terminal.action'>).action.kind === 'resize') resizes++
+    const result = await request(route, payload)
+    if (
+      route !== 'terminal.frame' ||
+      typeof result !== 'object' ||
+      result === null ||
+      !('ok' in result) ||
+      !result.ok ||
+      !('data' in result)
+    )
+      return result
+    const input = payload as InputFor<'terminal.frame'>
+    const source = Array.from({ length: 12 }, (_, n) => ({
+      text: `row${n}`,
+      cells: [],
+      isWrapContinuation: false,
+      wrapsToNext: false
+    }))
+    const rows =
+      input.layout && !alternate ? Array.from({ length: 12 }, () => ({ ...source[0], text: '' })) : [...source]
+    for (const span of (!alternate && input.layout?.spans) || [])
+      for (let n = 0; n < span.count; n++) rows[span.targetStart + n] = source[span.sourceStart + n]
+    const frame = result.data as TerminalViewFrame
+    return {
+      ok: true,
+      data: {
+        ...frame,
+        viewId: input.viewId,
+        nativeRevision,
+        alternate,
+        sourceTotal: 12,
+        sourceOrigin: 0,
+        blockIndexRevision: 1,
+        blocks: alternate ? [] : [block],
+        layoutRevision: alternate ? undefined : input.layout?.revision,
+        rowIndices: source.map((_, n) => n),
+        snapshot: { ...frame.snapshot, rows: 12, rowData: rows, dirtyRows: source.map((_, n) => n) }
+      }
+    }
+  })
+  const first = newTerminalPresentation(),
+    second = newTerminalPresentation()
+  const views = (active: boolean) => (
+    <>
+      <div data-testid="first-view">
+        <TerminalCanvas
+          onClose={() => {}}
+          resource={current}
+          active={active}
+          onResource={() => {}}
+          presentation={first}
+        />
+      </div>
+      <div data-testid="second-view">
+        <TerminalCanvas onClose={() => {}} resource={current} active onResource={() => {}} presentation={second} />
+      </div>
+    </>
+  )
+  const rendered = render(views(true))
+  const firstView = within(screen.getByTestId('first-view')),
+    secondView = within(screen.getByTestId('second-view'))
+  const collapse = await firstView.findByRole('button', { name: /折叠输出|Collapse output/ })
+  await waitFor(() => expect(secondView.getByRole('log')).toHaveTextContent('row7'))
+  await userEvent.click(collapse)
+  await waitFor(() => expect(firstView.getByRole('log')).not.toHaveTextContent('row7'))
+  expect(secondView.getByRole('log')).toHaveTextContent('row7')
+  expect(second.collapsed).toEqual([])
+  alternate = true
+  nativeRevision++
+  await waitFor(() =>
+    expect(firstView.queryByRole('button', { name: /展开输出|Expand output/ })).not.toBeInTheDocument()
+  )
+  alternate = false
+  nativeRevision++
+  await firstView.findByRole('button', { name: /展开输出|Expand output/ })
+  await waitFor(() => expect(firstView.getByRole('log')).not.toHaveTextContent('row7'))
+  rendered.rerender(views(false))
+  rendered.rerender(views(true))
+  await waitFor(() => expect(attachments).toBe(3))
+  await firstView.findByRole('button', { name: /展开输出|Expand output/ })
+  await waitFor(() => expect(firstView.getByRole('log')).not.toHaveTextContent('row7'))
+  expect(resizes).toBe(0)
+  expect(stdin).toBe('')
 })

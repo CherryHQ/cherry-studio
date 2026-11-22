@@ -13,7 +13,7 @@ import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLa
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { attachGeneratedText, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -5015,6 +5015,84 @@ describe('AgentComposer', () => {
 
     expect(mocks.insertToken).toHaveBeenCalledWith(token)
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+  })
+
+  it('captures generated text once into an immutable draft attachment and refuses another conversation', async () => {
+    const { unmount } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    let text = 'original output'
+    const capture = vi.fn(async () => text)
+    expect(
+      await attachGeneratedText({ intentId: 'other', topicId: 'agent-session:other', name: 'output.txt', capture })
+    ).toEqual({ kind: 'unavailable' })
+    expect(capture).not.toHaveBeenCalled()
+    let result
+    await act(async () => {
+      result = await attachGeneratedText({
+        intentId: 'capture',
+        topicId: 'agent-session:session-1',
+        name: 'output.txt',
+        capture
+      })
+    })
+    expect(result).toMatchObject({ kind: 'attached' })
+    text = 'replaced output'
+    await act(async () => {
+      await attachGeneratedText({
+        intentId: 'capture',
+        topicId: 'agent-session:session-1',
+        name: 'output.txt',
+        capture
+      })
+    })
+    expect(mocks.files).toHaveLength(1)
+    const attachment = mocks.files[0]
+    if (!('blob' in attachment) || !(attachment.blob instanceof Blob)) throw new Error('Missing captured text')
+    const capturedBlob = attachment.blob
+    const captured = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(capturedBlob)
+    })
+    expect(captured).toBe('original output')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('cancels an unfinished generated attachment when its Composer disappears', async () => {
+    const { unmount } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const pending = Promise.withResolvers<string>()
+    const result = attachGeneratedText({
+      intentId: 'late',
+      topicId: 'agent-session:session-1',
+      name: 'output.txt',
+      capture: () => pending.promise
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    unmount()
+    expect(await result).toEqual({ kind: 'cancelled' })
+    pending.resolve('late output')
+    await Promise.resolve()
+    expect(mocks.files).toEqual([])
   })
 
   it('attaches a file or folder from the file pane once, and only in its own session', async () => {

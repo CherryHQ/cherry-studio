@@ -45,6 +45,7 @@ export interface TerminalResourceState {
   outputCursor: number
   screenAvailable?: boolean
   geometryEpoch?: number
+  editor?: { kind: 'empty' | 'dirty' | 'unknown'; revision: number }
   shellFacts?: TerminalShellFacts
   command?: TerminalShellCommand
   stopReason?: TerminalStopReason
@@ -196,7 +197,59 @@ export interface GhosttyKeyInput {
   readonly repeat: boolean
 }
 
+export interface TerminalSourcePoint {
+  x: number
+  y: number
+}
+export interface TerminalBlockSummary {
+  outputEmpty: boolean
+  id: string
+  contentRevision: number
+  command: string | null
+  cwd: string | null
+  status: 'running' | 'completed' | 'unknown'
+  exitCode: number | null
+  reliable: boolean
+  prompt: TerminalSourcePoint | null
+  output: TerminalSourcePoint | null
+  end: TerminalSourcePoint | null
+}
+export type TerminalBlockRead =
+  | { kind: 'stale' | 'unavailable' }
+  | {
+      kind: 'content'
+      block: TerminalBlockSummary
+      text: string
+      partial: ('history' | 'size' | 'metadata')[]
+      mapping: { start: number; end: number; from: TerminalSourcePoint; to: TerminalSourcePoint }[]
+    }
+export type TerminalSearchScope = { kind: 'terminal' } | { kind: 'block'; blockId: string }
+export interface TerminalSearchProjection {
+  queryRevision: number
+  resultRevision: number
+  status: 'searching' | 'caught-up' | 'limited' | 'unavailable' | 'capacity' | 'failed'
+  count: number
+  selected: { index: number; range: { start: TerminalSourcePoint; end: TerminalSourcePoint } | null } | null
+  matches: { start: TerminalSourcePoint; end: TerminalSourcePoint }[]
+  highlightsLimited: boolean
+  partial: boolean
+}
+export interface TerminalViewLayout {
+  revision: number
+  sourceRevision: number
+  geometryEpoch: number
+  spans: { sourceStart: number; count: number; targetStart: number }[]
+}
 export interface TerminalViewFrame {
+  nativeRevision?: number
+  sourceOrigin?: number
+  sourceTotal?: number
+  sourceContentEnd?: number
+  alternate?: boolean
+  blockIndexRevision?: number
+  blocks?: TerminalBlockSummary[]
+  search?: TerminalSearchProjection
+  layoutRevision?: number
   controlling: boolean
   agentConnected: boolean
   scrollOffset: number

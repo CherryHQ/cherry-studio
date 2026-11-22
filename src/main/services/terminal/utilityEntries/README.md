@@ -11,3 +11,7 @@ Command exit and helper exit are separate facts. Only a scope-empty event follow
 The Host owns one Ghostty core per PTY. View snapshots temporarily select their independent scroll position, then restore the core to the live bottom. Key, paste, mouse and wheel input is encoded against current terminal modes. Geometry epochs reject input captured before resize or alternate-screen changes. Views never write terminal-generated replies.
 
 Terminal-generated replies coalesce in a bounded 64 KiB buffer and drain through the same two PTY write slots as user input. A burst of capability queries waits for capacity instead of closing the terminal. Replies are produced by the Host even when no view is attached.
+
+`TerminalBlockIndex` owns per-PTY metadata and tracked anchors, not a transcript. `TerminalSearch` owns per-view query state under the Host's scheduler. Neither is a lifecycle service or another process. Main supplies only authorized view identities; native handles stay inside the Host. Frames freeze cells, block summaries, search projection and row mapping under one baseline. Renderer layout spans are accepted only for their native revision and geometry epoch.
+
+The real shell integration fixture includes optional PowerShell coverage when `CHERRY_TEST_PWSH` supplies an absolute executable path. Its isolated home covers native failures, cmdlet failures, multiline Unicode metadata, duplicate Run again, interactive input and dirty-editor rejection alongside Bash/zsh.

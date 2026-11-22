@@ -11,6 +11,10 @@ import type {
   TerminalCaptureRead,
   TerminalReceipt,
   TerminalViewFrame,
+  TerminalBlockRead,
+  TerminalBlockSummary,
+  TerminalSearchProjection,
+  TerminalViewLayout,
   GhosttyKeyInput,
   GhosttyMouseInput,
   GhosttyTheme
@@ -44,6 +48,7 @@ import type {
   UtilityProcessStreamFrame,
   UtilityProcessStreamMethod
 } from '@main/core/utilityProcess/types'
+import type { terminalBlockReadInput, terminalSearchInput } from '@shared/ipc/schemas/terminal'
 
 export const terminalResourceId = z.uuid().transform((id) => id as TerminalResourceId)
 export const terminalGeneration = z.uuid().transform((id) => id as TerminalGeneration)
@@ -143,8 +148,19 @@ export type TerminalCommand =
       actor: TerminalActor
       controlRevision: number
       promptRevision: number
+      draftRevision: number
       commandId: string
       data: string
+    }
+  | {
+      kind: 'rerun'
+      id: TerminalResourceId
+      actor: TerminalActor
+      controlRevision: number
+      blockId: string
+      contentRevision: number
+      promptRevision: number
+      draftRevision: number
     }
   | {
       kind: 'key'
@@ -226,8 +242,44 @@ export type TerminalHostContract = {
         offset: number
         revision: number | null
         theme?: GhosttyTheme
+        layout?: TerminalViewLayout
       },
       TerminalViewFrame
+    >
+    listBlocks: UtilityProcessMethod<
+      {
+        host: TerminalHostIdentity
+        id: TerminalResourceId
+        viewId: string
+        cursor: string | null
+        expectedIndexRevision: number | null
+        limit: number
+      },
+      | { kind: 'stale' }
+      | { kind: 'blocks'; indexRevision: number; blocks: TerminalBlockSummary[]; cursor: string | null }
+    >
+    readBlock: UtilityProcessMethod<
+      { host: TerminalHostIdentity; id: TerminalResourceId; viewId: string } & z.infer<typeof terminalBlockReadInput>,
+      TerminalBlockRead
+    >
+    setSearch: UtilityProcessMethod<
+      { host: TerminalHostIdentity; id: TerminalResourceId; viewId: string } & z.infer<typeof terminalSearchInput>,
+      TerminalSearchProjection
+    >
+    navigateSearch: UtilityProcessMethod<
+      {
+        host: TerminalHostIdentity
+        id: TerminalResourceId
+        viewId: string
+        queryRevision: number
+        resultRevision: number
+        direction: 'next' | 'previous'
+      },
+      TerminalSearchProjection | null
+    >
+    closeSearch: UtilityProcessMethod<
+      { host: TerminalHostIdentity; id: TerminalResourceId; viewId: string; queryRevision: number },
+      void
     >
     detachView: UtilityProcessMethod<{ host: TerminalHostIdentity; id: TerminalResourceId; viewId: string }, void>
     link: UtilityProcessMethod<

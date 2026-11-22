@@ -49,8 +49,18 @@ export const terminalHandlers: IpcHandlersFor<typeof terminalRequestSchemas> = {
     return service().readText(resourceRef(ref), cursor)
   },
   'terminal.attach': async (ref, { senderId }) => service().openView(resourceRef(ref), owner(senderId)),
-  'terminal.frame': async ({ viewId, rowStart, offset, revision, theme }, { senderId }) =>
-    service().viewFrame(viewId, owner(senderId), rowStart, offset, revision, theme),
+  'terminal.frame': async ({ viewId, rowStart, offset, revision, theme, layout }, { senderId }) =>
+    service().viewFrame(viewId, owner(senderId), rowStart, offset, revision, theme, layout),
+  'terminal.blocks.list': async ({ viewId, ...input }, { senderId }) =>
+    service().listBlocks(viewId, owner(senderId), input),
+  'terminal.blocks.read': async ({ viewId, ...input }, { senderId }) =>
+    service().readBlock(viewId, owner(senderId), input),
+  'terminal.search.set': async ({ viewId, ...input }, { senderId }) =>
+    service().setSearch(viewId, owner(senderId), input),
+  'terminal.search.navigate': async ({ viewId, ...input }, { senderId }) =>
+    service().navigateSearch(viewId, owner(senderId), input),
+  'terminal.search.close': async ({ viewId, queryRevision }, { senderId }) =>
+    service().closeSearch(viewId, owner(senderId), queryRevision),
   'terminal.detach': async ({ viewId }, { senderId }) => service().closeView(viewId, owner(senderId)),
   'terminal.link': async ({ viewId, ...input }, { senderId }) => service().viewLink(viewId, owner(senderId), input),
   'terminal.action': async ({ viewId, operationId, controlRevision, action }, { senderId }) =>
