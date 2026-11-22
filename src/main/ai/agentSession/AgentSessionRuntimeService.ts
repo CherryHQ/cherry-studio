@@ -3324,10 +3324,11 @@ export class AgentSessionRuntimeService extends BaseService {
       // CLI-side conversation is gone but host/DB still pin its token — every
       // subsequent turn would fail identically (#23421 unrecoverable session).
       // Drop the in-memory token now and null persisted tokens so the next
-      // turn connects fresh; the driver already projected a
-      // `data-conversation-reset` marker for this turn's UI. Also drop
-      // `nativeSessionId` bindings: the driver falls back to them when no
-      // resume token exists, and they point at the same dead conversation.
+      // turn connects fresh. This path surfaces the error without a
+      // `data-conversation-reset` divider; the renderer still renders the
+      // divider when present. Also drop `nativeSessionId` bindings: the
+      // driver falls back to them when no resume token exists, and they point
+      // at the same dead conversation.
       // Scoped to the failed conversation only so healthy sibling branches
       // keep their resume identities (#23519 review).
       const failedBranchHead = entry.branchHead
@@ -3358,8 +3359,30 @@ export class AgentSessionRuntimeService extends BaseService {
       // The error id is added to both lists: the driver resumes via
       // `resumeToken` on one path and `nativeSessionId` on another, so the
       // dead CLI id could live in either column.
-      const staleTokens = [...new Set([staleToken, stalePersistedToken, staleErrorId].filter((v): v is string => !!v))]
-      const staleNativeIds = [...new Set([staleNativeId, staleErrorId].filter((v): v is string => !!v))]
+      // Only trust ancestry reads when they match the failed identity from
+      // the connection or error — otherwise they can return a healthy
+      // ancestor (e.g., after edit + `/clear` rotation the descendant has no
+      // binding yet) and a session-wide delete by value would wipe it
+      // (#23519 review). When neither the error nor the in-memory token
+      // identifies the failure, keep DB untouched and fall through to the
+      // unknown-id branch below.
+      const trustedInMemoryToken = staleToken && (!staleErrorId || staleToken === staleErrorId) ? staleToken : undefined
+      const trustedPersistedToken =
+        stalePersistedToken &&
+        (stalePersistedToken === staleErrorId ||
+          (trustedInMemoryToken !== undefined && stalePersistedToken === trustedInMemoryToken))
+          ? stalePersistedToken
+          : undefined
+      const trustedNativeId =
+        staleNativeId &&
+        (staleNativeId === staleErrorId ||
+          (trustedInMemoryToken !== undefined && staleNativeId === trustedInMemoryToken))
+          ? staleNativeId
+          : undefined
+      const staleTokens = [
+        ...new Set([trustedInMemoryToken, trustedPersistedToken, staleErrorId].filter((v): v is string => !!v))
+      ]
+      const staleNativeIds = [...new Set([trustedNativeId, staleErrorId].filter((v): v is string => !!v))]
       // In-memory barriers can hold either a resume token or a native-side
       // value (`getLastRuntimeResumeToken` may return a `nativeThreadId`), so
       // match against the union — consistent with the "either column" model.

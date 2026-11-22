@@ -999,7 +999,7 @@
   "chat.message.token_details.waiting_first_token": "대기 중",
   "chat.message.useful.label": "컨텍스트로 설정",
   "chat.message.useful.tip": "이 메시지 그룹에서 이 메시지가 컨텍스트에 포함됩니다",
-  "chat.multiple.select.delete_above": "[to be translated]:Delete loaded messages above",
+  "chat.multiple.select.delete_above": "위의 불러온 메시지 삭제",
   "chat.multiple.select.empty": "선택한 메시지 없음",
   "chat.multiple.select.label": "다중 선택",
   "chat.navigation.anchor.jump_to_turn": "{{number}}번째 턴으로 이동",

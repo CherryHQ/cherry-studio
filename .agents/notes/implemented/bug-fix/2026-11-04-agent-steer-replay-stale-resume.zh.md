@@ -13,7 +13,7 @@ Status: implemented
 - 附着重放修复位于 Main 侧 `AiStreamManager.attach` 经 `buildCompactReplay` 实现，按 execution 隔离。它为孤立的 `tool-input-delta` / `tool-input-available` / `tool-output-*` / `tool-approval-request` 合成缺失的 `tool-input-start`，保留存活的 `toolName` / `dynamic` / 元数据，使静态部件保持 `tool-<name>` 身份而不停留在 `unknown-tool`，并在后续 `tool-input-available` 到达时做一次性回填。该修复使原始 `ai.stream.attach` 重放可被真实 `readUIMessageStream` 解析；桌面视图不在渲染侧做修复。
 - 桌面视图消费 Main 侧消息投影（`ai.projection.attach` → `MessageProjectionService` → `ExecutionStreamOverlayService` → `useExecutionOverlay`），直接渲染 Main 侧 `pipeStreamLoop` 累积器产出的 `CherryUIMessage` 快照。覆盖层不解析数据块，也不跟踪降级 turn；Main 侧 tee 累积的持久化仍是权威。
 - 关闭时 `closeAll` 限时 4s（`onStop` 与 `onDestroy` 均适用），关闭预算超时不再污染 `failedClosures`，关闭连接在该预算内收敛（关闭中单连接 2.5s）。在途连接经 `connectionAttempts` 串行化，并在同一竞速内由 `closeEntry` 等待，而非直接丢弃。
-- 过期 resume 清除内存 token、按失败会话作用域清理的持久化 `runtimeResumeToken` / `nativeSessionId` 绑定、匹配的在途 `closingSessions.resumeToken`，以及 `failedClosureResumeTokens` 中的过期 token 映射，同时保留 `failedClosures` 的所有权以维持编辑门禁与归档重试；在失败分支头写入分支级重置边界，阻断向健康祖先的回退，使该分支重建新连接，而健康兄弟分支保持不变。匹配逻辑收敛于共享 `staleResume.ts`；过期 turn 直接报错且不在该路径投递 `data-conversation-reset` 分隔符（渲染器在存在时仍会渲染），下一个 turn 重新建连。
+- 过期 resume 清除内存 token、按失败会话作用域清理的持久化 `runtimeResumeToken` / `nativeSessionId` 绑定、匹配的在途 `closingSessions.resumeToken`，以及 `failedClosureResumeTokens` 中的过期 token 映射，同时保留 `failedClosures` 的所有权以维持编辑门禁与归档重试；祖先链读取（`getLastRuntimeResumeToken` / `getPersistedNativeSessionId`）仅在与连接或解析错误中的失败身份一致时才被信任，因此祖先回退（例如 edit + `/clear` 轮换后）不会误删健康兄弟分支；在失败分支头写入分支级重置边界，阻断向健康祖先的回退，使该分支重建新连接，而健康兄弟分支保持不变。匹配逻辑收敛于共享 `staleResume.ts`；过期 turn 直接报错且不在该路径投递 `data-conversation-reset` 分隔符（渲染器在存在时仍会渲染），下一个 turn 重新建连。
 - 连续引导累积（`[...prev, ...inputs]`）而非覆盖已 armed 的边界。
 
 ## Alternatives considered
