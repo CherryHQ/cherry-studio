@@ -9,7 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 import { application } from '@application'
 import { applyMigrations } from '@data/db/applyMigrations'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
@@ -1169,6 +1171,7 @@ describe('AgentSessionService', () => {
   it('probes workspace access before opening the write transaction', async () => {
     const missing = await createWorkspace('probe-before-transaction')
     const replacement = await createWorkspace('probe-replacement')
+    await mkdir(replacement.path, { recursive: true })
     const session = await createSession('Probe outside transaction', missing.id)
     await insertSessionMessage(session.id, 'probe-message')
     const probe = workspaceAccess.isDirectoryAccessible
@@ -1183,10 +1186,45 @@ describe('AgentSessionService', () => {
           workspaceId: replacement.id
         }
       )
-      expect(transactions).toEqual([false])
+      expect(transactions).toEqual([false, false])
     } finally {
       spy.mockRestore()
     }
+  })
+
+  it('rejects a replacement folder that is also missing and keeps the original binding', async () => {
+    const missing = await createWorkspace('first-missing')
+    const alsoMissing = await createWorkspace('second-missing')
+    const session = await createSession('Both missing', missing.id)
+    await insertSessionMessage(session.id, 'message-both-missing')
+
+    expect(
+      captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: alsoMissing.id }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+  })
+
+  it('rejects recovery when the native Claude history belongs to a config directory that no longer exists', async () => {
+    const missing = await createWorkspace('claude-missing')
+    const replacement = await createWorkspace('claude-replacement')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Cross profile', missing.id)
+    await insertSessionMessage(session.id, 'message-cross-profile')
+    const [backend] = await dbh.db
+      .insert(agentRuntimeBackendTable)
+      .values({
+        locator: { version: 1, kind: 'claude-code', configDir: workspacePath('gone-profile-claude-config') },
+        state: 'bound'
+      })
+      .returning()
+    await dbh.db
+      .insert(agentSessionContextTable)
+      .values({ sessionId: session.id, backendId: backend.id, nativeThreadId: 'native-1', bindingState: 'bound' })
+
+    expect(
+      captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
   })
 
   it('rebinds a messaged session whose user workspace folder is missing', async () => {

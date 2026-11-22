@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { expect, it } from 'vitest'
 
-import { isDirectoryAccessible } from '../isDirectoryAccessible'
+import { isDirectoryAccessible, isDirectoryAccessibleAsync } from '../isDirectoryAccessible'
 
 it('checks directory read and traversal permissions, not just existence', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'workspace-access-'))
@@ -23,6 +23,18 @@ it('checks directory read and traversal permissions, not just existence', () => 
     }
   } finally {
     chmodSync(folder, 0o700)
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+it('has an async variant that agrees with the sync check', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'workspace-access-async-'))
+  try {
+    expect(await isDirectoryAccessibleAsync(root)).toBe(true)
+    expect(await isDirectoryAccessibleAsync(path.join(root, 'missing'))).toBe(false)
+    writeFileSync(path.join(root, 'file'), '')
+    expect(await isDirectoryAccessibleAsync(path.join(root, 'file'))).toBe(false)
+  } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })

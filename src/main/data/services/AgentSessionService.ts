@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
@@ -7,11 +8,13 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import {
   type AgentSessionRow as SessionRow,
   type AgentSessionType,
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -1078,6 +1081,22 @@ export class AgentSessionService {
           !isDirectoryAccessible(current.workspace.path)
             ? current.workspace.id
             : undefined
+        if (
+          inaccessibleWorkspaceId &&
+          source.type === AGENT_WORKSPACE_TYPE.USER &&
+          this.sessionHasMessages(application.get('DbService').getDb(), id)
+        ) {
+          // Recovery must land on a usable folder and on history this profile can still continue; both
+          // are probed here, outside the write transaction.
+          const target = agentWorkspaceService.getRowByIdTx(application.get('DbService').getDb(), source.workspaceId)
+          if (target.id !== current.session.workspaceId && !isDirectoryAccessible(target.path)) {
+            throw DataApiErrorFactory.invalidOperation(
+              'update session workspace',
+              'the replacement workspace folder is not accessible'
+            )
+          }
+          this.assertNativeHistoryReachable(id)
+        }
         application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
       },
       defaultHandlersFor('Session', id)
@@ -1088,6 +1107,34 @@ export class AgentSessionService {
     ])
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
+  }
+
+  /**
+   * A Claude Code conversation keeps its native history under the config directory recorded on its
+   * runtime backend. After a restore into a different profile that directory is gone, the runtime
+   * rejects the branch on the next turn, and rebinding the folder would only clear the warning. Fail
+   * here with a reason instead, leaving the recovery state in place.
+   */
+  private assertNativeHistoryReachable(sessionId: string): void {
+    const currentConfigDir = process.env.CLAUDE_CONFIG_DIR ?? application.getPath('external.claude.config')
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ locator: agentRuntimeBackendTable.locator })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .where(eq(agentSessionContextTable.sessionId, sessionId))
+      .all()
+    const unreachable = rows.some(
+      ({ locator }) =>
+        locator.kind === 'claude-code' && locator.configDir !== currentConfigDir && !existsSync(locator.configDir)
+    )
+    if (unreachable) {
+      throw DataApiErrorFactory.invalidOperation(
+        'update session workspace',
+        "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
+      )
+    }
   }
 
   private setWorkspaceTx(
@@ -1134,6 +1181,16 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return row
+  }
+
+  private sessionHasMessages(tx: DbOrTx, sessionId: string): boolean {
+    const [message] = tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
+      .limit(1)
+      .all()
+    return Boolean(message)
   }
 
   private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
