@@ -1328,7 +1328,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it.each([
     { selection: 'auto', thinking: { type: 'adaptive', display: 'summarized' }, effort: undefined },
     { selection: 'high', thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' },
-    { selection: 'ultra', thinking: { type: 'adaptive', display: 'summarized' }, effort: 'max' },
+    { selection: 'ultra', thinking: { type: 'adaptive', display: 'summarized' }, effort: undefined },
     { selection: 'default', thinking: undefined, effort: undefined }
   ] as const)(
     'preserves native adaptive thinking for $selection CLI subscriptions',
