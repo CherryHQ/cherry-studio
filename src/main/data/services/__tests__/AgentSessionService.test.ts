@@ -1450,7 +1450,7 @@ describe('AgentSessionService', () => {
         .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
         .where(eq(agentSessionContextTable.sessionId, restored.session.id))
       expect(backend.locator).toEqual({ version: 1, kind: 'claude-code', configDir: managedRoot })
-      const edited = await dbh.db
+      const edited = dbh.db
         .select({ mapping: agentSessionContextTable.checkpointMapping })
         .from(agentSessionContextTable)
         .where(eq(agentSessionContextTable.sessionId, restored.session.id))
