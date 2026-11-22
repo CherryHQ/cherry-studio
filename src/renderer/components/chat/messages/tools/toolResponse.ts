@@ -138,6 +138,7 @@ function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undef
 }
 
 function extractParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Persisted metadata can predate the SDK contract; check its container before reading parent IDs.
   if (!isRecord(metadata)) return undefined
   // claude's own namespace first, then the runtime-neutral one (dsh et al.).
   for (const namespace of ['claude-code', 'cherry'] as const) {
@@ -154,6 +155,7 @@ function extractParentToolUseId(part: ToolResponsePart): string | undefined {
 }
 
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Persisted metadata can predate the SDK contract; check its container before reading runtime identity.
   if (!isRecord(metadata)) return false
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
   return typeof cherry?.transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(cherry.transport)

@@ -73,7 +73,7 @@ export const SUPPORTED_ENDPOINT_LIST = [
  * routeToEndpoint('https://api.example.com/v1')
  * // Returns: { baseURL: 'https://api.example.com/v1', endpoint: '' }
  */
-export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
+export function routeToEndpoint(apiHost: string) {
   const trimmedHost = trim(apiHost)
   // 前面已经确保apiHost合法
   if (!trimmedHost.endsWith('#')) {

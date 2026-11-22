@@ -42,7 +42,7 @@ function getPinyinForms(text: string) {
   return forms
 }
 
-export function toPinyinForms(text: string): { full: string; initials: string } {
+export function toPinyinForms(text: string) {
   const { full, initials } = getPinyinForms(text)
   return { full, initials }
 }
