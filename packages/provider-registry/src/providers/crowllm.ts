@@ -6,7 +6,9 @@ import { openaiCompatible } from './types'
  *
  * The provider is not in models.dev yet, so the served models this preset
  * exposes are declared as standalone overrides (name, limits and the gateway's
- * live per-million-token rates from https://crowllm.com/api/pricing).
+ * live per-million-token rates from https://crowllm.com/api/pricing, snapshot
+ * of 2026-11-22). The ids above are the paid shelf; ids ending in `:free` are
+ * zero-rated and inherit the base model's limits, so they need no override.
  */
 export default openaiCompatible({
   id: 'crowllm',
