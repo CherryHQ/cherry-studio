@@ -29,6 +29,7 @@ type CodeRange = { start: number; end: number }
 
 let cachedRangesContent: string | undefined
 let cachedRanges: CodeRange[] = []
+let cachedAllCodeRanges: CodeRange[] = []
 
 /**
  * Whether a parsed code node hides citation markers. Indented code blocks and backtick fences that
@@ -56,36 +57,41 @@ function isCitationOpaqueCode(node: Root | RootContent, content: string, start: 
  * from a CommonMark parse, so fence openers, closers, list containers and lazy continuations follow
  * the same rules the renderer applies. One parse per text, cached for repeated lookups.
  */
-export function findMarkdownCodeRanges(content: string): CodeRange[] {
-  if (content === cachedRangesContent) return cachedRanges
+export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = false): CodeRange[] {
+  if (content === cachedRangesContent) return protectAllCodeBlocks ? cachedAllCodeRanges : cachedRanges
   const ranges: CodeRange[] = []
+  const allCodeRanges: CodeRange[] = []
   const stack: Array<Root | RootContent> = [markdownParser.parse(content)]
   while (stack.length > 0) {
     const node = stack.pop()!
     if ((node.type === 'code' || node.type === 'inlineCode') && node.position) {
       const { start, end } = node.position
-      if (
-        start.offset !== undefined &&
-        end.offset !== undefined &&
-        isCitationOpaqueCode(node, content, start.offset, end.offset)
-      ) {
-        ranges.push({ start: start.offset, end: end.offset })
+      if (start.offset !== undefined && end.offset !== undefined) {
+        const range = { start: start.offset, end: end.offset }
+        allCodeRanges.push(range)
+        if (isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
       }
       continue
     }
     if ('children' in node) stack.push(...node.children)
   }
   ranges.sort((left, right) => left.start - right.start)
+  allCodeRanges.sort((left, right) => left.start - right.start)
   cachedRangesContent = content
   cachedRanges = ranges
-  return ranges
+  cachedAllCodeRanges = allCodeRanges
+  return protectAllCodeBlocks ? allCodeRanges : ranges
 }
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
-export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
+export function mapMarkdownOutsideCode(
+  content: string,
+  transform: (text: string) => string,
+  protectAllCodeBlocks = false
+): string {
   let cursor = 0
   let result = ''
-  for (const { start, end } of findMarkdownCodeRanges(content)) {
+  for (const { start, end } of findMarkdownCodeRanges(content, protectAllCodeBlocks)) {
     result += transform(content.slice(cursor, start))
     result += content.slice(start, end)
     cursor = end

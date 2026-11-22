@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+import * as messageFind from '@renderer/utils/message/find'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 const readMessageAloud = vi.hoisted(() => vi.fn())
@@ -579,6 +580,21 @@ describe('messageMenuBarActions', () => {
     await executeMessageMenuBarAction('copy-to-new-topic', context)
 
     expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1')
+  })
+
+  it('does not analyze citation sources for a streaming message', () => {
+    const analysis = vi.spyOn(messageFind, 'getCitedWebSources').mockReturnValue([])
+    try {
+      const context = createActionContext({ isProcessing: true })
+      context.messageForExport.parts = [
+        { type: 'source-url', sourceId: '1', url: 'https://first.com' },
+        { type: 'text', text: `${'Term\n: definition with text\n\n'.repeat(4000)}See [cite:1].` }
+      ] as never
+      resolveMessageMenuBarMenuActions(context)
+      expect(analysis).not.toHaveBeenCalled()
+    } finally {
+      analysis.mockRestore()
+    }
   })
 
   it('disables streaming-unsafe toolbar actions while keeping copy enabled', () => {

@@ -199,7 +199,26 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
     nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
     messageCitations
   )
-  const nativeByPart = new Map(nativeParts.map((part, index) => [part, nativeResolutions[index].cited]))
+  const nativeByPart = new Map(
+    nativeParts.map((part, index): [CherryMessagePart, Citation[]] => {
+      const resolution = nativeResolutions[index]
+      const proseCitations = new Set<Citation>()
+      // Copy eligibility follows every parsed code boundary, while display numbers continue to
+      // come from the shared renderer/export resolution (including its inherited prose fallback).
+      mapMarkdownOutsideCode(
+        resolution.content,
+        (text) => {
+          for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+            const citation = resolution.byMarker.get(match[2])
+            if (citation) proseCitations.add(citation)
+          }
+          return text
+        },
+        true
+      )
+      return [part, resolution.cited.filter((citation) => proseCitations.has(citation))]
+    })
+  )
 
   const cited: Citation[] = []
   const seen = new Set<string>()
@@ -221,13 +240,17 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
     const source = determineCitationSource(convertReferencesToCitationReferences(references, ''))
     const normalized = normalizeCitationMarks(part.text ?? '', new Map(legacy.map((c) => [c.number, c])), source)
     const numbers = new Set<number>()
-    mapMarkdownOutsideCode(normalized, (text) => {
-      // Only canonical ids count: the renderer looks markers up as exact strings, so `01` is not `1`.
-      for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
-        if (String(Number(match[2])) === match[2]) numbers.add(Number(match[2]))
-      }
-      return text
-    })
+    mapMarkdownOutsideCode(
+      normalized,
+      (text) => {
+        // Only canonical ids count: the renderer looks markers up as exact strings, so `01` is not `1`.
+        for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+          if (String(Number(match[2])) === match[2]) numbers.add(Number(match[2]))
+        }
+        return text
+      },
+      true
+    )
     // A number shared by several references resolves to the last one, like the renderer's marker lookup.
     const byNumber = new Map(legacy.map((c) => [c.number, c]))
     for (const citation of legacy)

@@ -652,6 +652,8 @@ registerAction({
       group: 'copy',
       order: 105,
       availability: ({ actions, isAssistantMessage, isProcessing, messageForExport }) => {
+        // The action cannot run during streaming. Defer citation analysis until it can be used.
+        if (isProcessing) return { visible: false, enabled: false }
         const visible = isAssistantMessage && !!actions.copyText && getCitedWebSources(messageForExport).length > 0
         return { visible, enabled: visible && !isProcessing }
       }

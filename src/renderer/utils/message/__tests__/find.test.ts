@@ -284,6 +284,36 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
   })
 
+  it.each(['    [cite:1]', '```text\n[cite:1]'])(
+    'does not copy a native source cited only in parsed code: %s',
+    (text) => {
+      const sources = [
+        { type: 'source-url', sourceId: '1', url: 'https://first.com', title: 'First' }
+      ] as MessageExportView['parts']
+      const message = createExportView([...sources, { type: 'text', text }])
+      expect(getCitedWebSources(message)).toEqual([])
+      expect(
+        getCitedWebSources(createExportView([...sources, { type: 'text', text: `Prose [cite:1].\n\n${text}` }]))
+      ).toHaveLength(1)
+    }
+  )
+
+  it.each(['    [1]', '```text\n[1]'])('does not copy a migrated source cited only in parsed code: %s', (text) => {
+    expect(getCitedWebSources(legacyMessage(text))).toEqual([])
+    expect(getCitedWebSources(legacyMessage(`Prose [1].\n\n${text}`))).toHaveLength(1)
+  })
+
+  it('filters code-only sources without renumbering prose citations or changing export fallback', () => {
+    const text = '    [cite:1]\n\nProse [cite:2].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: '1', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: '2', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(message)).toBe('[2] [Second](https://second.com)')
+    expect(getToolCitationExport(message, text).content).toBe('    [1]\n\nProse [2].')
+  })
+
   it('ignores a citation that only appears inside a tilde-fenced code block', () => {
     const message = legacyMessage('Example:\n~~~text\n[1]\n~~~')
 
