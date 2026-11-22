@@ -36,6 +36,7 @@ const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
+  getModelSwitchHandoff: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   createAssistantFileToolsServer: vi.fn(),
@@ -85,6 +86,10 @@ vi.mock('@logger', () => ({
 vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => ({
   ...(await importOriginal<typeof UserDataSqliteGuard>()),
   evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getModelSwitchHandoff: mocks.getModelSwitchHandoff }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -349,6 +354,21 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  })
+
+  it('projects the saved edited handoff into the resumed native system prompt', async () => {
+    mocks.getModelSwitchHandoff.mockReturnValueOnce('Edited handoff: test export.ts before release.')
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    expect(mocks.getModelSwitchHandoff).toHaveBeenCalledWith('session-1')
+    expect(systemPromptText(settings.systemPrompt)).toContain('Edited handoff: test export.ts before release.')
+    expect(settings.systemPrompt).toMatchObject({ snapshot: false })
   })
 
   it('preserves managed CLI paths from the login-shell environment', async () => {

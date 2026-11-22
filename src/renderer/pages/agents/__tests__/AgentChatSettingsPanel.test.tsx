@@ -29,7 +29,8 @@ const updateAgentMock = vi.hoisted(() => ({
   updateModel: vi.fn()
 }))
 const updateSessionMock = vi.hoisted(() => ({
-  updateSession: vi.fn()
+  updateSession: vi.fn(),
+  switchModelWithHandoff: vi.fn()
 }))
 const modelSwitchConfirmationCacheMock = vi.hoisted(() => ({
   value: false,
@@ -50,6 +51,7 @@ const conversationShellPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
+const handoffGenerateMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 
@@ -57,9 +59,11 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval'
-        ? toolApprovalRespondMock(input)
-        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
+      route === 'ai.agent.session.handoff.generate'
+        ? handoffGenerateMock(input)
+        : route === 'ai.tool.respond_approval'
+          ? toolApprovalRespondMock(input)
+          : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
     on: () => () => {}
   },
   useIpcOn: vi.fn()
@@ -395,6 +399,9 @@ describe('AgentChat settings panel', () => {
     conversationShellPropsMock.last = undefined
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
+    updateSessionMock.switchModelWithHandoff.mockReset()
+    updateSessionMock.switchModelWithHandoff.mockResolvedValue({ id: 'session-1' })
+    handoffGenerateMock.mockReset()
     updateSessionMock.updateSession.mockReset()
     updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' } as any)
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
@@ -594,6 +601,33 @@ describe('AgentChat settings panel', () => {
         { showSuccessToast: false }
       )
     )
+  })
+
+  it('routes reviewed handoff edits through the atomic switch instead of the normal patch', async () => {
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'Original work' }] }
+    handoffGenerateMock.mockResolvedValue({
+      previousModel: 'provider::model-1',
+      sourceHead: 'head',
+      sourceVersion: 'version',
+      text: 'Generated'
+    })
+    renderAgentChat()
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.handoff_option' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.handoff_generate' }))
+    const text = await screen.findByRole('textbox', { name: 'agent.session.model_switch_confirm.handoff_edit' })
+    fireEvent.change(text, { target: { value: 'Edited pending export work' } })
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+    await waitFor(() =>
+      expect(updateSessionMock.switchModelWithHandoff).toHaveBeenCalledWith('session-1', {
+        previousModel: 'provider::model-1',
+        nextModel: 'provider::model-2',
+        sourceHead: 'head',
+        sourceVersion: 'version',
+        text: 'Edited pending export work'
+      })
+    )
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
   })
 
   it('shares the model confirmation opt-out for the current app run when requested', async () => {

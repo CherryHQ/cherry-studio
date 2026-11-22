@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
@@ -39,6 +39,7 @@ import type {
   DeleteAgentSessionsResult,
   GetAgentSessionQuery,
   LatestAgentSessionQuery,
+  ModelSwitchHandoff,
   ListAgentSessionsQuery,
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto,
@@ -50,7 +51,7 @@ import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
-import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import { ensureAgentSessionRootTx, readAgentSessionPath } from './agentSessionMessageTree'
 import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -966,6 +967,78 @@ export class AgentSessionService {
     }
 
     return { items: items.map((i) => i.session), nextCursor }
+  }
+
+  getModelSwitchSource(id: string) {
+    const session = this.getConversationById(id)
+    const db = application.get('DbService').getDb()
+    const agent = session.agentId
+      ? db.select({ model: agentsTable.model }).from(agentsTable).where(eq(agentsTable.id, session.agentId)).get()
+      : undefined
+    const previousModel = session.model ?? agent?.model
+    if (!previousModel || !isUniqueModelId(previousModel))
+      throw DataApiErrorFactory.invalidOperation('model handoff', 'Session has no current model')
+    if (application.get('AgentSessionRuntimeService').isSessionBusy(id))
+      throw DataApiErrorFactory.invalidOperation('model handoff', 'Wait for the session to become idle')
+    const messages = readAgentSessionPath(db, id)
+    const sourceHead = getDataService('AgentSessionMessageService').captureHead(id)
+    const sourceVersion = createHash('sha256')
+      .update(JSON.stringify({ agentId: session.agentId, previousModel, messages }))
+      .digest('hex')
+    return { previousModel, sourceHead, sourceVersion, messages }
+  }
+
+  getModelSwitchHandoff(id: string): string | undefined {
+    const db = application.get('DbService').getDb()
+    const session = db
+      .select({ head: sessionsTable.activeNodeId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .get()
+    if (!session?.head) return undefined
+    const rows = readAgentSessionPath(db, id, session.head)
+    const row = rows.findLast((message) => message.role === 'system' && message.data.modelSwitchHandoff)
+    return row?.data.parts?.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  }
+
+  switchModelWithHandoff(id: string, input: ModelSwitchHandoff): AgentSessionEntity {
+    const saved = application.get('DbService').withWriteTx((tx) => {
+      const source = this.getModelSwitchSource(id)
+      if (
+        source.previousModel !== input.previousModel ||
+        source.sourceHead !== input.sourceHead ||
+        source.sourceVersion !== input.sourceVersion ||
+        input.nextModel === input.previousModel
+      )
+        throw DataApiErrorFactory.invalidOperation('model handoff', 'Session changed; generate the handoff again')
+      const text = input.text
+      if (!text.trim()) throw DataApiErrorFactory.invalidOperation('model handoff', 'Handoff must not be empty')
+      const result = this.updateTx(tx, id, { model: input.nextModel })
+      if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
+      return getDataService('AgentSessionMessageService').saveMessagesTx(tx, {
+        sessionId: id,
+        parentId: source.sourceHead,
+        messages: [
+          {
+            role: 'system',
+            status: 'success',
+            modelId: input.previousModel,
+            data: {
+              parts: [{ type: 'text', text }],
+              modelSwitchHandoff: {
+                previousModel: input.previousModel,
+                nextModel: input.nextModel,
+                sourceHead: input.sourceHead
+              }
+            }
+          }
+        ]
+      })
+    })
+    getDataService('AgentSessionMessageService').publishDispatchChanges(id, saved)
+    this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
+    return this.getById(id)
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {

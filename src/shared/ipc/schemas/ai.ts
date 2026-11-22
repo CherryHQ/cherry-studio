@@ -26,6 +26,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import {
   AgentSessionEntitySchema,
+  type ModelSwitchHandoffDraft,
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -211,6 +212,10 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
 ]) satisfies z.ZodType<ProjectionTarget>
 
 export const aiRequestSchemas = {
+  'ai.agent.session.handoff.generate': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.custom<ModelSwitchHandoffDraft>()
+  }),
   'ai.agent.session.predict_prompt': defineRoute({
     input: z.strictObject({
       sessionId: z.string().min(1),

@@ -14,6 +14,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { generateModelSwitchHandoff } from '@main/ai/agents/modelSwitchHandoff'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
@@ -113,6 +114,8 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.session.handoff.generate': ({ sessionId, requestId }) =>
+    exposeAiError('ai.agent.session.handoff.generate', () => generateModelSwitchHandoff(sessionId, requestId)),
   'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
   'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
     application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),

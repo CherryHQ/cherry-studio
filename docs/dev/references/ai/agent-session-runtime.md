@@ -208,6 +208,14 @@ Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instru
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
+## Optional model-switch handoff
+
+The conversation model-switch confirmation starts with handoff disabled. Only an explicit generation request calls the currently selected model; preview generation never persists a message or switches models. The preview separates objective, decisions, completed work, pending steps, files and risks. Users can edit it, cancel it, or disable handoff after a generation error.
+
+Saving a handoff checks idle ownership, current model, active head and a digest of the source messages. The session model and the exact edited system message commit in one transaction. That message records previous/next model IDs and the source head without rewriting earlier messages or resetting the native resume token. A changed source or newly busy runtime rejects the whole operation.
+
+The common prompt materializer reads the latest handoff on the active branch and appends it as system context. Claude Code keeps its resumed native session and rebuilds the non-snapshotted system prompt; Pi reopens the same native history with the updated system append. Pi Durable receives the same common append during preparation. Native contract coverage uses local scripted providers, not paid model calls. Ordinary unchecked switching keeps the existing update path and adds no handoff message.
+
 ## Fresh turn
 
 1. Renderer sends `ai.stream.open` for topic `agent-session:<sessionId>`.

@@ -67,6 +67,7 @@ export async function prepareDurableDesktop(
   const scope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, input.knowledgeBaseIds)
   const enabled = (name: string) => !disabled.has(buildPiMcpToolName('cherry-tools', name))
   const prompt = await buildAgentRuntimePrompt({
+    sessionId: input.sessionId,
     agent,
     workspacePath: cwd,
     agentDataPath,

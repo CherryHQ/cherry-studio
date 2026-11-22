@@ -1,3 +1,4 @@
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
@@ -33,6 +34,7 @@ export interface AgentRuntimePrompt {
 }
 
 export interface BuildAgentRuntimePromptOptions {
+  sessionId?: string
   workspacePath: string
   agentDataPath: string
   agent: AgentEntity
@@ -50,6 +52,7 @@ const promptBuilder = new PromptBuilder()
 
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
+  sessionId,
   workspacePath,
   agentDataPath,
   agent,
@@ -92,6 +95,7 @@ export async function buildAgentRuntimePrompt({
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
     mcpInstructions,
+    sessionId ? agentSessionService.getModelSwitchHandoff(sessionId) : undefined,
     getLanguageInstruction(agent, effectiveLanguage)
   ]
     .filter(Boolean)

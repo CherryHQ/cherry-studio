@@ -17,6 +17,7 @@ import {
   GetAgentSessionQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
+  ModelSwitchHandoffSchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -58,6 +59,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
+    }
+  },
+
+  '/agent-sessions/:sessionId/model-switch': {
+    POST: async ({ params, body }) => {
+      const parsed = ModelSwitchHandoffSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.switchModelWithHandoff(params.sessionId, parsed.data)
     }
   },
 

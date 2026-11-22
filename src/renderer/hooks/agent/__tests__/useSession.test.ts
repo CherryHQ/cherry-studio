@@ -739,6 +739,44 @@ describe('useUpdateSession', () => {
     vi.clearAllMocks()
   })
 
+  it('sends the exact reviewed handoff to the atomic endpoint and refreshes its message projection', async () => {
+    const saved = createSession({ model: 'fixture::next' })
+    const trigger = vi.fn().mockResolvedValue(saved)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions/:sessionId/model-switch', trigger)
+    const { result } = renderHook(() => useUpdateSession())
+    const body = {
+      previousModel: 'fixture::old',
+      nextModel: 'fixture::next',
+      sourceHead: 'head',
+      sourceVersion: 'version',
+      text: '  Edited handoff  '
+    }
+    expect(await act(async () => result.current.switchModelWithHandoff('session-1', body))).toBe(saved)
+    expect(trigger).toHaveBeenCalledWith({ params: { sessionId: 'session-1' }, body })
+    const config = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'POST' && path === '/agent-sessions/:sessionId/model-switch'
+    )?.[2]
+    expect(config?.refresh).toEqual(expect.any(Function))
+    expect((config!.refresh as any)({ args: { params: { sessionId: 'session-1' } } })).toContain(
+      '/agent-sessions/session-1/messages/*'
+    )
+  })
+
+  it('keeps a failed atomic switch visible as an error instead of reporting a switched session', async () => {
+    const trigger = vi.fn().mockRejectedValue(new Error('Session changed'))
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions/:sessionId/model-switch', trigger)
+    const { result } = renderHook(() => useUpdateSession())
+    const body = {
+      previousModel: 'fixture::old',
+      nextModel: 'fixture::next',
+      sourceHead: 'head',
+      sourceVersion: 'version',
+      text: 'Edited'
+    }
+    expect(await act(async () => result.current.switchModelWithHandoff('session-1', body))).toBeUndefined()
+    expect(toast.error).toHaveBeenCalledWith(expect.objectContaining({ description: 'Session changed' }))
+  })
+
   it('updates sessions even when the previous agentId is null', async () => {
     const mockResult = createSession({ agentId: 'agent-2' })
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)

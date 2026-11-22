@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
@@ -59,6 +58,7 @@ import {
   useAgentRightPaneActions
 } from './components/AgentRightPane'
 import { AgentSessionNameControl } from './components/AgentSessionNameControl'
+import { ModelSwitchHandoffDialog } from './components/ModelSwitchHandoffDialog'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -249,7 +249,7 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateSession } = useUpdateSession()
+  const { updateSession, switchModelWithHandoff } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
@@ -589,29 +589,15 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
-      <ConfirmDialog
+      <ModelSwitchHandoffDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
-        title={t('agent.session.model_switch_confirm.title', { model: modelSwitchTarget?.model.name ?? '' })}
-        description={t('agent.session.model_switch_confirm.description')}
-        content={
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="skip-model-switch-confirmation"
-              size="sm"
-              checked={skipModelSwitchConfirmation}
-              onCheckedChange={(checked) => setSkipModelSwitchConfirmation(checked === true)}
-            />
-            <label
-              htmlFor="skip-model-switch-confirmation"
-              className="cursor-pointer text-sm leading-none text-foreground">
-              {t('agent.session.model_switch_confirm.skip_for_app_run')}
-            </label>
-          </div>
-        }
-        confirmText={t('agent.session.model_switch_confirm.confirm')}
-        cancelText={t('common.cancel')}
-        onConfirm={async () => {
+        sessionId={modelSwitchTarget?.sessionId}
+        targetModelId={modelSwitchTarget?.model.id}
+        modelName={modelSwitchTarget?.model.name ?? ''}
+        skipConfirmation={skipModelSwitchConfirmation}
+        onSkipConfirmationChange={setSkipModelSwitchConfirmation}
+        onConfirm={async (handoff) => {
           if (
             !sessionSnapshot ||
             !modelSwitchTarget ||
@@ -621,13 +607,16 @@ const AgentChat = ({
           ) {
             return
           }
-          const updatedSession = await updateSession(
-            { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
-            { showSuccessToast: false }
-          )
+          const updatedSession = handoff
+            ? await switchModelWithHandoff(sessionSnapshot.id, { ...handoff, nextModel: modelSwitchTarget.model.id })
+            : await updateSession(
+                { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
+                { showSuccessToast: false }
+              )
           if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
+          return updatedSession ? true : false
         }}
       />
     </>

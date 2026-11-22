@@ -255,7 +255,8 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     options?.effectiveLanguage,
-    options?.promptModelName
+    options?.promptModelName,
+    session.id
   )
 
   // 6. MCP servers (session + built-in)
@@ -750,7 +751,8 @@ export async function buildSystemPrompt(
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null,
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
-  promptModelName?: string | null
+  promptModelName?: string | null,
+  sessionId?: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -767,6 +769,7 @@ export async function buildSystemPrompt(
     'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   const prompt = await buildAgentRuntimePrompt({
+    sessionId,
     workspacePath: cwd,
     agentDataPath,
     agent,

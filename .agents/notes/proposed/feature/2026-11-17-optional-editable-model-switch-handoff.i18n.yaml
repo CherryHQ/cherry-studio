@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-17-optional-editable-model-switch-handoff.md
-2026-11-17-optional-editable-model-switch-handoff.md: cc540908b433a608eb2b42ef50fc7d1fc8cfaa7e
-2026-11-17-optional-editable-model-switch-handoff.zh.md: 8041ac97590b1c3825d97c4d5458ddb7b9fc63cd

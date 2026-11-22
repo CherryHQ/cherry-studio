@@ -70,6 +70,20 @@ export const UpdateAgentSessionSchema = z.strictObject({
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 
+export const ModelSwitchHandoffSchema = z.strictObject({
+  previousModel: UniqueModelIdSchema,
+  nextModel: UniqueModelIdSchema,
+  sourceHead: z.string().min(1),
+  sourceVersion: z.string().min(1),
+  text: z
+    .string()
+    .min(1)
+    .max(100_000)
+    .refine((text) => text.trim().length > 0)
+})
+export type ModelSwitchHandoff = z.infer<typeof ModelSwitchHandoffSchema>
+export type ModelSwitchHandoffDraft = Omit<ModelSwitchHandoff, 'nextModel'>
+
 /**
  * Body for `PUT /agent-sessions/:sessionId/workspace`. Replacing a session's
  * workspace creates/deletes the backing system workspace row and is only
@@ -173,6 +187,14 @@ export type AgentSessionSchemas = {
     PATCH: {
       params: { sessionId: string }
       body: UpdateAgentSessionDto
+      response: AgentSessionEntity
+    }
+  }
+
+  '/agent-sessions/:sessionId/model-switch': {
+    POST: {
+      params: { sessionId: string }
+      body: ModelSwitchHandoff
       response: AgentSessionEntity
     }
   }

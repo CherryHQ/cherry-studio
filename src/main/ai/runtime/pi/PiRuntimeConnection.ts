@@ -182,6 +182,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
     })
     const prompt = await buildAgentRuntimePrompt({
+      sessionId: this.input.sessionId,
       workspacePath,
       agentDataPath,
       agent,

@@ -97,7 +97,7 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-async function nativeProbe(options: Pick<Options, 'agents'> = {}) {
+async function nativeProbe(options: Pick<Options, 'agents' | 'systemPrompt' | 'model'> = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-contract-'))
   const cwd = path.join(directory, 'work')
   const config = path.join(directory, 'config')
@@ -106,7 +106,7 @@ async function nativeProbe(options: Pick<Options, 'agents'> = {}) {
   let input = new AsyncEventQueue<SDKUserMessage>()
   const requests = new AsyncEventQueue<{
     reply: ReturnType<typeof modelReply>
-    body: { messages: SDKUserMessage['message'][] }
+    body: { messages: SDKUserMessage['message'][]; system?: unknown; model?: string }
   }>()
   const incoming = requests[Symbol.asyncIterator]()
   const responses = new Set<ServerResponse>()
@@ -943,6 +943,43 @@ it('keeps a fork child archive separate while preserving its inherited context',
     const history = await probe.history(result.session_id)
     expect(history.children[answer.agent_id!]).toContainEqual(expect.objectContaining({ uuid: answer.uuid }))
     expect(history.root.some((message) => message.uuid === answer.uuid)).toBe(false)
+  } finally {
+    await probe.close()
+  }
+})
+
+it('applies changed system handoff context on native resume without inventing a user turn', async () => {
+  const options: Pick<Options, 'systemPrompt' | 'model'> = {
+    systemPrompt: { type: 'custom', prompt: 'Original instructions.', snapshot: false }
+  }
+  const probe = await nativeProbe(options)
+  try {
+    const firstId = probe.send('Original task context: export.ts')
+    const first = await probe.request()
+    first.reply.block({ type: 'text', text: 'Parser completed; tests remain.' })
+    first.reply.finish()
+    const result = await probe.event((event) => event.type === 'result' && event.user_message_uuid === firstId)
+    if (result.type !== 'result') throw new Error('Missing native result')
+    options.systemPrompt = {
+      type: 'custom',
+      prompt: 'Original instructions.\n\nEdited handoff: test export.ts before release.',
+      snapshot: false
+    }
+    options.model = 'claude-opus-4-6'
+    await probe.restart(result.session_id)
+    const nextId = probe.send('Continue the task')
+    const next = await probe.request()
+    expect(next.body.model).toBe('claude-opus-4-6')
+    expect(JSON.stringify(next.body.system)).toContain('Edited handoff: test export.ts before release.')
+    expect(JSON.stringify(next.body.messages)).toContain('Original task context: export.ts')
+    expect(JSON.stringify(next.body.messages)).toContain('Parser completed; tests remain.')
+    expect(JSON.stringify(next.body.messages)).not.toContain('Edited handoff:')
+    next.reply.block({ type: 'text', text: 'Continuing the reviewed task.' })
+    next.reply.finish()
+    expect(await probe.event((event) => event.type === 'result' && event.user_message_uuid === nextId)).toMatchObject({
+      is_error: false,
+      session_id: result.session_id
+    })
   } finally {
     await probe.close()
   }
