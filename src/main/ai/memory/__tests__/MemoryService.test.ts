@@ -209,6 +209,8 @@ describe('lifecycle memory owner', () => {
     old.dispose()
     editor.dispose()
     const { sessionId, agentId } = await seedAgentSession()
+    // Seeded Agents can receive a first turn before settings provision their data directory.
+    await rmdir(path.join(fixture, 'feature.agents.data', agentId))
     agentService.updateAgent(agentId, { configuration: { shared_memory_enabled: enabled } })
     const fresh = openRuntimeMemoryGuard(sessionId, () => {})
     try {
