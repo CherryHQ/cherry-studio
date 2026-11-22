@@ -112,6 +112,11 @@ export class KnowledgeChunkGovernanceService {
     })
   }
 
+  /** One coherent, deterministic read for retrieval revision checks. No source text is logged. */
+  listByBase(baseId: string): KnowledgeChunkGovernanceRow[] {
+    return this.dbService.getDb().select().from(tables).where(eq(tables.baseId, baseId)).orderBy(asc(tables.id)).all()
+  }
+
   listHistory(baseId: string, itemId: string, unitId: string) {
     const db = this.dbService.getDb()
     return db

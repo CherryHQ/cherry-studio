@@ -115,6 +115,10 @@ const {
   probeKnowledgeSourcePathMock: vi.fn()
 }))
 
+vi.mock('@data/services/KnowledgeChunkGovernanceService', () => ({
+  knowledgeChunkGovernanceService: { listByBase: vi.fn(() => []) }
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const { default: nodePath } = await import('node:path')
@@ -475,6 +479,7 @@ describe('KnowledgeService', () => {
     listMock.mockResolvedValue([])
     getIndexStoreMock.mockReturnValue({
       search: storeSearchMock,
+      isClosed: () => false,
       listMaterialUnits: listMaterialUnitsMock,
       getMaterialByRelativePath: getMaterialByRelativePathMock,
       readMaterialContent: readMaterialContentMock

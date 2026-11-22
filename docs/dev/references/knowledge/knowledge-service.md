@@ -336,11 +336,13 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 1. Reject failed bases.
 2. Reject queries without searchable tokens.
 3. Derive the retrieval mode from the base config and embed the query only for embedding-backed bases. Bases without an embedding model search BM25 only; embedding-backed bases use hybrid retrieval.
-4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens) or fuses BM25 and brute-force vector results with RRF.
-5. Filter results whose source items are missing, outside the base, or `deleting`, then trim to `documentCount ?? 10`.
-6. Rerank when `base.rerankModelId` is configured.
+4. Read Main-owned chunk governance revisions and reconcile exact source/unit bindings. Call `KnowledgeIndexStore.search` with the derived exclusions and an over-fetched candidate limit (`topK × overfetch`, capped). BM25 MATCH/LIKE, vector and hybrid lanes exclude governed units and paused materials before their candidate limits and RRF selection.
+5. Revalidate governance before reranking and filter candidates through completed same-base items.
+6. Rerank when `base.rerankModelId` is configured, then revalidate governance again before returning and trim to `documentCount ?? 10`. A changed revision or governed index binding returns a retryable conflict, without automatically repeating provider work.
 7. Apply `threshold` only to results whose `scoreKind` is `relevance`; BM25/hybrid `ranking` scores pass through.
 8. Assign ranks.
+
+The [chunk governance reference](./chunk-governance-storage.md) describes the current internal retrieval guard and its limits. Unmatched records pause their material; pending corrections suppress their unit until effective revision publication exists. No editing endpoint or inspector UI is exposed yet. Explicit source reads and chunk inspection still return original text.
 
 Current `KnowledgeSearchResult` includes:
 

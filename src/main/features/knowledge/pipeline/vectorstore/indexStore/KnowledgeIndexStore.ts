@@ -10,6 +10,8 @@ import {
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
 import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
+  KnowledgeIndexGovernanceBinding,
+  KnowledgeIndexSearchExclusions,
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
   KnowledgeMaterialRef,
@@ -27,6 +29,26 @@ import type {
 import { encodeVectorBlob } from './vectorBlob'
 
 const logger = loggerService.withContext('KnowledgeIndexStore')
+
+interface SearchExclusionSql {
+  clause: string
+  args: SqlValue[]
+}
+
+/** JSON parameters avoid SQLite variable limits without interpolating IDs into SQL. */
+function searchExclusionSql(exclusions?: KnowledgeIndexSearchExclusions): SearchExclusionSql {
+  const clauses: string[] = []
+  const args: SqlValue[] = []
+  if (exclusions?.unitIds.length) {
+    clauses.push('AND su.unit_id NOT IN (SELECT value FROM json_each(?))')
+    args.push(JSON.stringify(exclusions.unitIds))
+  }
+  if (exclusions?.materialIds.length) {
+    clauses.push('AND su.material_id NOT IN (SELECT value FROM json_each(?))')
+    args.push(JSON.stringify(exclusions.materialIds))
+  }
+  return { clause: clauses.join(' '), args }
+}
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
 const RRF_K = 60
@@ -48,9 +70,9 @@ const DELETE_YIELD_BUDGET_MS = 50
  * engine is swapped by injecting a different {@link SqliteDriver} (better-sqlite3
  * + sqlite-vec today) — see knowledge-technical-design.md §5.6.
  *
- * Retrieval (BM25 + brute-force vector + RRF) applies no material-level filter
- * here; the knowledge_item-level filter (existence / lifecycle status) lives in
- * the caller (it reads the global app DB, not this per-base index).
+ * Retrieval accepts Main-owned governance exclusions before candidate limits.
+ * The knowledge_item-level visibility check (existence / lifecycle status)
+ * remains in the caller, which owns access to the business database.
  */
 export class KnowledgeIndexStore {
   constructor(
@@ -392,26 +414,60 @@ export class KnowledgeIndexStore {
   }
 
   /**
-   * Retrieve units for a query. 'vector' and 'bm25' return their single ranked
-   * list; 'hybrid' fuses both with Reciprocal Rank Fusion (rank-based, so the
-   * incompatible cosine/BM25 score ranges don't need normalizing). The body
-   * text of a unit is the search source for both lanes
-   * (knowledge-technical-design.md §6).
+   * Reconcile durable evidence against the current exact indexed identity. An
+   * unmatched decision pauses its material, never a similar-looking new chunk.
+   * The returned filter is a read snapshot, not a persisted publication receipt.
    */
+  resolveGovernanceExclusions(bindings: KnowledgeIndexGovernanceBinding[]): KnowledgeIndexSearchExclusions {
+    if (bindings.length === 0) return { unitIds: [], materialIds: [] }
+    const rows = this.driver.execute(
+      `SELECT su.unit_id, su.material_id, su.content_hash, su.char_start, su.char_end,
+              st.text AS body, m.current_content_hash
+       FROM search_unit su
+       JOIN material m ON m.material_id = su.material_id
+       LEFT JOIN search_text st
+         ON st.target_type = 'search_unit' AND st.target_id = su.unit_id AND st.kind = 'body'
+       WHERE su.unit_id IN (SELECT value FROM json_each(?))`,
+      [JSON.stringify(bindings.map((binding) => binding.unitId))]
+    ).rows
+    const byId = new Map(rows.map((row) => [row.unit_id, row]))
+    const unitIds = new Set<string>()
+    const materialIds = new Set<string>()
+    for (const binding of bindings) {
+      const row = byId.get(binding.unitId)
+      if (
+        !row ||
+        row.material_id !== binding.materialId ||
+        row.current_content_hash !== binding.sourceContentHash ||
+        row.content_hash !== binding.sourceContentHash ||
+        Number(row.char_start) !== binding.charStart ||
+        Number(row.char_end) !== binding.charEnd ||
+        row.body !== binding.originalText
+      ) {
+        materialIds.add(binding.materialId)
+      } else if (binding.excluded || binding.pendingOverride) {
+        unitIds.add(binding.unitId)
+      }
+    }
+    return { unitIds: [...unitIds].sort(), materialIds: [...materialIds].sort() }
+  }
+
+  /** Retrieve eligible units, using RRF to fuse the independently bounded hybrid lanes. */
   search(input: KnowledgeIndexSearchInput): KnowledgeIndexSearchMatch[] {
+    const filter = searchExclusionSql(input.exclusions)
     if (input.mode === 'bm25') {
-      return this.bm25Search(input.queryText, input.topK)
+      return this.bm25Search(input.queryText, input.topK, filter)
     }
     if (input.mode === 'vector') {
-      return this.vectorSearch(this.requireQueryEmbedding(input), input.topK)
+      return this.vectorSearch(this.requireQueryEmbedding(input), input.topK, filter)
     }
 
     const alpha = input.alpha ?? 0.5
     const prefetch = input.topK * 5
     // Both lanes are synchronous SQL over the same connection — sequential, not
     // Promise.all: the driver has no true concurrency to parallelize.
-    const vector = this.vectorSearch(this.requireQueryEmbedding(input), prefetch)
-    const bm25 = this.bm25Search(input.queryText, prefetch)
+    const vector = this.vectorSearch(this.requireQueryEmbedding(input), prefetch, filter)
+    const bm25 = this.bm25Search(input.queryText, prefetch, filter)
     return fuseWithRrf(vector, bm25, alpha, input.topK)
   }
 
@@ -496,7 +552,11 @@ export class KnowledgeIndexStore {
   }
 
   /** Brute-force cosine scan over the plain-BLOB embedding column (no ANN index). */
-  private vectorSearch(queryEmbedding: number[], topK: number): KnowledgeIndexSearchMatch[] {
+  private vectorSearch(
+    queryEmbedding: number[],
+    topK: number,
+    filter: SearchExclusionSql
+  ): KnowledgeIndexSearchMatch[] {
     // Invariant, not a check: a base's embedding model and dimensions are immutable
     // (changing them means migrating to a new base), so `queryEmbedding` and every
     // stored `vector_blob` share one dimension — cosine never compares mismatched lengths.
@@ -511,21 +571,22 @@ export class KnowledgeIndexStore {
          ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE dist IS NOT NULL
+         ${filter.clause}
        ORDER BY dist
        LIMIT ?`,
-      [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
+      [this.vectorIndex.bindQueryVector(queryEmbedding), ...filter.args, topK]
     )
     return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
   }
 
-  private bm25Search(queryText: string, topK: number): KnowledgeIndexSearchMatch[] {
+  private bm25Search(queryText: string, topK: number, filter: SearchExclusionSql): KnowledgeIndexSearchMatch[] {
     // A query whose every term is too short to trigram (notably a bare 1–2 char CJK
     // word) can never MATCH, so scan with LIKE instead. A query with at least one
     // indexable term takes the ranked MATCH path below.
     if (needsLikeFallback(queryText)) {
       const tokens = extractFtsTokens(queryText)
       logger.debug('BM25 LIKE fallback search', { tokens })
-      return this.bm25LikeSearch(tokens, topK)
+      return this.bm25LikeSearch(tokens, topK, filter)
     }
     const matchQuery = toFtsMatchQuery(queryText)
     if (!matchQuery) {
@@ -539,15 +600,20 @@ export class KnowledgeIndexStore {
     // query, so when the filters eliminate every candidate they are relaxed.
     const shortTerms = extractShortTerms(queryText)
     logger.debug('BM25 MATCH search', { matchQuery, shortTerms })
-    const matches = this.bm25MatchSearch(matchQuery, shortTerms, topK)
+    const matches = this.bm25MatchSearch(matchQuery, shortTerms, topK, filter)
     if (matches.length > 0 || shortTerms.length === 0) {
       return matches
     }
     logger.debug('BM25 short-term filters eliminated every candidate; relaxing them', { shortTerms })
-    return this.bm25MatchSearch(matchQuery, [], topK)
+    return this.bm25MatchSearch(matchQuery, [], topK, filter)
   }
 
-  private bm25MatchSearch(matchQuery: string, shortTerms: string[], topK: number): KnowledgeIndexSearchMatch[] {
+  private bm25MatchSearch(
+    matchQuery: string,
+    shortTerms: string[],
+    topK: number,
+    filter: SearchExclusionSql
+  ): KnowledgeIndexSearchMatch[] {
     const shortTermFilters = shortTerms.map(() => `AND st.text LIKE ? ESCAPE '\\'`).join(' ')
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
@@ -557,9 +623,10 @@ export class KnowledgeIndexStore {
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE search_text_fts MATCH ?
          ${shortTermFilters}
+         ${filter.clause}
        ORDER BY score
        LIMIT ?`,
-      [matchQuery, ...shortTerms.map(toFtsLikePattern), topK]
+      [matchQuery, ...shortTerms.map(toFtsLikePattern), ...filter.args, topK]
     )
     // bm25() is lower-is-better; negate so the returned score is higher-is-better.
     return result.rows.map((row) => toMatch(row, -Number(row.score)))
@@ -572,18 +639,19 @@ export class KnowledgeIndexStore {
    * unit fully about the term) ranks first — and expose it as a higher-is-better
    * score so it fuses sanely with the vector lane in hybrid mode.
    */
-  private bm25LikeSearch(tokens: string[], topK: number): KnowledgeIndexSearchMatch[] {
+  private bm25LikeSearch(tokens: string[], topK: number, filter: SearchExclusionSql): KnowledgeIndexSearchMatch[] {
     if (tokens.length === 0) {
       return []
     }
     const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
-    const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
+    const args: SqlValue[] = [...tokens.map(toFtsLikePattern), ...filter.args, topK]
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
        FROM search_text st
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE st.target_type = 'search_unit' AND st.kind = 'body'
          AND ${likeClauses}
+         ${filter.clause}
        ORDER BY len ASC
        LIMIT ?`,
       args

@@ -22,16 +22,17 @@ import {
   toKnowledgeBaseId,
   toKnowledgeItemId
 } from '../types'
+import { assertKnowledgeGovernanceSearchSnapshot, readKnowledgeGovernanceSearchSnapshot } from './governance'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './search'
 import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
 
 const logger = loggerService.withContext('Knowledge:QueryService')
 /**
- * Fetch this many × the requested result count as index candidates. The index
- * store only filters by material state; the item-visibility filter (missing /
- * other-base / not-completed) runs afterwards in the caller and can drop matches,
- * so over-fetching keeps the final set from shrinking below topK.
+ * Fetch this many × the requested result count as index candidates. Governance
+ * exclusions apply inside the store before its limits; the item-visibility
+ * filter (missing / other-base / not-completed) still runs afterwards and can
+ * drop matches, so over-fetching helps preserve the final topK.
  */
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
@@ -73,21 +74,29 @@ export class KnowledgeQueryService {
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
+    const snapshot = readKnowledgeGovernanceSearchSnapshot(baseId, store)
     const matches = await runStoreOperation(store, baseId, 'search', () =>
       store.search({
         queryText: query,
         queryEmbedding,
         mode,
-        topK: candidateLimit
+        topK: candidateLimit,
+        exclusions: snapshot.exclusions
       })
     )
 
+    // A queued mutation may commit while an asynchronous store operation settles.
+    // Do not send an obsolete candidate set to an external reranker.
+    assertKnowledgeGovernanceSearchSnapshot(baseId, store, snapshot)
     const scoreKind = getInitialSearchScoreKind(mode)
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
     // Rerank before trimming so the reranker sees the full over-fetched candidate set and can
     // surface the best matches; without a rerank model this is a pass-through.
     const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+    // No automatic retry: repeating a provider call could cost money. The caller
+    // gets a conflict instead of stale text after a concurrent edit or rebuild.
+    assertKnowledgeGovernanceSearchSnapshot(baseId, store, snapshot)
     const topResults = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
     return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
