@@ -192,6 +192,7 @@
 | Document | Description |
 |----------|-------------|
 | [Knowledge Reference](./references/knowledge/README.md) | Entry point for the current Knowledge backend, ingestion workflow, retrieval, and operation guards |
+| [Knowledge Chunk Governance Storage](./references/knowledge/chunk-governance-storage.md) | Storage-only foundation for future Knowledge chunk governance, with revision and provenance boundaries |
 | [Knowledge Service](./references/knowledge/knowledge-service.md) | Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |

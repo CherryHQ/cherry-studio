@@ -301,6 +301,13 @@
       "when": 1795244965364,
       "tag": "0042_wise_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795316546531,
+      "tag": "0043_charming_stark_industries",
+      "breakpoints": true
     }
   ],
   "version": "7"
