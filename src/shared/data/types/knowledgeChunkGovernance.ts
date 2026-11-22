@@ -65,6 +65,7 @@ export type KnowledgeChunkBatchInput = z.infer<typeof KnowledgeChunkBatchInputSc
 
 export const KnowledgeChunkReviewActionSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('discard') }),
+  z.strictObject({ kind: z.literal('restore') }),
   z.strictObject({
     kind: z.literal('rebind'),
     targetUnitId: hashSchema,
@@ -92,7 +93,8 @@ export const KnowledgeChunkReviewListSchema = z.strictObject({
       charEnd: z.number().int().positive(),
       originalText: z.string(),
       state: KnowledgeChunkGovernanceStateSchema,
-      reason: z.enum(['source-unavailable', 'source-changed', 'chunk-changed'])
+      reason: z.enum(['source-unavailable', 'source-changed', 'chunk-changed']),
+      retired: z.boolean()
     })
   )
 })

@@ -45,7 +45,8 @@ const view: KnowledgeChunkReviewList = {
       charEnd: 19,
       originalText: 'Old original source',
       state: { excluded: true, labels: ['private'], overrideText: 'Pending corrected text' },
-      reason: 'source-changed'
+      reason: 'source-changed',
+      retired: false
     }
   ]
 }
@@ -85,7 +86,7 @@ describe('confirmed chunk review with real shared controls', () => {
     await user.click(discard)
     expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus()
     expect(mutations()).toHaveLength(0)
-    expect(screen.getByText(/No Undo action is available/)).toBeVisible()
+    expect(screen.getByText(/the latest unchanged discard can be restored/)).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
     expect(discard).toHaveFocus()
@@ -184,5 +185,60 @@ describe('confirmed chunk review with real shared controls', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
     expect(await screen.findByText('Old original source')).toBeVisible()
     expect(mutations()).toHaveLength(0)
+  })
+
+  // Restoring is an explicit captured revision, not a transfer or an automatic write on opening history.
+  it('previews retained discarded intent, cancels without writes and confirms only the original record', async () => {
+    const user = userEvent.setup()
+    const discarded = structuredClone(view)
+    discarded.records[0].retired = true
+    request.mockImplementation(async (channel: string) =>
+      channel === 'knowledge.list_chunk_governance_reviews' ? discarded : undefined
+    )
+    const changed = vi.fn().mockResolvedValue(undefined)
+    render(component(itemId, [chunk], changed))
+    const restore = await screen.findByRole('button', { name: 'Restore discarded decisions' })
+    expect(screen.getByText('Old original source')).toBeVisible()
+    expect(screen.getByText('Pending corrected text')).toBeVisible()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rebind to this chunk' })).not.toBeInTheDocument()
+    expect(mutations()).toHaveLength(0)
+    await user.click(restore)
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus()
+    expect(screen.getByText(/Changed sources need review again/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(restore).toHaveFocus()
+    expect(mutations()).toHaveLength(0)
+    await user.click(restore)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(changed).toHaveBeenCalledOnce())
+    expect(mutations()).toHaveLength(1)
+    expect(mutations()[0][1]).toEqual({
+      baseId,
+      itemId,
+      governanceId: oldId,
+      expectedRevision: 7,
+      currentSourceContentHash: 'c'.repeat(64),
+      action: { kind: 'restore' }
+    })
+  })
+
+  it('requires refresh rather than retry when discarded intent has changed', async () => {
+    const user = userEvent.setup()
+    const discarded = structuredClone(view)
+    discarded.records[0].retired = true
+    request.mockImplementation(async (channel: string) => {
+      if (channel === 'knowledge.list_chunk_governance_reviews') return discarded
+      throw new Error('Discard changed')
+    })
+    render(component())
+    await user.click(await screen.findByRole('button', { name: 'Restore discarded decisions' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Discard changed')
+    expect(screen.getByRole('button', { name: 'Restore discarded decisions' })).toBeDisabled()
+    expect(mutations()).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByRole('button', { name: 'Restore discarded decisions' })).toBeEnabled()
+    expect(mutations()).toHaveLength(1)
   })
 })

@@ -34,9 +34,8 @@ export class KnowledgeChunkGovernanceWorkflow {
     if (store.isClosed()) throw DataApiErrorFactory.conflict('Index is unavailable; refresh before reviewing')
     const content = store.readMaterialContent(itemId)
     const currentSourceContentHash = content === null ? null : hashContentText(content)
-    const active = knowledgeChunkGovernanceService
-      .listByBase(baseId)
-      .filter((row) => row.itemId === itemId && !row.retired)
+    const owned = knowledgeChunkGovernanceService.listByBase(baseId).filter((row) => row.itemId === itemId)
+    const active = owned.filter((row) => !row.retired)
     const bindings = active.map((row) => ({
       unitId: row.unitId,
       materialId: itemId,
@@ -47,30 +46,38 @@ export class KnowledgeChunkGovernanceWorkflow {
       excluded: false,
       pendingOverride: false
     }))
-    if (!store.resolveGovernanceExclusions(bindings).materialIds.includes(itemId))
-      return { currentSourceContentHash, records: [] }
-    const records = active
-      .filter(
-        (row, index) =>
-          currentSourceContentHash !== row.sourceContentHash ||
-          store.resolveGovernanceExclusions([bindings[index]]).materialIds.includes(itemId)
-      )
-      .map((row) => ({
-        id: row.id,
-        unitId: row.unitId,
-        revision: row.revision,
-        sourceContentHash: row.sourceContentHash,
-        charStart: row.charStart,
-        charEnd: row.charEnd,
-        originalText: row.originalText,
-        state: row.state,
-        reason:
-          content === null
-            ? ('source-unavailable' as const)
-            : currentSourceContentHash !== row.sourceContentHash
-              ? ('source-changed' as const)
-              : ('chunk-changed' as const)
-      }))
+    const unmatched = store.resolveGovernanceExclusions(bindings).materialIds.includes(itemId)
+    const restorable = owned
+      .filter((row) => row.retired)
+      .flatMap((row) => {
+        const state = knowledgeChunkGovernanceService.getDiscardedState(row)
+        return state ? [{ ...row, state }] : []
+      })
+    const records = [
+      ...active.filter(
+        (_row, index) =>
+          unmatched &&
+          (currentSourceContentHash !== _row.sourceContentHash ||
+            store.resolveGovernanceExclusions([bindings[index]]).materialIds.includes(itemId))
+      ),
+      ...restorable
+    ].map((row) => ({
+      id: row.id,
+      unitId: row.unitId,
+      revision: row.revision,
+      sourceContentHash: row.sourceContentHash,
+      charStart: row.charStart,
+      charEnd: row.charEnd,
+      originalText: row.originalText,
+      state: row.state,
+      retired: row.retired,
+      reason:
+        content === null
+          ? ('source-unavailable' as const)
+          : currentSourceContentHash !== row.sourceContentHash
+            ? ('source-changed' as const)
+            : ('chunk-changed' as const)
+    }))
     return { currentSourceContentHash, records }
   }
 
@@ -85,6 +92,12 @@ export class KnowledgeChunkGovernanceWorkflow {
         old.revision !== dto.expectedRevision
       )
         throw DataApiErrorFactory.conflict('Source or decision changed; refresh and review again')
+      if (dto.action.kind === 'restore') {
+        if (!old.retired) throw DataApiErrorFactory.conflict('Decision is not discarded')
+        knowledgeChunkGovernanceService.restoreDiscard(dto)
+        return
+      }
+      if (old.retired) throw DataApiErrorFactory.conflict('Restore the discarded decision before reviewing it')
       const store = application
         .get('KnowledgeVectorStoreService')
         .getIndexStore(knowledgeBaseService.getById(dto.baseId))

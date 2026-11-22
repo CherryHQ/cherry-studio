@@ -390,3 +390,5 @@ Similarity search scans the `embedding` rows directly and sorts by the engine's 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 This is an exact implementation boundary, not an indexed-ANN scaling
 guarantee. No second vector index exists in the current contract.
+
+The chunk-review IPC also supports confirmed restoration of the latest unchanged discard. Main restores only the original binding, checks expected revision/source/lifecycle under the existing mutex, and records `restore-discard` atomically. Changed sources pause for review again; no target inference or provider work follows. This is not arbitrary history restoration or undo for transfers.

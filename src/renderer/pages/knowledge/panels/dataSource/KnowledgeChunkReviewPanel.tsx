@@ -107,7 +107,7 @@ const KnowledgeChunkReviewPanel = ({ baseId, itemId, chunks, onChanged }: Props)
     <section
       aria-label={t('knowledge.governance.review')}
       className="max-h-[60%] shrink-0 space-y-2 overflow-y-auto border-b border-border bg-background-subtle px-4 py-3 text-sm">
-      {!error && record ? (
+      {!error && view?.records.some((row) => !row.retired) ? (
         <p role="status" className="text-warning-subtle-foreground">
           {t('knowledge.governance.review_paused')}
         </p>
@@ -162,7 +162,7 @@ const KnowledgeChunkReviewPanel = ({ baseId, itemId, chunks, onChanged }: Props)
               </pre>
             </>
           ) : null}
-          {chunks.some((chunk) => chunk.id !== record.unitId) ? (
+          {!record.retired && chunks.some((chunk) => chunk.id !== record.unitId) ? (
             <>
               <Select value={targetId} disabled={busy || !!preview || !!error} onValueChange={setTargetId}>
                 <SelectTrigger aria-label={t('knowledge.governance.review_target')} className="w-full min-w-0">
@@ -187,16 +187,20 @@ const KnowledgeChunkReviewPanel = ({ baseId, itemId, chunks, onChanged }: Props)
                 </>
               ) : null}
             </>
-          ) : (
+          ) : !record.retired ? (
             <p className="text-muted-foreground">{t('knowledge.governance.review_empty_target')}</p>
+          ) : (
+            <p>{t('knowledge.governance.restore_explain')}</p>
           )}
           {preview ? (
             <div className="space-y-2 border-t border-border pt-2">
               <p>
                 {t(
-                  preview.action.kind === 'discard'
-                    ? 'knowledge.governance.review_confirm_discard'
-                    : 'knowledge.governance.review_confirm_rebind'
+                  preview.action.kind === 'restore'
+                    ? 'knowledge.governance.restore_confirm'
+                    : preview.action.kind === 'discard'
+                      ? 'knowledge.governance.review_confirm_discard'
+                      : 'knowledge.governance.review_confirm_rebind'
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -215,28 +219,38 @@ const KnowledgeChunkReviewPanel = ({ baseId, itemId, chunks, onChanged }: Props)
               </div>
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2">
+          {record.retired ? (
             <Button
               size="sm"
               variant="outline"
               disabled={busy || !!preview || !!error}
-              onClick={(event) => prepare({ kind: 'discard' }, event.currentTarget)}>
-              {t('knowledge.governance.review_discard')}
+              onClick={(event) => prepare({ kind: 'restore' }, event.currentTarget)}>
+              {t('knowledge.governance.restore_discard')}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !!preview || !!error || !target?.governance}
-              onClick={(event) => {
-                if (target?.governance)
-                  prepare(
-                    { kind: 'rebind', targetUnitId: target.id, expectedTargetRevision: target.governance.revision },
-                    event.currentTarget
-                  )
-              }}>
-              {t('knowledge.governance.review_rebind')}
-            </Button>
-          </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || !!preview || !!error}
+                onClick={(event) => prepare({ kind: 'discard' }, event.currentTarget)}>
+                {t('knowledge.governance.review_discard')}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || !!preview || !!error || !target?.governance}
+                onClick={(event) => {
+                  if (target?.governance)
+                    prepare(
+                      { kind: 'rebind', targetUnitId: target.id, expectedTargetRevision: target.governance.revision },
+                      event.currentTarget
+                    )
+                }}>
+                {t('knowledge.governance.review_rebind')}
+              </Button>
+            </div>
+          )}
         </>
       ) : null}
     </section>

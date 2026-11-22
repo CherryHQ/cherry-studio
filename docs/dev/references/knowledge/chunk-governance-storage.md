@@ -53,6 +53,14 @@ Select one unmatched record. Discard removes its decisions from reconciliation, 
 
 Discard and rebind retire the previous binding with a new revision. History records `discard`, `rebind-away` and `rebind-from`, including the related record identity. Retired bindings do not revive when old source bytes reappear; a new explicit edit or reviewed transfer can reactivate them with another revision. Ordinary neutral records are not auto-retired. Retrieval stays paused until every non-retired unmatched record is resolved. Opening or cancelling a review changes nothing.
 
+## Restoring a discard
+
+The inspector also lists the latest unchanged discard for each original binding, with its retained labels, exclusion and pending correction. Restore discarded decisions previews the effect and requires Save; opening and Cancel do not write. This is a narrow Undo for discard, not a general history browser or an undo for transfers.
+
+Main reads only the two latest history entries, authenticates owning completed item/base, current source hash and expected revision under the same mutation lock, and restores the immediately preceding state on the original binding in one write transaction. A new `restore-discard` history entry records the recovery; prior evidence and history remain immutable. Failed history writes roll back the state change. A later edit, rebind, stale window or changed lifecycle refuses restoration instead of overwriting current intent.
+
+Restoration does not guess a replacement. Changed or missing sources become review-needed and pause retrieval again. A same-identity source reuses its original decision. Corrections remain pending and suppressed. No provider, embedding, index or source-file work runs. Rebinding remains a separate explicit review after restoration, and a transferred-away record cannot be restored through this action. Repeated discard/restore cycles append revisions rather than erasing history.
+
 ## Retrieval authority
 
 Before search, `KnowledgeQueryService` reads durable record IDs/revisions and derives exclusions from the actual index. Exact unit/material IDs, source/content hashes, offsets and body text must match. There is no title, ordinal-only or similarity matching.
@@ -67,7 +75,7 @@ Main revalidates revisions and exact-index reconciliation before reranking and b
 ## Boundaries Still Pending
 
 - Effective-text/embedding jobs, complete lexical/vector publication, crash recovery and correction editing/removal.
-- Viewing/restoring retired history and an Undo action for discarded decisions.
+- General history browsing, arbitrary revision restoration and undoing a rebind.
 - Base backup/restore of durable decisions and history.
 - Original/corrected citation revisions and historical references.
 - Provider-cost disclosure for future correction work and native Electron acceptance.
@@ -80,4 +88,6 @@ Storage tests use `setupTestDatabase()` and production migrations for original e
 
 Main integration uses the migrated database, file-backed SQLite index, production FTS/vector/query/rerank paths and the real batch workflow. Provider methods alone are mocked. Scenarios include candidate-cap safety, all lanes/fallbacks, shared hashes, thousands of IDs, UTF-16, exact rebuild/reopen, source mismatch, original inspection, in-flight conflicts, atomic later-entry/history failures, competing windows, lifecycle/ownership validation and preserved pending corrections.
 
-Review tests additionally cover actual rebind/discard transactions, both audit links, source/target conflicts, empty/missing material, retirement across rebuilds and rollback after a transfer-side history failure. Inspector tests cover confirmation-only writes, exact selection/revision delivery, real shared-control keyboard/focus behavior, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or restore acceptance.
+Review tests additionally cover actual rebind/discard transactions, both audit links, source/target conflicts, empty/missing material, retirement across rebuilds and rollback after a transfer-side history failure. Inspector tests cover confirmation-only writes, exact selection/revision delivery, real shared-control keyboard/focus behavior, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or base backup/restore acceptance.
+
+Discard restoration tests additionally cover original-identity versus changed/missing sources, stale and superseded intent, foreign ownership, transfer rejection, transactional rollback and lifecycle changes after a real mutation-lock wait.
