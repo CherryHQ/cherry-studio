@@ -16,14 +16,14 @@ bf16.ai 用户目前需要手动配置自定义 OpenAI 兼容连接。在服务�
 
 ## Alternatives considered
 
-手动自定义 OpenAI 兼容连接虽已可用，但要求用户自行填写 Base URL、模型 ID、视觉开关与 1M 上下文限制。修改共享标准原厂模型则会将 bf16.ai 的定价与免审查版本错误归属给原厂服务商。
+自定义 OpenAI 兼容连接目前已可用，并可从 `GET /v1/models` 拉取模型 ID，但用户仍需手动填写 Base URL，且无法开箱获得预置的 1M 上下文限制、多模态视觉标记、推理强度档位、每百万 Token 定价元数据与官方品牌图标。修改共享标准原厂模型则会将 bf16.ai 的定价与免审查版本错误归属给原厂服务商。
 
 ## Acceptance criteria
 
 - AC1 — 服务商注册表列出 `bf16`（`bf16.ai`），配置 `https://api.bf16.ai/v1` 及动态模型拉取支持，同时保持其他服务商行为不变 (verification: unit)
 - AC2 — 默认模型元数据保留 1,048,576 上下文限制、多模态视觉标记、工具调用能力与公开每百万 Token 美元定价，且不修改标准原厂模型 (verification: unit)
-- AC3 — 官方单色/浅色/深色 SVG 图标、服务商图标加载器及全部语言包通过图标与 i18n 注册表测试 (verification: unit)
-- AC4 — 在隔离桌面会话中验证模型列表拉取、带推理内容的流式对话、视觉输入及对 `https://api.bf16.ai/v1` 的工具调用，且不泄露凭据 (verification: renderer)
+- AC3 — 官方单色/浅色/深色 SVG 图标、`packages/ui/src/components/icons/loader.ts` 中的批量服务商图标目录加载器与按图标查询加载器，以及全部语言包通过图标与 i18n 注册表测试 (verification: unit)
+- AC4 — 隔离桌面会话与请求级序列化检查验证模型列表拉取、带推理内容的流式对话、外发 `reasoning_effort` 参数（包括 DeepSeek 的 `none` 与 `max`，以及 GLM-5.3/Kimi 的 `low`/`high`/`max`）、视觉输入及对 `https://api.bf16.ai/v1` 的工具调用，且不泄露凭据 (verification: renderer)
 - AC5 — 合并前在实施分支通过所有受影响的 provider-registry、图标与渲染端测试检查 (verification: unit)
 
 ## Risks

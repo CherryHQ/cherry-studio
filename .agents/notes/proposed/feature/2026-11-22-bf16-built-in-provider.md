@@ -16,14 +16,14 @@ All five models expose 1,048,576 context tokens, implicit prompt caching, tool c
 
 ## Alternatives considered
 
-Manual custom OpenAI-compatible connections work today, but require users to hand-enter the base URL, model IDs, vision flags, and 1M context limits. Editing shared canonical lab models would misattribute bf16.ai pricing and uncensored variants to upstream lab providers.
+A custom OpenAI-compatible connection already works today and can fetch model IDs from `GET /v1/models`, but users still must enter the base URL manually and do not receive pre-populated 1M context limits, multimodal vision flags, reasoning effort profiles, per-million-token pricing metadata, or official brand icons. Editing shared canonical lab models would misattribute bf16.ai pricing and uncensored variants to upstream lab providers.
 
 ## Acceptance criteria
 
 - AC1 — Provider registry lists `bf16` (`bf16.ai`) with base URL `https://api.bf16.ai/v1` and dynamic model listing support while leaving sibling providers unchanged (verification: unit)
 - AC2 — Default model metadata preserves 1,048,576 context limits, multimodal vision flags, tool-calling capabilities, and published per-million-token USD pricing without modifying canonical lab models (verification: unit)
-- AC3 — Official monochrome/light/dark SVG icons, provider catalog loaders, and all locale translation files pass icon and i18n registry tests (verification: unit)
-- AC4 — Isolated desktop session verifies model list loading, streaming chat with reasoning content, vision input, and tool calling against `https://api.bf16.ai/v1` without exposing credentials (verification: renderer)
+- AC3 — Official monochrome/light/dark SVG icons, both the bulk provider icon catalog loader and per-icon provider lookup loader in `packages/ui/src/components/icons/loader.ts`, and all locale translation files pass icon and i18n registry tests (verification: unit)
+- AC4 — Isolated desktop session and request-level serialization checks verify model list loading, streaming chat with reasoning content, outgoing `reasoning_effort` values (including DeepSeek `none` and `max`, plus GLM-5.3/Kimi `low`/`high`/`max`), vision input, and tool calling against `https://api.bf16.ai/v1` without exposing credentials (verification: renderer)
 - AC5 — Affected provider-registry, icon, and renderer checks pass on the implementation branch before merge (verification: unit)
 
 ## Risks
