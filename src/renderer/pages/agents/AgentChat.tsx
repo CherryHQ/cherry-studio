@@ -33,7 +33,7 @@ import PermissionRequestComposer, {
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useAgentWorkspaceStatus } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
@@ -254,7 +254,11 @@ const AgentChat = ({
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const [workspaceCheckRevision, setWorkspaceCheckRevision] = useState(0)
-  const workspaceWarning = useAgentWorkspaceWarning(workspacePath, true, workspaceCheckRevision)
+  const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(
+    workspacePath,
+    true,
+    workspaceCheckRevision
+  )
   const workspaceUnavailable = Boolean(workspaceWarning)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
@@ -546,6 +550,7 @@ const AgentChat = ({
         activeAgent={activeAgent}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
+        workspaceAvailable={workspaceAvailable}
         workspacePath={workspacePath}
         onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
         isEmptyConversation={isEmptyConversation}
@@ -650,6 +655,7 @@ interface AgentChatSessionCenterProps {
   activeAgent: GetAgentResponse | undefined
   activeModel?: Model
   workspaceWarning?: string
+  workspaceAvailable?: boolean
   workspacePath?: string
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   isEmptyConversation: boolean
@@ -672,6 +678,7 @@ const AgentChatSessionCenter = ({
   activeAgent,
   activeModel,
   workspaceWarning,
+  workspaceAvailable,
   workspacePath,
   onWorkspaceChange,
   isEmptyConversation,
@@ -696,6 +703,7 @@ const AgentChatSessionCenter = ({
         activeAgent={activeAgent}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
+        workspaceAvailable={workspaceAvailable}
         isMultiSelectMode={isMultiSelectMode}
         session={session}
         sessionId={runtime.sessionId}

@@ -13,7 +13,7 @@ import {
   toConversationDraft
 } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useAgentWorkspaceStatus } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -65,7 +65,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const { agent, isLoading: agentLoading } = useAgent(session?.agentId ?? null)
   const { model, isLoading: modelLoading } = useModelById(session?.model ?? agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
-  const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(workspacePath)
   const runtime = useAgentChatRuntimeState({
     sessionId,
     modelId: model?.id,
@@ -191,6 +191,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
             activeAgent={agent}
             activeModel={model}
             workspaceWarning={workspaceWarning}
+            workspaceAvailable={workspaceAvailable}
             isMultiSelectMode={false}
             session={session}
             sessionId={runtime.sessionId}

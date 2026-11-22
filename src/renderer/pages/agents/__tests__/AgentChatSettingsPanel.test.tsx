@@ -179,7 +179,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
-  useAgentWorkspaceWarning: () => undefined
+  useAgentWorkspaceStatus: () => ({ available: true, warning: undefined })
 }))
 
 vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls', () => ({

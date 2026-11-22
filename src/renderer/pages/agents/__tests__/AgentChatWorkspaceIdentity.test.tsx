@@ -57,7 +57,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
-  useAgentWorkspaceWarning: () => undefined
+  useAgentWorkspaceStatus: () => ({ available: true, warning: undefined })
 }))
 
 const timestamp = '2026-11-11T00:00:00.000Z'

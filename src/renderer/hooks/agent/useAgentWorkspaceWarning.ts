@@ -7,14 +7,14 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('useAgentWorkspaceWarning')
 
-export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
+export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
   const { t } = useTranslation()
-  const [warning, setWarning] = useState<string | undefined>(undefined)
+  const [result, setResult] = useState<{ path: string; revision: number; available: boolean }>()
 
   useEffect(() => {
     if (!enabled) return
     if (!workspacePath) {
-      setWarning(undefined)
+      setResult(undefined)
       return
     }
 
@@ -25,10 +25,10 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
           path: AbsoluteFilePathSchema.parse(workspacePath)
         })
         if (cancelled) return
-        setWarning(accessible ? undefined : t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+        setResult({ path: workspacePath, revision: refreshKey, available: accessible })
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
-        if (!cancelled) setWarning(undefined)
+        if (!cancelled) setResult(undefined)
       }
     })()
 
@@ -37,5 +37,17 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     }
   }, [enabled, refreshKey, t, workspacePath])
 
-  return warning
+  const available = !workspacePath
+    ? true
+    : enabled && result?.path === workspacePath && result.revision === refreshKey
+      ? result.available
+      : undefined
+  return {
+    available,
+    warning: available === false ? t('agent.session.workspace_status.inaccessible', { path: workspacePath }) : undefined
+  }
+}
+
+export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
+  return useAgentWorkspaceStatus(workspacePath, enabled, refreshKey).warning
 }

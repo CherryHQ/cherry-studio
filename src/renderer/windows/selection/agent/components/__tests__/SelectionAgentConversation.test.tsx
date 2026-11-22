@@ -36,7 +36,9 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({ agent: moc
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: string) => ({ model: mocks.model?.id === id ? mocks.model : undefined })
 }))
-vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({ useAgentWorkspaceWarning: () => undefined }))
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceStatus: () => ({ available: true, warning: undefined })
+}))
 vi.mock('@renderer/pages/agents/useAgentChatRuntimeState', () => ({
   useAgentChatRuntimeState: ({ sessionId }: { sessionId: string }) => ({
     sessionId,

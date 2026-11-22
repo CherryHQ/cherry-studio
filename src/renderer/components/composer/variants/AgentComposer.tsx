@@ -203,6 +203,7 @@ type Props = {
   resolvedAgent: AgentEntity | undefined
   resolvedModel: Model | undefined
   resolvedWorkspaceWarning: string | null
+  resolvedWorkspaceAvailable?: boolean
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
   stop: () => Promise<void>
@@ -237,6 +238,7 @@ const AgentComposerRoot = ({
   resolvedAgent,
   resolvedModel,
   resolvedWorkspaceWarning,
+  resolvedWorkspaceAvailable,
   sendMessage,
   stop,
   onCreateEmptySession,
@@ -418,6 +420,7 @@ const AgentComposerRoot = ({
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
         resolvedWorkspaceWarning={resolvedWorkspaceWarning}
+        resolvedWorkspaceAvailable={resolvedWorkspaceAvailable}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -463,6 +466,7 @@ interface InnerProps {
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
   resolvedWorkspaceWarning: string | null
+  resolvedWorkspaceAvailable?: boolean
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -543,7 +547,8 @@ const AgentComposerInner = ({
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
-  resolvedWorkspaceWarning
+  resolvedWorkspaceWarning,
+  resolvedWorkspaceAvailable
 }: InnerProps) => {
   const { updateAgent } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
@@ -674,7 +679,8 @@ const AgentComposerInner = ({
     getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
     rootPanelVisible ||
     skillsPanelVisible
-  const skillsDiscoveryEnabled = skillsDataEnabled && !workspaceWarning
+  const skillsDiscoveryEnabled =
+    skillsDataEnabled && !workspaceWarning && (!userWorkspacePath || resolvedWorkspaceAvailable === true)
   const knowledgeBasesDataEnabled =
     selectedKnowledgeBases.length > 0 ||
     getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||

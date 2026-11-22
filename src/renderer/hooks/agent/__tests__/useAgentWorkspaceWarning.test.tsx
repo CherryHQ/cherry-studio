@@ -1,7 +1,7 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-import { useAgentWorkspaceWarning } from '../useAgentWorkspaceWarning'
+import { useAgentWorkspaceStatus, useAgentWorkspaceWarning } from '../useAgentWorkspaceWarning'
 
 const { request, t } = vi.hoisted(() => ({ request: vi.fn(), t: (key: string) => key }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
@@ -24,4 +24,30 @@ it('warns when an existing directory is unreadable', async () => {
   const { result } = renderHook(() => useAgentWorkspaceWarning('/unreadable'))
   await waitFor(() => expect(result.current).toBe('agent.session.workspace_status.inaccessible'))
   expect(request).toHaveBeenCalledWith('ai.agent.workspace.is_accessible', { path: '/unreadable' })
+})
+
+it('keeps availability pending until the response and discards a previous path or revision', async () => {
+  let resolve!: (available: boolean) => void
+  request.mockImplementation(
+    () =>
+      new Promise<boolean>((done) => {
+        resolve = done
+      })
+  )
+  const { result, rerender } = renderHook(({ path, revision }) => useAgentWorkspaceStatus(path, true, revision), {
+    initialProps: { path: '/first', revision: 0 }
+  })
+  expect(result.current.available).toBeUndefined()
+  await act(async () => {
+    resolve(false)
+  })
+  expect(result.current.available).toBe(false)
+  rerender({ path: '/second', revision: 0 })
+  expect(result.current.available).toBeUndefined()
+  await act(async () => {
+    resolve(true)
+  })
+  expect(result.current.available).toBe(true)
+  rerender({ path: '/second', revision: 1 })
+  expect(result.current.available).toBeUndefined()
 })

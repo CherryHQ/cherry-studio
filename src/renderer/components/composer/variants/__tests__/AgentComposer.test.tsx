@@ -234,6 +234,7 @@ const AgentComposer = (props: TestComposerProps) => (
     sessionOverride={createControlledSession()}
     resolvedAgent={createControlledAgent()}
     resolvedModel={mocks.modelResult}
+    resolvedWorkspaceAvailable={true}
     resolvedWorkspaceWarning={null}
     {...props}
   />
@@ -244,6 +245,7 @@ const AgentHomeComposer = (props: TestComposerProps) => (
     sessionOverride={createControlledSession()}
     resolvedAgent={createControlledAgent()}
     resolvedModel={mocks.modelResult}
+    resolvedWorkspaceAvailable={true}
     resolvedWorkspaceWarning={null}
     {...props}
   />
@@ -3643,29 +3645,22 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('pauses skill discovery while its workspace is unavailable and resumes after recovery', () => {
+  it('requires confirmed workspace availability before enabling skill discovery', () => {
     mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
-    const view = render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        resolvedWorkspaceWarning="Unavailable"
-      />
-    )
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} resolvedWorkspaceAvailable={undefined} />)
     expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: false })
     view.rerender(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        resolvedWorkspaceWarning={null}
-      />
+      <AgentComposer {...props} resolvedWorkspaceAvailable={false} resolvedWorkspaceWarning="Unavailable" />
     )
+    expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: false })
+    view.rerender(<AgentComposer {...props} resolvedWorkspaceAvailable={true} />)
     expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: true })
   })
 

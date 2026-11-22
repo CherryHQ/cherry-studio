@@ -27,6 +27,7 @@ interface AgentComposerSlotProps {
   activeAgent?: GetAgentResponse
   activeModel?: Model
   workspaceWarning?: string
+  workspaceAvailable?: boolean
   isMultiSelectMode: boolean
   session: AgentSessionEntity
   sessionId: string
@@ -52,6 +53,7 @@ function AgentComposerSlot({
   activeAgent,
   activeModel,
   workspaceWarning,
+  workspaceAvailable,
   isMultiSelectMode,
   session,
   sessionId,
@@ -105,6 +107,7 @@ function AgentComposerSlot({
         resolvedAgent={activeAgent}
         resolvedModel={activeModel}
         resolvedWorkspaceWarning={workspaceWarning ?? null}
+        resolvedWorkspaceAvailable={workspaceAvailable}
         externalContextControls
         canChangeModel={!isEditing}
         sendMessage={isEditing ? resendEditedMessage : sendMessage}

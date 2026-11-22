@@ -193,7 +193,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
 
   const refreshLocalSkills = useCallback(async () => {
     const requestId = nextLocalRequestId()
-    if (!workdir) {
+    if (!enabled || !workdir) {
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
@@ -221,7 +221,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
     } finally {
       if (requestId === localRequestIdRef.current) setLocalLoading(false)
     }
-  }, [nextLocalRequestId, workdir])
+  }, [enabled, nextLocalRequestId, workdir])
 
   useEffect(() => {
     if (!enabled) {
