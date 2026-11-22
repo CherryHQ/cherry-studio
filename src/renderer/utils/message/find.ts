@@ -18,12 +18,7 @@ import type { CherryMessagePart, ContentReference } from '@shared/data/types/mes
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import {
-  hasUnresolvedMarker,
-  resolveCitationMarkerParts,
-  resolveMessageCitations,
-  toExportableCitations
-} from './citations'
+import { resolveCitationMarkerParts, resolveMessageCitations, toExportableCitations } from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []

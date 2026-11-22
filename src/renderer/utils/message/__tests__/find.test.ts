@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
-import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { resolveCitationMarkerParts, resolveMessageCitations } from '../citations'
 import {
@@ -306,8 +305,7 @@ describe('getWebSourcesMarkdown', () => {
         }
       ] as MessageExportView['parts']
     }
-    const parts = message.parts as CherryMessagePart[]
-    const citations = resolveMessageCitations(parts, message.priorCitationParts)
+    const citations = resolveMessageCitations(message.parts, message.priorCitationParts)
     const rendered = resolveCitationMarkerParts(['Read [1].'], citations)[0].cited.map((c) => c.url)
 
     expect(getCitedWebSources(message).map((c) => c.url)).toEqual(rendered)
