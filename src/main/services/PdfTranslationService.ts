@@ -176,12 +176,12 @@ const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>) => {
   const getNonEmptyEnv = (name: string): string | undefined =>
     Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
   const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')
-  if (!sslCertFile || getNonEmptyEnv('REQUESTS_CA_BUNDLE') || getNonEmptyEnv('CURL_CA_BUNDLE')) return {}
+  const derived: Record<string, string> = {}
+  if (!sslCertFile || getNonEmptyEnv('REQUESTS_CA_BUNDLE') || getNonEmptyEnv('CURL_CA_BUNDLE')) return derived
 
-  return {
-    REQUESTS_CA_BUNDLE: sslCertFile,
-    CURL_CA_BUNDLE: sslCertFile
-  }
+  derived.REQUESTS_CA_BUNDLE = sslCertFile
+  derived.CURL_CA_BUNDLE = sslCertFile
+  return derived
 }
 
 @Injectable('PdfTranslationService')
@@ -618,7 +618,7 @@ export class PdfTranslationService extends BaseService {
     }
 
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
-    const env: Record<string, string> = {
+    const env: Parameters<typeof mergeBinaryExecutionEnv>[0] = {
       ...allowedEnv,
       ...buildSidecarCaBundleEnv(allowedEnv),
       ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),

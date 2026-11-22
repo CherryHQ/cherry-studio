@@ -516,6 +516,7 @@ export function convertUiWorkflowToPrompt(
       if (values.length !== names.length) {
         warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
       }
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- Widget names are workflow-defined; preserve each opaque value until its native ComfyUI node consumes it.
       out = positional
     }
     // A required input the workflow carries no value for still has to be in the

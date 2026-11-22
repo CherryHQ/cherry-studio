@@ -172,6 +172,7 @@ export const markerMessage = (input: TurnInput, key: string) => {
   const customType = input.kind
   const content = input.text
   let details: Record<string, JsonValue> = {}
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Turn data has dynamic JSON keys; append the marker without dropping unrelated payload fields.
   if (isFields(input.data)) details = { ...input.data }
   details.key = key
   return { customType, content, display: false, details }

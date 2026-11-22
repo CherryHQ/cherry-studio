@@ -49,6 +49,7 @@ export class WebSearchError extends Error {
   }
 
   toJSON(): WebSearchErrorInfo {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Optional error fields are added only when present; retain the mutable form of the public readonly error contract.
     const info: { -readonly [K in keyof WebSearchErrorInfo]: WebSearchErrorInfo[K] } = {
       kind: this.kind,
       code: this.code,

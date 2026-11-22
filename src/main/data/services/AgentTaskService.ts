@@ -178,6 +178,7 @@ export function writeTaskSessionReuse(
   metadata: JobScheduleSnapshot['metadata'] | undefined,
   reuse: TaskSessionReuse
 ): JobScheduleSnapshot['metadata'] {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Historical SQLite metadata can hold non-object JSON despite the snapshot type; do not spread those values.
   if (!isPlainRecord(metadata)) return { [TASK_REUSE_METADATA_KEY]: reuse }
   const next = { ...metadata }
   next[TASK_REUSE_METADATA_KEY] = reuse

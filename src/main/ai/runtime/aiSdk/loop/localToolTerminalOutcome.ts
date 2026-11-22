@@ -30,6 +30,7 @@ function isTerminalFailureOutput(output: unknown): output is TerminalFailureOutp
 
 /** Preserve output identity and brand it only when it has the terminal failure shape. */
 export function markTrustedLocalToolTerminalFailure<T>(output: T): T {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native lookup results can be successes or failures; validate the failure shape before adding identity-based provenance.
   if (isTerminalFailureOutput(output)) trustedTerminalFailures.add(output)
   return output
 }

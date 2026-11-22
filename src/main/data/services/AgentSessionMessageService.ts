@@ -54,7 +54,6 @@ import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessionMessages'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'

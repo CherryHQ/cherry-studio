@@ -393,6 +393,7 @@ export class GuestSession implements Disposable {
     this.downloadUpdates.clear()
     const dismissedDialog = this.dismissedDialog
     this.dismissedDialog = undefined
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Each optional event is attached only when captured; an empty drain must remain an empty object.
     const events: { downloads?: typeof downloads; dismissedDialog?: BrowserDialog } = {}
     if (downloads.length) events.downloads = downloads
     if (dismissedDialog) events.dismissedDialog = dismissedDialog

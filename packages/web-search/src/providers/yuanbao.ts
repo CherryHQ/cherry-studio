@@ -33,6 +33,7 @@ export const yuanbao: WebSearchProviderModule = {
           .filter((domain) => YuanbaoDomainSchema.safeParse(domain).success)
       )
     ].slice(0, 5)
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Yuanbao request fields are added conditionally; absent Cnt and Site must stay omitted.
     const body: { Query: string; Cnt?: number; Site?: string } = { Query: call.input }
     if (!call.config.useDefaultResultCount) body.Cnt = Math.min(50, Math.ceil(call.config.maxResults / 10) * 10)
     if (excludeDomains.length) body.Site = `exclude:${excludeDomains.join('|')}`

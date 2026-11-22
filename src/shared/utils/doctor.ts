@@ -74,8 +74,10 @@ export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
     fixId?: unknown
     target?: unknown
   }
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The IPC container check leaves scope untrusted; this predicate establishes the scope-key format.
   if (!isDoctorScopeKey(scope)) return false
   if (typeof runId !== 'string' || runId.length === 0) return false
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw IPC check ID must name a catalog entry before its fix definitions can be read.
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
   const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
   if (!meta) return false

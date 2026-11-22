@@ -137,7 +137,7 @@ describe('Foreign browser SQLite import', () => {
         new AbortController().signal
       )
       expect(result.history).toMatchObject({ imported: 1, failed: 0 })
-      const icon = browserHistoryService.list({ offset: 0, limit: 10 }).items[0].favicon!
+      const icon = browserHistoryService.list({ offset: 0, limit: 10 }).items[0].favicon
       expect(icon).toMatch(/^data:image\/png;base64,/)
       const sharp = (await import('sharp')).default
       expect([

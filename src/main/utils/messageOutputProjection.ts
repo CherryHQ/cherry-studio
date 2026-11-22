@@ -134,6 +134,7 @@ function toCitationSkeleton(output: unknown) {
   const content = toCitationPayloadSkeleton(output.content)
   if (content === undefined) return undefined
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Publish only individually checked metadata fields, preserving omission of optional identifiers.
   const projectedMetadata: { type: 'mcp'; name?: string; serverId?: string; serverName?: string } = { type: 'mcp' }
   if (toolName) projectedMetadata.name = toolName
   if (typeof metadata.serverId === 'string') projectedMetadata.serverId = metadata.serverId

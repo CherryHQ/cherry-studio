@@ -1192,11 +1192,9 @@ export async function probeOllamaModel(
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
   const appHeaders = getProviderAppHeaders(provider)
   const extraHeaders = getExtraHeaders(provider)
-  const credentialHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (resolved.value) {
-    credentialHeaders.Authorization = `Bearer ${resolved.value}`
-    credentialHeaders['X-Api-Key'] = resolved.value
-  }
+  const credentialHeaders = resolved.value
+    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value }
+    : { 'Content-Type': 'application/json' }
   const headers = mergeHeaders(appHeaders, extraHeaders, credentialHeaders)
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',

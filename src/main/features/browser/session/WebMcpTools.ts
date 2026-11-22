@@ -127,6 +127,7 @@ export class WebMcpTools {
       tools.push(tool)
     }
     const capability = this.capability
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The capability reason is optional and only attached for unsupported documents.
     const metadata: { capability: typeof capability; reason?: string } = { capability }
     if (this.capability === 'unsupported') metadata.reason = 'Native WebMCP is unavailable in this document.'
     return {

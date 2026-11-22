@@ -218,7 +218,7 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
       if (containsSecretMaterial(before)) {
         throw new Error(`Refusing to write "${key}": its current value carries credentials`)
       }
-      await preferences.set(key, value as never)
+      await preferences.set(key, value)
       return { before, after: value, undoable: true }
     }
     case 'doctor_fix': {

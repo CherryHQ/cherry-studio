@@ -138,6 +138,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           }
           const span: ToolResultEvent['content'] = []
           while (i < event.content.length && event.content[i].type === 'text') span.push(event.content[i++])
+          // oxlint-disable-next-line anti-slop/no-known-value-widening -- Build the readonly fact before gating; optional native details must remain absent when unavailable.
           const result: { -readonly [K in keyof ToolResultFact]: ToolResultFact[K] } = {
             text: textOf(span),
             isError

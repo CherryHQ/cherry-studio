@@ -319,6 +319,7 @@ export class ClaudeInvocations {
       mergeInvocationUsage(pending.startUsage, pending.assistantUsage),
       pending.terminalUsage
     )
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Populate optional fields before publishing the readonly invocation; absent usage and metrics remain omitted.
     const invocation: { -readonly [Key in keyof ClaudeInvocation]: ClaudeInvocation[Key] } = {
       responseId: pending.id
     }
