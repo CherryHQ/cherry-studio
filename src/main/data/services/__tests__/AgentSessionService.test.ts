@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'path'
 
 import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
@@ -1233,10 +1233,14 @@ describe('AgentSessionService', () => {
     await mkdir(replacement.path, { recursive: true })
     const session = await createSession(name, missing.id)
     await insertSessionMessage(session.id, `message-${name}`)
-    const [backend] = await dbh.db
+    await dbh.db
       .insert(agentRuntimeBackendTable)
       .values({ locator: locator as never, state: 'bound' })
-      .returning()
+      .onConflictDoNothing()
+    const [backend] = await dbh.db
+      .select()
+      .from(agentRuntimeBackendTable)
+      .where(eq(agentRuntimeBackendTable.locator, locator as never))
     await dbh.db.insert(agentSessionContextTable).values({
       sessionId: session.id,
       backendId: backend.id,
@@ -1269,6 +1273,7 @@ describe('AgentSessionService', () => {
 
   it('rejects recovery when a bound Pi branch has no native session file', async () => {
     const piSessions = workspacePath('pi-sessions-empty')
+    await rm(piSessions, { recursive: true, force: true })
     await mkdir(piSessions, { recursive: true })
     const getPath = application.getPath as Mock
     const original = getPath.getMockImplementation()
@@ -1294,6 +1299,121 @@ describe('AgentSessionService', () => {
     } finally {
       if (original) getPath.mockImplementation(original)
       else getPath.mockReset()
+    }
+  })
+
+  it('accepts a Claude branch saved under the managed config root', async () => {
+    const managedRoot = workspacePath('managed-claude-root')
+    await mkdir(managedRoot, { recursive: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.claude.root' ? managedRoot : original?.(key, ...rest)
+    )
+    const previous = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
+    try {
+      const { session, replacement } = await createMessagedSessionWithBackend('claude-managed', {
+        version: 1,
+        kind: 'claude-code',
+        configDir: managedRoot
+      })
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+    } finally {
+      if (previous !== undefined) process.env.CLAUDE_CONFIG_DIR = previous
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
+  it('rejects a Pi history path that is not a regular file and requires a file for a pending branch with input', async () => {
+    const piSessions = workspacePath('pi-sessions-dir-case')
+    await rm(piSessions, { recursive: true, force: true })
+    await mkdir(path.join(piSessions, '2026-01-01T00-00-00-000Z_native-thread-1.jsonl'), { recursive: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.pi.sessions' ? path.join(piSessions, ...rest) : original?.(key, ...rest)
+    )
+    try {
+      const bound = await createMessagedSessionWithBackend('pi-dir', { version: 1, kind: 'pi' })
+      expect(
+        captureError(() =>
+          agentSessionService.setWorkspace(bound.session.id, { type: 'user', workspaceId: bound.replacement.id })
+        )
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+      await rm(path.join(piSessions, '2026-01-01T00-00-00-000Z_native-thread-1.jsonl'), { recursive: true })
+      const pending = await createMessagedSessionWithBackend('pi-pending', { version: 1, kind: 'pi' }, 'pending')
+      const [context] = await dbh.db
+        .select()
+        .from(agentSessionContextTable)
+        .where(eq(agentSessionContextTable.sessionId, pending.session.id))
+      await dbh.db
+        .update(agentSessionMessageTable)
+        .set({ inputContextId: context.id })
+        .where(eq(agentSessionMessageTable.sessionId, pending.session.id))
+      expect(
+        captureError(() =>
+          agentSessionService.setWorkspace(pending.session.id, { type: 'user', workspaceId: pending.replacement.id })
+        )
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(pending.session.id)).toMatchObject({ workspaceId: pending.missing.id })
+    } finally {
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
+  it('moves subagent archives with the recovered parent', async () => {
+    const missing = await createWorkspace('child-missing')
+    const replacement = await createWorkspace('child-replacement')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Parent with archive', missing.id)
+    await insertSessionMessage(session.id, 'message-parent-archive')
+    const childId = dbh.sqlite.transaction(() =>
+      agentSessionService.createChildArchiveTx(dbh.db as never, session.id, 'child archive')
+    )()
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })
+    const [child] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, childId))
+    expect(child.workspaceId).toBe(replacement.id)
+  })
+
+  it('rejects a recovery whose conversation was rebound while its folders were being probed', async () => {
+    const missing = await createWorkspace('overlap-missing')
+    const first = await createWorkspace('overlap-first')
+    const second = await createWorkspace('overlap-second')
+    await mkdir(first.path, { recursive: true })
+    await mkdir(second.path, { recursive: true })
+    const session = await createSession('Overlap', missing.id)
+    await insertSessionMessage(session.id, 'message-overlap')
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: first.id })
+    expect(
+      captureError(() =>
+        agentSessionService.setWorkspace(
+          session.id,
+          { type: 'user', workspaceId: second.id },
+          { currentAccessible: false, targetAccessible: true, expectedWorkspaceId: missing.id }
+        )
+      )
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: first.id })
+  })
+
+  it('does not probe folders when switching an empty chat', async () => {
+    const missing = await createWorkspace('empty-missing')
+    const replacement = await createWorkspace('empty-replacement')
+    const session = await createSession('Empty switch', missing.id)
+    const spy = vi.spyOn(workspaceAccess, 'isDirectoryAccessible')
+    try {
+      agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
     }
   })
 

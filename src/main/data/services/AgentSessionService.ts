@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { readdirSync } from 'node:fs'
-import { readdir as readdirAsync } from 'node:fs/promises'
+import { lstatSync, readdirSync } from 'node:fs'
+import { lstat as lstatAsync, readdir as readdirAsync } from 'node:fs/promises'
+import path from 'node:path'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
@@ -190,11 +191,13 @@ export interface AgentWorkspaceRecoveryPreflight {
   currentAccessible: boolean
   targetAccessible: boolean
   historyProblem?: string
+  /** Workspace the probes were run against; a different one at write time means the request overlapped another. */
+  expectedWorkspaceId?: string
 }
 
 type NativeHistoryProbe =
   | { kind: 'claude-code'; foreignConfigDir: boolean }
-  | { kind: 'pi'; sessionDir: string; suffix: string }
+  | { kind: 'pi'; sessionDir: string; suffix: string; required: boolean }
 
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
@@ -1091,17 +1094,22 @@ export class AgentSessionService {
     withSqliteErrors(
       () => {
         const current = this.getJoinedSessionRowTx(application.get('DbService').getDb(), id)
-        const inaccessibleWorkspaceId =
+        if (preflight?.expectedWorkspaceId && preflight.expectedWorkspaceId !== current.session.workspaceId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'update session workspace',
+            'the conversation workspace changed while recovery was being checked; try again'
+          )
+        }
+        // An empty chat is free to switch, so its folders are never probed.
+        const lockApplies =
           source.type === AGENT_WORKSPACE_TYPE.USER &&
           current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-          !(preflight ? preflight.currentAccessible : isDirectoryAccessible(current.workspace.path))
+          this.sessionHasMessages(application.get('DbService').getDb(), id)
+        const inaccessibleWorkspaceId =
+          lockApplies && !(preflight ? preflight.currentAccessible : isDirectoryAccessible(current.workspace.path))
             ? current.workspace.id
             : undefined
-        if (
-          inaccessibleWorkspaceId &&
-          source.type === AGENT_WORKSPACE_TYPE.USER &&
-          this.sessionHasMessages(application.get('DbService').getDb(), id)
-        ) {
+        if (inaccessibleWorkspaceId && source.type === AGENT_WORKSPACE_TYPE.USER) {
           // Recovery must land on a usable folder and on history this profile can still continue; both
           // are probed here (or by the async preflight), outside the write transaction.
           const target = agentWorkspaceService.getRowByIdTx(application.get('DbService').getDb(), source.workspaceId)
@@ -1148,26 +1156,48 @@ export class AgentSessionService {
       return this.setWorkspace(id, source)
     }
     const target = agentWorkspaceService.getRowByIdTx(db, source.workspaceId)
-    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
-    if (currentAccessible) return this.setWorkspace(id, source, { currentAccessible, targetAccessible: true })
-    const targetAccessible =
-      target.id === current.session.workspaceId || (await isDirectoryAccessibleAsync(target.path))
+    const expectedWorkspaceId = current.session.workspaceId
+    if (await isDirectoryAccessibleAsync(current.workspace.path)) {
+      return this.setWorkspace(id, source, { currentAccessible: true, targetAccessible: true, expectedWorkspaceId })
+    }
     const probes = this.listNativeHistoryProbes(id)
     let historyProblem: string | undefined
     for (const probe of probes) {
       historyProblem = this.describeHistoryProblem(probe, await this.probeHistoryAsync(probe))
       if (historyProblem) break
     }
-    return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem })
+    // Check both folders last, right before the write, so a drive that reconnected or dropped while
+    // history was being checked is not judged by an older answer.
+    const [currentAccessible, targetAccessible] = await Promise.all([
+      isDirectoryAccessibleAsync(current.workspace.path),
+      target.id === current.session.workspaceId ? Promise.resolve(true) : isDirectoryAccessibleAsync(target.path)
+    ])
+    return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem, expectedWorkspaceId })
+  }
+
+  /**
+   * Config directories this profile's Claude Code runtime can run a branch under: the managed root
+   * used for API-key providers, the user's own Claude config used for the login provider, and an
+   * explicit override. A branch saved under none of them belongs to another data directory.
+   */
+  private effectiveClaudeConfigDirs(): Set<string> {
+    const home = application.getPath('sys.home')
+    const dirs = [
+      process.env.CLAUDE_CONFIG_DIR,
+      application.getPath('feature.agents.claude.root'),
+      application.getPath('external.claude.config'),
+      home ? path.join(home, '.claude') : undefined
+    ]
+    return new Set(dirs.filter((dir): dir is string => Boolean(dir)).map((dir) => path.resolve(dir)))
   }
 
   private listNativeHistoryProbes(sessionId: string): NativeHistoryProbe[] {
-    const currentConfigDir = process.env.CLAUDE_CONFIG_DIR ?? application.getPath('external.claude.config')
+    const configDirs = this.effectiveClaudeConfigDirs()
     const piSessionDir = application.getPath('feature.agents.pi.sessions')
-    return application
-      .get('DbService')
-      .getDb()
+    const db = application.get('DbService').getDb()
+    return db
       .select({
+        contextId: agentSessionContextTable.id,
         locator: agentRuntimeBackendTable.locator,
         nativeThreadId: agentSessionContextTable.nativeThreadId,
         bindingState: agentSessionContextTable.bindingState
@@ -1176,12 +1206,27 @@ export class AgentSessionService {
       .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
       .where(eq(agentSessionContextTable.sessionId, sessionId))
       .all()
-      .flatMap(({ locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
+      .flatMap(({ contextId, locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
         if (locator.kind === 'claude-code') {
-          return [{ kind: 'claude-code', foreignConfigDir: locator.configDir !== currentConfigDir }]
+          return [{ kind: 'claude-code', foreignConfigDir: !configDirs.has(path.resolve(locator.configDir)) }]
         }
-        if (locator.kind === 'pi' && bindingState === 'bound' && nativeThreadId) {
-          return [{ kind: 'pi', sessionDir: piSessionDir, suffix: `_${nativeThreadId}.jsonl` }]
+        if (locator.kind === 'pi' && nativeThreadId) {
+          // Pi opens an archive for a bound branch and for a pending one that already has input.
+          const [input] = db
+            .select({ id: agentSessionMessageTable.id })
+            .from(agentSessionMessageTable)
+            .where(
+              and(
+                eq(agentSessionMessageTable.sessionId, sessionId),
+                eq(agentSessionMessageTable.inputContextId, contextId)
+              )
+            )
+            .limit(1)
+            .all()
+          const required = bindingState === 'bound' || Boolean(input)
+          return required
+            ? [{ kind: 'pi', sessionDir: piSessionDir, suffix: `_${nativeThreadId}.jsonl`, required }]
+            : []
         }
         return []
       })
@@ -1190,7 +1235,8 @@ export class AgentSessionService {
   private probeHistorySync(probe: NativeHistoryProbe): boolean {
     if (probe.kind === 'claude-code') return !probe.foreignConfigDir
     try {
-      return readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix)).length === 1
+      const files = readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix))
+      return files.length === 1 && lstatSync(path.join(probe.sessionDir, files[0])).isFile()
     } catch {
       return false
     }
@@ -1199,8 +1245,10 @@ export class AgentSessionService {
   private async probeHistoryAsync(probe: NativeHistoryProbe): Promise<boolean> {
     if (probe.kind === 'claude-code') return !probe.foreignConfigDir
     try {
-      const files = await withProbeTimeout(readdirAsync(probe.sessionDir))
-      return files.filter((file) => file.endsWith(probe.suffix)).length === 1
+      const files = (await withProbeTimeout(readdirAsync(probe.sessionDir))).filter((file) =>
+        file.endsWith(probe.suffix)
+      )
+      return files.length === 1 && (await withProbeTimeout(lstatAsync(path.join(probe.sessionDir, files[0])))).isFile()
     } catch {
       return false
     }
@@ -1249,6 +1297,7 @@ export class AgentSessionService {
       if (workspace.id === current.session.workspaceId) return
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+      this.moveChildArchivesTx(tx, id, current.session.workspaceId, workspace.id)
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
       }
@@ -1262,6 +1311,15 @@ export class AgentSessionService {
       createdAt: current.session.createdAt
     })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+    this.moveChildArchivesTx(tx, id, current.session.workspaceId, workspace.id)
+  }
+
+  /** Subagent archives share their owner's workspace, so a deletion of the old one must not reach them. */
+  private moveChildArchivesTx(tx: DbOrTx, ownerId: string, fromWorkspaceId: string, toWorkspaceId: string): void {
+    tx.update(sessionsTable)
+      .set({ workspaceId: toWorkspaceId })
+      .where(and(eq(sessionsTable.ownerSessionId, ownerId), eq(sessionsTable.workspaceId, fromWorkspaceId)))
+      .run()
   }
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
