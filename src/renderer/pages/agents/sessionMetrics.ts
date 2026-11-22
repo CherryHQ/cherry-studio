@@ -51,6 +51,14 @@ export function buildAgentSessionMetrics(
   // it were complete.
   const inputTokens = sumDefined(statsList.map((stats) => stats.inputTokens))
   const cacheReadTokens = sumDefined(statsList.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
+  // The hit rate only compares cache reads with the input of calls that reported a cache
+  // breakdown. A call with input but no breakdown (e.g. a live Pi overlay) would otherwise
+  // sit in the denominator alone and drag the rate down.
+  const cacheReportingStats = statsList.filter(
+    (stats) => stats.inputTokens !== undefined && stats.inputTokenDetails?.cacheReadTokens !== undefined
+  )
+  const cacheReportedInput = sumDefined(cacheReportingStats.map((stats) => stats.inputTokens))
+  const cacheReportedRead = sumDefined(cacheReportingStats.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
   const samples = statsList.map(getMessageGenerationSample).filter((sample) => sample !== undefined)
   const firstTokenValues = statsList
     .map((stats) => stats.timeFirstTokenMs)
@@ -69,8 +77,8 @@ export function buildAgentSessionMetrics(
     cacheReadTokens,
     cacheWriteTokens: sumDefined(statsList.map((stats) => stats.inputTokenDetails?.cacheWriteTokens)),
     cacheHitRate:
-      cacheReadTokens !== undefined && inputTokens !== undefined && inputTokens > 0
-        ? cacheReadTokens / inputTokens
+      cacheReportedRead !== undefined && cacheReportedInput !== undefined && cacheReportedInput > 0
+        ? cacheReportedRead / cacheReportedInput
         : undefined,
     timeFirstTokenMs:
       firstTokenValues.length > 0

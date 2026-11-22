@@ -76,6 +76,15 @@ describe('AgentSessionMetricsBar', () => {
     expect(screen.getByText(note)).toBeInTheDocument()
   })
 
+  it('repeats the full summary in the expanded panel so a clipped summary stays readable', async () => {
+    render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
+
+    expect(screen.queryByTestId('agent-session-metrics-full-summary')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button'))
+    const full = screen.getByTestId('agent-session-metrics-full-summary')
+    expect(full.textContent).toBe(screen.getByRole('button').textContent)
+  })
+
   it('shows no partial-history note when the whole session is loaded', () => {
     render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
 

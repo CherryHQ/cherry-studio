@@ -66,6 +66,16 @@ describe('buildAgentSessionMetrics', () => {
     expect(buildAgentSessionMetrics(messages, parts).toolSteps).toBe(3)
   })
 
+  it('excludes calls without a cache breakdown from the hit rate denominator', () => {
+    const cached = { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 900 } }
+    const metrics = buildAgentSessionMetrics(
+      [assistant('a', cached), assistant('b', cached), assistant('live', { inputTokens: 10000 }, 'pending')],
+      {}
+    )
+
+    expect(metrics.cacheHitRate).toBeCloseTo(0.9)
+  })
+
   it('returns undefined rather than zero when source data is missing', () => {
     const metrics = buildAgentSessionMetrics([assistant('a', { outputTokens: 10 })], {})
 

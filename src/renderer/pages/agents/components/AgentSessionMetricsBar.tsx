@@ -97,6 +97,10 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
               {detail.value}
             </span>
           ))}
+          {/* The collapsed summary ellipsizes in a narrow pane, so repeat every figure here. */}
+          <span className="w-full break-words" data-testid="agent-session-metrics-full-summary">
+            {summary}
+          </span>
           <span className="w-full text-muted-foreground">{t('agent.session.metrics.note')}</span>
           {partial && <span className="w-full text-muted-foreground">{t('agent.session.metrics.partial')}</span>}
         </ComposerFloatingCapsule>
