@@ -109,6 +109,7 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import { AgentBrowserView } from './AgentBrowserView'
+import { AgentHostPlan } from './AgentHostPlan'
 import {
   type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
@@ -1674,6 +1675,7 @@ function AgentDetailsContent() {
   const desktopControls = use(DesktopControlsContext)
   return (
     <div key={meta.sessionId}>
+      {meta.sessionId && meta.conversationState === 'ready' ? <AgentHostPlan sessionId={meta.sessionId} /> : null}
       <AgentSessionDetailsSections
         desktopControls={desktopControls?.rows}
         pendingDesktopControls={desktopControls?.pending}
