@@ -16,6 +16,8 @@ Status: implemented
 
 ## 备选方案
 
+后续加固（PR #24918 评论）：`isManualCompactParts` 按 `\n` 连接全部文本后对修剪结果匹配 `^\/compact`，并带 `systemReminder`/`hasDelivery` 守卫，与 `buildAgentUserContent` 一致（`Compare these` + `/compact` 分片与带投递前缀的 `/compact` 按普通轮次拦截，真正的 `/compact` 仍走压缩）；编辑分发先只校验新分片，历史校验延后到事务内保留前缀检查（初检 tip 包含被替换消息，纯文本删除工作区 PNG 可通过）；Claude composer 门控只计原生块候选（`countClaudeNativeImageAttachments` / `countClaudeNativeFileParts` 经 `canBeClaudeNativeImagePart`，无 MIME 时已知非原生扩展同样不计数，PNG+TIFF 可通过单图原生上限）；`consumePendingImageCount` 无关失败按 FIFO（`shift`，与 turn-complete 一致）结算，保留等待中的 steer 零值供下次上限使用；无上限模型直接返回并跳过历史扫描（有限上限不存在时两次检查均为无操作，零 SQLite 路径读取）。
+
 - 静默丢弃或降采样多余图片：未经用户同意丢失数据；已拒绝。
 - 按轮次自动拆分发送：破坏需要同屏对比与多截屏的语义；最终选择带上限提示的拦截。
 - 在 provider-registry 新增聊天图片上限字段：已实现为目录拥有的 `ModelConfig.maxAgentImages` 与 `ProviderModelOverride.limits.maxAgentImages`（无 user_model 列、无 DB 迁移）；既有预置行下次读取即继承。
@@ -23,7 +25,7 @@ Status: implemented
 
 ## 影响
 
-默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `AGENT_IMAGE_EXTS` 计数定义（共享 `imageExts` 外加 AVIF/HEIC/HEIF/TIFF），两侧在创建托管副本前计数一致；共享路由表保持不变，因此非视觉 AVIF/HEIC 仍走本地路径回退，不会误入 OCR。
+默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查；编辑初检只查新分片，事务内查保留前缀），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；无上限空闲发送跳过历史扫描（零路径读取）；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出，FIFO 结算保留未放置 steer。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `AGENT_IMAGE_EXTS` 计数定义（共享 `imageExts` 外加 AVIF/HEIC/HEIF/TIFF），两侧在创建托管副本前计数一致；Claude composer 门控进一步只计原生块候选（无 MIME 时 TIFF/AVIF/HEIC/BMP 同样不计数，未知扩展延后到物化）；共享路由表保持不变，因此非视觉 AVIF/HEIC 仍走本地路径回退，不会误入 OCR。手动 `/compact` 与驱动的连接后提示谓词一致（含投递前缀时按普通轮次拦截）。
 
 ## 验证
 
@@ -36,7 +38,11 @@ Status: implemented
 - Regression — `src/shared/ai/__tests__/agentImageLimits.test.ts`：路由计数忽略孤立托管历史，纯文本续发通过而路由超限被拦截；无存活 token 的工作区 PNG 计为已路由。
 - Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：含历史的路由门控放行孤立历史并拦截路由历史；工作区 PNG 回放对 Pi/Pi-Durable/Claude 在分发前拦截，孤立托管历史仅对 Claude 放行。
 - Regression — `src/shared/ai/__tests__/agentImageLimits.test.ts`：Claude 原生计数包含工作区 PNG，排除 AVIF（路径回退）与孤立托管历史；`assertRuntimeAgentImageLimit` 区分 Pi 原始计数与 Claude 原生计数。
-- Regression — `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`：`consumePendingImageCount` 报告最早超限并保留未放置 steer。
+- Regression — `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`：`consumePendingImageCount` 报告最早超限并保留未放置 steer；无关失败按 FIFO（`shift`）结算并为下次上限保留 steer 零值（inv_514fd05454a94c72）。
+- Regression — `src/shared/ai/__tests__/agentImageLimits.test.ts`：连接后提示的 `/compact` 谓词含投递/systemReminder 守卫（`Compare these` + `/compact` 分片与带投递前缀的 `/compact` 拦截，真正的 `/compact` 放行；inv_a799a7c78eb893f7）；无 MIME 时 TIFF/AVIF/BMP 不计入 Claude 原生，未知 `.jpe` 延后计数，PNG+TIFF 可通过单图原生上限（inv_129fa9c831baabe0）。
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：Pi/Pi-Durable 对分片与带投递前缀的 `/compact` 按普通轮次拒绝（inv_a799a7c78eb893f7）。
+- Regression — `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`：分片/投递 `/compact` 拦截而真正 `/compact` 放行（inv_a799a7c78eb893f7）；删除工作区 PNG 的纯文本编辑经新分片初检 + 保留前缀事务检查通过（inv_e5b3b1538d5182fc）；无上限空闲发送跳过历史扫描（零 `readAgentSessionPath` 调用；inv_c23ccc3159f3a2b9）。
+- Regression — `src/renderer/components/composer/variants/__tests__/AgentComposer.test.tsx`：Claude PNG+TIFF 通过单图原生上限（inv_129fa9c831baabe0）。
 - Regression — `src/main/ipc/handlers/__tests__/ai.test.ts`：`ai.stream.open` 经 `AI_REQUEST_FAILED` 与 `aiErrorDetail` 保留 limit/count。
 - Regression — `src/main/ai/channels/__tests__/ChannelMessageHandler.test.ts`：通道准入发送主目录本地化上限文案并携带 limit/count（含 zh-CN 非英文断言）。
 - Regression — `src/main/ai/runtime/claudeCode/__tests__/desktopRuntime.integration.test.ts`：纯文本准入路径不变。

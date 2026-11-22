@@ -1564,6 +1564,59 @@ describe('AgentComposer', () => {
     expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
   })
 
+  it('sends PNG+TIFF on Claude when only the PNG counts toward the native cap (inv_129fa9c831baabe0)', async () => {
+    // The Claude driver emits only the PNG as a native image block and forwards
+    // the TIFF by path, so the composer must not reject PNG+TIFF against a
+    // one-image native cap.
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.tiff',
+        origin_name: 'b.tiff',
+        path: '/tmp/b.tiff',
+        ext: '.tiff',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.tiff', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
+  })
+
   it('sends directly via the steer option while streaming, bypassing the queue', async () => {
     render(
       <AgentComposer

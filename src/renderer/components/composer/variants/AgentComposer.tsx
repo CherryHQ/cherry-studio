@@ -83,6 +83,8 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import {
   countAgentImageAttachments,
   countAgentImageFileParts,
+  countClaudeNativeFileParts,
+  countClaudeNativeImageAttachments,
   resolveMaxAgentImages
 } from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -1344,10 +1346,14 @@ const AgentComposerInner = ({
         // queued. Keeps the payload so a model switch unblocks retry. Count both
         // composer attachments and prebuilt file parts (Desktop unsent-message
         // Resend reaches here with prebuilt parts that bypass the draft count).
+        // Claude counts only native-block candidates (TIFF/AVIF take the path
+        // fallback in the driver), so PNG+TIFF fits a one-image native cap.
         const drainMaxImages = resolveMaxAgentImages(model)
         if (drainMaxImages !== undefined) {
-          const drainImageCount =
-            countAgentImageAttachments(attachments) + countAgentImageFileParts(payload.userMessageParts)
+          const isClaudeNative = agent?.type === 'claude-code'
+          const drainImageCount = isClaudeNative
+            ? countClaudeNativeImageAttachments(attachments) + countClaudeNativeFileParts(payload.userMessageParts)
+            : countAgentImageAttachments(attachments) + countAgentImageFileParts(payload.userMessageParts)
           if (drainImageCount > drainMaxImages) {
             toast.warning(t('agent.image_limit_exceeded', { limit: drainMaxImages, count: drainImageCount }))
             return false
@@ -1413,6 +1419,7 @@ const AgentComposerInner = ({
     },
     [
       accessiblePaths,
+      agent?.type,
       agentId,
       sendDisabled,
       chatSendMessage,
@@ -1579,10 +1586,13 @@ const AgentComposerInner = ({
       }
       // Capability-driven multi-image guard (#20030): block before anything is
       // sent when the attached images exceed the model's limit. The draft stays
-      // intact so retry preserves attachments and instructions.
+      // intact so retry preserves attachments and instructions. Claude counts
+      // only native-block candidates (TIFF/AVIF take the path fallback in the
+      // driver), so PNG+TIFF fits a one-image native cap.
       const maxImages = resolveMaxAgentImages(model)
       if (maxImages !== undefined) {
-        const imageCount = countAgentImageAttachments(files)
+        const imageCount =
+          agent?.type === 'claude-code' ? countClaudeNativeImageAttachments(files) : countAgentImageAttachments(files)
         if (imageCount > maxImages) {
           toast.warning(t('agent.image_limit_exceeded', { limit: maxImages, count: imageCount }))
           return
@@ -1613,6 +1623,7 @@ const AgentComposerInner = ({
       }
     },
     [
+      agent?.type,
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,

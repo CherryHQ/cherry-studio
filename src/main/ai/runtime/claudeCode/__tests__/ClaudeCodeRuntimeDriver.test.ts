@@ -739,4 +739,25 @@ describe('Claude image-limit result boundary (#20030)', () => {
     )
     expect(normalized).toMatchObject({ limit: 1, count: 2, sent: true })
   })
+
+  it('settles the oldest submission on unrelated failures, preserving the steer for the next limit (inv_514fd05454a94c72)', async () => {
+    // An unrelated failure settling a five-image request while a text steer
+    // (zero) waits must drop five (FIFO, matching turn-complete `shift`), not
+    // pop the steer's zero. A subsequent two-image limit failure then reports
+    // two, not stale five.
+    const { consumePendingImageCount, normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+    const pending = [5, 0]
+    const settled = consumePendingImageCount(pending, new Error('boom'))
+    expect(settled).toBe(5)
+    expect(pending).toEqual([0])
+    pending.push(2)
+    const count = consumePendingImageCount(pending, new Error('At most 1 image(s) may be provided in one prompt'))
+    expect(count).toBe(2)
+    expect(pending).toEqual([0])
+    const normalized = normalizeResultImageLimitFailure(
+      { message: 'At most 1 image(s) may be provided in one prompt' },
+      count
+    )
+    expect(normalized).toMatchObject({ limit: 1, count: 2, sent: true })
+  })
 })

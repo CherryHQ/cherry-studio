@@ -876,10 +876,13 @@ export class AgentSessionRuntimeService extends BaseService {
     this.assertSessionWritable(input.sessionId)
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     // Manual `/compact` on Pi / Pi-Durable compacts without submitting images
-    // or replay (both drivers short-circuit when `systemReminder` is false,
-    // which `beginTurn` always is), so it never gates — matching `send`.
+    // or replay (both drivers short-circuit when `systemReminder` is false
+    // and no delivery wrapper prefixes the prompt, which `beginTurn` always
+    // satisfies), so it never gates — matching `send`. Joined-text + delivery
+    // check mirrors `buildAgentUserContent`.
     const isManualCompact =
-      (input.agentType === 'pi' || input.agentType === 'pi-durable') && isManualCompactParts(userMessage.data.parts)
+      (input.agentType === 'pi' || input.agentType === 'pi-durable') &&
+      isManualCompactParts(userMessage.data.parts, { hasDelivery: userMessage.delivery !== undefined })
     if (!isManualCompact) {
       this.assertTurnImageLimit(input.modelId, userMessage.data.parts, input.agentType)
     }
@@ -3392,15 +3395,20 @@ export class AgentSessionRuntimeService extends BaseService {
     // candidates (routed managed + external workspace images, AVIF excluded),
     // and orphaned managed history passes for runtimes whose routing drops it.
     // Manual `/compact` on Pi / Pi-Durable compacts without submitting replay
-    // (both drivers short-circuit when `systemReminder` is false), so it skips
-    // validation — matching `send`. Steers never skip: the drivers do not
-    // treat them as compact and still submit replay.
+    // (both drivers short-circuit on the joined prompt when `systemReminder`
+    // is false and no delivery wrapper prefixes it), so it skips validation
+    // — matching `send`. Steers never skip: the drivers do not treat them as
+    // compact and still submit replay. Joined-text + delivery check mirrors
+    // `buildAgentUserContent`: `Compare these` + `/compact` as separate parts
+    // or a delivery prefix submits an ordinary turn and must still gate.
     // A rejection here fires before `connection.send`, so the composer draft
     // stays intact and no pending assistant row is left without a stream.
     const isManualCompact =
       (entry.agentType === 'pi' || entry.agentType === 'pi-durable') &&
-      turn.systemReminder !== true &&
-      isManualCompactParts(turn.userMessage.data.parts)
+      isManualCompactParts(turn.userMessage.data.parts, {
+        systemReminder: turn.systemReminder === true,
+        hasDelivery: turn.userMessage.delivery !== undefined
+      })
     if (!isManualCompact) {
       if (context?.length) {
         this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {

@@ -1140,7 +1140,11 @@ function normalizeImageLimitRejection(message: string | undefined, parts: readon
  * block counts in order, and a later `result` failure names only the limit.
  * First over-limit in submission order wins (not the maximum), so a two-image
  * failure while a five-image steer is still queued unplaced reports two and
- * preserves the steer's entry. Mutates `pending` in place (splice/pop).
+ * preserves the steer's entry. Unrelated failures (no parsed limit) settle
+ * the oldest submission (FIFO, matching turn-complete `shift`), so an
+ * unrelated failure settling a five-image request while a text steer waits
+ * drops five and preserves the steer's zero for the next limit failure.
+ * Mutates `pending` in place (splice/shift).
  *
  * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
  * `requesting` membership from the 0.3.311 adapter) instead of order when
@@ -1168,7 +1172,7 @@ export function consumePendingImageCount(pending: number[], failure: unknown): n
       }
     }
   }
-  return pending.pop()
+  return pending.shift()
 }
 
 /**

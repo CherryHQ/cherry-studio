@@ -800,5 +800,133 @@ describe('AgentChatContextProvider', () => {
         provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: compactParts }))
       ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
     })
+
+    it('rejects split /compact and delivery-prefixed /compact while genuine /compact passes (inv_a799a7c78eb893f7)', async () => {
+      // Drivers join text parts via `buildAgentUserContent` and prefix delivery
+      // wrappers: `Compare these` + `/compact` as separate parts, or any
+      // delivery-prefixed `/compact`, submits an ordinary turn and must gate.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({ type: 'pi', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+      const historyRow = (filename: string) => ({
+        id: `hist-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      const splitCompact = [
+        { type: 'text', text: 'Compare these' },
+        { type: 'text', text: '/compact' }
+      ] as any
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: splitCompact }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+      mocks.saveMessagesTx.mockClear()
+      // Delivery-prefixed `/compact` never compacts (security-notice prefix),
+      // so it must also gate.
+      const deliveryCompact = [{ type: 'text', text: '/compact' }] as any
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          openReq({
+            userMessageParts: deliveryCompact,
+            agentDeliveryMessage: {
+              id: 'delivery-1',
+              sessionId: 'session-1',
+              role: 'user',
+              data: { parts: deliveryCompact },
+              delivery: { sender: 'a', receiver: 'b' }
+            } as any
+          })
+        )
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+      mocks.saveMessagesTx.mockClear()
+      // Genuine single-part `/compact` still reaches compaction (no rejection,
+      // rows committed).
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      await provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ userMessageParts: [{ type: 'text', text: '/compact keep facts' }] as any })
+      )
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
+
+    it('permits text-only edits that remove workspace images (inv_e5b3b1538d5182fc)', async () => {
+      // The first turn saved two workspace PNGs and failed before binding
+      // native input. Editing that turn to text-only must pass: the
+      // preliminary tip check would count the message being replaced, so edit
+      // dispatches validate only fresh parts up front and defer history to the
+      // transactional retained-prefix check.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({ type: 'pi', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+      // Preliminary tip contains the message being replaced (two images);
+      // transactional retained prefix (post-reset head) contains no images.
+      mocks.captureHead.mockReturnValueOnce('tip-with-two-images').mockReturnValue('retained-prefix')
+      const tipRow = (filename: string) => ({
+        id: `tip-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockImplementation(((_db: unknown, _sessionId: string, parentId: string) => {
+        if (parentId === 'tip-with-two-images') return [tipRow('a.png'), tipRow('b.png')]
+        return []
+      }) as any)
+      mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) => fn({}, 'native-session'))
+      await provider.prepareDispatch(makeSubscriber(), {
+        ...openReq({ userMessageParts: [{ type: 'text', text: 'text-only replacement' }] as any }),
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 'v1' }
+      } as MainDispatchRequest)
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
+
+    it('skips history scans for uncapped models (inv_c23ccc3159f3a2b9)', async () => {
+      // With no finite cap both fresh and routed checks are no-ops — the idle
+      // gate must return before the synchronous full-path history read.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getModelByKey.mockReturnValue({
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      })
+      mocks.readAgentSessionPath.mockClear()
+      await provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ userMessageParts: [{ type: 'text', text: 'continue' }] as any })
+      )
+      expect(mocks.readAgentSessionPath).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
   })
 })

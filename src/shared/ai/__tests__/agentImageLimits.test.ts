@@ -12,6 +12,8 @@ import {
   canBeClaudeNativeImagePart,
   countAgentImageAttachments,
   countAgentImageFileParts,
+  countClaudeNativeFileParts,
+  countClaudeNativeImageAttachments,
   countClaudeNativeImageParts,
   countRoutedAgentImageFileParts,
   isAgentImagePart,
@@ -409,5 +411,60 @@ describe('runtime-specific replay gates (#20030 follow-up)', () => {
     expect(isManualCompactParts([{ type: 'text', text: 'hello' }])).toBe(false)
     expect(isManualCompactParts([])).toBe(false)
     expect(isManualCompactParts(undefined)).toBe(false)
+  })
+
+  it('matches the Pi driver joined-prompt predicate, including delivery (inv_a799a7c78eb893f7)', () => {
+    // Drivers join all text parts with `\n` via `buildAgentUserContent` and test
+    // `^/compact` on the trimmed result: a second text part of `/compact` after
+    // other text submits an ordinary turn and must still gate.
+    expect(
+      isManualCompactParts([
+        { type: 'text', text: 'Compare these' },
+        { type: 'text', text: '/compact' }
+      ])
+    ).toBe(false)
+    // Delivery wrappers prefix the prompt with a security notice, so drivers
+    // never treat delivery messages as compact — the gate must not skip.
+    expect(isManualCompactParts([{ type: 'text', text: '/compact' }], { hasDelivery: true })).toBe(false)
+    expect(
+      isManualCompactParts(
+        [
+          { type: 'text', text: 'Compare these' },
+          { type: 'text', text: '/compact' }
+        ],
+        { hasDelivery: true }
+      )
+    ).toBe(false)
+    // Steers never match (drivers check `!systemReminder`).
+    expect(isManualCompactParts([{ type: 'text', text: '/compact' }], { systemReminder: true })).toBe(false)
+    // Genuine commands still reach compaction.
+    expect(isManualCompactParts([{ type: 'text', text: '/compact keep facts' }])).toBe(true)
+    expect(isManualCompactParts([{ type: 'text', text: '  /compact  ' }])).toBe(true)
+  })
+
+  it('excludes TIFF/AVIF path-fallback from the Claude native count without MIME (inv_129fa9c831baabe0)', () => {
+    // Renderer attachments carry no MIME (only ext/name); the driver forwards
+    // TIFF by path, so PNG+TIFF must fit a one-image native cap.
+    expect(canBeClaudeNativeImagePart({ type: 'image', ext: '.png', name: 'a' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'a.png' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'image', ext: '.tiff', name: 'b' })).toBe(false)
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'b.tiff' })).toBe(false)
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'b.avif' })).toBe(false)
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'b.bmp' })).toBe(false)
+    // Unknown extensions (e.g. `.jpe`, which materializes to `image/jpeg`)
+    // defer to materialization and count.
+    expect(canBeClaudeNativeImagePart({ type: 'file', filename: 'c.jpe' })).toBe(true)
+    const attachments = [
+      { type: 'image', ext: '.png', name: 'a' },
+      { type: 'image', ext: '.tiff', name: 'b' }
+    ]
+    expect(countAgentImageAttachments(attachments)).toBe(2)
+    expect(countClaudeNativeImageAttachments(attachments)).toBe(1)
+    const fileParts = [
+      { type: 'file', filename: 'a.png' },
+      { type: 'file', filename: 'b.tiff' }
+    ]
+    expect(countAgentImageFileParts(fileParts)).toBe(2)
+    expect(countClaudeNativeFileParts(fileParts)).toBe(1)
   })
 })

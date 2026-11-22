@@ -978,6 +978,54 @@ describe('AgentSessionRuntimeService', () => {
       }
       expect(error).toBeInstanceOf(AgentImageLimitError)
     })
+
+    it('rejects split and delivery-prefixed /compact as ordinary turns (inv_a799a7c78eb893f7)', () => {
+      // Drivers join text parts and prefix delivery wrappers: `Compare these`
+      // + `/compact` or delivery + `/compact` submits an ordinary turn and
+      // must gate, while genuine `/compact` still reaches compaction.
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const splitCompact = {
+        ...userMessage('user-split'),
+        data: {
+          parts: [
+            { type: 'text', text: 'Compare these' },
+            { type: 'text', text: '/compact' },
+            imagePart('a.png'),
+            imagePart('b.png')
+          ]
+        }
+      }
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        let error: unknown
+        try {
+          service.beginTurn({ ...baseTurnInput, agentType, userMessage: splitCompact })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+        expect(error).toMatchObject({ limit: 1, count: 2 })
+      }
+      const deliveryCompact = {
+        ...userMessage('user-delivery'),
+        delivery: { sender: 'a', receiver: 'b' },
+        data: {
+          parts: [{ type: 'text', text: '/compact' }, imagePart('a.png'), imagePart('b.png')]
+        }
+      } as never
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        let error: unknown
+        try {
+          service.beginTurn({ ...baseTurnInput, agentType, userMessage: deliveryCompact })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+      }
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(

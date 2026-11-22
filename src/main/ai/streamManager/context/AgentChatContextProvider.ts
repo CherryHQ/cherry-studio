@@ -21,7 +21,12 @@ import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { AgentImageLimitError, assertRuntimeAgentImageLimit, isManualCompactParts } from '@shared/ai/agentImageLimits'
+import {
+  AgentImageLimitError,
+  assertRuntimeAgentImageLimit,
+  isManualCompactParts,
+  resolveMaxAgentImages
+} from '@shared/ai/agentImageLimits'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -67,14 +72,17 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
  * continuation that must replay two saved workspace PNGs rejects before
  * committing. Manual `/compact` on Pi / Pi-Durable skips validation because
  * both drivers compact without submitting replay when `systemReminder` is
- * false (idle/edit dispatches always are). History lookup is fail-open: a
- * read failure falls back to fresh-send validation only.
+ * false and no delivery wrapper prefixes the prompt (idle/edit dispatches
+ * always are). History lookup is fail-open: a read failure falls back to
+ * fresh-send validation only. Uncapped models skip history reads entirely —
+ * both asserts are no-ops without a finite cap, so no SQLite path scan runs.
  */
 function assertDispatchImageLimit(
   uniqueModelId: UniqueModelId,
   parts: readonly CherryMessagePart[] | undefined,
   agentType: string,
-  history?: { sessionId: string; parentMessageId: string; db?: DbOrTx }
+  history?: { sessionId: string; parentMessageId: string; db?: DbOrTx },
+  compact?: { systemReminder?: boolean; hasDelivery?: boolean }
 ): void {
   let model: Model | undefined | null
   try {
@@ -86,9 +94,19 @@ function assertDispatchImageLimit(
   }
   // Pi / Pi-Durable `/compact` never submits images or replay (both drivers
   // short-circuit before submission), so it never gates — matching `send`.
-  if ((agentType === 'pi' || agentType === 'pi-durable') && isManualCompactParts(parts)) return
+  // Joined-text + delivery check mirrors `buildAgentUserContent`: a second
+  // text part of `/compact` after other text, or a delivery wrapper prefix,
+  // submits an ordinary turn and must still gate.
+  if (
+    (agentType === 'pi' || agentType === 'pi-durable') &&
+    isManualCompactParts(parts, { systemReminder: compact?.systemReminder, hasDelivery: compact?.hasDelivery })
+  )
+    return
   assertRuntimeAgentImageLimit(parts, model, agentType)
   if (!history) return
+  // No finite cap: fresh check already no-ops, and the routed replay check
+  // would too — skip the synchronous full-path history scan entirely.
+  if (resolveMaxAgentImages(model) === undefined) return
   let historyFiles: readonly CherryMessagePart[] | undefined
   try {
     const db = history.db ?? application.get('DbService').getDb()
@@ -230,11 +248,24 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // user row or a pending assistant row without a stream to settle it.
     // History-inclusive: a text-only continuation that must replay saved
     // workspace images rejects here, before rows are committed and the ack
-    // clears the draft.
-    assertDispatchImageLimit(uniqueModelId, userMessageParts, agent.type, {
-      sessionId,
-      parentMessageId
-    })
+    // clears the draft. Edit triggers check only fresh parts here: the
+    // preliminary tip still contains the message being replaced, so counting
+    // it would falsely reject a text-only edit that removes two workspace
+    // PNGs (base validation accepted it). The transactional check below
+    // revalidates against the retained prefix after the branch reset.
+    const isEditDispatch = req.trigger === 'edit-agent-message'
+    assertDispatchImageLimit(
+      uniqueModelId,
+      userMessageParts,
+      agent.type,
+      isEditDispatch
+        ? undefined
+        : {
+            sessionId,
+            parentMessageId
+          },
+      { hasDelivery: deliveryMessage !== undefined }
+    )
     return {
       sessionId,
       parentMessageId,
@@ -435,12 +466,21 @@ export class AgentChatContextProvider implements ChatContextProvider {
           // replacement, so an over-limit edit leaves the original rows intact
           // instead of committing a replacement with no stream to settle it.
           // History-inclusive so a text-only edit that must replay workspace
-          // images also rolls back before committing.
-          assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, {
-            sessionId: validated.sessionId,
-            parentMessageId: validated.parentMessageId,
-            db: tx
-          })
+          // images also rolls back before committing. Uses the retained
+          // prefix (post-reset head), not the pre-edit tip, so removing two
+          // workspace PNGs for text-only passes while adding over-limit
+          // images still fails.
+          assertDispatchImageLimit(
+            validated.uniqueModelId,
+            validated.userMessageParts,
+            validated.agentType,
+            {
+              sessionId: validated.sessionId,
+              parentMessageId: validated.parentMessageId,
+              db: tx
+            },
+            { hasDelivery: validated.deliveryMessage !== undefined }
+          )
           const result = this.persistDispatchTx(
             tx,
             validated,
@@ -489,7 +529,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       this.assertAppendable(validated)
       // Re-check after `await prepareBranch`: a cap may have appeared while
       // opening (model added/updated). Fail before the user row is committed.
-      assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType)
+      assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, undefined, {
+        hasDelivery: validated.deliveryMessage !== undefined
+      })
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
         parentId: validated.parentMessageId,
@@ -537,10 +579,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // committing the user + pending assistant rows. History-inclusive so a
     // text-only continuation that must replay saved workspace images rejects
     // before the ack that would clear the draft.
-    assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, {
-      sessionId: validated.sessionId,
-      parentMessageId: validated.parentMessageId
-    })
+    assertDispatchImageLimit(
+      validated.uniqueModelId,
+      validated.userMessageParts,
+      validated.agentType,
+      {
+        sessionId: validated.sessionId,
+        parentMessageId: validated.parentMessageId
+      },
+      { hasDelivery: validated.deliveryMessage !== undefined }
+    )
     const persisted = application.get('DbService').withWriteTx((tx) => {
       ctx?.beforePersist?.()
       const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)

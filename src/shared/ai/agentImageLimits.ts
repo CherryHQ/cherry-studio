@@ -346,23 +346,40 @@ export function toClaudeNativeMediaType(value: string | undefined | null): strin
 
 /**
  * Whether the part could become a Claude native image block. Mirrors
- * `canBeClaudeImage` in the Claude Code runtime driver: unknown or
- * `application/octet-stream` defers to materialization (counts), declared
- * image media types must map to a Claude-supported block type, otherwise the
- * filename/URL extension decides among the four natively supported types.
+ * `canBeClaudeImage` in the Claude Code runtime driver: declared image media
+ * types must map to a Claude-supported block type; unknown or
+ * `application/octet-stream` defers to materialization (counts) unless the
+ * extension identifies a known non-native image (TIFF, AVIF, HEIC, BMP …),
+ * which takes the local-path fallback and must not count toward the native
+ * cap. Otherwise the filename/URL extension decides among the four natively
+ * supported types.
  */
+const CLAUDE_NATIVE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'] as const
 export function canBeClaudeNativeImagePart(part: AgentImagePartLike | null | undefined): boolean {
   if (!part || typeof part !== 'object') return false
   const url = typeof part.url === 'string' ? part.url : undefined
   const inlineType = url?.startsWith('data:') ? dataUrlImageMediaType(url) : undefined
   const mediaType = (inlineType ?? normalizedLower(part.mediaType))?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream') return true
-  if (mediaType.startsWith('image/')) return toClaudeNativeMediaType(mediaType) !== null
   const filename = normalizedLower(part.filename) ?? normalizedLower(part.name)
   const ext = normalizedLower(part.ext)
-  if (ext && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) return true
   const path = url && !url.startsWith('data:') ? urlPath(url) : undefined
-  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
+  if (!mediaType || mediaType === 'application/octet-stream') {
+    // Composer attachments carry no MIME (only ext/name); file parts without
+    // MIME defer to materialization. A known image extension that is not
+    // natively supported (TIFF, AVIF, HEIC, BMP …) still takes the path
+    // fallback — exclude it so PNG+TIFF fits a one-image native cap, matching
+    // the driver. Unknown extensions (e.g. `.jpe`, which materializes to
+    // `image/jpeg`) defer to materialization and count.
+    const knownExt =
+      ext && AGENT_IMAGE_EXTS.includes(ext)
+        ? ext
+        : AGENT_IMAGE_EXTS.find((extension) => filename?.endsWith(extension) || path?.endsWith(extension))
+    if (knownExt) return (CLAUDE_NATIVE_EXTS as readonly string[]).includes(knownExt)
+    return true
+  }
+  if (mediaType.startsWith('image/')) return toClaudeNativeMediaType(mediaType) !== null
+  if (ext && (CLAUDE_NATIVE_EXTS as readonly string[]).includes(ext)) return true
+  return (CLAUDE_NATIVE_EXTS as readonly string[]).some(
     (extension) => filename?.endsWith(extension) || path?.endsWith(extension)
   )
 }
@@ -390,6 +407,48 @@ export function countClaudeNativeImageParts(parts: readonly unknown[] | undefine
 }
 
 /**
+ * Count composer attachments that would become Claude native image blocks.
+ * Renderer attachments carry no MIME (only `ext`/`name`), so this uses the
+ * same `isAgentImagePart` + `canBeClaudeNativeImagePart` pair as the driver:
+ * TIFF/AVIF/HEIC/BMP take the path fallback and are excluded, while PNG/JPEG
+ * count. Unknown extensions (e.g. `.jpe`) defer to materialization and count,
+ * matching main's MIME-aware count after the file bridge.
+ */
+export function countClaudeNativeImageAttachments(
+  attachments: readonly AgentImagePartLike[] | undefined | null
+): number {
+  if (!attachments) return 0
+  let count = 0
+  for (const attachment of attachments) {
+    if (!isAgentImagePart(attachment)) continue
+    if (!canBeClaudeNativeImagePart(attachment)) continue
+    count += 1
+  }
+  return count
+}
+
+/**
+ * Count prebuilt file parts (Desktop Resend) that would become Claude native
+ * blocks. Unlike `countClaudeNativeImageParts`, this ignores routed-token
+ * state — resend parts are the fresh turn payload, not history replay — and
+ * counts `isAgentImagePart` + native eligibility only, matching the driver's
+ * fresh-send pre-check.
+ */
+export function countClaudeNativeFileParts(parts: readonly unknown[] | undefined | null): number {
+  if (!parts) return 0
+  let count = 0
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null) continue
+    const candidate = part as AgentImagePartLike
+    if (candidate.type !== 'file') continue
+    if (!isAgentImagePart(candidate)) continue
+    if (!canBeClaudeNativeImagePart(candidate)) continue
+    count += 1
+  }
+  return count
+}
+
+/**
  * Throw when Claude's native image-block count exceeds the turn model's limit.
  * Workspace PNGs replayed without live tokens still count (external refs);
  * orphaned managed history does not (routing drops it); AVIF/HEIC fall back
@@ -408,23 +467,37 @@ export function assertClaudeAgentImageLimit(
 
 /**
  * Whether the turn carries a manual `/compact` instruction. Both Pi drivers
- * recognize compaction from the current message text and return without
- * using the replay payload (`PiRuntimeConnection.send` short-circuits on
- * `parseManualCompactCommand`, `PiDurableRuntimeConnection.send` on
- * `isCompactCommand`), so replay-inclusive image gates must not count history
- * for these turns. Mirrors `^\/compact(?:\s|$)` on trimmed text; steers wrap
- * text in a system reminder and never match, matching the drivers'
- * `!systemReminder` guard.
+ * recognize compaction from the joined prompt text (`buildAgentUserContent`)
+ * and return without using the replay payload
+ * (`PiRuntimeConnection.send` short-circuits on `parseManualCompactCommand`,
+ * `PiDurableRuntimeConnection.send` on `isCompactCommand`), so
+ * replay-inclusive image gates must not count history for these turns.
+ *
+ * Mirrors the drivers exactly:
+ * - joins all text parts with `\n` (like `extractMessageText`) and tests
+ *   `^\/compact(?:\s|$)` on the trimmed result — a second text part of
+ *   `/compact` after `Compare these` does NOT match, matching the drivers'
+ *   ordinary-turn submission;
+ * - `systemReminder` steers never match (drivers check `!systemReminder`);
+ * - delivery messages never match (the delivery wrapper prefixes the prompt
+ *   with a security notice, so `trimmed` never starts with `/compact`).
  */
-export function isManualCompactParts(parts: readonly unknown[] | undefined | null): boolean {
+export function isManualCompactParts(
+  parts: readonly unknown[] | undefined | null,
+  opts?: { systemReminder?: boolean; hasDelivery?: boolean }
+): boolean {
+  if (opts?.systemReminder === true) return false
+  if (opts?.hasDelivery === true) return false
   if (!parts) return false
+  const texts: string[] = []
   for (const part of parts) {
     if (typeof part !== 'object' || part === null) continue
     const candidate = part as { type?: unknown; text?: unknown }
     if (candidate.type !== 'text' || typeof candidate.text !== 'string') continue
-    if (/^\/compact(?:\s|$)/.test(candidate.text.trim())) return true
+    texts.push(candidate.text)
   }
-  return false
+  if (texts.length === 0) return false
+  return /^\/compact(?:\s|$)/.test(texts.join('\n').trim())
 }
 
 /**
