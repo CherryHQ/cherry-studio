@@ -343,6 +343,51 @@ describe('getWebSourcesMarkdown', () => {
     expect(getCitedWebSources(shortCloser)).toEqual([])
   })
 
+  it('treats a list-nested fence with a relatively indented closer as code and resumes prose after it', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '- Example\n  ~~~text\n  sample\n    ~~~\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('keeps parentheses in destinations as the original characters', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'P', url: 'https://example.org/a(b)', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [P](https://example.org/a\\(b\\))')
+  })
+
+  it('falls back to the URL when a title is only whitespace', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: ' \t ', url: 'https://example.org', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [https://example.org](https://example.org)')
+  })
+
   it('keeps literal HTML-like text in titles', () => {
     const message = createExportView([
       {
@@ -432,7 +477,7 @@ describe('getWebSourcesMarkdown', () => {
     ] as MessageExportView['parts'])
 
     expect(getWebSourcesMarkdown(message)).toBe(
-      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b%28c%29)\n\n[2] [plain.example](https://plain.example)'
+      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b\\(c\\))\n\n[2] [plain.example](https://plain.example)'
     )
   })
 

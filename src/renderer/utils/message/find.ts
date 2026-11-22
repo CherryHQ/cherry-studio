@@ -236,7 +236,7 @@ const escapeLinkText = (text: string): string => text.replace(/[\\[\]<>&]/g, '\\
 // and write `&` as `&amp;` where a Markdown parser would read a character reference (`&copy;`).
 const needsPercentEncoding = (character: string): boolean => {
   const code = character.charCodeAt(0)
-  return code <= 0x20 || code === 0x7f || /[()<>\\\u00a0]/.test(character)
+  return code <= 0x20 || code === 0x7f || /[<>\\\u00a0]/.test(character)
 }
 const escapeLinkDestination = (url: string): string =>
   Array.from(url, (character) =>
@@ -245,13 +245,14 @@ const escapeLinkDestination = (url: string): string =>
       : character
   )
     .join('')
+    .replace(/[()]/g, '\\$&')
     .replace(/&(?=#\d+;|#x[\da-f]+;|[a-z][a-z\d]*;)/gi, '&amp;')
 
 /** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
 export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
   getCitedWebSources(message)
     .map((citation) => {
-      const title = (citation.title || citation.url).replace(/\s+/g, ' ').trim()
+      const title = citation.title?.replace(/\s+/g, ' ').trim() || citation.url
       return `[${citation.number}] [${escapeLinkText(title)}](${escapeLinkDestination(citation.url)})`
     })
     .join('\n\n')
