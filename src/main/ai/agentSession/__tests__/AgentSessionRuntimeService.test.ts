@@ -897,7 +897,12 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
-      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
+      expect(mocks.resolveToolApproval).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        'tool-call-1',
+        'approval-1',
+        true
+      )
     })
 
     it('settles a persisted background interaction before resolving the requesting agent', () => {

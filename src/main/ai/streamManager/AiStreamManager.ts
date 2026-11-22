@@ -94,7 +94,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
     ...message,
     parts: message.parts.map((part) => {
       if (!isToolUIPart(part) || !part.approval) return part
-      const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
+      const approved = exec.resolvedToolApprovals?.get(part.approval.id)
       if (approved === false) {
         return {
           ...part,
@@ -104,9 +104,21 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
           approval: { ...part.approval, approved: false as const }
         }
       }
-      return approved === true && part.state === 'approval-requested'
-        ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
-        : part
+      if (!approved) return part
+      if (part.state === 'output-available' || part.state === 'output-error') {
+        return { ...part, approval: { ...part.approval, approved } }
+      }
+      // The SDK can retain the approval ID when a tool repeats its input.
+      if (part.state === 'approval-requested' || part.state.startsWith('input-')) {
+        return {
+          ...part,
+          state: 'approval-responded',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...part.approval, approved }
+        }
+      }
+      return part
     })
   }
 }
@@ -1317,7 +1329,7 @@ export class AiStreamManager extends BaseService {
    * Clear a live runtime tool approval as soon as the user responds, before the
    * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
    */
-  resolveToolApproval(topicId: string, toolCallId: string, approved: boolean): boolean {
+  resolveToolApproval(topicId: string, toolCallId: string, approvalId: string, approved: boolean): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
 
@@ -1327,7 +1339,7 @@ export class AiStreamManager extends BaseService {
       const pendingApprovals = exec.pendingApprovalToolCallIds
       if (!pendingApprovals?.delete(toolCallId)) continue
       exec.runtimeTiming.finishApproval({ toolCallId })
-      ;(exec.resolvedToolApprovals ??= new Map()).set(toolCallId, approved)
+      ;(exec.resolvedToolApprovals ??= new Map()).set(approvalId, approved)
       changed = true
       if (approved) {
         // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part

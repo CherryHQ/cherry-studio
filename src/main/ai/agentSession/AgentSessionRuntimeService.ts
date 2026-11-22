@@ -2122,7 +2122,12 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       application
         .get('AiStreamManager')
-        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
+        .resolveToolApproval(
+          buildAgentSessionTopicId(dispatched.sessionId),
+          dispatched.toolCallId,
+          approvalId,
+          decision.approved
+        )
     }
     return { ok: true }
   }
