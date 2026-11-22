@@ -637,6 +637,7 @@ function applyTaskToolPart(
     const taskStatus = inputRecord.status ?? (isTaskRecord(output) ? output.status : undefined)
     if (isDeletedTaskStatus(taskStatus)) {
       if (getToolPartState(part) !== 'output-available') return true
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native task results can be text or opaque records; only an explicit success marker confirms a record deletion.
       const deleted = (isRecord(output) && output.success === true) || output === `Updated task #${id} deleted`
       if (!deleted) return true
       taskMap.delete(id)

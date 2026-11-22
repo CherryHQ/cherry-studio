@@ -262,8 +262,10 @@ export function useReorder<Cache>(
     (cache: Cache, items: ItemList) => {
       if (options?.updateItems) return options.updateItems(cache, items)
       if (options?.infinite) {
+        // oxlint-disable-next-line anti-slop/no-known-value-widening -- SWR's caller-defined Cache is unchecked; the fallback must recognize item pages before rebuilding them.
         return isInfiniteCollectionCache(cache) ? updateInfiniteItems(cache, items) : undefined
       }
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- Without custom accessors, only a validated row list or items wrapper can receive the optimistic update.
       return isItemList(cache) || isCollectionPage(cache) ? defaultUpdateItems(cache, items) : undefined
     },
     [options?.updateItems, options?.infinite]

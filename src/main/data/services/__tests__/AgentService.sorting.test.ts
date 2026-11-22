@@ -30,6 +30,7 @@ describe('AgentService sort-key fallback', () => {
       ])
       .run()
 
+    // @ts-expect-error Exercise a malformed runtime sort key outside the public vocabulary.
     const { agents, total } = agentService.listAgents({ sortBy, sortOrder: 'desc' })
 
     expect(agents.map(({ id }) => id)).toEqual(['newer', 'older'])

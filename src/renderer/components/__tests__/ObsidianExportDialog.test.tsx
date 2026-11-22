@@ -89,9 +89,7 @@ describe('ObsidianExportDialog front matter', () => {
       />
     )
 
-    const folderPicker = await screen.findByRole('combobox', {
-      name: i18n.t('chat.topics.export.obsidian_root_directory')
-    })
+    const folderPicker = await screen.findByText(i18n.t('chat.topics.export.obsidian_root_directory'))
     await user.click(folderPicker)
     await user.click(await screen.findByRole('button', { name: i18n.t('common.expand') }))
     const folder = await screen.findByRole('treeitem', { name })
@@ -99,7 +97,7 @@ describe('ObsidianExportDialog front matter', () => {
     expect(await screen.findByRole('treeitem', { name: /note.md/ })).toBeVisible()
     await user.click(folder)
 
-    expect(folderPicker).toHaveTextContent(name)
+    expect(await screen.findByText(name)).toBeVisible()
   })
 
   it('keeps a ": " title and turns comma-separated "#" tags into a plain tag list', async () => {

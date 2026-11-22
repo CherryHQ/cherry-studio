@@ -75,7 +75,7 @@ export const isSocksProxyProtocol = (protocol: string | null): boolean => {
   return protocol !== null && protocol.startsWith('socks')
 }
 
-export const buildNodeProxyEnvironment = (config: NodeProxyConfig) => {
+export const buildNodeProxyEnvironment = (config: NodeProxyConfig): NodeJS.ProcessEnv => {
   const proxyUrl = config.proxyRules?.trim()
   if (!proxyUrl) {
     return {}

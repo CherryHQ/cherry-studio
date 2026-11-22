@@ -111,6 +111,7 @@ function getEnv(config: NonNullable<CliConfigWriteArgs['configBlob']>): Record<s
 
 function getPermissions(config: NonNullable<CliConfigWriteArgs['configBlob']>): { defaultMode?: unknown } {
   if (!config || typeof config.permissions !== 'object' || config.permissions === null) {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- Missing permission objects stay empty; defaultMode remains unvalidated until controls inspect it.
     return {}
   }
   return config.permissions

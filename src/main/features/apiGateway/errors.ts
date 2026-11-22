@@ -239,7 +239,8 @@ const anthropicTypeForStatus = (status: number): string => {
 }
 
 function transformAnthropicError(error: ReturnType<typeof normalizeProviderError>) {
-  const { statusCode, message, type, category, details, requestId } = error
+  const { statusCode, message, type, details, requestId } = error
+  const category = 'category' in error ? error.category : undefined
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const clientMessage =
     details &&
@@ -269,7 +270,8 @@ const openaiTypeAndCodeForStatus = (status: number) => {
 }
 
 function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>) {
-  const { statusCode, message, category, details } = error
+  const { statusCode, message, details } = error
+  const category = 'category' in error ? error.category : undefined
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
     category === 'quota'

@@ -293,7 +293,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
 
     for (const options of [capabilityOptions, resolvedOptions]) {
       expect(options).toMatchObject({ [providerOptionsKey]: { reasoningEffort: 'high' } })
-      expect(options[providerOptionsKey].reasoning_effort).toBeUndefined()
+      expect(options[providerOptionsKey]).not.toHaveProperty('reasoning_effort')
     }
   })
 

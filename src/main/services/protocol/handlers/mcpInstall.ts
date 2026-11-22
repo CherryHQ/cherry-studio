@@ -9,6 +9,7 @@ function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): Prot
     throw new Error('MCP server config must be an object')
   }
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Legacy field values remain unvalidated until ProtocolMcpServerConfigSchema parses the normalized candidate.
   const candidate: { url?: unknown; name?: unknown; baseUrl?: unknown } = { ...value }
   const legacyUrl = candidate.url
 

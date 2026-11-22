@@ -89,6 +89,7 @@ function pageResults(raw: string, input: string, maxCharacters: number): WebSear
   )
   if (!match?.[3].trim()) return []
   const content = match[3].trim()
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Build the readonly result contract before publication, omitting truncated unless the limit is reached.
   const result: { -readonly [K in keyof WebSearchResult]: WebSearchResult[K] } = {
     title: match[1].trim(),
     url: match[2],
@@ -108,6 +109,7 @@ export const exaMcp: WebSearchProviderModule = {
       call.capability === 'searchKeywords'
         ? { query: call.input, type: 'auto', numResults: call.config.maxResults, livecrawl: 'fallback' }
         : { urls: [call.input], maxCharacters: call.config.maxCharacters ?? 24_000 }
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- HTTP header names are open; credentials are attached after the required transport headers.
     const headers: Record<string, string> = {
       accept: 'application/json, text/event-stream',
       'content-type': 'application/json'

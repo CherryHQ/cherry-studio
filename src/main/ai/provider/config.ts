@@ -610,7 +610,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 }
 
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
-  const headers = {
+  const headers: NonNullable<ProviderConfig<'ollama'>['providerSettings']['headers']> = {
     ...getProviderAppHeaders(ctx.actualProvider),
     ...getExtraHeaders(ctx.actualProvider)
   }

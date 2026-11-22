@@ -18,6 +18,7 @@ function deepMergeObjects(target: ProviderOptionObject, source: ProviderOptionOb
         : value
     Object.defineProperty(result, key, { value: merged, enumerable: true, configurable: true, writable: true })
   })
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Merging preserves opaque nested SDK values; the result does not certify a closed or JSON-only shape.
   return result
 }
 

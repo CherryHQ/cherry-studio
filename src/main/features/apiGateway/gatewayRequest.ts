@@ -101,8 +101,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext: { providerId: string; modelId: string; agentSessionId?: string } = { providerId, modelId }
-  if (agentSessionId) logContext.agentSessionId = agentSessionId
+  const logContext = agentSessionId ? { providerId, modelId, agentSessionId } : { providerId, modelId }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 
