@@ -74,7 +74,7 @@ export function extractFtsTokens(query: string): string[] {
  * trigram length), while longer unsegmented (CJK) runs are windowed into
  * overlapping trigrams.
  */
-function splitQuery(query: string): { words: string[]; trigrams: string[] } {
+function splitQuery(query: string) {
   const words: string[] = []
   const trigrams: string[] = []
 

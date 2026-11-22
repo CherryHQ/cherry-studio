@@ -456,7 +456,7 @@ export class KnowledgeIndexStore {
    * whose embedding-text hash has no stored embedding (a unit silently absent from
    * vector search). Used by the v1→v2 vector migrator's post-build validation.
    */
-  describeIndexCounts(): { materials: number; units: number; embeddings: number; unitsMissingEmbedding: number } {
+  describeIndexCounts() {
     return {
       materials: this.tableCount('material'),
       units: this.tableCount('search_unit'),

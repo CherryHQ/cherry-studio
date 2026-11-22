@@ -119,6 +119,7 @@ function buildExtraHeadersReplacementPatch(
   next: Record<string, string>
 ): Record<string, string | null> {
   const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The provider merge-patch contract needs string values plus null tombstones for removed headers.
   return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
 }
 

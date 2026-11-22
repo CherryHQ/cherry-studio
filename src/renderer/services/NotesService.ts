@@ -401,7 +401,7 @@ async function createFolders(folders: Set<string>): Promise<void> {
   }
 }
 
-function resolveFileTarget(file: File, basePath: string): { dir: string; name: string } {
+function resolveFileTarget(file: File, basePath: string) {
   if (!file.webkitRelativePath || !file.webkitRelativePath.includes('/')) {
     const nameWithoutExt = file.name.endsWith(MARKDOWN_EXT) ? file.name.slice(0, -MARKDOWN_EXT.length) : file.name
     return { dir: basePath, name: nameWithoutExt }
