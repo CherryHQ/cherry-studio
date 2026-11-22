@@ -380,7 +380,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
   {
     name: 'claude-plugins.dev',
     buildUrl: (query) => {
-      const url = new URL('https://claude-plugins.dev/api/skills')
+      const url = new URL('https://api.claude-plugins.dev/api/skills/search')
       url.searchParams.set('q', query)
       url.searchParams.set('limit', '20')
       return url.toString()

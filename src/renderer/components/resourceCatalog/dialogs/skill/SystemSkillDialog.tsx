@@ -86,16 +86,15 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
               <Spinner text={t('common.loading')} />
             </Center>
           ) : error ? (
-            <EmptyState preset="no-result" title={t('common.error')} description={error} className="min-h-0 flex-1" />
+            <EmptyState title={t('common.error')} description={error} className="min-h-0 flex-1" />
           ) : skills.length === 0 ? (
             <EmptyState
-              preset="no-resource"
               title={t('library.system_skill.empty_title')}
               description={t('library.system_skill.empty_description')}
               className="min-h-0 flex-1"
             />
           ) : visibleSkills.length === 0 ? (
-            <EmptyState preset="no-result" title={t('common.no_results')} className="min-h-0 flex-1" />
+            <EmptyState title={t('common.no_results')} className="min-h-0 flex-1" />
           ) : (
             <ScrollArea
               type="auto"

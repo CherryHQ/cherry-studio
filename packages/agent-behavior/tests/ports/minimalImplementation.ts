@@ -20,12 +20,11 @@ export const harness: HarnessPorts = {
   lifecycle: { register }
 }
 export const host: HostPorts = {
-  approvals: { facts: unused, ask: unused, outcomes: unused },
+  approvals: { facts: unused, ask: unused },
   questions: { ask: unused },
   models: { find: unused, current: unused },
   verifier: { verify: unused },
   outputStore: { save: unused },
-  summarizer: { summarize: unused },
   observation: { emit: () => {} },
   settings: {
     goalDefaults: () => ({ maxGoalRounds: 1, maxGoalRoundsCeiling: 1, blockedAfter: 1 }),

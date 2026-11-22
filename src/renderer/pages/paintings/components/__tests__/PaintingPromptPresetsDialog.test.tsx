@@ -1,3 +1,4 @@
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
@@ -7,7 +8,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as CherrystudioUI from '@cherrystudio/ui'
 import type { ReorderableListProps } from '@cherrystudio/ui'
-import { installDndDomStubs } from '@cherrystudio/ui/components/composites/sortable/__tests__/dnd-dom-stubs'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { Prompt } from '@shared/data/types/prompt'

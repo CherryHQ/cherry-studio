@@ -15,7 +15,7 @@ import {
 /**
  * The journal path is resolved through `application.getPath`; shadow the global
  * mock so it points into a per-test throwaway userData dir (mirrors the
- * v2MigrationGate.test.ts strategy — real FS, fake path registry).
+ * legacyUpgradeGate.test.ts strategy — real FS, fake path registry).
  */
 let userDataDir = ''
 
