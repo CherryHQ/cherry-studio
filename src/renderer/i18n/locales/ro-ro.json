@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Intrare {{value}} tok",
   "agent.session.metrics.label": "Metrici sesiune",
   "agent.session.metrics.note": "Intrarea include contextul retrimis la fiecare apel API.",
+  "agent.session.metrics.partial": "Doar pe baza mesajelor încărcate. Istoricul mai vechi nu a fost încărcat încă.",
   "agent.session.metrics.steps": "{{value}} pași",
   "agent.session.metrics.turns": "{{value}} ture",
   "agent.session.model_switch_confirm.confirm": "Schimbă modelul",

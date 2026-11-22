@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "입력 {{value}} tok",
   "agent.session.metrics.label": "세션 지표",
   "agent.session.metrics.note": "입력은 매 API 호출마다 다시 전송되는 컨텍스트를 포함합니다.",
+  "agent.session.metrics.partial": "불러온 메시지만 기준입니다. 이전 기록은 아직 불러오지 않았습니다.",
   "agent.session.metrics.steps": "단계 {{value}}개",
   "agent.session.metrics.turns": "턴 {{value}}개",
   "agent.session.model_switch_confirm.confirm": "모델 전환",

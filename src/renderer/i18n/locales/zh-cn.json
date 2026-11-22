@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "输入 {{value}} tok",
   "agent.session.metrics.label": "会话指标",
   "agent.session.metrics.note": "输入按每次 API 调用重复发送的上下文计算。",
+  "agent.session.metrics.partial": "仅基于已加载的消息，较早的历史尚未加载。",
   "agent.session.metrics.steps": "{{value}} 步",
   "agent.session.metrics.turns": "{{value}} 轮",
   "agent.session.model_switch_confirm.confirm": "切换模型",

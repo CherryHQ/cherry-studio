@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Entrada {{value}} tok",
   "agent.session.metrics.label": "Métricas da sessão",
   "agent.session.metrics.note": "A entrada conta o contexto reenviado em cada chamada à API.",
+  "agent.session.metrics.partial": "Apenas com base nas mensagens carregadas. O histórico mais antigo ainda não foi carregado.",
   "agent.session.metrics.steps": "{{value}} passos",
   "agent.session.metrics.turns": "{{value}} turnos",
   "agent.session.model_switch_confirm.confirm": "Mudar modelo",

@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Girdi {{value}} tok",
   "agent.session.metrics.label": "Oturum metrikleri",
   "agent.session.metrics.note": "Girdi, her API çağrısında yeniden gönderilen bağlamı sayar.",
+  "agent.session.metrics.partial": "Yalnızca yüklenen mesajlara dayanır. Daha eski geçmiş henüz yüklenmedi.",
   "agent.session.metrics.steps": "{{value}} adım",
   "agent.session.metrics.turns": "{{value}} tur",
   "agent.session.model_switch_confirm.confirm": "Modeli değiştir",

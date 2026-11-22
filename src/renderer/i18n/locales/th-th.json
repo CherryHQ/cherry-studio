@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "อินพุต {{value}} tok",
   "agent.session.metrics.label": "ตัวชี้วัดเซสชัน",
   "agent.session.metrics.note": "อินพุตนับบริบทที่ส่งซ้ำในทุกการเรียก API",
+  "agent.session.metrics.partial": "คำนวณจากข้อความที่โหลดแล้วเท่านั้น ประวัติที่เก่ากว่ายังไม่ได้โหลด",
   "agent.session.metrics.steps": "{{value}} ขั้นตอน",
   "agent.session.metrics.turns": "{{value}} รอบ",
   "agent.session.model_switch_confirm.confirm": "สลับโมเดล",

@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Eingabe {{value}} Tok.",
   "agent.session.metrics.label": "Sitzungsmetriken",
   "agent.session.metrics.note": "Die Eingabe zählt den Kontext, der bei jedem API-Aufruf erneut gesendet wird.",
+  "agent.session.metrics.partial": "Nur auf Basis der geladenen Nachrichten. Ältere Verläufe sind noch nicht geladen.",
   "agent.session.metrics.steps": "{{value}} Schritte",
   "agent.session.metrics.turns": "{{value}} Runden",
   "agent.session.model_switch_confirm.confirm": "Modell wechseln",

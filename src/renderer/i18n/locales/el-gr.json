@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Είσοδος {{value}} tok",
   "agent.session.metrics.label": "Μετρήσεις συνεδρίας",
   "agent.session.metrics.note": "Η είσοδος μετράει το πλαίσιο που στέλνεται ξανά σε κάθε κλήση API.",
+  "agent.session.metrics.partial": "Μόνο με βάση τα φορτωμένα μηνύματα. Το παλαιότερο ιστορικό δεν έχει φορτωθεί ακόμη.",
   "agent.session.metrics.steps": "{{value}} βήματα",
   "agent.session.metrics.turns": "{{value}} γύροι",
   "agent.session.model_switch_confirm.confirm": "Αλλαγή μοντέλου",

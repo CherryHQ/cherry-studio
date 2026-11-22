@@ -397,6 +397,7 @@
   "agent.session.metrics.input": "Wejście {{value}} tok",
   "agent.session.metrics.label": "Metryki sesji",
   "agent.session.metrics.note": "Wejście liczy kontekst wysyłany ponownie przy każdym wywołaniu API.",
+  "agent.session.metrics.partial": "Tylko na podstawie wczytanych wiadomości. Starsza historia nie została jeszcze wczytana.",
   "agent.session.metrics.steps": "{{value}} kroków",
   "agent.session.metrics.turns": "{{value}} tur",
   "agent.session.model_switch_confirm.confirm": "Przełącz model",

@@ -391,6 +391,7 @@
   "agent.session.metrics.input": "Вход {{value}} tok",
   "agent.session.metrics.label": "Метрики сессии",
   "agent.session.metrics.note": "Входные данные включают контекст, повторно отправляемый при каждом вызове API.",
+  "agent.session.metrics.partial": "Только по загруженным сообщениям. Более ранняя история ещё не загружена.",
   "agent.session.metrics.steps": "{{value}} шагов",
   "agent.session.metrics.turns": "{{value}} ходов",
   "agent.session.model_switch_confirm.confirm": "Переключить модель",

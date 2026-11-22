@@ -1,7 +1,9 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import zhCn from '@renderer/i18n/locales/zh-cn.json'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { AgentSessionMetricsBar } from '../AgentSessionMetricsBar'
@@ -62,5 +64,21 @@ describe('AgentSessionMetricsBar', () => {
     expect(text).not.toContain('26K')
     expect(text).toContain('~0.5s')
     expect(text).toMatch(/~\d+%/)
+  })
+
+  it('explains that partial figures cover loaded history only, in a tooltip and the expanded panel', async () => {
+    const note = zhCn['agent.session.metrics.partial']
+    render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} partial />)
+
+    const toggle = screen.getByRole('button')
+    expect(toggle).toHaveAttribute('title', note)
+    await userEvent.click(toggle)
+    expect(screen.getByText(note)).toBeInTheDocument()
+  })
+
+  it('shows no partial-history note when the whole session is loaded', () => {
+    render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
+
+    expect(screen.getByRole('button')).not.toHaveAttribute('title')
   })
 })
