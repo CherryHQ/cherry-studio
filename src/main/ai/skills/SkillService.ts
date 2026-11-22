@@ -711,20 +711,82 @@ export class SkillService {
    * may mutate mid-update.
    */
   private async snapshotLocalSkillSource(canonicalPath: string): Promise<{ snapshotDir: string; tempDir: string }> {
-    const tempDir = await createTempDir('skill-local-update-')
+    // A concurrent `git pull` can add a helper after the copy enumerates the source but before
+    // the descriptor is copied, leaving a new SKILL.md without its helper. Verifying the snapshot
+    // hash against the live source and retrying turns that race into either a complete snapshot
+    // or an abort that preserves the previous installation — never a partial publish.
+    const maxAttempts = 3
+    let lastError: unknown = null
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const tempDir = await createTempDir('skill-local-update-')
+      try {
+        // Keep the canonical basename inside the temp dir so `parseSkillMetadata`'s
+        // folder-name fallback (used when frontmatter `name` is blank) still resolves
+        // to the real source folder instead of a generic `source` directory.
+        const baseName = path.basename(canonicalPath)
+        const snapshotDir = path.join(tempDir, baseName && baseName !== '.' && baseName !== '..' ? baseName : 'source')
+        // Strict: fail on a concurrent external deletion mid-capture instead of hashing and
+        // installing an incomplete snapshot that would silently drop a helper file.
+        await copyDirectoryRecursive(canonicalPath, snapshotDir, { strict: true })
+        await this.normalizeSnapshotDescriptor(snapshotDir)
+        const [snapshotHash, sourceHash] = await Promise.all([
+          this.installer.computeDirectoryHash(snapshotDir),
+          this.installer.computeDirectoryHash(canonicalPath)
+        ])
+        if (snapshotHash !== sourceHash) {
+          lastError = new Error(
+            `System skill source changed during snapshot (attempt ${attempt}/${maxAttempts}): ${canonicalPath}`
+          )
+          logger.warn('System skill source drifted during snapshot; retrying', {
+            canonicalPath,
+            attempt
+          })
+          await safeRemoveDirectory(tempDir)
+          continue
+        }
+        return { snapshotDir, tempDir }
+      } catch (error) {
+        await safeRemoveDirectory(tempDir)
+        // Strict-copy ENOENT (concurrent deletion) and drift both retry; anything else
+        // (missing SKILL.md, permission, bounds) fails fast without consuming retries.
+        const code = (error as NodeJS.ErrnoException)?.code
+        if (code === 'ENOENT' && attempt < maxAttempts) {
+          lastError = error
+          logger.warn('System skill source vanished mid-snapshot; retrying', { canonicalPath, attempt })
+          continue
+        }
+        throw error
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`System skill source changed during snapshot: ${canonicalPath}`)
+  }
+
+  /** Normalize a snapshot's descriptor to the SDK's `SKILL.md` casing before hashing/installing. */
+  private async normalizeSnapshotDescriptor(snapshotDir: string): Promise<void> {
+    const upper = path.join(snapshotDir, 'SKILL.md')
+    const lower = path.join(snapshotDir, 'skill.md')
     try {
-      // Keep the canonical basename inside the temp dir so `parseSkillMetadata`'s
-      // folder-name fallback (used when frontmatter `name` is blank) still resolves
-      // to the real source folder instead of a generic `source` directory.
-      const baseName = path.basename(canonicalPath)
-      const snapshotDir = path.join(tempDir, baseName && baseName !== '.' && baseName !== '..' ? baseName : 'source')
-      // Strict: fail on a concurrent external deletion mid-capture instead of hashing and
-      // installing an incomplete snapshot that would silently drop a helper file.
-      await copyDirectoryRecursive(canonicalPath, snapshotDir, { strict: true })
-      return { snapshotDir, tempDir }
+      await fs.promises.access(upper)
+      return
+    } catch {
+      // No uppercase descriptor — fall through to the lowercase check.
+    }
+    try {
+      await fs.promises.access(lower)
+    } catch {
+      return
+    }
+    try {
+      await fs.promises.rename(lower, upper)
     } catch (error) {
-      await safeRemoveDirectory(tempDir)
-      throw error
+      // A concurrent external sync already renamed or removed the descriptor; the
+      // post-copy hash verification above will detect the drift and retry or abort.
+      logger.warn('Failed to normalize snapshot descriptor casing', {
+        snapshotDir,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
@@ -1112,7 +1174,19 @@ export class SkillService {
       const owned =
         stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
       if (!owned) {
-        if (shouldExport) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        if (shouldExport) {
+          // A system skill imported from `~/.agents/skills/<folder>` occupies its own export
+          // destination. Overwriting it would delete the user-owned source; refreshing must
+          // preserve the source and only update the managed copy plus the internal mirror.
+          if (skill?.source === 'system' && skill.sourceUrl && (await this.isSelfExportTarget(skill, target))) {
+            logger.info('Skipping external export occupied by the skill source itself', {
+              folderName,
+              target
+            })
+            return
+          }
+          throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        }
         return
       }
       if (!shouldExport) await fs.promises.unlink(target)
@@ -1121,6 +1195,31 @@ export class SkillService {
     if (shouldExport) {
       await fs.promises.mkdir(root, { recursive: true })
       await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
+    }
+  }
+
+  /** Whether an external export destination is occupied by the skill's own `file:` source. */
+  private async isSelfExportTarget(
+    skill: Pick<InstalledSkill, 'source' | 'sourceUrl'>,
+    exportTarget: string
+  ): Promise<boolean> {
+    if (skill.source !== 'system' || !skill.sourceUrl) return false
+    let sourcePath: string
+    try {
+      sourcePath = fileURLToPath(skill.sourceUrl)
+    } catch {
+      return false
+    }
+    try {
+      const [canonicalSource, canonicalTarget] = await Promise.all([
+        fs.promises.realpath(sourcePath),
+        fs.promises.realpath(exportTarget)
+      ])
+      return canonicalSource === canonicalTarget
+    } catch {
+      // The source or the occupying entry vanished mid-check: fail closed and let the
+      // caller surface the export conflict rather than silently skipping it.
+      return false
     }
   }
 
@@ -1247,6 +1346,35 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
+        // Crash-aware recovery keeps whichever complete tree matches the persisted baseline:
+        // a new tree matching a new baseline completes the publish, an old backup matching
+        // an old baseline rolls back. The generic sweep below only handles orphaned markers
+        // without a catalog row.
+        try {
+          const all = agentGlobalSkillService.listAll()
+          for (const entry of all) {
+            try {
+              await this.installer.recoverInterruptedInstallWithBaseline(
+                this.getSkillStoragePath(entry.folderName),
+                entry.contentHash
+              )
+            } catch (error) {
+              logger.warn('Failed baseline-aware skill recovery; falling back to default', {
+                folderName: entry.folderName,
+                error: error instanceof Error ? error.message : String(error)
+              })
+              try {
+                await this.installer.recoverInterruptedInstall(this.getSkillStoragePath(entry.folderName))
+              } catch {
+                // Best-effort: reconcile below will surface unreadable states.
+              }
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to enumerate skills for baseline-aware recovery', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
         await this.installer.recoverInterruptedInstalls(storageRoot)
         try {
           await this.ensureSkillPluginManifest()
@@ -1333,10 +1461,27 @@ export class SkillService {
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
-      const localChanges = currentHash !== skill.contentHash
       if (remoteHash === skill.contentHash) {
+        const localChanges = currentHash !== skill.contentHash
         return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
       }
+      if (remoteHash === currentHash) {
+        // The managed tree matches its source but the persisted baseline is stale: a
+        // pre-existing lowercase descriptor or a pre-executability baseline hashes
+        // differently even though no user edited anything. Healing here turns a
+        // one-time format migration into `up_to_date` instead of a false overwrite
+        // prompt; the next real source change then reports clean `localChanges`.
+        try {
+          agentGlobalSkillService.update(skillId, { contentHash: remoteHash })
+        } catch (error) {
+          logger.warn('Failed to heal skill baseline after format migration', {
+            skillId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        return { state: 'up_to_date', localChanges: false, remoteVersion: metadata.version ?? null }
+      }
+      const localChanges = currentHash !== skill.contentHash
       return {
         state: 'available',
         localChanges,

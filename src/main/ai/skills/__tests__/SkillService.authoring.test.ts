@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +13,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { isWin } from '@main/core/platform'
 import { readByPath, writeIfUnchangedByPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
@@ -583,5 +585,306 @@ describe('SkillService authoring and remote updates', () => {
       service.applyRemoteUpdate({ skillId: SKILL_ID, revision: 'unused', overwriteLocalChanges: false })
     ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_UNSUPPORTED })
     expect(fetchRemoteSkillMock).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a system skill whose source occupies its own export destination without deleting the source', async () => {
+    const externalRoot = application.getPath('external.agents.skills')
+    const sourceDir = path.join(externalRoot, 'writer')
+    await fs.promises.mkdir(sourceDir, { recursive: true })
+    await writeSkill(sourceDir, { supportingContent: 'echo baseline\n' })
+    const canonicalSource = await fs.promises.realpath(sourceDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalSource, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalSource).href,
+      contentHash: await installer.computeContentHash(canonicalSource)
+    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+    try {
+      await writeSkill(sourceDir, { version: '2.0.0', supportingContent: 'echo remote\n' })
+      const service = new SkillService()
+
+      const check = await service.checkRemoteUpdate(SKILL_ID)
+      expect(check).toMatchObject({ state: 'available', localChanges: false })
+      if (check.state !== 'available') throw new Error('Expected an available update')
+
+      const updated = await service.applyRemoteUpdate({
+        skillId: SKILL_ID,
+        revision: check.revision,
+        overwriteLocalChanges: false
+      })
+      expect(updated).toMatchObject({ id: SKILL_ID, version: '2.0.0' })
+      await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+        'echo remote\n'
+      )
+      // The user-owned source occupies the export destination: it must survive as a real
+      // directory with the new source content, not be replaced by an export symlink.
+      const sourceStat = await fs.promises.lstat(canonicalSource)
+      expect(sourceStat.isDirectory()).toBe(true)
+      expect(sourceStat.isSymbolicLink()).toBe(false)
+      await expect(fs.promises.readFile(path.join(canonicalSource, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+        'echo remote\n'
+      )
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'writer', 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+        'echo remote\n'
+      )
+
+      // Explicit re-sync uses the same export-tolerant path and also preserves the source.
+      await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+      const resynced = await service['resyncSystemSkill'](SKILL_ID, canonicalSource, null, SKILL_ID)
+      expect(resynced).toMatchObject({ id: SKILL_ID, version: '2.0.0' })
+      await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+        'echo remote\n'
+      )
+      const preservedStat = await fs.promises.lstat(canonicalSource)
+      expect(preservedStat.isDirectory()).toBe(true)
+      expect(preservedStat.isSymbolicLink()).toBe(false)
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+    }
+  })
+
+  it('normalizes a lowercase descriptor without reporting false local changes', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await fs.promises.mkdir(path.join(originDir, 'scripts'), { recursive: true })
+    await fs.promises.writeFile(
+      path.join(originDir, 'skill.md'),
+      '---\nname: writer\ndescription: writer description\nversion: 1.0.0\n---\n\n# Instructions\n',
+      'utf-8'
+    )
+    await fs.promises.writeFile(path.join(originDir, 'scripts', 'run.sh'), 'echo baseline\n', 'utf-8')
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: await installer.computeContentHash(canonicalOrigin)
+    })
+    const service = new SkillService()
+    await service.reconcileSkill(SKILL_ID)
+
+    await expect(fs.promises.access(path.join(installedDir, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toMatchObject({
+      state: 'up_to_date',
+      localChanges: false
+    })
+
+    await fs.promises.writeFile(
+      path.join(originDir, 'skill.md'),
+      '---\nname: writer\ndescription: writer description\nversion: 2.0.0\n---\n\n# Instructions\n',
+      'utf-8'
+    )
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'available', localChanges: false })
+    if (check.state !== 'available') throw new Error('Expected an available update')
+    const updated = await service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: check.revision,
+      overwriteLocalChanges: false
+    })
+    expect(updated).toMatchObject({ version: '2.0.0' })
+    await expect(fs.promises.access(path.join(installedDir, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(fs.promises.readFile(path.join(installedDir, 'SKILL.md'), 'utf-8')).resolves.toContain(
+      'version: 2.0.0'
+    )
+  })
+
+  it('heals a stale baseline when the managed tree matches its source', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir)
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: 'directory-sha256:0000000000000000000000000000000000000000000000000000000000000000'
+    })
+
+    const check = await new SkillService().checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'up_to_date', localChanges: false })
+    const healed = agentGlobalSkillService.getById(SKILL_ID)
+    expect(healed?.contentHash).toBe(await installer.computeContentHash(installedDir))
+    expect(healed?.contentHash).not.toBe(
+      'directory-sha256:0000000000000000000000000000000000000000000000000000000000000000'
+    )
+  })
+
+  it('recovers the matching tree when a crash leaves new files with a new baseline', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const cleanupPath = path.join(skillsRoot, '.writer.cleanup')
+    const oldDir = path.join(root, 'old')
+    const newDir = path.join(root, 'new')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.rm(cleanupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const newHash = await installer.computeContentHash(newDir)
+    const oldHash = await installer.computeContentHash(oldDir)
+
+    // Crash after SQLite committed the new hash but before prepared.commit():
+    // the new tree matches the baseline, so recovery must keep it, not restore old.
+    await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    // Crash after prepare but before the database write: the old backup matches the
+    // old baseline, so recovery must roll the partial replacement back.
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    await installer.recoverInterruptedInstallWithBaseline(destPath, oldHash)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo old\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    // Committed backup (.cleanup) with a new baseline keeps the new tree.
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(cleanupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, cleanupPath, { recursive: true })
+    await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.lstat(cleanupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    // Committed backup with an old baseline restores the matching old tree.
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(cleanupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, cleanupPath, { recursive: true })
+    await installer.recoverInterruptedInstallWithBaseline(destPath, oldHash)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo old\n')
+    await expect(fs.promises.lstat(cleanupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('includes a newly added helper file during system re-sync', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: await installer.computeContentHash(canonicalOrigin)
+    })
+    await fs.promises.writeFile(path.join(originDir, 'scripts', 'helper.sh'), 'echo helper\n', 'utf-8')
+    await writeSkill(originDir, { version: '2.0.0', supportingContent: 'echo baseline\n' })
+    await fs.promises.writeFile(path.join(originDir, 'scripts', 'helper.sh'), 'echo helper\n', 'utf-8')
+
+    const service = new SkillService()
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'available', localChanges: false })
+    if (check.state !== 'available') throw new Error('Expected an available update')
+    const updated = await service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: check.revision,
+      overwriteLocalChanges: false
+    })
+    expect(updated).toMatchObject({ version: '2.0.0' })
+    await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'helper.sh'), 'utf-8')).resolves.toBe(
+      'echo helper\n'
+    )
+  })
+
+  it('aborts re-sync and preserves the previous installation when the source keeps changing', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    const baseline = await installer.computeContentHash(canonicalOrigin)
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: baseline
+    })
+    const service = new SkillService()
+    const computeSpy = vi
+      .spyOn(service['installer'], 'computeDirectoryHash')
+      .mockImplementation(async (directory: string) => {
+        if (directory.includes('skill-local-update-')) return 'a'.repeat(64)
+        if (directory === canonicalOrigin) return 'b'.repeat(64)
+        return installer.computeDirectoryHash(directory)
+      })
+    try {
+      await expect(service['resyncSystemSkill'](SKILL_ID, canonicalOrigin, null, SKILL_ID)).rejects.toThrow(
+        /changed during snapshot/
+      )
+    } finally {
+      computeSpy.mockRestore()
+    }
+    await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo baseline\n'
+    )
+    expect(agentGlobalSkillService.getById(SKILL_ID)).toMatchObject({ contentHash: baseline })
+  })
+
+  it.skipIf(isWin)('detects a mode-only source change and protects a managed mode edit', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const helperPath = path.join(originDir, 'scripts', 'run.sh')
+    await fs.promises.chmod(helperPath, 0o644)
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: await installer.computeContentHash(canonicalOrigin)
+    })
+    const service = new SkillService()
+
+    await fs.promises.chmod(helperPath, 0o755)
+    const modeCheck = await service.checkRemoteUpdate(SKILL_ID)
+    expect(modeCheck).toMatchObject({ state: 'available', localChanges: false })
+    if (modeCheck.state !== 'available') throw new Error('Expected an available mode-only update')
+    const modeUpdated = await service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: modeCheck.revision,
+      overwriteLocalChanges: false
+    })
+    expect(modeUpdated).toMatchObject({ id: SKILL_ID })
+    expect((await fs.promises.stat(path.join(installedDir, 'scripts', 'run.sh'))).mode & 0o111).not.toBe(0)
+
+    await fs.promises.chmod(path.join(installedDir, 'scripts', 'run.sh'), 0o644)
+    await fs.promises.chmod(helperPath, 0o644)
+    const healedBaseline = await installer.computeContentHash(installedDir)
+    await dbh.db
+      .update(agentGlobalSkillTable)
+      .set({ contentHash: healedBaseline })
+      .where(eq(agentGlobalSkillTable.id, SKILL_ID))
+
+    await fs.promises.chmod(path.join(installedDir, 'scripts', 'run.sh'), 0o755)
+    await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toMatchObject({
+      state: 'up_to_date',
+      localChanges: true
+    })
+
+    await writeSkill(originDir, { version: '2.0.0', supportingContent: 'echo baseline\n' })
+    await fs.promises.chmod(path.join(originDir, 'scripts', 'run.sh'), 0o644)
+    const contentCheck = await service.checkRemoteUpdate(SKILL_ID)
+    expect(contentCheck).toMatchObject({ state: 'available', localChanges: true })
+    if (contentCheck.state !== 'available') throw new Error('Expected an available content update')
+    await expect(
+      service.applyRemoteUpdate({
+        skillId: SKILL_ID,
+        revision: contentCheck.revision,
+        overwriteLocalChanges: false
+      })
+    ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_LOCAL_CHANGES })
+    const overwritten = await service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: contentCheck.revision,
+      overwriteLocalChanges: true
+    })
+    expect(overwritten).toMatchObject({ version: '2.0.0' })
+    expect((await fs.promises.stat(path.join(installedDir, 'scripts', 'run.sh'))).mode & 0o111).toBe(0)
   })
 })

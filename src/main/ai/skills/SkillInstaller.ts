@@ -136,6 +136,82 @@ export class SkillInstaller {
     logger.info('Recovered interrupted skill install', { destPath, backupPath })
   }
 
+  /**
+   * Recover an interrupted publish by keeping whichever complete tree matches the
+   * persisted install baseline. A crash after SQLite commits the new hash but before
+   * `prepared.commit()` leaves new files with a `.bak` holding the old tree; the
+   * default restore would resurrect the old tree against the new baseline and report
+   * `up_to_date` with local changes while the old version is installed. Comparing
+   * both trees to the baseline keeps the matching one: a new tree matching a new
+   * baseline completes the commit, an old backup matching an old baseline rolls back.
+   */
+  async recoverInterruptedInstallWithBaseline(destPath: string, baselineHash: string | null): Promise<void> {
+    const backupPath = this.getBackupPath(destPath)
+    const cleanupPath = this.getCleanupPath(destPath)
+    const [backupExists, cleanupExists] = await Promise.all([pathExists(backupPath), pathExists(cleanupPath)])
+    if (!backupExists && !cleanupExists) return
+    if (!baselineHash || !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX)) {
+      await this.recoverInterruptedInstall(destPath)
+      if (cleanupExists) {
+        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      }
+      return
+    }
+
+    const hashOf = async (target: string): Promise<string | null> => {
+      try {
+        const stats = await fs.promises.lstat(target)
+        if (!stats.isDirectory()) return null
+        return await this.computeContentHash(target)
+      } catch {
+        return null
+      }
+    }
+    const [destHash, backupHash, cleanupHash] = await Promise.all([
+      hashOf(destPath),
+      backupExists ? hashOf(backupPath) : Promise.resolve(null),
+      cleanupExists ? hashOf(cleanupPath) : Promise.resolve(null)
+    ])
+
+    if (destHash === baselineHash) {
+      if (backupExists) await this.safeRemoveDirectory(backupPath, 'committed skill backup')
+      if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
+      return
+    }
+    if (backupHash === baselineHash) {
+      try {
+        await deleteDirectoryRecursive(destPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+      await fs.promises.rename(backupPath, destPath)
+      if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      logger.info('Recovered interrupted skill install by restoring matching backup', { destPath })
+      return
+    }
+    if (cleanupHash === baselineHash) {
+      try {
+        await deleteDirectoryRecursive(destPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+      await fs.promises.rename(cleanupPath, destPath)
+      if (backupExists) await this.safeRemoveDirectory(backupPath, 'uncommitted skill folder')
+      logger.info('Recovered interrupted skill install by restoring matching cleanup', { destPath })
+      return
+    }
+
+    await this.recoverInterruptedInstall(destPath)
+    if (cleanupExists) {
+      try {
+        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      } catch {
+        // Best-effort: the default restore already preserved the old complete tree.
+      }
+    }
+  }
+
   /** Restore every interrupted publish before reconcile considers pruning. */
   async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
     let entries: fs.Dirent[]
@@ -226,12 +302,29 @@ export class SkillInstaller {
         hash.update(`D:${Buffer.byteLength(relativePath)}:`).update(relativePath)
         await this.updateDirectoryHash(hash, fullPath, relativePath, ignored)
       } else if (stats.isFile()) {
+        // Canonicalize the top-level descriptor for hashing so `skill.md` and `SKILL.md`
+        // with identical bytes share a baseline. The copy still preserves the on-disk
+        // casing; snapshots normalize to `SKILL.md` before hashing/installing and
+        // reconcile migrates the managed copy, so only pre-existing lowercase baselines
+        // differ (handled by healing when the managed tree matches its source).
+        const hashPath = relativeDirectory === '' && entry.name.toLowerCase() === 'skill.md' ? 'SKILL.md' : relativePath
         const content = await fs.promises.readFile(fullPath)
-        hash
-          .update(`F:${Buffer.byteLength(relativePath)}:`)
-          .update(relativePath)
-          .update(`:${content.byteLength}:`)
-          .update(content)
+        // Include executability so a mode-only source change is an update and a managed
+        // mode edit requires explicit overwrite. Non-executable files hash exactly as
+        // before, so existing baselines without executable helpers need no migration.
+        if ((stats.mode & 0o111) !== 0) {
+          hash
+            .update(`F:${Buffer.byteLength(hashPath)}:`)
+            .update(hashPath)
+            .update(`:exec:${content.byteLength}:`)
+            .update(content)
+        } else {
+          hash
+            .update(`F:${Buffer.byteLength(hashPath)}:`)
+            .update(hashPath)
+            .update(`:${content.byteLength}:`)
+            .update(content)
+        }
       }
     }
   }
