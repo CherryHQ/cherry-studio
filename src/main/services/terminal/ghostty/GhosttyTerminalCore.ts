@@ -160,6 +160,8 @@ export class GhosttyTerminalCore {
   private scrollbar = 0
   private rows: GhosttyRow[] = []
   private disposed = false
+  revision = 0
+  private readonly anchors = new Map<string, number>()
   private readonly searches = new Map<string, { handle: number; slot: number; budget: GhosttyAllocationBudget }>()
 
   private constructor(runtime: GhosttyRuntime) {
@@ -262,6 +264,7 @@ export class GhosttyTerminalCore {
     this.ensureActive()
     const bytes = typeof data === 'string' ? encoder.encode(data) : data
     if (bytes.length === 0) return
+    this.revision++
     const pointer = this.runtime.alloc(bytes.length)
     this.runtime.bytes(pointer, bytes.length).set(bytes)
     // Observe a synchronized-output end before a following escape can reopen it.
@@ -285,6 +288,7 @@ export class GhosttyTerminalCore {
 
   resize(cols: number, rows: number, cellWidth: number, cellHeight: number): void {
     this.ensureActive()
+    this.revision++
     this.assertSuccess(
       'ghostty_terminal_resize',
       this.runtime.call(
@@ -464,15 +468,26 @@ export class GhosttyTerminalCore {
     const textBytes = encoder.encode(text)
     const textPointer = textBytes.length === 0 ? 0 : this.runtime.alloc(textBytes.length)
     if (textPointer !== 0) this.runtime.bytes(textPointer, textBytes.length).set(textBytes)
-    this.runtime.call('ghostty_key_event_set_utf8', this.keyEvent, textPointer, textBytes.length)
-
-    const written = this.runtime.call('ghostty_wasm_alloc', 4)
-    const encoded = this.encodeOutput(written, (output, outputSize) =>
-      this.runtime.call('ghostty_key_encoder_encode', this.keyEncoder, this.keyEvent, output, outputSize, written)
-    )
-    this.runtime.call('ghostty_wasm_free', written, 4)
-    if (textPointer !== 0) this.runtime.free(textPointer, textBytes.length)
-    return encoded
+    const stringSize = this.runtime.layout('GhosttyString').size
+    const string = this.runtime.alloc(stringSize)
+    const written = this.runtime.alloc(4)
+    try {
+      this.runtime.setField(string, 'GhosttyString', 'ptr', textPointer)
+      this.runtime.setField(string, 'GhosttyString', 'len', textBytes.length)
+      this.assertSuccess(
+        'ghostty_key_event_set_utf8',
+        this.runtime.call('ghostty_key_event_set_utf8', this.keyEvent, string)
+      )
+      return this.encodeOutput(written, (output, outputSize) =>
+        this.runtime.call('ghostty_key_encoder_encode', this.keyEncoder, this.keyEvent, output, outputSize, written)
+      )
+    } finally {
+      this.runtime.free(written, 4)
+      this.runtime.bytes(string, stringSize).fill(0)
+      this.runtime.call('ghostty_key_event_set_utf8', this.keyEvent, string)
+      this.runtime.free(string, stringSize)
+      if (textPointer !== 0) this.runtime.free(textPointer, textBytes.length)
+    }
   }
 
   encodePaste(data: string): string {
@@ -819,6 +834,160 @@ export class GhosttyTerminalCore {
     }
   }
 
+  dimensions(): { cols: number; rows: number } {
+    this.runtime.call(
+      'ghostty_terminal_get',
+      this.terminal,
+      this.runtime.enumValue('GhosttyTerminalData', 'COLS'),
+      this.scratch
+    )
+    const cols = this.runtime.view(this.scratch, 2).getUint16(0, true)
+    this.runtime.call(
+      'ghostty_terminal_get',
+      this.terminal,
+      this.runtime.enumValue('GhosttyTerminalData', 'ROWS'),
+      this.scratch
+    )
+    return { cols, rows: this.runtime.view(this.scratch, 2).getUint16(0, true) }
+  }
+
+  cursorPoint(): { x: number; y: number } {
+    const get = (name: string) => {
+      this.assertSuccess(
+        name,
+        this.runtime.call(
+          'ghostty_terminal_get',
+          this.terminal,
+          this.runtime.enumValue('GhosttyTerminalData', name),
+          this.scratch
+        )
+      )
+      return this.runtime.view(this.scratch, 2).getUint16(0, true)
+    }
+    const x = get('CURSOR_X')
+    const y = get('CURSOR_Y')
+    this.scrollToBottom()
+    const origin = this.viewportPointToScreen(0, 0)
+    return { x, y: y + (origin?.y ?? 0) }
+  }
+
+  track(id: string, position = this.cursorPoint()): void {
+    this.dropAnchor(id)
+    const layout = this.runtime.layout('GhosttyPoint')
+    const point = this.runtime.alloc(layout.size)
+    const slot = this.runtime.allocOpaque()
+    try {
+      this.runtime.setField(point, 'GhosttyPoint', 'tag', 2)
+      const value = this.runtime.view(point + layout.fields.value.offset, layout.fields.value.size)
+      value.setUint16(0, position.x, true)
+      value.setUint32(4, position.y, true)
+      this.assertSuccess(
+        'ghostty_terminal_grid_ref_track',
+        this.runtime.call('ghostty_terminal_grid_ref_track', this.terminal, point, slot)
+      )
+      this.anchors.set(id, this.runtime.readPointer(slot))
+    } finally {
+      this.runtime.freeOpaque(slot)
+      this.runtime.free(point, layout.size)
+    }
+  }
+
+  anchorPoint(id: string): { x: number; y: number } | null {
+    const handle = this.anchors.get(id)
+    if (!handle || !this.runtime.call('ghostty_tracked_grid_ref_has_value', handle)) return null
+    if (this.runtime.call('ghostty_tracked_grid_ref_point', handle, 2, this.scratch) !== GHOSTTY_SUCCESS) return null
+    const point = this.runtime.view(this.scratch, 8)
+    return { x: point.getUint16(0, true), y: point.getUint32(4, true) }
+  }
+
+  dropAnchor(id: string): void {
+    const handle = this.anchors.get(id)
+    if (handle) this.runtime.call('ghostty_tracked_grid_ref_free', handle)
+    this.anchors.delete(id)
+  }
+
+  /** Formats an explicit inclusive range without changing the terminal's selection. */
+  formatRange(start: { x: number; y: number }, end: { x: number; y: number }, limit: number): string | null {
+    this.ensureActive()
+    const layout = this.runtime.layout('GhosttySelection')
+    const selection = this.runtime.alloc(layout.size)
+    this.runtime.bytes(selection, layout.size).fill(0)
+    const slot = this.runtime.allocOpaque()
+    const written = this.runtime.alloc(4)
+    const output = this.runtime.alloc(limit)
+    let formatter = 0
+    let first = 0
+    let last = 0
+    try {
+      first = this.gridRef(start.x, start.y, 2)
+      last = this.gridRef(end.x, end.y, 2)
+      this.runtime
+        .bytes(selection + layout.fields.start.offset, layout.fields.start.size)
+        .set(this.runtime.bytes(first, layout.fields.start.size))
+      this.runtime
+        .bytes(selection + layout.fields.end.offset, layout.fields.end.size)
+        .set(this.runtime.bytes(last, layout.fields.end.size))
+      this.assertSuccess(
+        'ghostty_formatter_terminal_new',
+        this.runtime.call('ghostty_formatter_terminal_new', 0, slot, this.terminal)
+      )
+      formatter = this.runtime.readPointer(slot)
+      this.runtime.bytes(written, 1)[0] = 1
+      this.assertSuccess(
+        'ghostty_formatter_set(unwrap)',
+        this.runtime.call(
+          'ghostty_formatter_set',
+          formatter,
+          this.runtime.enumValue('GhosttyFormatterOption', 'UNWRAP'),
+          written
+        )
+      )
+      this.assertSuccess(
+        'ghostty_formatter_set',
+        this.runtime.call(
+          'ghostty_formatter_set',
+          formatter,
+          this.runtime.enumValue('GhosttyFormatterOption', 'SELECTION'),
+          selection
+        )
+      )
+      const result = this.runtime.call('ghostty_formatter_format_buf', formatter, output, limit, written)
+      if (result === GHOSTTY_OUT_OF_SPACE) return null
+      this.assertSuccess('ghostty_formatter_format_buf', result)
+      return decoder.decode(this.runtime.bytes(output, this.runtime.view(written, 4).getUint32(0, true)))
+    } finally {
+      if (formatter) this.runtime.call('ghostty_formatter_free', formatter)
+      if (first) this.runtime.free(first, this.runtime.layout('GhosttyGridRef').size)
+      if (last) this.runtime.free(last, this.runtime.layout('GhosttyGridRef').size)
+      this.runtime.free(output, limit)
+      this.runtime.free(written, 4)
+      this.runtime.freeOpaque(slot)
+      this.runtime.free(selection, layout.size)
+    }
+  }
+
+  /** Reads bounded source rows; the caller restores its viewport in the same turn. */
+  sourceRows(start: number, count: number): GhosttyRow[] {
+    this.scrollToBottom()
+    const bottom = this.scrollbarState()
+    if (!bottom) return []
+    this.scroll(start - bottom.offset)
+    const actual = this.scrollbarState()?.offset ?? 0
+    return this.snapshot().rowData.slice(start - actual, start - actual + count)
+  }
+
+  openSnapshotSearch(id: string): void {
+    this.closeSearch(id)
+    const budget = this.runtime.createBudget(4 * 1024 * 1024)
+    try {
+      this.runtime.reserveBudget(budget, 512 * 1024)
+      this.searches.set(id, { handle: 0, slot: 0, budget })
+    } catch (error) {
+      this.runtime.releaseBudget(budget)
+      throw error
+    }
+  }
+
   openSearch(id: string, needle: string, limit = 4 * 1024 * 1024): void {
     this.ensureActive()
     this.closeSearch(id)
@@ -830,6 +999,8 @@ export class GhosttyTerminalCore {
     let handle = 0
     let accepted = false
     try {
+      // Pinned Ghostty keeps only scan/selected pins in terminal pools; results use this allocator.
+      this.runtime.reserveBudget(budget, 64 * 1024)
       slot = this.runtime.allocBudget(budget, 4)
       value = this.runtime.allocBudget(budget, 8 + text.length)
       this.runtime.bytes(value + 8, text.length).set(text)
@@ -902,7 +1073,7 @@ export class GhosttyTerminalCore {
     const search = this.searches.get(id)
     if (!search) return
     this.searches.delete(id)
-    this.runtime.call('ghostty_search_free', search.handle)
+    if (search.handle) this.runtime.call('ghostty_search_free', search.handle)
     this.runtime.freeBudget(search.budget, search.slot)
     this.runtime.releaseBudget(search.budget)
   }
@@ -1001,6 +1172,7 @@ export class GhosttyTerminalCore {
   dispose(): void {
     if (this.disposed) return
     for (const id of this.searches.keys()) this.closeSearch(id)
+    for (const id of this.anchors.keys()) this.dropAnchor(id)
     this.disposed = true
     if (this.mouseEvent) this.runtime.call('ghostty_mouse_event_free', this.mouseEvent)
     if (this.mouseEncoder) this.runtime.call('ghostty_mouse_encoder_free', this.mouseEncoder)

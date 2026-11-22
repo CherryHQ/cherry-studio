@@ -24,3 +24,33 @@ export const EVENT_NAMES = {
   REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST',
   OPEN_RESOURCE_EDIT_DIALOG: 'OPEN_RESOURCE_EDIT_DIALOG'
 }
+
+export type GeneratedTextAttachmentResult =
+  | { kind: 'attached'; attachmentId: string }
+  | { kind: 'cancelled' | 'unavailable' | 'failed' }
+export interface GeneratedTextAttachmentRequest {
+  intentId: string
+  topicId: string
+  name: string
+  capture: (signal: AbortSignal) => Promise<string>
+  claim: (receive: () => Promise<GeneratedTextAttachmentResult>) => boolean
+}
+const generatedTextEvents = new Emittery<{ request: GeneratedTextAttachmentRequest }>()
+export const onGeneratedTextAttachment = (listener: (request: GeneratedTextAttachmentRequest) => void) =>
+  generatedTextEvents.on('request', listener)
+
+/** The active Composer binds its draft before invoking the source capture. */
+export async function attachGeneratedText(
+  input: Omit<GeneratedTextAttachmentRequest, 'claim'>
+): Promise<GeneratedTextAttachmentResult> {
+  let accepted: Promise<GeneratedTextAttachmentResult> | undefined
+  await generatedTextEvents.emit('request', {
+    ...input,
+    claim: (receive) => {
+      if (accepted) return false
+      accepted = receive()
+      return true
+    }
+  })
+  return accepted ?? { kind: 'unavailable' }
+}

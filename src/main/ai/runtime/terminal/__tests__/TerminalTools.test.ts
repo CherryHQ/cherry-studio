@@ -161,6 +161,7 @@ describe.skipIf(process.platform === 'win32')('native terminal tool adapters', (
         terminal_id: terminal.id,
         control_revision: terminal.controlRevision,
         prompt_revision: terminal.shellFacts.revision,
+        draft_revision: terminal.editor!.revision,
         kind: 'command',
         data: 'sleep 30',
         yield_ms: 100

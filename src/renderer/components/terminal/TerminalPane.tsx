@@ -1,14 +1,18 @@
 import { TerminalSquare } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
+import { attachGeneratedText } from '@renderer/services/EventService'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TerminalResourceState } from '@shared/types/terminal'
 import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { TerminalCanvas } from './TerminalCanvas'
+import { TerminalFindBar } from './TerminalFindBar'
 import { useTerminalResources } from './TerminalResourcesProvider'
+import { terminalTextSuffix } from './terminalText'
 
 export function TerminalPane({
   active,
@@ -50,6 +54,7 @@ export function TerminalPane({
             <TerminalCanvas
               key={`${resource.host.generation}:${resource.id}`}
               resource={resource}
+              presentation={terminal.presentation(resource)}
               active={active}
               onResource={terminal.update}
               takeControlOnAttach={terminal.claimId === resource.id}
@@ -137,6 +142,21 @@ function TerminalOutput({
 }) {
   const { t } = useTranslation()
   const [output, setOutput] = useState('')
+  const [findOpen, setFindOpen] = useState(false)
+  const [needle, setNeedle] = useState('')
+  const [selected, setSelected] = useState(0)
+  const matches = useMemo(() => {
+    if (!needle || new TextEncoder().encode(needle).length > 4096) return []
+    const text = output.replace(/[A-Z]/g, (value) => value.toLowerCase()),
+      find = needle.replace(/[A-Z]/g, (value) => value.toLowerCase())
+    const values: number[] = []
+    let start = 0
+    while ((start = text.indexOf(find, start)) !== -1 && values.length < 2000) {
+      values.push(start)
+      start += find.length
+    }
+    return values
+  }, [output, needle])
   const [truncated, setTruncated] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { conversationId, generation } = resource.host
@@ -156,7 +176,11 @@ function TerminalOutput({
         if (stopped) return
         cursor = result.next
         setTruncated((old) => old || result.truncated)
-        setOutput((old) => (old + result.output).slice(-64 * 1024))
+        setOutput((old) => {
+          const retained = terminalTextSuffix(old + result.output)
+          if (retained.truncated) setTruncated(true)
+          return retained.text
+        })
       } catch (cause) {
         if (!stopped) setError(cause instanceof Error ? cause.message : String(cause))
       }
@@ -187,7 +211,81 @@ function TerminalOutput({
     }
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+          event.preventDefault()
+          event.stopPropagation()
+          setFindOpen(true)
+        }
+      }}>
+      <div className="flex shrink-0 items-center gap-1 px-2 py-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => void navigator.clipboard.writeText(output).catch((cause) => setError(String(cause)))}>
+          {t('terminal.blocks.copy_output')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            void attachGeneratedText({
+              intentId: crypto.randomUUID(),
+              topicId: buildAgentSessionTopicId(conversationId),
+              name: t('terminal.blocks.attachment_name'),
+              capture: async () => {
+                if (!truncated) return output
+                const prefix = `${t('terminal.output_truncated')}\n`
+                return prefix + terminalTextSuffix(output, 64 * 1024 - new TextEncoder().encode(prefix).length).text
+              }
+            })
+              .then((result) => {
+                if (result.kind !== 'attached' && result.kind !== 'cancelled')
+                  setError(t('terminal.blocks.unavailable'))
+              })
+              .catch((cause) => setError(String(cause)))
+          }>
+          {t('terminal.blocks.attach')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setFindOpen(true)}>
+          {t('terminal.blocks.find')}
+        </Button>
+      </div>
+      {findOpen && (
+        <TerminalFindBar
+          needle={needle}
+          scope="block"
+          canBlock={false}
+          result={{
+            queryRevision: 0,
+            resultRevision: 0,
+            status:
+              new TextEncoder().encode(needle).length > 4096
+                ? 'capacity'
+                : matches.length === 2000
+                  ? 'limited'
+                  : 'caught-up',
+            count: matches.length,
+            selected: matches.length ? { index: selected % matches.length, range: null } : null,
+            matches: [],
+            highlightsLimited: matches.length === 2000,
+            partial: truncated
+          }}
+          onChange={(value) => {
+            setNeedle(value)
+            setSelected(0)
+          }}
+          onNavigate={(direction) => {
+            const next =
+              (selected + (direction === 'next' ? 1 : -1) + Math.max(1, matches.length)) % Math.max(1, matches.length)
+            setSelected(next)
+            document.getElementById(`terminal-output-${resource.id}-${next}`)?.scrollIntoView({ block: 'center' })
+          }}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
       {(resource.cleanup === 'unconfirmed' || resource.process.kind === 'lost') && (
         <p role="alert" className="px-3 py-2 text-xs text-warning">
           {t('terminal.cleanup.protected')}
@@ -201,7 +299,27 @@ function TerminalOutput({
       {truncated && <p className="px-3 py-1 text-xs text-muted-foreground">{t('terminal.output_truncated')}</p>}
       <ScrollArea className="min-h-0 flex-1">
         <pre className="whitespace-pre-wrap break-all p-3 font-mono text-xs" aria-label={t('terminal.output')}>
-          {output}
+          {!needle || !matches.length ? (
+            output
+          ) : (
+            <>
+              {matches.map((index, match) => (
+                <span key={index}>
+                  {output.slice(match === 0 ? 0 : matches[match - 1] + needle.length, index)}
+                  <mark
+                    id={`terminal-output-${resource.id}-${match}`}
+                    className={
+                      match === selected % matches.length
+                        ? 'bg-warning text-warning-foreground'
+                        : 'bg-warning-subtle text-warning-subtle-foreground'
+                    }>
+                    {output.slice(index, index + needle.length)}
+                  </mark>
+                </span>
+              ))}
+              {output.slice(matches[matches.length - 1] + needle.length)}
+            </>
+          )}
         </pre>
       </ScrollArea>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-t px-3 py-2">

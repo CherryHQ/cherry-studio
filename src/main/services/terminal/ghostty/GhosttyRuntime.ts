@@ -170,6 +170,13 @@ export class GhosttyRuntime {
     return budget
   }
 
+  reserveBudget(budget: GhosttyAllocationBudget, size: number): void {
+    if (size > budget.limit - budget.used || size > 16 * 1024 * 1024 - this.budgetBytes)
+      throw new GhosttySearchCapacityError()
+    budget.used += size
+    this.budgetBytes += size
+  }
+
   releaseBudget(budget: GhosttyAllocationBudget): void {
     for (const { base, size } of budget.allocations.values()) this.free(base, size)
     this.budgetBytes -= budget.used
@@ -362,6 +369,7 @@ export class GhosttyRuntime {
         view.setInt32(offset, value, true)
         return
       case 'u32':
+      case 'pointer':
       case 'enum':
         view.setUint32(offset, value, true)
         return
@@ -388,6 +396,7 @@ export class GhosttyRuntime {
       case 'i32':
         return view.getInt32(offset, true)
       case 'u32':
+      case 'pointer':
       case 'enum':
         return view.getUint32(offset, true)
       case 'u64':

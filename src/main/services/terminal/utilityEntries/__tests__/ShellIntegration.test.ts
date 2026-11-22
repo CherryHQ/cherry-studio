@@ -26,3 +26,38 @@ it('ignores old facts and fails closed on malformed or oversized managed frames'
   send(`\x1b]633;Cherry;token;${'x'.repeat(17 * 1024)}`)
   expect(events).toEqual([{ kind: 'program', revision: 4 }, { kind: 'unknown' }, { kind: 'unknown' }])
 })
+
+it('records exact Unicode command metadata but cannot turn malformed or truncated metadata into runnable text', () => {
+  const events: ShellIntegrationEvent[] = []
+  const integration = new ShellIntegration('token', (event) => events.push(event))
+  const command = 'printf "中文🙂\\n"\necho second'
+  const values = [
+    Buffer.from(command).toString('base64'),
+    '',
+    '!!!!',
+    '/w==',
+    Buffer.from('x'.repeat(8193)).toString('base64')
+  ]
+  values.forEach((value, index) => {
+    const frame = Buffer.from(`\x1b]633;Cherry;token;${index + 1};B;${value}\x07`)
+    for (const byte of frame) integration.push(Uint8Array.of(byte), () => {})
+  })
+  expect(events).toEqual([
+    { kind: 'program', revision: 1, command },
+    ...[2, 3, 4, 5].map((revision) => ({ kind: 'program', revision }))
+  ])
+})
+
+it('fences editor readiness to an earlier prompt instead of treating it as command execution', () => {
+  const events: ShellIntegrationEvent[] = []
+  const integration = new ShellIntegration('token', (event) => events.push(event))
+  for (const frame of ['1;P;0;Lw==', '2;R;1', '3;R;3', '4;R;0', '5;R;invalid'])
+    integration.push(Buffer.from(`\x1b]633;Cherry;token;${frame}\x07`), () => {})
+  expect(events).toEqual([
+    { kind: 'prompt', revision: 1, exitCode: 0, cwd: '/' },
+    { kind: 'ready', revision: 2, promptRevision: 1 },
+    { kind: 'unknown' },
+    { kind: 'unknown' },
+    { kind: 'unknown' }
+  ])
+})
