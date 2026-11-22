@@ -91,7 +91,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const key = notifications[presentation.type]({
     key: context.key,
     title: planQuota
-      ? i18n.t('models.detail.quota_exhausted')
+      ? i18n.t('models.detail.quota_insufficient_for_request')
       : (appOwnedTitle ?? (category === 'unknown' ? providerDetails || i18n.t('error.unknown') : i18n.t(diagnosisKey))),
     description:
       [

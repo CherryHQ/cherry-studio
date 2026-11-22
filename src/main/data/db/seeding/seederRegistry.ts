@@ -7,7 +7,9 @@ import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder
 import { CherryAssistantInstructionsUpgradeSeeder } from './seeders/CherryAssistantInstructionsUpgradeSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
+import { ConversationListSortSeeder } from './seeders/conversationListSortSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { ExternalSkillExportUpgradeSeeder } from './seeders/ExternalSkillExportUpgradeSeeder'
 import { KnowledgeBaseOrderSeeder } from './seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
@@ -34,6 +36,7 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new ExternalSkillExportUpgradeSeeder(),
   new RetiredAgentRuntimeSeeder(),
   new AgentSessionContextSeeder(),
   new AgentSessionMessageTreeSeeder(),
@@ -53,6 +56,7 @@ export const seeders: ISeeder[] = [
   new ScheduledTasksShortcutSeeder(),
   new SelectionActionItemsUpgradeSeeder(),
   new MessageNavigationUpgradeSeeder(),
+  new ConversationListSortSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new LocalModelSeeder(),

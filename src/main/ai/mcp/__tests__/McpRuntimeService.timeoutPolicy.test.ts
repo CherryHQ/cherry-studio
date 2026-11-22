@@ -1,10 +1,12 @@
 import { InMemoryTransport, type CallToolResult, type Progress } from '@modelcontextprotocol/client'
 import { Server } from '@modelcontextprotocol/server'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClientMcpConnection } from '../connections/ClientMcpConnection'
 
@@ -48,6 +50,7 @@ describe('McpRuntimeService.callTool timeout policy', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
+    mockMainLoggerService.error.mockClear()
   })
 
   afterEach(() => {
@@ -91,6 +94,28 @@ describe('McpRuntimeService.callTool timeout policy', () => {
     const rejection = expect(call).rejects.toThrow(/timed out/i)
     await vi.advanceTimersByTimeAsync(1_000)
     await rejection
+    const entries = mockMainLoggerService.error.mock.calls.map(([, entry]) => entry)
+    expect(entries).toContainEqual(
+      expect.objectContaining({ operation: 'mcp.tools.call', failure: expect.objectContaining({ kind: 'expected' }) })
+    )
+    expect(entries.map((entry) => getSentryLogContext({ ...entry, level: 'error' })).filter(Boolean)).toEqual([])
+    await client.close()
+  })
+
+  it('preserves cancellation ownership when the SDK wraps the abort reason as a timeout', async () => {
+    getByIdMock.mockReturnValue(serverWith({ timeout: 30 }))
+    const client = await connectRealClient(async () => new Promise<CallToolResult>(() => {}))
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue(client)
+    const controller = new AbortController()
+    const result = service
+      .callTool({ serverId: 'srv', name: 'slow-tool', args: {}, signal: controller.signal })
+      .catch((error) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort(new Error('User stopped the tool'))
+    const error = await result
+    expect(error).toHaveProperty('reportingHandled', true)
+    expect(mockMainLoggerService.error).not.toHaveBeenCalled()
     await client.close()
   })
 

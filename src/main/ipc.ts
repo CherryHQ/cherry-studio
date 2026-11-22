@@ -20,7 +20,6 @@ import { legacyBackupManager as backupManager } from './services/LegacyBackupMan
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getHostname } from './utils/system'
-import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
@@ -37,7 +36,6 @@ export async function registerIpc() {
   // })
 
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
-  // Application lifecycle handlers live in core/application/Application.ts (registerApplicationIpc).
 
   // // theme
   // handleGuarded(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
@@ -71,9 +69,6 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
     return isSameOrInside(childPath, parentPath)
   })
-
-  // zip
-  handleGuarded(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // system
   handleGuarded(IpcChannel.System_GetHostname, getHostname)

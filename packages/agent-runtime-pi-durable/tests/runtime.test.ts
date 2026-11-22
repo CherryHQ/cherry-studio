@@ -2,7 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { awaitWithContext, BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
+  getCurrentTools,
   createModels,
   fauxAssistantMessage,
   fauxProvider,
@@ -15,14 +17,15 @@ import {
   defineExtension,
   defineTool,
   MemoryStorage,
-  StorageRequestError
+  StorageRequestError,
+  type ConversationId
 } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
-import { obj } from '@earendil-works/pi-schema'
+import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import {
   createPiDurableRuntime,
@@ -94,11 +97,57 @@ async function observe(access: PiDurableThreadHandle) {
   )
   return events
 }
+/** The observed state after replaying every event under feed semantics, once a snapshot arrived. */
 function current(events: ObservationPayload[]) {
-  return events.filter((event) => event.type === 'snapshot').at(-1)
+  if (!events.some((event) => event.type === 'snapshot')) return undefined
+  const feed = new ThreadFeed(
+    { type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } },
+    (error) => {
+      throw error
+    }
+  )
+  for (const event of events) feed.publish(event)
+  return feed.snapshot
 }
 
 describe('Pi Durable runtime contract', () => {
+  it('initializes hidden reference context once across SQLite reopen without starting a model run', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'durable-reference-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const { runtime, faux, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+    const handle = confirmed(await runtime.create(sessionOptions))
+    await handle.durable.initializeContext('Remember reference mango')
+    await handle.durable.initializeContext('Remember reference mango')
+    expect(faux.state.callCount).toBe(0)
+    expect(confirmed(await handle.archive()).messages).toEqual([])
+    expect((await handle.durable.facts()).history.filter((entry) => entry.kind === 'user')).toEqual([])
+    await runtime.shutdown()
+    const recovered = confirmed(await createPiDurableRuntime(options))
+    onTestFinished(async () => {
+      await recovered.shutdown()
+    })
+    const reopened = confirmed(await recovered.open(handle.thread))
+    await reopened.durable.initializeContext('Remember reference mango')
+    const events = await observe(reopened)
+    expect(current(events)?.messages).toEqual([])
+    expect(faux.state.callCount).toBe(0)
+    faux.setResponses([
+      (context) => {
+        expect(JSON.stringify(context.messages).match(/Remember reference mango/g)).toHaveLength(1)
+        return fauxAssistantMessage('The reference word is mango')
+      }
+    ])
+    await reopened.input.submit(draft('Recall the reference'))
+    await expect
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'Recall the reference')?.outcome)
+      .toBe('completed')
+    const archive = confirmed(await reopened.archive())
+    expect(archive.messages.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({ type: 'text', text: 'The reference word is mango' })
+    )
+    expect(JSON.stringify(archive.messages)).not.toContain('Remember reference mango')
+  })
+
   it('pairs final content, input failure and foreground completion at one native revision for a delayed observer', async () => {
     const { runtime, faux } = await setup()
     const provider = gate()
@@ -143,12 +192,10 @@ describe('Pi Durable runtime contract', () => {
     expect(final.completion).toMatchObject({
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
-    expect(final.events).toMatchObject([
-      { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
-    ])
-    const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
-    expect(body.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
-    expect(body.flatMap((message) => message.parts)).toContainEqual(
+    const held = current(fast.slice(0, fast.indexOf(final) + 1).flatMap((batch) => batch.events))!
+    expect(held.inputs).toContainEqual(final.completion!.inputs[0])
+    expect(held.messages.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
+    expect(held.messages.flatMap((message) => message.parts)).toContainEqual(
       expect.objectContaining({ type: 'text', text: 'truncated body' })
     )
     consumer.resolve()
@@ -179,6 +226,10 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(current(left)?.messages.map((item) => item.id)).toEqual(current(right)?.messages.map((item) => item.id))
+    // Streamed text reaches observers as message changes, not as repeated whole snapshots.
+    expect(
+      right.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
+    ).toBe(true)
     await first.release()
     const releasedCount = left.length
     await expect
@@ -203,7 +254,9 @@ describe('Pi Durable runtime contract', () => {
     const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
     const preview = right
-      .flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+      .flatMap((event) =>
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
     expect(archive.aliases[committed!.id]).toBe(preview.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
@@ -243,6 +296,52 @@ describe('Pi Durable runtime contract', () => {
     expect(await access.archive()).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     const reopened = confirmed(await runtime.open(access.thread))
     expect(confirmed(await reopened.archive()).messages).toEqual(archive.messages)
+  })
+
+  // Catches an archive that rescans committed history on every read, or folds newer entries incorrectly.
+  it('extends a retained archive with only newer committed entries', async () => {
+    const storage = new MemoryStorage()
+    const scanned = new Set<number>()
+    const { runtime } = await setup(
+      async () =>
+        new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<MemoryStorage['scanEntries']>) => {
+                const page = await target.scanEntries(...args)
+                for (const entry of page.items) scanned.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        })
+    )
+    const access = confirmed(await runtime.create(sessionOptions))
+    const id = Number(access.thread.id) as ConversationId
+    const append = (texts: string[]) =>
+      runtime.durable.commit(async (tx) => {
+        const ids = new Set<number>()
+        for (const [index, text] of texts.entries())
+          ids.add(
+            (await tx.appendEntry(id, { kind: 'pi.user', model: [{ role: 'user', content: text, timestamp: index }] }))
+              .id
+          )
+        return ids
+      }, BACKGROUND_CONTEXT)
+    const texts = (archive: { messages: readonly { parts: readonly { type: string; text?: string }[] }[] }) =>
+      archive.messages.flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+    await append(Array.from({ length: 40 }, (_, index) => `old-${index}`))
+    const before = confirmed(await access.archive())
+    const appended = await append(['new-0', 'new-1'])
+
+    scanned.clear()
+    const after = confirmed(await access.archive())
+    expect(scanned).toEqual(appended)
+    expect(texts(after)).toEqual([...texts(before), 'new-0', 'new-1'])
+    await access.release()
+    const cold = confirmed(await runtime.open(access.thread))
+    expect(confirmed(await cold.archive())).toEqual(after)
   })
 
   it.each(['before', 'after'] as const)(
@@ -800,4 +899,232 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   expect(first.state.callCount).toBe(1)
   expect(second.state.callCount).toBe(1)
+})
+
+it.each([false, true])('retains nested results after task retirement and SQLite reopen (%s)', async (fails) => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  registry.install(
+    defineExtension({
+      name: 'nested-evidence',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Return evidence',
+          parameters: obj({ value: str() }),
+          prepareArguments: () => ({ value }),
+          callers: ['tools'],
+          execute: async (args, api) => {
+            executions++
+            api.output('working')
+            return {
+              output: [{ type: 'text' as const, text: args.value }],
+              details: { proof: true }
+            }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Call nested tools',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await Promise.all([
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'a' }),
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'b' })
+            ])
+            if (fails) throw new Error('outer failure')
+            return { output: [{ type: 'text' as const, text: 'done' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('nested'))
+  await runtime.settled()
+  const archived = confirmed(await handle.archive())
+  const parts = archived.messages
+    .flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  await runtime.shutdown()
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  expect(confirmed(await reopened.archive()).messages).toEqual(archived.messages)
+  expect(executions).toBe(2)
+})
+
+it.each([false, true])('keeps recursive nested errors terminal (cancel=%s)', async (cancel) => {
+  const { runtime, faux, registry } = await setup()
+  const reached = gate()
+  registry.install(
+    defineExtension({
+      name: 'recursive',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Fail or wait',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, _api, context) => {
+            reached.resolve()
+            if (cancel) await awaitWithContext(new Promise<never>(() => {}), context)
+            throw new Error('nested failure')
+          }
+        }),
+        defineTool({
+          name: 'middle',
+          description: 'Nested owner',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, api, context) => {
+            const result = await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            return { output: [{ type: 'text' as const, text: 'middle' }], isError: result.isError }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Outer owner',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('middle', {}, context, { key: 'middle' })
+            return { output: [{ type: 'text' as const, text: 'outer' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await runtime.settled()
+  const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
+  const leaf = parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(leaf).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/middle' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
+
+it('recovers retained nested evidence without rerunning a completed leaf after shutdown', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-recovery-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const reached = gate()
+  let executions = 0
+  let recovering = false
+  registry.install(
+    defineExtension({
+      name: 'nested-recovery',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Produce evidence once',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async () => {
+            executions++
+            return { output: [{ type: 'text' as const, text: 'retained before shutdown' }] }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Wait after a completed child',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            reached.resolve()
+            if (!recovering) await awaitWithContext(new Promise<never>(() => {}), context)
+            return { output: [{ type: 'text' as const, text: 'resumed' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('recover nested'))
+  await reached.promise
+  await runtime.shutdown()
+  recovering = true
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  confirmed(await recovered.resume())
+  await recovered.settled()
+  const parts = confirmed(await reopened.archive()).messages.flatMap((message) => message.parts)
+  expect(parts.filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toEqual([
+    expect.objectContaining({
+      toolCallId: 'script/leaf',
+      state: 'output-available',
+      output: expect.objectContaining({ content: [{ type: 'text', text: 'retained before shutdown' }] })
+    })
+  ])
+  expect(executions).toBe(1)
+})
+
+it('predicts from durable context without committing prediction messages or tasks', async () => {
+  const { runtime, faux } = await setup()
+  faux.setResponses([
+    fauxAssistantMessage('Fixed the original issue.'),
+    fauxAssistantMessage('Checked the fix.'),
+    (context) => {
+      expect(context.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'Fix the original issue' }),
+          expect.objectContaining({ role: 'user', content: 'exact prediction instruction' })
+        ])
+      )
+      expect(getCurrentTools(context.messages)).toEqual([])
+      return fauxAssistantMessage('run the tests')
+    },
+    fauxAssistantMessage([fauxToolCall('bash', { command: 'echo forbidden' })], { stopReason: 'toolUse' })
+  ])
+  const root = confirmed(await runtime.create(sessionOptions))
+  expect((await root.input.submit(draft('Fix the original issue'))).status).toBe('acknowledged')
+  await runtime.settled()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  await root.input.submit(draft('Check the fix'))
+  await runtime.settled()
+  const before = confirmed(await root.archive())
+  const facts = await root.durable.facts()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
+    'run the tests'
+  )
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
 })

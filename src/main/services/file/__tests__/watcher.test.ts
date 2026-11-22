@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -12,8 +12,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { createDirectoryWatcher } = await import('../watcher')
+const { createDirectoryWatcher, DirectoryWatcherHost } = await import('../watcher')
 const { danglingCache } = await import('../danglingCache')
+const { loadGitignorePredicate } = await import('../tree/gitignore')
 
 import type { CreateDirectoryWatcherOptions, DirectoryWatcher, WatcherEvent } from '../watcher'
 
@@ -59,16 +60,18 @@ const waitForEvent = (
   })
 
 describe('createDirectoryWatcher', () => {
+  let host: InstanceType<typeof DirectoryWatcherHost>
   let dir: string
   let watchers: DirectoryWatcher[]
 
   const watchDirectory = (options?: CreateDirectoryWatcherOptions): DirectoryWatcher => {
-    const watcher = createDirectoryWatcher(dir as AbsoluteFilePath, options)
+    const watcher = createDirectoryWatcher(dir as AbsoluteFilePath, options ?? {}, host)
     watchers.push(watcher)
     return watcher
   }
 
   beforeEach(async () => {
+    host = new DirectoryWatcherHost()
     watchers = []
     // Windows TEMP can use an 8.3 alias that libuv cannot match to long-path events.
     dir = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-fm-watcher-')))
@@ -77,6 +80,7 @@ describe('createDirectoryWatcher', () => {
 
   afterEach(async () => {
     await Promise.all(watchers.map((watcher) => watcher.close()))
+    await host.close()
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -137,7 +141,7 @@ describe('createDirectoryWatcher', () => {
     ).toBe('missing')
   })
 
-  it('emits "change" when a watched file is modified in place', async () => {
+  it('emits "change" when a watched file is modified without changing its size', async () => {
     const target = path.join(dir, 'mut.txt') as AbsoluteFilePath
 
     // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
@@ -153,19 +157,40 @@ describe('createDirectoryWatcher', () => {
     // Brief settle so chokidar's awaitWriteFinish window closes on the add.
     await new Promise((r) => setTimeout(r, 250))
     const changed = waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
-    await writeFile(target, 'v2-content-larger')
+    await writeFile(target, 'v2')
     const ev = await changed
     expect(ev.kind).toBe('change')
   })
 
-  it('suppresses .DS_Store events via the built-in ignore set', async () => {
-    const w = watchDirectory({ stabilityThresholdMs: 0 })
-    await waitForReady(w)
-    const seen: WatcherEvent[] = []
-    w.onEvent((e) => seen.push(e))
-    await writeFile(path.join(dir, '.DS_Store'), 'noise')
-    await new Promise((r) => setTimeout(r, 600))
-    expect(seen.find((e) => (e.kind === 'add' || e.kind === 'change') && e.path?.endsWith('.DS_Store'))).toBeUndefined()
+  it('discovers existing children when an external program moves a directory into the tree', async () => {
+    const source = path.join(dir, 'incoming')
+    const root = path.join(dir, 'workspace')
+    await mkdir(source)
+    await mkdir(root)
+    await writeFile(path.join(source, 'child.txt'), 'content')
+    const watcher = createDirectoryWatcher(root as AbsoluteFilePath, {}, host)
+    watchers.push(watcher)
+    await waitForReady(watcher)
+    const target = path.join(root, 'renamed', 'child.txt')
+    const added = waitForEvent(watcher, (event) => event.kind === 'add' && event.path === target)
+    await rename(source, path.join(root, 'renamed'))
+    expect(await added).toEqual({ kind: 'add', path: target })
+  })
+
+  it('observes changes through directory symlinks whose targets are outside the watched tree', async () => {
+    const root = path.join(dir, 'workspace')
+    const outside = path.join(dir, 'outside')
+    await mkdir(root)
+    await mkdir(outside)
+    await writeFile(path.join(outside, 'target.txt'), 'before')
+    await symlink(outside, path.join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    const watcher = createDirectoryWatcher(root as AbsoluteFilePath, {}, host)
+    watchers.push(watcher)
+    await waitForReady(watcher)
+    const target = path.join(root, 'linked', 'target.txt')
+    const changed = waitForEvent(watcher, (event) => event.kind === 'change' && event.path === target)
+    await writeFile(path.join(outside, 'target.txt'), 'after!')
+    expect(await changed).toEqual({ kind: 'change', path: target })
   })
 
   it('limits recursive watching to maxDepth when provided', async () => {
@@ -239,6 +264,31 @@ describe('createDirectoryWatcher', () => {
     },
     35_000
   )
+
+  it('transfers the loaded gitignore rules while preserving explicit negation and the forced .git exclusion', async () => {
+    await writeFile(path.join(dir, '.gitignore'), 'blocked.txt\n!node_modules/\n!.git/\n')
+    await mkdir(path.join(dir, 'node_modules'))
+    await mkdir(path.join(dir, '.git'))
+    const predicate = await loadGitignorePredicate(dir)
+    expect(predicate).not.toBeNull()
+    const watcher = watchDirectory({
+      filter: { kind: 'tree', root: dir, includeHidden: true, missingRoot: false, gitignoreRules: predicate?.rules }
+    })
+    await waitForReady(watcher)
+    const events: WatcherEvent[] = []
+    watcher.onEvent((event) => events.push(event))
+    // Later disk changes must not replace the snapshot shared with the tree's scan.
+    await writeFile(path.join(dir, '.gitignore'), 'allowed.txt\n')
+    const allowed = path.join(dir, 'node_modules', 'allowed.txt')
+    const added = waitForEvent(watcher, (event) => event.kind === 'add' && event.path === allowed)
+    await writeFile(path.join(dir, 'blocked.txt'), 'ignored')
+    await writeFile(path.join(dir, '.git', 'internal.txt'), 'ignored')
+    await writeFile(allowed, 'visible')
+    await added
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(events.some((event) => 'path' in event && event.path.endsWith('/blocked.txt'))).toBe(false)
+    expect(events.some((event) => 'path' in event && event.path.includes('/.git/'))).toBe(false)
+  })
 
   it('close() is idempotent and stops further event delivery', async () => {
     const w = watchDirectory({ stabilityThresholdMs: 0 })
