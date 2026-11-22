@@ -192,6 +192,9 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
   // Same lookup as the renderer: earlier turns always join the message's own sources, so a bare
   // marker resolves to the same URL on screen and in the copied list.
   const messageCitations = resolveMessageCitations(parts, priorParts)
+  // No references and no source parts means no citation can resolve; skip the markdown parse.
+  // Menu availability calls this while streaming, often on large citation-free messages.
+  if (legacyByPart.size === 0 && messageCitations.all.length === 0) return []
   const nativeResolutions = resolveCitationMarkerParts(
     nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
     messageCitations

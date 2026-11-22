@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
+
+import { mapMarkdownOutsideCode } from '../../citation'
+
+vi.mock('../../citation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../citation')>()
+  return { ...actual, mapMarkdownOutsideCode: vi.fn(actual.mapMarkdownOutsideCode) }
+})
 
 import {
   buildCitationPartsRegistry,
@@ -552,6 +559,16 @@ describe('stripCitationMarkers', () => {
   it('preserves canonical markers in inline and fenced code', () => {
     const input = '`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside [cite:abc-1, abc-2]'
     expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside')
+  })
+
+  it('bypasses the markdown parse when the text holds no marker prefix', () => {
+    // Regression for the shared scanner slowdown: a 61k-char citation-free GFM table used to
+    // take ~77ms per call because the parse ran even though no marker could be present.
+    const table = `| a | b |\n| - | - |\n${'| x | y |\n'.repeat(6200)}`
+    expect(table.length).toBeGreaterThan(60_000)
+    vi.mocked(mapMarkdownOutsideCode).mockClear()
+    expect(stripCitationMarkers(table)).toBe(table)
+    expect(vi.mocked(mapMarkdownOutsideCode)).not.toHaveBeenCalled()
   })
 })
 

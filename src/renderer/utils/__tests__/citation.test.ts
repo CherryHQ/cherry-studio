@@ -678,6 +678,18 @@ Numbered list:
       expect(findMarkdownCodeRanges(text)).toEqual([])
     })
 
+    it('does not pair lone backticks across a definition list term and definition', () => {
+      // Chat parses with remark-definition-list, so the term and definition are separate
+      // containers and neither lone backtick starts a code span.
+      const text = 'Term with ` lone tick\n: definition [cite:1] and another ` tick'
+      expect(findMarkdownCodeRanges(text)).toEqual([])
+    })
+
+    it('treats a backtick fence closed with bare CR line endings as code', () => {
+      const text = '```\r[cite:1]\r```'
+      expect(findMarkdownCodeRanges(text)).toEqual([{ start: 0, end: text.length }])
+    })
+
     it('treats inline code and unrelated text separately', () => {
       expect(codeOf('a `x` b `y [cite:1]` c')).toEqual(['`x`', '`y [cite:1]`'])
     })

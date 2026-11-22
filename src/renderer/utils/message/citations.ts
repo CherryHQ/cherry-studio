@@ -615,6 +615,9 @@ export function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarke
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
+  // Both marker shapes need the literal `[cite:` prefix; skip the markdown parse when it is absent
+  // (hot path on large citation-free content such as big tables).
+  if (!content.includes('[cite:')) return content
   return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 

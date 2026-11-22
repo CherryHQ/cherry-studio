@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
+
+import { mapMarkdownOutsideCode, normalizeCitationMarks } from '../../citation'
+
+vi.mock('../../citation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../citation')>()
+  return {
+    ...actual,
+    mapMarkdownOutsideCode: vi.fn(actual.mapMarkdownOutsideCode),
+    normalizeCitationMarks: vi.fn(actual.normalizeCitationMarks)
+  }
+})
 
 import { resolveCitationMarkerParts, resolveMessageCitations } from '../citations'
 import {
@@ -218,6 +229,19 @@ describe('getWebSourcesMarkdown', () => {
       expect(getWebSourcesMarkdown(message)).toBe('')
     }
   )
+
+  it('skips the markdown parse when the message has no sources at all', () => {
+    // The menu availability check runs this while streaming, even on large citation-free
+    // messages; with neither references nor source parts no citation can resolve.
+    const message = createExportView([
+      { type: 'text', text: `A long answer without citations. ${'| x | y | '.repeat(500)}` }
+    ])
+    vi.mocked(mapMarkdownOutsideCode).mockClear()
+    vi.mocked(normalizeCitationMarks).mockClear()
+    expect(getCitedWebSources(message)).toEqual([])
+    expect(mapMarkdownOutsideCode).not.toHaveBeenCalled()
+    expect(normalizeCitationMarks).not.toHaveBeenCalled()
+  })
 
   it.each([
     ['openai', 'Answer [<sup>3</sup>](https://third.com)'],

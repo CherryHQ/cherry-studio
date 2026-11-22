@@ -12,17 +12,21 @@
 
 import type { GroundingSupport } from '@google/genai'
 import type { Root, RootContent } from 'mdast'
+import remarkDefinitionList from 'remark-definition-list'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
-import { unified } from 'unified'
+import { unified, type Pluggable } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-// Same syntax extensions the chat renderer parses with, so table cells and strikethrough split code
-// spans exactly as they do on screen.
-const markdownParser = unified().use(remarkParse).use(remarkGfm)
+// Same syntax extensions the chat renderer parses with, so table cells, definition lists and
+// strikethrough split code spans exactly as they do on screen.
+const markdownParser = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkDefinitionList as Pluggable)
 
 type CodeRange = { start: number; end: number }
 
@@ -40,9 +44,11 @@ function isCitationOpaqueCode(node: Root | RootContent, content: string, start: 
   const opener = /^[ \t]*(`{3,}|~{3,})/.exec(raw)
   if (!opener) return false
   if (opener[1][0] === '~') return true
-  const lastLine = raw.slice(raw.lastIndexOf('\n') + 1)
+  // CommonMark accepts `\r`, `\r\n` and `\n` line endings; follow the parsed boundary, not just `\n`.
+  const lastBreak = Math.max(raw.lastIndexOf('\n'), raw.lastIndexOf('\r'))
+  const lastLine = raw.slice(lastBreak + 1)
   return (
-    raw.includes('\n') &&
+    lastBreak !== -1 &&
     /^[ \t>]*`{3,}[ \t]*$/.test(lastLine) &&
     lastLine.replace(/[ \t>]/g, '').length >= opener[1].length
   )

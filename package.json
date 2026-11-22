@@ -489,6 +489,7 @@
     "reflect-metadata": "0.2.2",
     "rehype-parse": "^9.0.1",
     "rehype-stringify": "^10.0.1",
+    "remark-definition-list": "^2.0.0",
     "remark-gfm": "^4.0.1",
     "remark-github-blockquote-alert": "^2.0.0",
     "remark-math": "6.0.0",
