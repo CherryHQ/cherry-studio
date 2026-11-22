@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "Metriky relace",
   "agent.session.metrics.note": "Vstup počítá kontext znovu odeslaný při každém volání API.",
   "agent.session.metrics.partial": "Pouze z načtených zpráv. Starší historie ještě není načtena.",
+  "agent.session.metrics.scope": "Hodnoty zahrnují pouze aktivní větev. Ostatní větve nejsou započteny.",
   "agent.session.metrics.steps": "{{value}} kroků",
   "agent.session.metrics.turns": "{{value}} kol",
   "agent.session.model_switch_confirm.confirm": "Přepnout model",

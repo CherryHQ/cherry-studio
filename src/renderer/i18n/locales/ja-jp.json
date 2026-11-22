@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "セッション指標",
   "agent.session.metrics.note": "入力には各 API 呼び出しで再送される文脈が含まれます。",
   "agent.session.metrics.partial": "読み込み済みのメッセージのみが対象です。過去の履歴はまだ読み込まれていません。",
+  "agent.session.metrics.scope": "数値は現在のブランチのみが対象で、他のブランチは含まれません。",
   "agent.session.metrics.steps": "{{value}} ステップ",
   "agent.session.metrics.turns": "{{value}} ターン",
   "agent.session.model_switch_confirm.confirm": "モデル切り替え",

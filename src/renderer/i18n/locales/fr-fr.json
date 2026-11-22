@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "Indicateurs de session",
   "agent.session.metrics.note": "L'entrée compte le contexte renvoyé à chaque appel d'API.",
   "agent.session.metrics.partial": "Calculé uniquement sur les messages chargés. L'historique plus ancien n'est pas encore chargé.",
+  "agent.session.metrics.scope": "Les chiffres ne concernent que la branche active. Les autres branches ne sont pas incluses.",
   "agent.session.metrics.steps": "{{value}} étapes",
   "agent.session.metrics.turns": "{{value}} tours",
   "agent.session.model_switch_confirm.confirm": "Changer de modèle",

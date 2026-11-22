@@ -71,7 +71,7 @@ describe('AgentSessionMetricsBar', () => {
     render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} partial />)
 
     const toggle = screen.getByRole('button')
-    expect(toggle).toHaveAttribute('title', note)
+    expect(toggle).toHaveAttribute('title', `${zhCn['agent.session.metrics.scope']} ${note}`)
     await userEvent.click(toggle)
     expect(screen.getByText(note)).toBeInTheDocument()
   })
@@ -85,9 +85,16 @@ describe('AgentSessionMetricsBar', () => {
     expect(full.textContent).toBe(screen.getByRole('button').textContent)
   })
 
+  it('states in a tooltip and the expanded panel that figures cover the active branch only', async () => {
+    render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
+
+    await userEvent.click(screen.getByRole('button'))
+    expect(screen.getByText(zhCn['agent.session.metrics.scope'])).toBeInTheDocument()
+  })
+
   it('shows no partial-history note when the whole session is loaded', () => {
     render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
 
-    expect(screen.getByRole('button')).not.toHaveAttribute('title')
+    expect(screen.getByRole('button')).toHaveAttribute('title', zhCn['agent.session.metrics.scope'])
   })
 })

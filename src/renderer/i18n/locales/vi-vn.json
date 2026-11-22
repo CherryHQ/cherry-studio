@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "Chỉ số phiên",
   "agent.session.metrics.note": "Đầu vào tính ngữ cảnh được gửi lại trong mỗi lần gọi API.",
   "agent.session.metrics.partial": "Chỉ dựa trên các tin nhắn đã tải. Lịch sử cũ hơn chưa được tải.",
+  "agent.session.metrics.scope": "Số liệu chỉ tính nhánh đang hoạt động. Các nhánh khác không được tính.",
   "agent.session.metrics.steps": "{{value}} bước",
   "agent.session.metrics.turns": "{{value}} lượt",
   "agent.session.model_switch_confirm.confirm": "Chuyển đổi mô hình",

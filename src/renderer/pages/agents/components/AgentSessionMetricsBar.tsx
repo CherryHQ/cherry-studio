@@ -79,7 +79,11 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
         <button
           type="button"
           aria-expanded={expanded}
-          title={partial ? t('agent.session.metrics.partial') : undefined}
+          title={
+            partial
+              ? `${t('agent.session.metrics.scope')} ${t('agent.session.metrics.partial')}`
+              : t('agent.session.metrics.scope')
+          }
           aria-label={
             expanded ? t('chat.message.token_details.less_details') : t('chat.message.token_details.more_details')
           }
@@ -101,6 +105,7 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
           <span className="w-full break-words" data-testid="agent-session-metrics-full-summary">
             {summary}
           </span>
+          <span className="w-full text-muted-foreground">{t('agent.session.metrics.scope')}</span>
           <span className="w-full text-muted-foreground">{t('agent.session.metrics.note')}</span>
           {partial && <span className="w-full text-muted-foreground">{t('agent.session.metrics.partial')}</span>}
         </ComposerFloatingCapsule>

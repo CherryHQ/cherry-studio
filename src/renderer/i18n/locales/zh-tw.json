@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "工作階段指標",
   "agent.session.metrics.note": "輸入會計入每次 API 呼叫重新傳送的上下文。",
   "agent.session.metrics.partial": "僅基於已載入的訊息，較早的歷史尚未載入。",
+  "agent.session.metrics.scope": "數據僅涵蓋目前分支，不包含其他分支。",
   "agent.session.metrics.steps": "{{value}} 步",
   "agent.session.metrics.turns": "{{value}} 輪",
   "agent.session.model_switch_confirm.confirm": "切換模型",

@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "Session metrics",
   "agent.session.metrics.note": "Input counts the context re-sent on every API call.",
   "agent.session.metrics.partial": "Based on loaded messages only. Older history is not loaded yet.",
+  "agent.session.metrics.scope": "Figures cover the active branch only. Other branches are not included.",
   "agent.session.metrics.steps": "{{value}} steps",
   "agent.session.metrics.turns": "{{value}} turns",
   "agent.session.model_switch_confirm.confirm": "Switch model",

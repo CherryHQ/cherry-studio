@@ -392,6 +392,7 @@
   "agent.session.metrics.label": "Métricas de la sesión",
   "agent.session.metrics.note": "La entrada cuenta el contexto reenviado en cada llamada a la API.",
   "agent.session.metrics.partial": "Solo según los mensajes cargados. El historial anterior aún no está cargado.",
+  "agent.session.metrics.scope": "Las cifras abarcan solo la rama activa. Las demás ramas no se incluyen.",
   "agent.session.metrics.steps": "{{value}} pasos",
   "agent.session.metrics.turns": "{{value}} turnos",
   "agent.session.model_switch_confirm.confirm": "Cambiar modelo",
