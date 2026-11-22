@@ -1020,7 +1020,7 @@
   "chat.message.token_details.waiting_first_token": "Oczekiwanie",
   "chat.message.useful.label": "Ustaw jako kontekst",
   "chat.message.useful.tip": "W tej grupie wiadomości ta wiadomość zostanie wybrana do dołączenia do kontekstu",
-  "chat.multiple.select.delete_above": "[to be translated]:Delete loaded messages above",
+  "chat.multiple.select.delete_above": "Usuń wczytane wiadomości powyżej",
   "chat.multiple.select.empty": "Nie wybrano żadnych wiadomości",
   "chat.multiple.select.label": "Zaznacz wiele",
   "chat.navigation.anchor.jump_to_turn": "Przejdź do tury {{number}}",
