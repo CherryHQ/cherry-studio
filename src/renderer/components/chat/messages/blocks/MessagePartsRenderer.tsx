@@ -365,6 +365,7 @@ interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandToolGroups?: boolean
+  thoughtAutoCollapse?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
@@ -1288,12 +1289,21 @@ function renderNestedHistory(
     const visibleEntries = groupPartEntries(item.entries).filter(
       (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
     )
+    // Live turns keep their steps visible while the turn runs: the completed
+    // `expandToolSteps` default only gates finished histories. Completed
+    // histories also stay open when the thought preference asks for visible
+    // reasoning, so a mixed reasoning + tool turn does not hide the thought
+    // behind a closed child group.
+    const isLiveNested = liveProcessMode !== undefined
+    const containsReasoning = item.entries.some((entry) => isReasoningMessagePart(entry.part))
+    const keepReasoningVisible = options.thoughtAutoCollapse === false && containsReasoning && showsReasoning
+    const nestedDefaultExpanded = isLiveNested ? true : (options.expandToolGroups ?? false) || keepReasoningVisible
 
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
         <ToolBlockGroup
           items={toolItems}
-          defaultExpanded={options.expandToolGroups}
+          defaultExpanded={nestedDefaultExpanded}
           isLiveProgress={isLiveProgress}
           isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
@@ -1672,7 +1682,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { expandToolSteps, subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
+  const { expandToolSteps, subagentListTitle, thoughtAutoCollapse, userMessageDefaultExpanded } =
+    useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
@@ -1855,6 +1866,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => ({
       citationProjectionByPart,
       expandToolGroups: expandToolSteps,
+      thoughtAutoCollapse,
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
@@ -1865,6 +1877,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     }),
     [
       expandToolSteps,
+      thoughtAutoCollapse,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
