@@ -16,6 +16,7 @@ sources:
   - src/main/ai/constants.ts
   - src/main/ai/contextBuild
   - src/main/ai/streamManager/context/PersistentChatContextProvider.ts
+  - src/main/ai/streamManager/context/compressionWindow.ts
   - src/main/ai/runtime/aiSdk/params/features/contextBuild.ts
   - src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts
   - src/main/ai/runtime/aiSdk/params/features/contextOverflowRecovery.ts
@@ -126,7 +127,7 @@ topics. Agent/Work sessions resolve context differently and are out of scope.
 
 ### Defaults and overrides
 
-The six global preferences are defined in
+The seven global preferences are defined in
 `scripts/data-classify/data/target-key-definitions.json`; generated runtime defaults
 live in `src/shared/data/preference/preferenceSchemas.ts`.
 
@@ -134,7 +135,8 @@ live in `src/shared/data/preference/preferenceSchemas.ts`.
 |---|---|---|
 | `chat.context_settings.enabled` | `true` | Master toggle for the context-build layer |
 | `chat.context_settings.truncate_threshold` | `50000` characters | Size above which eligible oversized tool-output text or codec fields are offloaded into stored-output references; outputs with an exemption, or an offload that fails, keep their full content |
-| `chat.context_settings.max_messages` | `null` (unlimited) | Selects the last N message rows, extending backward when the drop point would not begin on a user message, so the served history can exceed N |
+| `chat.context_settings.max_messages` | `null` (unlimited) | Selects the last N message rows, extending backward when the drop point would not begin on a user message, so the served history can exceed N; a valid compression window opts into round counting instead |
+| `chat.context_settings.compress_window` | `null` (off) | Backend-only total round window B; when greater than the positive integer `max_messages` A, summarize the middle rounds and retain the latest A rounds verbatim |
 | `chat.context_settings.compress.enabled` | `true` | Enables history compression when the context budget is exceeded |
 | `chat.context_settings.compress.model_id` | `null` | Uses the current request model; a blank string also means no explicit pick, not a disabled compressor |
 | `chat.context_settings.compress.threshold_percent` | `80` | Percentage of available input room used as the compaction trigger |
@@ -145,6 +147,39 @@ assistant `null` overrides a finite global limit. `thresholdPercent` is clamped
 at merge time. `max_messages` is independent of the master toggle: it bounds how
 much history is sent, not what happens on overflow.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
+
+### Optional compression window, backend layer
+
+The mode is off by default and has no Settings control yet. The global
+`compress_window` preference and per-assistant `contextSettings.compressWindow`
+use `null` to disable it. An absent or `undefined` assistant value inherits the
+global value; an explicit `null` disables a finite global window. Existing
+assistant-form context edits preserve that stored value until its own controls
+are delivered.
+
+With valid positive integer A = `maxMessages` and integer B = `compressWindow`
+greater than A, history is counted in rounds. Each user row starts a round,
+including all assistant continuations until the next user row. The current user
+row counts as the newest round. The latest A rounds stay verbatim, the next
+B minus A rounds become one summary, and older rounds are excluded. Short
+histories need no summary. Disabled or invalid bounds retain the legacy
+message-count behavior; they do not change `maxMessages` semantics globally.
+
+`PersistentChatContextProvider` recomputes the middle summary per request using
+the resolved compression model and its input/output budgets, using the smallest
+declared request-model window only when the compressor has no declared window.
+It does not cache the summary or modify source rows, including existing durable summary markers.
+Those markers are not used in this mode because they can include excluded rounds.
+Missing or disabled compression, unknown or insufficient summarizer input room,
+empty summaries, and thrown errors log a warning and serve only the recent A
+rounds. There is no successful-summary marker on that fallback.
+
+On success, `read_file` and `fs_read` access is limited to the B-round window;
+the summary names files and stored outputs in the summarized middle. On fallback,
+access is limited to the actually served A rounds. This is separate from ordinary
+budget-triggered compaction and does not apply to temporary Chat or Agent/Work
+sessions. The Settings controls and UI validation remain a later layer of
+[the proposed Spec](../../../../.agents/notes/proposed/feature/2026-11-17-content-compression-window.md).
 
 ### Budget with a declared window
 
@@ -179,7 +214,8 @@ history unchanged. In the unresolved-model case, with context building and compr
 a known request-model window, request construction still installs the sliding-window fallback
 (`contextBuild.ts:142–145`); over-budget history may therefore lose its oldest turns before reaching
 the provider. An in-loop summarization failure stops further in-loop compaction for that request and
-lets it continue. A finite `max_messages` also short-circuits turn-start durable compaction: the window
+lets it continue. Unless a valid compression window is enabled, a finite
+`max_messages` also short-circuits turn-start durable compaction: the window
 is computed over raw rows without applying existing compaction summaries, so the two settings do not
 compose, although the in-loop hook can still run.
 

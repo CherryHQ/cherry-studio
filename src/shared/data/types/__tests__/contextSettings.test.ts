@@ -13,6 +13,17 @@ describe('contextSettings schemas', () => {
     expect(() => EffectiveContextSettingsSchema.parse(DEFAULT_CONTEXT_SETTINGS)).not.toThrow()
   })
 
+  it('retains an optional compression-window override', () => {
+    expect(ContextSettingsOverrideSchema.parse({ compressWindow: 8 })).toEqual({ compressWindow: 8 })
+  })
+
+  it.each([0, 1, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects an invalid compression round count: %s',
+    (value) => {
+      expect(ContextSettingsOverrideSchema.safeParse({ compressWindow: value }).success).toBe(false)
+    }
+  )
+
   it('override is fully partial — empty object parses', () => {
     expect(ContextSettingsOverrideSchema.parse({})).toEqual({})
   })

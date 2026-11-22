@@ -31,6 +31,18 @@ describe('resolveContextSettings', () => {
     expect(resolveContextSettings({ globals: limited, assistant: { maxMessages: null } }).maxMessages).toBeNull()
   })
 
+  it('inherits a compression window, overrides it, and permits explicit disable', () => {
+    const configured = { ...globals, compressWindow: 8 }
+    expect(resolveContextSettings({ globals: configured }).compressWindow).toBe(8)
+    expect(resolveContextSettings({ globals: configured, assistant: { compressWindow: 12 } }).compressWindow).toBe(12)
+    expect(
+      resolveContextSettings({ globals: configured, assistant: { compressWindow: null } }).compressWindow
+    ).toBeNull()
+    expect(
+      resolveContextSettings({ globals: configured, assistant: { compressWindow: undefined } }).compressWindow
+    ).toBe(8)
+  })
+
   it('explicit compress.modelId from any layer wins; else null', () => {
     expect(resolveContextSettings({ globals }).compress.modelId).toBeNull()
     const out = resolveContextSettings({

@@ -36,6 +36,8 @@ export const ContextSettingsOverrideSchema = z.object({
    * a finite global.
    */
   maxMessages: z.number().int().min(1).nullable().optional(),
+  /** Total rounds, including maxMessages recent rounds; null disables the optional compression window. */
+  compressWindow: z.number().int().min(2).nullable().optional(),
   compress: ContextSettingsCompressOverrideSchema.partial().optional()
 })
 export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSchema>
@@ -45,8 +47,10 @@ export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSche
 export const EffectiveContextSettingsSchema = z.object({
   enabled: z.boolean(),
   truncateThreshold: z.number().int().positive(),
-  /** Serve only the last N messages; null = unlimited. */
+  /** Legacy message limit, or recent-round count with a valid compression window; null = unlimited. */
   maxMessages: z.number().int().min(1).nullable(),
+  /** Optional for older request scopes; the resolver supplies null when absent. */
+  compressWindow: z.number().int().min(2).nullable().optional(),
   compress: z.object({
     enabled: z.boolean(),
     modelId: z.string().nullable(),
@@ -86,6 +90,7 @@ export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   enabled: true,
   truncateThreshold: 50_000,
   maxMessages: null,
+  compressWindow: null,
   compress: {
     enabled: true,
     modelId: null,

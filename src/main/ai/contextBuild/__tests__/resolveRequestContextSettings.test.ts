@@ -50,6 +50,19 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     mockResolveCompressionModel.mockClear()
   })
 
+  it('reads the global round window and applies an assistant disable', async () => {
+    setPrefs({})
+    const previous = mockPrefGet.getMockImplementation()!
+    mockPrefGet.mockImplementation((key: string) =>
+      key === 'chat.context_settings.compress_window' ? 8 : previous(key)
+    )
+    expect((await resolveRequestContextSettings(model, CONVERSATION)).contextSettings.compressWindow).toBe(8)
+    expect(
+      (await resolveRequestContextSettings(model, CONVERSATION, { compressWindow: null })).contextSettings
+        .compressWindow
+    ).toBeNull()
+  })
+
   it('uses an explicit compress.model_id when set', async () => {
     setPrefs({ modelId: 'anthropic::claude-x' })
     const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)

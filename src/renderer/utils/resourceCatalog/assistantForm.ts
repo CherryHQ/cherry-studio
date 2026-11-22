@@ -160,6 +160,11 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
+  const storedWindow = assistant.settings?.contextSettings?.compressWindow
+  const scopeOverride = {
+    ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
+    ...(storedWindow !== undefined ? { compressWindow: storedWindow } : {})
+  }
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
     ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
     ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
@@ -180,7 +185,7 @@ export function diffAssistantUpdate(
           contextSettings: form.contextOverrideEnabled
             ? {
                 truncateThreshold: form.contextTruncateThreshold,
-                ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
+                ...scopeOverride,
                 compress: {
                   enabled: form.contextCompressEnabled,
                   modelId: form.contextCompressModelId,
@@ -190,8 +195,8 @@ export function diffAssistantUpdate(
                     : {})
                 }
               }
-            : form.contextMaxMessages !== null
-              ? { maxMessages: form.contextMaxMessages }
+            : Object.keys(scopeOverride).length
+              ? scopeOverride
               : null
         }
       : {})

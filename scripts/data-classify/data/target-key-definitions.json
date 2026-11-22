@@ -477,6 +477,13 @@
       "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
     },
     {
+      "targetKey": "chat.context_settings.compress_window",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional total round window. null disables it; a valid count above max_messages summarizes the middle rounds without persisting a summary"
+    },
+    {
       "targetKey": "chat.context_settings.compress.enabled",
       "type": "boolean",
       "defaultValue": true,

@@ -61,6 +61,7 @@ import {
   planKeepBoundary,
   summaryRow
 } from './compaction'
+import { splitCompressionWindow } from './compressionWindow'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
@@ -952,6 +953,49 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
+    const compressionWindow = splitCompressionWindow(rows, contextSettings.maxMessages, contextSettings.compressWindow)
+    if (compressionWindow) {
+      const fallback = () => ({
+        messages: compressionWindow.recent.map((row) => this.toServed(row)),
+        retainedContext: retainedForWindow(compressionWindow.recent)
+      })
+      if (!compressionWindow.middle.length) return fallback()
+      const modelWindow = compressionModel?.contextWindow ?? resolveMinContextWindow(models.map((m) => m.contextWindow))
+      const maxOutputTokens = resolveCompressionOutputTokens(modelWindow ?? undefined)
+      const maxInputTokens = Math.floor(((modelWindow ?? 0) - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+      if (!on || !compressionModel || maxInputTokens < COMPACTION_MIN_INPUT_BUDGET) {
+        logger.warn('compression window unavailable; serving recent rounds only', { topicId })
+        return fallback()
+      }
+      try {
+        const middle = compressionWindow.middle
+        const summary = (
+          await summarizeModelMessages(
+            await toModelMessages(middle.map((row) => this.toServed(row))),
+            compressionModel.languageModel,
+            { maxOutputTokens, maxInputTokens }
+          )
+        ).trim()
+        if (!summary) {
+          logger.warn('compression window yielded empty summary; serving recent rounds only', { topicId })
+          return fallback()
+        }
+        const middleUI = middle.map((row) => this.toServed(row))
+        const summaryMessage = summaryRow(
+          middle.at(-1)!.id,
+          summary,
+          collectFileAttachments(middleUI).map((file) => file.handle),
+          [...collectPersistedOutputPaths(middleUI)]
+        )
+        return {
+          messages: [summaryMessage, ...compressionWindow.recent].map((row) => this.toServed(row)),
+          retainedContext: retainedForWindow(compressionWindow.window)
+        }
+      } catch (error) {
+        logger.warn('compression window failed; serving recent rounds only', { topicId, error })
+        return fallback()
+      }
+    }
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.

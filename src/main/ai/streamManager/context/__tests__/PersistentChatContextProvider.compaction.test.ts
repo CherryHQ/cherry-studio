@@ -321,6 +321,216 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u2')
   })
 
+  it('compression window sends only middle-round summary and recent rounds', async () => {
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u0', 'user', 'EXCLUDED'),
+      fakeMsg('a0', 'assistant', 'EXCLUDED_ANSWER'),
+      fakeMsg('u1', 'user', 'MIDDLE_ONE'),
+      fakeMsg('a1', 'assistant', 'MIDDLE_ANSWER'),
+      fakeMsg('u2', 'user', 'RECENT'),
+      fakeMsg('a2', 'assistant', 'RECENT_ANSWER'),
+      fakeMsg('u3', 'user', 'CURRENT')
+    ])
+    mockResolveRequestContextSettings.mockResolvedValue({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 2, compressWindow: 3 },
+      compressionModel: { languageModel: {}, contextWindow: 16000 }
+    })
+    const { messages } = await makeHistory('u3')
+    expect(messages.map((m) => m.id)).toEqual(['compaction:a1', 'u2', 'a2', 'u3'])
+    expect(JSON.stringify(messages)).toContain('SUMMARY_TEXT')
+    expect(JSON.stringify(messages)).not.toContain('EXCLUDED')
+    const summarized = JSON.stringify(mockSummarizeModelMessages.mock.calls[0][0])
+    expect(summarized).toContain('MIDDLE_ONE')
+    expect(summarized).toContain('MIDDLE_ANSWER')
+    expect(summarized).not.toContain('RECENT')
+    expect(summarized).not.toContain('EXCLUDED')
+  })
+
+  it.each(['empty', 'whitespace', 'throws', 'missing-model', 'small-budget', 'disabled'])(
+    'compression-window failure (%s) serves recent rounds only',
+    async (failure) => {
+      const path = [
+        fakeMsg('u1', 'user', 'MIDDLE'),
+        fakeMsg('a1', 'assistant', 'MIDDLE_REPLY'),
+        fakeMsg('u2', 'user', 'RECENT'),
+        fakeMsg('a2', 'assistant', 'RECENT_REPLY'),
+        fakeMsg('u3', 'user', 'CURRENT')
+      ]
+      mockGetPathToNode.mockReturnValue(path)
+      mockResolveRequestContextSettings.mockResolvedValue({
+        contextSettings: {
+          ...DEFAULT_CONTEXT_SETTINGS,
+          enabled: failure !== 'disabled',
+          maxMessages: 2,
+          compressWindow: 3
+        },
+        compressionModel:
+          failure === 'missing-model'
+            ? null
+            : { languageModel: {}, contextWindow: failure === 'small-budget' ? 4000 : 16000 }
+      })
+      if (failure === 'throws') mockSummarizeModelMessages.mockRejectedValueOnce(new Error('offline'))
+      if (failure === 'empty') mockSummarizeModelMessages.mockResolvedValueOnce('')
+      if (failure === 'whitespace') mockSummarizeModelMessages.mockResolvedValueOnce('  ')
+      const { messages } = await makeHistory('u3')
+      expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+      expect(JSON.stringify(messages)).not.toContain('MIDDLE')
+      expect(JSON.stringify(messages)).not.toContain('compaction:')
+    }
+  )
+
+  it.each([null, 1, 2, 2.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'invalid or disabled compression window %s preserves legacy message counts',
+    async (compressWindow) => {
+      mockGetPathToNode.mockReturnValue([
+        fakeMsg('u1', 'user', 'ONE'),
+        fakeMsg('a1', 'assistant', 'TWO'),
+        fakeMsg('u2', 'user', 'THREE'),
+        fakeMsg('a2', 'assistant', 'FOUR'),
+        fakeMsg('u3', 'user', 'FIVE')
+      ])
+      mockResolveRequestContextSettings.mockResolvedValue({
+        contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 2, compressWindow },
+        compressionModel: { languageModel: {}, contextWindow: 16000 }
+      })
+      const { messages } = await makeHistory('u3')
+      expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+      expect(JSON.stringify(messages)).not.toContain('SUMMARY_TEXT')
+    }
+  )
+
+  it('does not reuse an old durable summary across the compression-window boundary', async () => {
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u0', 'user', 'EXCLUDED'),
+      fakeMsg('a0', 'assistant', 'OLD', 'EXCLUDED_SUMMARY'),
+      fakeMsg('u1', 'user', 'MIDDLE'),
+      fakeMsg('a1', 'assistant', 'ANSWER', 'LEAKING_SUMMARY'),
+      fakeMsg('u2', 'user', 'CURRENT')
+    ])
+    mockResolveRequestContextSettings.mockResolvedValue({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 1, compressWindow: 2 },
+      compressionModel: { languageModel: {}, contextWindow: 16000 }
+    })
+    const { messages } = await makeHistory('u2')
+    expect(messages.map((m) => m.id)).toEqual(['compaction:a1', 'u2'])
+    expect(JSON.stringify(mockSummarizeModelMessages.mock.calls[0][0])).not.toMatch(/EXCLUDED|LEAKING_SUMMARY/)
+    expect(JSON.stringify(messages)).not.toMatch(/EXCLUDED|LEAKING_SUMMARY/)
+  })
+
+  it('revokes excluded files but manifests and authorizes files in the summarized middle', async () => {
+    const fileMessage = (id: string, filename: string, entry: string) => {
+      const message = fakeMsg(id, 'user', filename)
+      ;(message.data as { parts: unknown[] }).parts.push({
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'file:///tmp/' + filename,
+        filename,
+        providerMetadata: { cherry: { fileEntryId: entry } }
+      })
+      return message
+    }
+    mockGetPathToNode.mockReturnValue([
+      fileMessage('u0', 'excluded.txt', 'excluded'),
+      fakeMsg('a0', 'assistant', 'OLD'),
+      fileMessage('u1', 'middle.txt', 'middle'),
+      fakeMsg('a1', 'assistant', 'ANSWER'),
+      fileMessage('u2', 'recent.txt', 'recent')
+    ])
+    mockResolveRequestContextSettings.mockResolvedValue({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 1, compressWindow: 2 },
+      compressionModel: { languageModel: {}, contextWindow: 16000 }
+    })
+    const { messages, prepared } = await makeHistory('u2')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments.map((file) => file.fileEntryId)).toEqual([
+      'middle',
+      'recent'
+    ])
+    expect(JSON.stringify(messages[0])).toContain('middle.txt')
+    expect(JSON.stringify(messages)).not.toContain('excluded.txt')
+    expect(JSON.stringify(messages[0])).not.toContain('recent.txt')
+  })
+
+  it.each(['success', 'failure'])(
+    'bounds stored-output access to the actually served window on %s',
+    async (outcome) => {
+      const output = (id: string, entry: string) => {
+        const message = fakeMsg(id, 'assistant', 'tool response')
+        ;(message.data as { parts: unknown[] }).parts.push({
+          type: 'tool-exec',
+          toolCallId: id,
+          state: 'output-available',
+          input: {},
+          output: {
+            $persistedToolOutput: {
+              fileEntryId: entry,
+              vfsFilename: 'vfs_1111111111111111.txt',
+              head: 'head',
+              tail: 'tail',
+              totalChars: 50000,
+              totalLines: 1000,
+              shape: 'text'
+            }
+          }
+        })
+        return message
+      }
+      mockGetPathToNode.mockReturnValue([
+        fakeMsg('u0', 'user', 'EXCLUDED'),
+        output('a0', 'excluded'),
+        fakeMsg('u1', 'user', 'MIDDLE'),
+        output('a1', 'middle'),
+        fakeMsg('u2', 'user', 'RECENT'),
+        output('a2', 'recent')
+      ])
+      mockResolveRequestContextSettings.mockResolvedValue({
+        contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 1, compressWindow: 2 },
+        compressionModel: { languageModel: {}, contextWindow: 16000 }
+      })
+      if (outcome === 'failure') mockSummarizeModelMessages.mockRejectedValueOnce(new Error('offline'))
+      const { messages, prepared } = await makeHistory('a2')
+      expect([...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]).toEqual(
+        outcome === 'success' ? ['/blobs/middle.txt', '/blobs/recent.txt'] : ['/blobs/recent.txt']
+      )
+      expect(JSON.stringify(messages)).not.toContain('/blobs/excluded.txt')
+      if (outcome === 'success') expect(JSON.stringify(messages[0])).toContain('/blobs/middle.txt')
+      else expect(JSON.stringify(messages)).not.toContain('/blobs/middle.txt')
+    }
+  )
+
+  it('uses the compressor budget rather than a larger request-model window', async () => {
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', 'MIDDLE'),
+      fakeMsg('a1', 'assistant', 'ANSWER'),
+      fakeMsg('u2', 'user', 'CURRENT')
+    ])
+    const languageModel = { modelId: 'selected-compressor' }
+    mockResolveRequestContextSettings.mockResolvedValue({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 1, compressWindow: 2 },
+      compressionModel: { languageModel, contextWindow: 16000 }
+    })
+    const { messages } = await makeHistory('u2', [DEFAULT_MODEL_ID], { contextWindow: 128000 })
+    expect(JSON.stringify(messages)).toContain('SUMMARY_TEXT')
+    const [, selected, budget] = mockSummarizeModelMessages.mock.calls[0]
+    expect(selected).toBe(languageModel)
+    expect(budget.maxInputTokens).toBeGreaterThan(0)
+    expect(budget.maxInputTokens + budget.maxOutputTokens).toBeLessThan(16000)
+  })
+
+  it('falls back without a summary request when neither model declares a budget', async () => {
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', 'MIDDLE'),
+      fakeMsg('a1', 'assistant', 'ANSWER'),
+      fakeMsg('u2', 'user', 'CURRENT')
+    ])
+    mockResolveRequestContextSettings.mockResolvedValue({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 1, compressWindow: 2 },
+      compressionModel: { languageModel: {}, contextWindow: null }
+    })
+    const { messages } = await makeHistory('u2', [DEFAULT_MODEL_ID], { contextWindow: undefined })
+    expect(messages.map((message) => message.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
   it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {
     // Same over-budget shape as test 2 — without maxMessages this WOULD fold.
     const BIG = 'token '.repeat(700)

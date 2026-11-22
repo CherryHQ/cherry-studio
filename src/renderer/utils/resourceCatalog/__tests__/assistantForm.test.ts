@@ -281,6 +281,28 @@ describe('diffAssistantUpdate', () => {
 })
 
 describe('context-management override (P2-D)', () => {
+  it.each([8, null])(
+    'preserves stored compression-window scope %s while editing other context controls',
+    (compressWindow) => {
+      const assistant = createAssistant({
+        settings: {
+          ...DEFAULT_ASSISTANT_SETTINGS,
+          contextSettings: { maxMessages: 2, compressWindow, truncateThreshold: 4000 }
+        }
+      })
+      const baseline = initialAssistantFormState(assistant)
+      for (const form of [
+        { ...baseline, contextTruncateThreshold: 9000 },
+        { ...baseline, contextOverrideEnabled: false }
+      ]) {
+        const result = diffAssistantUpdate(form, baseline, assistant)!
+        const parsed = UpdateAssistantSchema.parse(result.dto)
+        expect(parsed.settings?.contextSettings?.compressWindow).toBe(compressWindow)
+        expect(parsed.settings?.contextSettings?.maxMessages).toBe(2)
+      }
+    }
+  )
+
   it('seeds the override-off state when no contextSettings are stored', () => {
     const form = initialAssistantFormState(createAssistant())
     expect(form.contextOverrideEnabled).toBe(false)

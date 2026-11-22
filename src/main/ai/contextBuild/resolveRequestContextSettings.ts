@@ -15,6 +15,7 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
     enabled: prefs.get('chat.context_settings.enabled'),
     truncateThreshold: prefs.get('chat.context_settings.truncate_threshold'),
     maxMessages: prefs.get('chat.context_settings.max_messages'),
+    compressWindow: prefs.get('chat.context_settings.compress_window'),
     compress: {
       enabled: prefs.get('chat.context_settings.compress.enabled'),
       modelId: prefs.get('chat.context_settings.compress.model_id'),
