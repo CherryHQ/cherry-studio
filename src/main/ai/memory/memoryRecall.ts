@@ -135,7 +135,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         parentId: string | null
         eligible: number
         legacyInput: number
-        completion: number
+        replySucceeded: number | null
       }>(sql`
         WITH RECURSIVE branch(id, parent_id) AS (
           SELECT p.id, p.parent_id FROM ${table} p
@@ -154,11 +154,11 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
           } AS legacyInput,
           ${
             agent
-              ? sql`(m.role = 'assistant' AND m.status = 'success' AND m.delivery IS NULL
+              ? sql`CASE WHEN m.role = 'assistant' AND m.delivery IS NULL
             AND m.id NOT IN (SELECT u.reply_id FROM agent_session_message u
-              WHERE u.session_id = ${row.conversationId} AND u.reply_id IS NOT NULL))`
-              : sql`0`
-          } AS completion,
+              WHERE u.session_id = ${row.conversationId} AND u.reply_id IS NOT NULL) THEN m.status = 'success' END`
+              : sql`NULL`
+          } AS replySucceeded,
           (${ownerCondition} AND m.status = 'success' AND m.role IN ('user', 'assistant')
             AND length(trim(m.searchable_text)) > 0
             ${excludeCurrent}
@@ -170,16 +170,19 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
       const visited = new Set<string>()
       const selectedIds: string[] = []
       // Before reply links existed, consecutive queued inputs could be followed by their
-      // replies in FIFO order. Require enough unclaimed completions for the entire group.
+      // replies in FIFO order. A paused reply occupies its slot without confirming its input.
       const legacyGroup: typeof nodes = []
-      let completions = 0
+      const outcomes: number[] = []
       const finishGroup = () => {
         if (!legacyGroup.length) return
-        if (completions >= legacyGroup.length) {
-          for (const input of legacyGroup) if (input.eligible) selectedIds.push(input.id)
+        if (outcomes.length >= legacyGroup.length) {
+          const offset = outcomes.length - legacyGroup.length
+          for (const [index, input] of legacyGroup.entries()) {
+            if (input.eligible && outcomes[offset + index]) selectedIds.push(input.id)
+          }
         }
         legacyGroup.length = 0
-        completions = 0
+        outcomes.length = 0
       }
       let id = row.activeNodeId
       while (id && !visited.has(id)) {
@@ -189,7 +192,8 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         if (node.legacyInput) legacyGroup.push(node)
         else {
           finishGroup()
-          completions = node.completion ? completions + 1 : 0
+          if (node.replySucceeded === null) outcomes.length = 0
+          else outcomes.push(node.replySucceeded)
           if (node.eligible) selectedIds.push(id)
         }
         id = node.parentId

@@ -238,13 +238,26 @@ describe('FTS conversation recall in memory references', () => {
       .where(eq(agentSessionMessageTable.id, replyB))
       .run()
     const owner = { sessionId }
-    for (const [tip, visible] of [
-      [replyC, true],
-      [replyB, false]
+    for (const [tip, bStatus, cStatus, expected] of [
+      [replyC, 'success', 'success', [b, c]],
+      [replyC, 'success', 'paused', [b]],
+      [replyC, 'paused', 'success', [c]],
+      [replyB, 'success', 'success', []]
     ] as const) {
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ status: bStatus })
+        .where(eq(agentSessionMessageTable.id, replyB))
+        .run()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ status: cStatus })
+        .where(eq(agentSessionMessageTable.id, replyC))
+        .run()
       dbh.db.update(agentSessionTable).set({ activeNodeId: tip }).where(eq(agentSessionTable.id, id)).run()
       const hits = excerpts(await conversationRecallReference(owner, 'needle', turn))
       for (const input of [b, c]) {
+        const visible = expected.some((id) => id === input)
         expect(hits.some((item) => item.messageId === input)).toBe(visible)
         const direct = excerpts(
           await conversationRecallReference(owner, '', turn, { conversationId: id, messageId: input })
