@@ -45446,6 +45446,7 @@
     {
       "apiModelId": "claude-opus-4-7",
       "family": "claude",
+      "inputModalities": ["text", "image"],
       "limits": {
         "contextWindow": 200000,
         "maxOutputTokens": 32000
@@ -45457,6 +45458,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.35
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 4
         },
         "input": {
           "currency": "USD",
@@ -45472,6 +45477,7 @@
     {
       "apiModelId": "deepseek-v4-flash",
       "family": "deepseek",
+      "inputModalities": ["text"],
       "limits": {
         "contextWindow": 128000,
         "maxOutputTokens": 16384
@@ -45483,6 +45489,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.014
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
@@ -45498,6 +45508,7 @@
     {
       "apiModelId": "gemini-3.7-flash",
       "family": "gemini",
+      "inputModalities": ["text", "image"],
       "limits": {
         "contextWindow": 1000000,
         "maxOutputTokens": 65536
@@ -45509,6 +45520,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.09
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
         },
         "input": {
           "currency": "USD",
@@ -45524,6 +45539,7 @@
     {
       "apiModelId": "glm-5.3",
       "family": "glm",
+      "inputModalities": ["text"],
       "limits": {
         "contextWindow": 200000,
         "maxOutputTokens": 32768
@@ -45535,6 +45551,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.149395
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.5976
         },
         "input": {
           "currency": "USD",
@@ -45550,6 +45570,7 @@
     {
       "apiModelId": "kimi-k3",
       "family": "kimi",
+      "inputModalities": ["text", "image"],
       "limits": {
         "contextWindow": 256000,
         "maxOutputTokens": 32768
@@ -45561,6 +45582,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.223
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.49
         },
         "input": {
           "currency": "USD",
@@ -45574,5 +45599,5 @@
       "providerId": "crowllm"
     }
   ],
-  "version": "b663b4550ae7fb3e"
+  "version": "a40dff34d916d9eb"
 }

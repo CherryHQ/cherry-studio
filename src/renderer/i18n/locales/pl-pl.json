@@ -3503,6 +3503,7 @@
   "provider.claude-code": "Claude Code",
   "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
+  "provider.crowllm": "[to be translated]:CrowLLM",
   "provider.dashscope": "Qianwen AI platform - CN",
   "provider.deepseek": "DeepSeek",
   "provider.dmxapi": "DMXAPI",

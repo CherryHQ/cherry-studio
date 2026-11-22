@@ -3465,6 +3465,7 @@
   "provider.claude-code": "Claude Code",
   "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
+  "provider.crowllm": "[to be translated]:CrowLLM",
   "provider.dashscope": "千问 AI 平台",
   "provider.deepseek": "深度求索",
   "provider.dmxapi": "DMXAPI",

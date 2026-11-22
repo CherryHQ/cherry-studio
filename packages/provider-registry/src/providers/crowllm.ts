@@ -27,10 +27,12 @@ export default openaiCompatible({
       family: 'deepseek',
       ownedBy: 'deepseek',
       limits: { contextWindow: 128000, maxOutputTokens: 16384 },
+      inputModalities: ['text'],
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.14 },
         output: { currency: 'USD', perMillionTokens: 0.55 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0.014 }
+        cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.14 }
       }
     },
     {
@@ -40,10 +42,12 @@ export default openaiCompatible({
       family: 'glm',
       ownedBy: 'zhipu',
       limits: { contextWindow: 200000, maxOutputTokens: 32768 },
+      inputModalities: ['text'],
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.5976 },
         output: { currency: 'USD', perMillionTokens: 2.09155 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0.149395 }
+        cacheRead: { currency: 'USD', perMillionTokens: 0.149395 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.5976 }
       }
     },
     {
@@ -53,10 +57,12 @@ export default openaiCompatible({
       family: 'kimi',
       ownedBy: 'moonshot',
       limits: { contextWindow: 256000, maxOutputTokens: 32768 },
+      inputModalities: ['text', 'image'],
       pricing: {
         input: { currency: 'USD', perMillionTokens: 2.49 },
         output: { currency: 'USD', perMillionTokens: 12.99 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0.223 }
+        cacheRead: { currency: 'USD', perMillionTokens: 0.223 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.49 }
       }
     },
     {
@@ -66,10 +72,12 @@ export default openaiCompatible({
       family: 'claude',
       ownedBy: 'anthropic',
       limits: { contextWindow: 200000, maxOutputTokens: 32000 },
+      inputModalities: ['text', 'image'],
       pricing: {
         input: { currency: 'USD', perMillionTokens: 4 },
         output: { currency: 'USD', perMillionTokens: 20 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0.35 }
+        cacheRead: { currency: 'USD', perMillionTokens: 0.35 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 4 }
       }
     },
     {
@@ -79,10 +87,12 @@ export default openaiCompatible({
       family: 'gemini',
       ownedBy: 'google',
       limits: { contextWindow: 1000000, maxOutputTokens: 65536 },
+      inputModalities: ['text', 'image'],
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.75 },
         output: { currency: 'USD', perMillionTokens: 3.75 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0.09 }
+        cacheRead: { currency: 'USD', perMillionTokens: 0.09 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.75 }
       }
     }
   ]
