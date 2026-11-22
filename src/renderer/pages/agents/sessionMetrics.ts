@@ -62,9 +62,11 @@ export function buildAgentSessionMetrics(
     (stats) => stats.inputTokens !== undefined && stats.inputTokenDetails?.cacheReadTokens !== undefined
   )
   // A call with input but no cache breakdown makes the rate a sample, so show it as unavailable.
-  const cacheCoverageComplete = statsList.every(
-    (stats) => stats.inputTokens === undefined || stats.inputTokenDetails?.cacheReadTokens !== undefined
-  )
+  const cacheCoverageComplete =
+    !usageIncomplete &&
+    statsList.every(
+      (stats) => stats.inputTokens === undefined || stats.inputTokenDetails?.cacheReadTokens !== undefined
+    )
   const cacheReportedInput = sumDefined(cacheReportingStats.map((stats) => stats.inputTokens))
   const cacheReportedRead = sumDefined(cacheReportingStats.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
   const samples = statsList.map(getMessageGenerationSample).filter((sample) => sample !== undefined)

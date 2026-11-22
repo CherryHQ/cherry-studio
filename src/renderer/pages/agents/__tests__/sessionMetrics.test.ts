@@ -93,6 +93,12 @@ describe('buildAgentSessionMetrics', () => {
     const whole = buildAgentSessionMetrics([assistant('new', { inputTokens: 5 })], {})
 
     expect(forked.usageIncomplete).toBe(true)
+    expect(
+      buildAgentSessionMetrics(
+        [assistant('copied'), assistant('new', { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 900 } })],
+        {}
+      ).cacheHitRate
+    ).toBeUndefined()
     expect(whole.usageIncomplete).toBe(false)
   })
 

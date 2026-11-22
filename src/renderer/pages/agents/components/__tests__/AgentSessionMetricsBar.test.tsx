@@ -113,7 +113,7 @@ describe('AgentSessionMetricsBar', () => {
     )
   })
 
-  it('marks rates and timings approximate when copied fork turns have no stats', () => {
+  it('shows no cache hit rate and approximate timings when copied fork turns have no stats', () => {
     const forked = [
       { id: 'c', role: 'assistant', parts: [], metadata: { status: 'success' } },
       {
@@ -134,7 +134,7 @@ describe('AgentSessionMetricsBar', () => {
     render(<AgentSessionMetricsBar messages={forked} partsByMessageId={{}} />)
 
     const text = screen.getByRole('button').textContent ?? ''
-    expect(text).toContain('~90%')
+    expect(text).not.toContain('90%')
     expect(text).toContain('~0.5s')
   })
 
