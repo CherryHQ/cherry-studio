@@ -12,6 +12,18 @@ export function isStaleResumeError(error: unknown): boolean {
 }
 
 /**
+ * Confirmed missing native storage on cold start (`Claude Code open:
+ * native-storage-missing`, #23519 review). Unlike `native-storage-unavailable`
+ * (any refresh exception, possibly transient), missing means the saved CLI-side
+ * archive is gone and retrying the same id will fail identically. Route only
+ * this confirmed case through scoped stale invalidation; preserve bindings on
+ * transient failures.
+ */
+export function isMissingNativeStorageError(error: unknown): boolean {
+  return extractErrorText(error).includes('native-storage-missing')
+}
+
+/**
  * Best-effort extraction of the dead CLI-side conversation id from a stale
  * resume error (`No conversation found with session ID: <id>`). Used to scope
  * invalidation to the failed conversation so healthy sibling branches keep

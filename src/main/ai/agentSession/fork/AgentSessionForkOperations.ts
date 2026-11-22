@@ -125,7 +125,8 @@ export class AgentSessionForkOperations {
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
           throw new AgentSessionForkError('history_changed')
-        const group = groupNativeHistory(prefix, bindings, driver).find((group) => group.rows.at(-1)?.id === row.id)!
+        const group = groupNativeHistory(prefix, bindings, driver).find((group) => group.rows.at(-1)?.id === row.id)
+        if (!group) throw new AgentSessionForkError('unsupported_checkpoint')
         if (group.context.locator.kind !== driver?.type) throw new AgentSessionEditError('checkpoint_unsupported')
         const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
         resources = {
@@ -493,6 +494,11 @@ function groupNativeHistory(
   for (const row of rows) {
     const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
     if (!anchor.success) continue
+    // A stale-resume reset clears `runtimeResumeToken` for the failed conversation
+    // while its checkpoint anchor survives. That row no longer has native history
+    // to fork, so skip it instead of failing the whole prefix: the recovered
+    // suffix still groups by its fresh token and edit/resend stays usable (#23519).
+    if (!row.runtimeResumeToken) continue
     const matches = contexts.filter(
       (context) =>
         context.nativeThreadId &&

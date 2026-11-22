@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractStaleConversationId, isStaleResumeError } from '../staleResume'
+import { extractStaleConversationId, isMissingNativeStorageError, isStaleResumeError } from '../staleResume'
 
 describe('isStaleResumeError', () => {
   it('matches the exact SDK wording', () => {
@@ -26,6 +26,18 @@ describe('isStaleResumeError', () => {
     expect(isStaleResumeError(new Error('tool_use ids must be unique'))).toBe(false)
     expect(isStaleResumeError(null)).toBe(false)
     expect(isStaleResumeError(undefined)).toBe(false)
+  })
+})
+
+describe('isMissingNativeStorageError', () => {
+  it('matches confirmed missing archive wording', () => {
+    expect(isMissingNativeStorageError(new Error('Claude Code open: native-storage-missing'))).toBe(true)
+  })
+
+  it('rejects transient unavailable and unrelated errors', () => {
+    expect(isMissingNativeStorageError(new Error('Claude Code open: native-storage-unavailable'))).toBe(false)
+    expect(isMissingNativeStorageError(new Error('No conversation found with session ID: abc'))).toBe(false)
+    expect(isMissingNativeStorageError(null)).toBe(false)
   })
 })
 

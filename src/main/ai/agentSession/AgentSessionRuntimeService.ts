@@ -19,7 +19,11 @@ import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from 
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
-import { extractStaleConversationId, isStaleResumeError } from '@main/ai/runtime/staleResume'
+import {
+  extractStaleConversationId,
+  isMissingNativeStorageError,
+  isStaleResumeError
+} from '@main/ai/runtime/staleResume'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -2150,7 +2154,6 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
-    await this.forks.cancel()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -2164,11 +2167,15 @@ export class AgentSessionRuntimeService extends BaseService {
     // LifecycleManager allows 5s before `stop timed out — proceeding` and
     // orphans _doStop mid-teardown (#23421: closeQuery/query.return +
     // subprocess exit + pending connectionAttempt overruns the budget).
-    // Bound the wait so shutdown settles instead of racing the process exit.
+    // Bound the whole teardown (including an edit waiting on native close via
+    // `forks.cancel()`) so shutdown settles instead of racing the process exit.
+    // Late work keeps its ownership: `closeRuntimeConnection` skips
+    // `failedClosures` poisoning while shutting down, and a late connect
+    // self-closes against `entry.closing` (#23519 review).
     let stopTimer: ReturnType<typeof setTimeout> | undefined
     try {
       await Promise.race([
-        this.closeAll().finally(() => {
+        Promise.all([this.forks.cancel(), this.closeAll()]).finally(() => {
           if (stopTimer) clearTimeout(stopTimer)
         }),
         new Promise<void>((resolve) => {
@@ -2188,15 +2195,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onDestroy(): Promise<void> {
     this.childSubscriptions.dispose()
-    await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     // Mirror onStop's bound: onStop timing out leaves entries behind, and
-    // unbounded closeAll here would re-exceed the shutdown budget.
+    // unbounded closeAll here would re-exceed the shutdown budget. `forks.cancel()`
+    // joins the same race so an edit waiting on native close cannot hold destroy
+    // past the budget; ownership is retained as in onStop.
     let destroyTimer: ReturnType<typeof setTimeout> | undefined
     try {
       await Promise.race([
-        this.closeAll().finally(() => {
+        Promise.all([this.forks.cancel(), this.closeAll()]).finally(() => {
           if (destroyTimer) clearTimeout(destroyTimer)
         }),
         new Promise<void>((resolve) => {
@@ -2438,29 +2446,41 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
-      sessionId: entry.sessionId,
-      agentId: entry.agentId,
-      modelId: target.modelId,
-      reasoningEffort: target.reasoningEffort,
-      serviceTier: target.serviceTier,
-      knowledgeBaseIds: target.knowledgeBaseIds,
-      fastMode: target.fastMode,
-      headless: target.headless,
-      resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId),
-      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
-      branchHead: entry.branchHead,
-      onSteerInjected: (inputIds) => {
-        if (this.isCurrentGeneration(entry, attemptId))
-          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
-      },
-      onInputPrepared: (inputId, contextId) => {
-        if (!this.isCurrentGeneration(entry, attemptId)) return
-        const pending = entry.pendingInputs?.get(inputId)
-        if (pending?.generation === attemptId) pending.contextId = contextId
+    let connection: AgentRuntimeConnection
+    try {
+      connection = await driver.connect({
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        modelId: target.modelId,
+        reasoningEffort: target.reasoningEffort,
+        serviceTier: target.serviceTier,
+        knowledgeBaseIds: target.knowledgeBaseIds,
+        fastMode: target.fastMode,
+        headless: target.headless,
+        resumeToken: entry.lastResumeToken,
+        trace: this.sessionTraceContext(entry, target.modelId),
+        nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
+        branchHead: entry.branchHead,
+        onSteerInjected: (inputIds) => {
+          if (this.isCurrentGeneration(entry, attemptId))
+            this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+        },
+        onInputPrepared: (inputId, contextId) => {
+          if (!this.isCurrentGeneration(entry, attemptId)) return
+          const pending = entry.pendingInputs?.get(inputId)
+          if (pending?.generation === attemptId) pending.contextId = contextId
+        }
+      })
+    } catch (error) {
+      // Cold start with a confirmed-missing archive must not retry the same saved
+      // id forever: clear the in-memory barrier and pin a reset boundary so the
+      // next send connects fresh while sibling branches keep theirs (#23519).
+      // Transient `native-storage-unavailable` still throws to preserve bindings.
+      if (this.isCurrentEntry(entry) && isMissingNativeStorageError(error)) {
+        this.handleRuntimeError(entry, error)
       }
-    })
+      throw error
+    }
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
     if (!this.isCurrentEntry(entry) || entry.closing || !this.connectionTargetEquals(entry, target)) {
@@ -3320,7 +3340,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
-    if (isStaleResumeError(error)) {
+    const missingStorage = isMissingNativeStorageError(error)
+    if (isStaleResumeError(error) || missingStorage) {
+      // CLI-side conversation is gone but host/DB still pin its token — every
+      // subsequent turn would fail identically (#23421 unrecoverable session).
+      // Cold start with a missing archive (`native-storage-missing`) is the same
+      // shape: the saved id is confirmed gone, so route it through the same
+      // scoped invalidation; transient `native-storage-unavailable` stays out
+      // and preserves bindings (#23519 review).
+      // Drop the in-memory token now and null persisted tokens so the next
+      // turn connects fresh. This path surfaces the error without a
+      // `data-conversation-reset` divider; the renderer still renders the
+      // divider when present. Also drop `nativeSessionId` bindings: the
+      // driver falls back to them when no resume token exists, and they point
+      // at the same dead conversation.
+      // Scoped to the failed conversation only so healthy sibling branches
+      // keep their resume identities (#23519 review).
       // CLI-side conversation is gone but host/DB still pin its token — every
       // subsequent turn would fail identically (#23421 unrecoverable session).
       // Drop the in-memory token now and null persisted tokens so the next
@@ -4104,7 +4139,20 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
     await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
-    if (connectionAttempt) await connectionAttempt.catch(() => undefined)
+    // Bound the pending-connect wait (1.5s while shutting down) so shutdown does
+    // not stall on a hung `driver.connect()`; the late attempt still serializes
+    // against teardown via `connectionAttempts` and self-closes on `entry.closing`
+    // (#23519 review).
+    if (connectionAttempt) {
+      if (this.isShuttingDown) {
+        await Promise.race([
+          connectionAttempt.catch(() => undefined),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500))
+        ])
+      } else {
+        await connectionAttempt.catch(() => undefined)
+      }
+    }
     if (connectionLoop) await connectionLoop
     await streamDrain
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
