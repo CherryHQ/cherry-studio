@@ -145,6 +145,53 @@ describe('SelectionActionUserModal', () => {
     expect(onOk.mock.calls[0][0]).toMatchObject({ icon: 'dice-icon' })
   })
 
+  it('does not write after Cancel while a roll is pending, and writes once for repeated Confirm', async () => {
+    const onOk = vi.fn()
+    const onCancel = vi.fn()
+    const { unmount } = render(
+      <SelectionActionUserModal isModalOpen editingAction={null} onOk={onOk} onCancel={onCancel} />
+    )
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Roll' } })
+    fireEvent.change(screen.getAllByRole('textbox').at(-1)!, { target: { value: 'prompt' } })
+    fireEvent.click(screen.getByText('start slow roll'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    fireEvent.click(screen.getByText('common.cancel'))
+    ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll?.()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(onCancel).toHaveBeenCalled()
+    expect(onOk).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('writes once when Confirm is repeated during a pending roll', async () => {
+    const onOk = vi.fn()
+    render(<SelectionActionUserModal isModalOpen editingAction={null} onOk={onOk} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Roll' } })
+    fireEvent.change(screen.getAllByRole('textbox').at(-1)!, { target: { value: 'prompt' } })
+    fireEvent.click(screen.getByText('start slow roll'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll?.()
+    await waitFor(() => expect(onOk).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(onOk).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves a later default choice after a resolved roll', async () => {
+    const onOk = vi.fn()
+    render(<SelectionActionUserModal isModalOpen editingAction={null} onOk={onOk} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Roll' } })
+    fireEvent.change(screen.getAllByRole('textbox').at(-1)!, { target: { value: 'prompt' } })
+    fireEvent.click(screen.getByText('start slow roll'))
+    ;(globalThis as { __releaseRoll?: () => void }).__releaseRoll?.()
+    await waitFor(() => expect(screen.getByTestId('saved-icon')).toHaveTextContent('dice-icon'))
+    fireEvent.click(screen.getByText('use default icon'))
+    fireEvent.click(screen.getByText('common.confirm'))
+    await waitFor(() => expect(onOk).toHaveBeenCalledTimes(1))
+    expect(onOk.mock.calls[0][0].icon).toBe('')
+  })
+
   it('submits the complete long prompt', () => {
     const longPrompt = 'Keep the prompt inside the dialog.\n'.repeat(200)
     const onOk = vi.fn()

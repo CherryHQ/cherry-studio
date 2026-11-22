@@ -90,17 +90,39 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     return Object.keys(newErrors).length === 0
   }
 
-  // A dice roll that is still loading the icon list must land before the form is saved.
+  // A dice roll that is still loading must land before the form is saved. It is tracked only while
+  // pending: once it resolves, its icon is already in the form and later choices win.
   const pendingRollRef = useRef<Promise<string | null> | null>(null)
+  const submitTokenRef = useRef(0)
+  const submittingRef = useRef(false)
+
+  const invalidatePendingSubmit = () => {
+    submitTokenRef.current += 1
+    submittingRef.current = false
+  }
+
+  useEffect(() => {
+    if (!isModalOpen) invalidatePendingSubmit()
+  }, [isModalOpen])
+
+  const handleCancel = () => {
+    invalidatePendingSubmit()
+    onCancel()
+  }
 
   const handleOk = async () => {
-    if (!validateForm()) {
+    if (submittingRef.current || !validateForm()) {
       return
     }
     const pendingRoll = pendingRollRef.current
-    pendingRollRef.current = null
-    const rolledIcon = pendingRoll ? await pendingRoll.catch(() => null) : null
-
+    let rolledIcon: string | null = null
+    if (pendingRoll) {
+      const token = submitTokenRef.current
+      submittingRef.current = true
+      rolledIcon = await pendingRoll.catch(() => null)
+      if (token !== submitTokenRef.current) return
+      submittingRef.current = false
+    }
     // 构建完整的 ActionItem
     const actionItem: CustomSelectionAction = {
       id: editingAction?.id || `user-${Date.now()}`,
@@ -127,7 +149,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   }
 
   return (
-    <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog open={isModalOpen} onOpenChange={(next) => !next && handleCancel()}>
       <DialogContent
         aria-describedby={undefined}
         closeOnOverlayClick={false}
@@ -169,6 +191,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     onChange={(icon) => handleInputChange('icon', icon)}
                     onRoll={(roll) => {
                       pendingRollRef.current = roll
+                      void roll.finally(() => {
+                        if (pendingRollRef.current === roll) pendingRollRef.current = null
+                      })
                     }}
                   />
                 </Suspense>
@@ -298,7 +323,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
           </ModalSection>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" onClick={handleCancel}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleOk}>{t('common.confirm')}</Button>
