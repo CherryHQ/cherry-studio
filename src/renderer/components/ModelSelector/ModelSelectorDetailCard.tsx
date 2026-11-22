@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, KeyboardEventHandler, ReactNode, Ref } from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,6 +9,7 @@ import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { ModelSelectorPricing } from './ModelSelectorPricing'
 import type { ModelSelectorModelItem } from './types'
 import { getProviderDisplayName } from './utils'
 
@@ -72,7 +73,7 @@ function getAvailableSpaceForSide(
   }
 }
 
-function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
+function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
   const triggerRect = trigger.getBoundingClientRect()
   const viewport = getViewportSize()
   const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', viewport)
@@ -86,7 +87,7 @@ function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
     return 'left'
   }
 
-  return rightSpace >= leftSpace ? 'right' : 'left'
+  return 'bottom'
 }
 
 function getDetailCardAlign(): HoverCardAlign {
@@ -131,6 +132,9 @@ export function ModelSelectorDetailCardContent({
   providerName,
   tags,
   model,
+  provider,
+  referenceTime,
+  scrollRef,
   description
 }: {
   name: string
@@ -138,9 +142,13 @@ export function ModelSelectorDetailCardContent({
   providerName: string
   tags: readonly ModelDisplayTag[]
   model?: Model
+  provider?: Provider
+  referenceTime?: Date
+  scrollRef?: Ref<HTMLDivElement>
   description?: ReactNode
 }) {
   const { t } = useTranslation()
+  const [mountedAt] = useState(() => new Date())
   const reasoningEfforts = formatReasoningEfforts(
     (model ? deriveThinkingOptions(model) : undefined)?.filter((option) => option !== 'default'),
     t
@@ -152,10 +160,12 @@ export function ModelSelectorDetailCardContent({
   const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
 
   return (
-    <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
+    <div
+      ref={scrollRef}
+      className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
       <div className="min-w-0 space-y-1">
-        <div className="break-words text-sm font-medium text-foreground">{name}</div>
-        {hasDescription ? <div className="text-muted-foreground text-xs">{description}</div> : null}
+        <div className="text-sm font-medium break-words text-foreground">{name}</div>
+        {hasDescription ? <div className="text-xs text-muted-foreground">{description}</div> : null}
       </div>
 
       <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
@@ -186,6 +196,10 @@ export function ModelSelectorDetailCardContent({
         </dl>
       ) : null}
 
+      {model ? (
+        <ModelSelectorPricing model={model} provider={provider} referenceTime={referenceTime ?? mountedAt} />
+      ) : null}
+
       {hasCapabilityDetails ? (
         <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
           <DetailRow label={t('assistants.settings.reasoning_effort.label')} value={reasoningEfforts} />
@@ -211,6 +225,21 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   tags?: readonly ModelDisplayTag[]
   children: ReactNode
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isOpen = useRef(false)
+  const scrollDetails: KeyboardEventHandler<HTMLAnchorElement> = (event) => {
+    const element = scrollRef.current
+    if (!isOpen.current || !element || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.key !== 'PageDown' && event.key !== 'PageUp') return
+    event.preventDefault()
+    event.stopPropagation()
+    element.scrollBy({ top: (event.key === 'PageDown' ? 1 : -1) * element.clientHeight * 0.8 })
+  }
+  const [referenceTime, setReferenceTime] = useState(() => new Date())
+  const refreshReferenceTime = useCallback((open: boolean) => {
+    isOpen.current = open
+    if (open) setReferenceTime(new Date())
+  }, [])
   const resolvedTags = useMemo(
     () => tags ?? getModelDisplayTags(item.model, undefined, provider),
     [item.model, provider, tags]
@@ -218,6 +247,8 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   return (
     <ModelSelectorHoverCard
       portalContainer={portalContainer}
+      onOpenChange={refreshReferenceTime}
+      onTriggerKeyDown={scrollDetails}
       content={
         <ModelSelectorDetailCardContent
           name={item.model.name}
@@ -225,6 +256,9 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
           providerName={getProviderDisplayName(provider)}
           tags={resolvedTags}
           model={item.model}
+          provider={provider}
+          referenceTime={referenceTime}
+          scrollRef={scrollRef}
           description={description}
         />
       }>
@@ -236,14 +270,18 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
 export function ModelSelectorHoverCard({
   children,
   portalContainer,
-  content
+  content,
+  onOpenChange,
+  onTriggerKeyDown
 }: {
   children: ReactNode
   portalContainer?: HoverCardPortalContainer | null
   content: ReactNode
+  onOpenChange?: (open: boolean) => void
+  onTriggerKeyDown?: KeyboardEventHandler<HTMLAnchorElement>
 }) {
   const triggerRef = useRef<HTMLElement | null>(null)
-  const [side, setSide] = useState<HorizontalHoverCardSide>('right')
+  const [side, setSide] = useState<HoverCardSide>('right')
   const align = getDetailCardAlign()
   const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
     triggerRef.current = element
@@ -258,8 +296,14 @@ export function ModelSelectorHoverCard({
   }, [])
 
   return (
-    <HoverCard openDelay={DETAIL_CARD_OPEN_DELAY} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
-      <HoverCardTrigger asChild ref={setTriggerElement}>
+    <HoverCard
+      openDelay={DETAIL_CARD_OPEN_DELAY}
+      closeDelay={100}
+      onOpenChange={(open) => {
+        if (open) updateSide()
+        onOpenChange?.(open)
+      }}>
+      <HoverCardTrigger asChild ref={setTriggerElement} onKeyDown={onTriggerKeyDown}>
         {children}
       </HoverCardTrigger>
       <HoverCardContent
