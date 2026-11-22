@@ -118,11 +118,10 @@ const referenceCitationsCache = new WeakMap<
 const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
 // A completed process group mounts its whole tool history when it defaults to
-// expanded. Agent sessions set `expandToolSteps`, so an hour-long turn that
-// accumulated hundreds of tool calls used to paint tens of thousands of DOM
-// nodes before the user touched anything. Keep the default for ordinary turns
-// and start oversized histories collapsed; an explicit user toggle still wins
-// through the disclosure cache.
+// expanded. Ordinary turns stay collapsed (Agent sessions included): the outer
+// completed group starts collapsed and an explicit user toggle still wins
+// through the disclosure cache. Oversized histories always start collapsed as
+// a render-budget guard, independent of the default.
 const COMPLETED_HISTORY_AUTO_EXPAND_MAX_ENTRIES = 80
 const COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS = 100 * 1024
 const EMPTY_PART_ENTRIES: readonly PartEntry[] = []

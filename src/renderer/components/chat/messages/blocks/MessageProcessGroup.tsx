@@ -145,7 +145,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   }
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
-  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const summary =
+    props.outcome === 'error'
+      ? t('message.tools.error')
+      : toolItems.length > 0
+        ? t('message.tools.groupHeader', { count: toolItems.length })
+        : t('message.tools.processed')
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )

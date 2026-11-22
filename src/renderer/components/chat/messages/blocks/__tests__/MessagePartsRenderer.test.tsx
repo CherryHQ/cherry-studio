@@ -2409,7 +2409,7 @@ describe('MessagePartsRenderer', () => {
           thoughtAutoCollapse: false
         }
       )
-      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getByRole('button', { name: /1 tool calls/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('lists every step of a running turn without a click when tool steps expand', () => {
@@ -2560,7 +2560,7 @@ describe('MessagePartsRenderer', () => {
         msg({ updatedAt: '2026-01-01T00:00:01Z' })
       )
 
-      const historyTrigger = screen.getByRole('button', { name: 'Processed 1 second' })
+      const historyTrigger = screen.getByRole('button', { name: '2 tool calls 1 second' })
       fireEvent.click(historyTrigger)
       expandCollapsedChildToolGroups()
 
