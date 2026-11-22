@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { lstatSync, readdirSync } from 'node:fs'
-import { lstat as lstatAsync, readdir as readdirAsync } from 'node:fs/promises'
+import { existsSync, lstatSync, readdirSync } from 'node:fs'
+import { access as accessAsync, lstat as lstatAsync, readdir as readdirAsync } from 'node:fs/promises'
 import path from 'node:path'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
@@ -195,8 +195,22 @@ export interface AgentWorkspaceRecoveryPreflight {
   expectedWorkspaceId?: string
 }
 
+const MANAGED_CLAUDE_ROOT_TAIL = '/Agents/.claude'
+
+/** A saved managed Claude config dir from any machine: its absolute prefix differs, its tail does not. */
+function isManagedClaudeConfigDir(dir: string): boolean {
+  return dir.replace(/\\/g, '/').replace(/\/+$/, '').endsWith(MANAGED_CLAUDE_ROOT_TAIL)
+}
+
 type NativeHistoryProbe =
-  | { kind: 'claude-code'; foreignConfigDir: boolean }
+  | {
+      kind: 'claude-code'
+      foreignConfigDir: boolean
+      /** A managed-root branch from another profile path; its history may have been restored under ours. */
+      relocatable: boolean
+      managedRoot: string
+      nativeThreadId: string | null
+    }
   | { kind: 'pi'; sessionDir: string; suffix: string; required: boolean }
 
 export class AgentSessionService {
@@ -1166,12 +1180,12 @@ export class AgentSessionService {
       historyProblem = this.describeHistoryProblem(probe, await this.probeHistoryAsync(probe))
       if (historyProblem) break
     }
-    // Check both folders last, right before the write, so a drive that reconnected or dropped while
-    // history was being checked is not judged by an older answer.
-    const [currentAccessible, targetAccessible] = await Promise.all([
-      isDirectoryAccessibleAsync(current.workspace.path),
-      target.id === current.session.workspaceId ? Promise.resolve(true) : isDirectoryAccessibleAsync(target.path)
-    ])
+    // Finish validating the replacement first, then probe the original folder last, right before the
+    // write, so a drive that reconnected while the replacement was being checked is not judged by an
+    // older answer.
+    const targetAccessible =
+      target.id === current.session.workspaceId ? true : await isDirectoryAccessibleAsync(target.path)
+    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
     return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem, expectedWorkspaceId })
   }
 
@@ -1208,7 +1222,15 @@ export class AgentSessionService {
       .all()
       .flatMap(({ contextId, locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
         if (locator.kind === 'claude-code') {
-          return [{ kind: 'claude-code', foreignConfigDir: !configDirs.has(path.resolve(locator.configDir)) }]
+          return [
+            {
+              kind: 'claude-code',
+              foreignConfigDir: !configDirs.has(path.resolve(locator.configDir)),
+              relocatable: isManagedClaudeConfigDir(locator.configDir),
+              managedRoot: application.getPath('feature.agents.claude.root'),
+              nativeThreadId
+            }
+          ]
         }
         if (locator.kind === 'pi' && nativeThreadId) {
           // Pi opens an archive for a bound branch and for a pending one that already has input.
@@ -1233,7 +1255,18 @@ export class AgentSessionService {
   }
 
   private probeHistorySync(probe: NativeHistoryProbe): boolean {
-    if (probe.kind === 'claude-code') return !probe.foreignConfigDir
+    if (probe.kind === 'claude-code') {
+      if (!probe.foreignConfigDir) return true
+      if (!probe.relocatable || !probe.nativeThreadId) return false
+      try {
+        const projects = path.join(probe.managedRoot, 'projects')
+        return readdirSync(projects).some((dir) =>
+          existsSync(path.join(projects, dir, `${probe.nativeThreadId}.jsonl`))
+        )
+      } catch {
+        return false
+      }
+    }
     try {
       const files = readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix))
       return files.length === 1 && lstatSync(path.join(probe.sessionDir, files[0])).isFile()
@@ -1243,7 +1276,25 @@ export class AgentSessionService {
   }
 
   private async probeHistoryAsync(probe: NativeHistoryProbe): Promise<boolean> {
-    if (probe.kind === 'claude-code') return !probe.foreignConfigDir
+    if (probe.kind === 'claude-code') {
+      if (!probe.foreignConfigDir) return true
+      if (!probe.relocatable || !probe.nativeThreadId) return false
+      try {
+        const projects = path.join(probe.managedRoot, 'projects')
+        const dirs = await withProbeTimeout(readdirAsync(projects))
+        for (const dir of dirs) {
+          try {
+            await withProbeTimeout(accessAsync(path.join(projects, dir, `${probe.nativeThreadId}.jsonl`)))
+            return true
+          } catch {
+            // try the next project directory
+          }
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
     try {
       const files = (await withProbeTimeout(readdirAsync(probe.sessionDir))).filter((file) =>
         file.endsWith(probe.suffix)
@@ -1291,6 +1342,7 @@ export class AgentSessionService {
       current.workspace.id === inaccessibleWorkspaceId
     // The workspace binding is locked once a session has messages, unless its folder is gone (migrated/renamed/unplugged).
     if (!recoveringMissingWorkspace) this.assertSessionHasNoMessagesTx(tx, id)
+    if (recoveringMissingWorkspace) this.rebindRestoredClaudeHistoryTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
@@ -1312,6 +1364,43 @@ export class AgentSessionService {
     })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
     this.moveChildArchivesTx(tx, id, current.session.workspaceId, workspace.id)
+  }
+
+  /**
+   * A full backup carries the managed Claude history under this profile's own data directory while the
+   * saved backend still names the source machine's path. Recovery already verified the restored
+   * transcript, so point the conversation's Claude branches at this profile's managed root.
+   */
+  private rebindRestoredClaudeHistoryTx(tx: DbOrTx, sessionId: string): void {
+    const configDirs = this.effectiveClaudeConfigDirs()
+    const managedRoot = application.getPath('feature.agents.claude.root')
+    const rows = tx
+      .select({
+        contextId: agentSessionContextTable.id,
+        locator: agentRuntimeBackendTable.locator,
+        state: agentRuntimeBackendTable.state
+      })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .where(eq(agentSessionContextTable.sessionId, sessionId))
+      .all()
+    for (const { contextId, locator, state } of rows) {
+      if (locator.kind !== 'claude-code') continue
+      if (configDirs.has(path.resolve(locator.configDir)) || !isManagedClaudeConfigDir(locator.configDir)) continue
+      const next = { version: 1 as const, kind: 'claude-code' as const, configDir: managedRoot }
+      tx.insert(agentRuntimeBackendTable).values({ locator: next, state }).onConflictDoNothing().run()
+      const [backend] = tx
+        .select({ id: agentRuntimeBackendTable.id })
+        .from(agentRuntimeBackendTable)
+        .where(eq(agentRuntimeBackendTable.locator, next))
+        .all()
+      if (backend) {
+        tx.update(agentSessionContextTable)
+          .set({ backendId: backend.id })
+          .where(eq(agentSessionContextTable.id, contextId))
+          .run()
+      }
+    }
   }
 
   /** Subagent archives share their owner's workspace, so a deletion of the old one must not reach them. */

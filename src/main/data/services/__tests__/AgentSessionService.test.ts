@@ -1330,6 +1330,47 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('recovers a managed Claude chat restored from a backup made under another profile path', async () => {
+    const managedRoot = workspacePath('restored-profile', 'Data', 'Agents', '.claude')
+    await rm(workspacePath('restored-profile'), { recursive: true, force: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.claude.root' ? managedRoot : original?.(key, ...rest)
+    )
+    const previous = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
+    try {
+      const sourceLocator = { version: 1, kind: 'claude-code', configDir: '/Users/old-machine/Data/Agents/.claude' }
+      const missingTranscript = await createMessagedSessionWithBackend('claude-restore-missing', sourceLocator)
+      expect(
+        captureError(() =>
+          agentSessionService.setWorkspace(missingTranscript.session.id, {
+            type: 'user',
+            workspaceId: missingTranscript.replacement.id
+          })
+        )
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+      await mkdir(path.join(managedRoot, 'projects', 'project-a'), { recursive: true })
+      await writeFile(path.join(managedRoot, 'projects', 'project-a', 'native-thread-1.jsonl'), '')
+      const restored = await createMessagedSessionWithBackend('claude-restore-ok', sourceLocator)
+      expect(
+        agentSessionService.setWorkspace(restored.session.id, { type: 'user', workspaceId: restored.replacement.id })
+      ).toMatchObject({ workspaceId: restored.replacement.id })
+      const [backend] = await dbh.db
+        .select({ locator: agentRuntimeBackendTable.locator })
+        .from(agentSessionContextTable)
+        .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+        .where(eq(agentSessionContextTable.sessionId, restored.session.id))
+      expect(backend.locator).toEqual({ version: 1, kind: 'claude-code', configDir: managedRoot })
+    } finally {
+      if (previous !== undefined) process.env.CLAUDE_CONFIG_DIR = previous
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
   it('rejects a Pi history path that is not a regular file and requires a file for a pending branch with input', async () => {
     const piSessions = workspacePath('pi-sessions-dir-case')
     await rm(piSessions, { recursive: true, force: true })
