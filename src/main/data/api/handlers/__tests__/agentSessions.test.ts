@@ -15,7 +15,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     getConversationById: getConversationByIdMock,
     getLatestActive: getLatestActiveMock,
     update: updateMock,
-    setWorkspace: setWorkspaceMock,
+    setWorkspaceRecovering: setWorkspaceMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }

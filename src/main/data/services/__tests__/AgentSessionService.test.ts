@@ -1,4 +1,4 @@
-import { chmod, mkdir } from 'node:fs/promises'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import path from 'path'
 
 import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
@@ -1225,6 +1225,95 @@ describe('AgentSessionService', () => {
       captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
     ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
     expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+  })
+
+  async function createMessagedSessionWithBackend(name: string, locator: object, bindingState = 'bound') {
+    const missing = await createWorkspace(`${name}-missing`)
+    const replacement = await createWorkspace(`${name}-replacement`)
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession(name, missing.id)
+    await insertSessionMessage(session.id, `message-${name}`)
+    const [backend] = await dbh.db
+      .insert(agentRuntimeBackendTable)
+      .values({ locator: locator as never, state: 'bound' })
+      .returning()
+    await dbh.db.insert(agentSessionContextTable).values({
+      sessionId: session.id,
+      backendId: backend.id,
+      nativeThreadId: 'native-thread-1',
+      bindingState: bindingState as never
+    })
+    return { session, missing, replacement }
+  }
+
+  it('rejects recovery when the Claude history config directory still exists but differs from the runtime one', async () => {
+    const otherConfig = workspacePath('other-profile-claude-config')
+    await mkdir(otherConfig, { recursive: true })
+    const previous = process.env.CLAUDE_CONFIG_DIR
+    process.env.CLAUDE_CONFIG_DIR = workspacePath('current-profile-claude-config')
+    try {
+      const { session, missing, replacement } = await createMessagedSessionWithBackend('claude-other-existing', {
+        version: 1,
+        kind: 'claude-code',
+        configDir: otherConfig
+      })
+      expect(
+        captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+      else process.env.CLAUDE_CONFIG_DIR = previous
+    }
+  })
+
+  it('rejects recovery when a bound Pi branch has no native session file', async () => {
+    const piSessions = workspacePath('pi-sessions-empty')
+    await mkdir(piSessions, { recursive: true })
+    const getPath = application.getPath as Mock
+    const original = getPath.getMockImplementation()
+    getPath.mockImplementation((key: string, ...rest: string[]) =>
+      key === 'feature.agents.pi.sessions' ? path.join(piSessions, ...rest) : original?.(key, ...rest)
+    )
+    try {
+      const { session, missing, replacement } = await createMessagedSessionWithBackend('pi-missing-file', {
+        version: 1,
+        kind: 'pi'
+      })
+      expect(
+        captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+      ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+
+      await writeFile(path.join(piSessions, '2026-01-01T00-00-00-000Z_native-thread-1.jsonl'), '')
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+    } finally {
+      if (original) getPath.mockImplementation(original)
+      else getPath.mockReset()
+    }
+  })
+
+  it('recovers through async probes and treats a stalled probe as inaccessible', async () => {
+    const missing = await createWorkspace('async-missing')
+    const replacement = await createWorkspace('async-replacement')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Async recovery', missing.id)
+    await insertSessionMessage(session.id, 'message-async')
+    const syncSpy = vi.spyOn(workspaceAccess, 'isDirectoryAccessible')
+    try {
+      await expect(
+        agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+      ).resolves.toMatchObject({ workspaceId: replacement.id })
+      expect(syncSpy).not.toHaveBeenCalled()
+    } finally {
+      syncSpy.mockRestore()
+    }
+    await expect(workspaceAccess.isDirectoryAccessibleAsync(replacement.path, 10)).resolves.toBe(true)
+    await expect(workspaceAccess.withProbeTimeout(new Promise(() => {}), 10)).rejects.toThrow('timed out')
   })
 
   it('rebinds a messaged session whose user workspace folder is missing', async () => {

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
+import { readdir as readdirAsync } from 'node:fs/promises'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
@@ -30,7 +31,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
-import { isDirectoryAccessible } from '@main/utils/isDirectoryAccessible'
+import { isDirectoryAccessible, isDirectoryAccessibleAsync, withProbeTimeout } from '@main/utils/isDirectoryAccessible'
 import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
@@ -183,6 +184,17 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
     return false
   }
 }
+
+/** Results of the filesystem probes a workspace recovery needs, gathered off the main thread. */
+export interface AgentWorkspaceRecoveryPreflight {
+  currentAccessible: boolean
+  targetAccessible: boolean
+  historyProblem?: string
+}
+
+type NativeHistoryProbe =
+  | { kind: 'claude-code'; foreignConfigDir: boolean }
+  | { kind: 'pi'; sessionDir: string; suffix: string }
 
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
@@ -1071,14 +1083,18 @@ export class AgentSessionService {
    * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because it
    * creates/deletes the backing system workspace row.
    */
-  setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
+  setWorkspace(
+    id: string,
+    source: AgentSessionWorkspaceSource,
+    preflight?: AgentWorkspaceRecoveryPreflight
+  ): AgentSessionEntity {
     withSqliteErrors(
       () => {
         const current = this.getJoinedSessionRowTx(application.get('DbService').getDb(), id)
         const inaccessibleWorkspaceId =
           source.type === AGENT_WORKSPACE_TYPE.USER &&
           current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-          !isDirectoryAccessible(current.workspace.path)
+          !(preflight ? preflight.currentAccessible : isDirectoryAccessible(current.workspace.path))
             ? current.workspace.id
             : undefined
         if (
@@ -1087,15 +1103,23 @@ export class AgentSessionService {
           this.sessionHasMessages(application.get('DbService').getDb(), id)
         ) {
           // Recovery must land on a usable folder and on history this profile can still continue; both
-          // are probed here, outside the write transaction.
+          // are probed here (or by the async preflight), outside the write transaction.
           const target = agentWorkspaceService.getRowByIdTx(application.get('DbService').getDb(), source.workspaceId)
-          if (target.id !== current.session.workspaceId && !isDirectoryAccessible(target.path)) {
+          const targetAccessible =
+            target.id === current.session.workspaceId ||
+            (preflight ? preflight.targetAccessible : isDirectoryAccessible(target.path))
+          if (!targetAccessible) {
             throw DataApiErrorFactory.invalidOperation(
               'update session workspace',
               'the replacement workspace folder is not accessible'
             )
           }
-          this.assertNativeHistoryReachable(id)
+          const historyProblem = preflight
+            ? preflight.historyProblem
+            : this.findNativeHistoryProblem(this.listNativeHistoryProbes(id), (probe) => this.probeHistorySync(probe))
+          if (historyProblem) {
+            throw DataApiErrorFactory.invalidOperation('update session workspace', historyProblem)
+          }
         }
         application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
       },
@@ -1110,31 +1134,100 @@ export class AgentSessionService {
   }
 
   /**
-   * A Claude Code conversation keeps its native history under the config directory recorded on its
-   * runtime backend. After a restore into a different profile that directory is gone, the runtime
-   * rejects the branch on the next turn, and rebinding the folder would only clear the warning. Fail
-   * here with a reason instead, leaving the recovery state in place.
+   * Run the filesystem probes `setWorkspace` needs without blocking the main thread, then apply the
+   * change with their results. A stalled mount resolves as inaccessible after a bounded wait.
    */
-  private assertNativeHistoryReachable(sessionId: string): void {
+  async setWorkspaceRecovering(id: string, source: AgentSessionWorkspaceSource): Promise<AgentSessionEntity> {
+    const db = application.get('DbService').getDb()
+    const current = this.getJoinedSessionRowTx(db, id)
+    if (
+      source.type !== AGENT_WORKSPACE_TYPE.USER ||
+      current.workspace.type !== AGENT_WORKSPACE_TYPE.USER ||
+      !this.sessionHasMessages(db, id)
+    ) {
+      return this.setWorkspace(id, source)
+    }
+    const target = agentWorkspaceService.getRowByIdTx(db, source.workspaceId)
+    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
+    if (currentAccessible) return this.setWorkspace(id, source, { currentAccessible, targetAccessible: true })
+    const targetAccessible =
+      target.id === current.session.workspaceId || (await isDirectoryAccessibleAsync(target.path))
+    const probes = this.listNativeHistoryProbes(id)
+    let historyProblem: string | undefined
+    for (const probe of probes) {
+      historyProblem = this.describeHistoryProblem(probe, await this.probeHistoryAsync(probe))
+      if (historyProblem) break
+    }
+    return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem })
+  }
+
+  private listNativeHistoryProbes(sessionId: string): NativeHistoryProbe[] {
     const currentConfigDir = process.env.CLAUDE_CONFIG_DIR ?? application.getPath('external.claude.config')
-    const rows = application
+    const piSessionDir = application.getPath('feature.agents.pi.sessions')
+    return application
       .get('DbService')
       .getDb()
-      .select({ locator: agentRuntimeBackendTable.locator })
+      .select({
+        locator: agentRuntimeBackendTable.locator,
+        nativeThreadId: agentSessionContextTable.nativeThreadId,
+        bindingState: agentSessionContextTable.bindingState
+      })
       .from(agentSessionContextTable)
       .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
       .where(eq(agentSessionContextTable.sessionId, sessionId))
       .all()
-    const unreachable = rows.some(
-      ({ locator }) =>
-        locator.kind === 'claude-code' && locator.configDir !== currentConfigDir && !existsSync(locator.configDir)
-    )
-    if (unreachable) {
-      throw DataApiErrorFactory.invalidOperation(
-        'update session workspace',
-        "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
-      )
+      .flatMap(({ locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
+        if (locator.kind === 'claude-code') {
+          return [{ kind: 'claude-code', foreignConfigDir: locator.configDir !== currentConfigDir }]
+        }
+        if (locator.kind === 'pi' && bindingState === 'bound' && nativeThreadId) {
+          return [{ kind: 'pi', sessionDir: piSessionDir, suffix: `_${nativeThreadId}.jsonl` }]
+        }
+        return []
+      })
+  }
+
+  private probeHistorySync(probe: NativeHistoryProbe): boolean {
+    if (probe.kind === 'claude-code') return !probe.foreignConfigDir
+    try {
+      return readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix)).length === 1
+    } catch {
+      return false
     }
+  }
+
+  private async probeHistoryAsync(probe: NativeHistoryProbe): Promise<boolean> {
+    if (probe.kind === 'claude-code') return !probe.foreignConfigDir
+    try {
+      const files = await withProbeTimeout(readdirAsync(probe.sessionDir))
+      return files.filter((file) => file.endsWith(probe.suffix)).length === 1
+    } catch {
+      return false
+    }
+  }
+
+  private describeHistoryProblem(probe: NativeHistoryProbe, reachable: boolean): string | undefined {
+    if (reachable) return undefined
+    return probe.kind === 'claude-code'
+      ? "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
+      : "this conversation's Pi history file is missing from this data directory and cannot be continued here; start a new conversation or restore the original data directory"
+  }
+
+  /**
+   * Native history lives outside the workspace. After a restore into a different profile the runtime
+   * rejects the branch on the next turn (Claude: its config directory differs from the effective one;
+   * Pi: its session file is absent), so rebinding the folder would only clear the warning. Fail with a
+   * reason instead, leaving the binding and recovery state in place.
+   */
+  private findNativeHistoryProblem(
+    probes: NativeHistoryProbe[],
+    probe: (probe: NativeHistoryProbe) => boolean
+  ): string | undefined {
+    for (const item of probes) {
+      const problem = this.describeHistoryProblem(item, probe(item))
+      if (problem) return problem
+    }
+    return undefined
   }
 
   private setWorkspaceTx(
