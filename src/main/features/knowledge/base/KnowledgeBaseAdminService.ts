@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeChunkGovernanceService } from '@data/services/KnowledgeChunkGovernanceService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -115,7 +116,18 @@ export class KnowledgeBaseAdminService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
+    // A new identity cannot inherit decisions implicitly. Serialize the eligibility check with source writes.
+    return this.knowledgeLockManager.runExclusive(dto.sourceBaseId, () => this.restoreBaseLocked(dto))
+  }
+
+  private async restoreBaseLocked(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
+    if (knowledgeChunkGovernanceService.hasByBase(sourceBase.id)) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restoreBase',
+        'Rebuilding into a new knowledge base is unavailable while chunk decision records exist. Your original base and decisions are unchanged. Cross-base decision transfer is not supported.'
+      )
+    }
 
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,

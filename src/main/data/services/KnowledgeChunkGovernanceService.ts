@@ -285,6 +285,13 @@ export class KnowledgeChunkGovernanceService {
     return this.dbService.getDb().select().from(tables).where(eq(tables.baseId, baseId)).orderBy(asc(tables.id)).all()
   }
 
+  hasByBase(baseId: string): boolean {
+    return (
+      this.dbService.getDb().select({ id: tables.id }).from(tables).where(eq(tables.baseId, baseId)).limit(1).get() !==
+      undefined
+    )
+  }
+
   readHistoryPage(
     baseId: string,
     itemId: string,

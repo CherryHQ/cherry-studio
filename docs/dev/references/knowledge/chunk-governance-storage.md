@@ -99,3 +99,12 @@ Main integration uses the migrated database, file-backed SQLite index, productio
 Review tests additionally cover actual rebind/discard transactions, both audit links, source/target conflicts, empty/missing material, retirement across rebuilds and rollback after a transfer-side history failure. Inspector tests cover confirmation-only writes, exact selection/revision delivery, real shared-control keyboard/focus behavior, conflict recovery and stale responses across source switches. Visual checks use the actual inspector, shared controls and virtual list in English/light desktop and Chinese/dark narrow layouts, with IPC/data fixtures. They do not claim native Electron, live providers, correction publication, citation or base backup/restore acceptance.
 
 Discard restoration tests additionally cover original-identity versus changed/missing sources, stale and superseded intent, foreign ownership, transfer rejection, transactional rollback and lifecycle changes after a real mutation-lock wait.
+
+
+## Rebuilding into a new base
+
+Changing the embedding model through Restore creates a new base and new source item identities. This is not the same operation as rebuilding the existing base's disposable index, or restoring a whole-app backup archive.
+
+Until cross-base transfer can preserve exact source bindings and accepted history, Restore refuses a source base that owns any chunk decision record. This includes labels, corrections, exclusions, neutral records and retired review records. Re-enabling a chunk or discarding an unmatched decision does not erase its history and does not bypass the guard. No new base, copied source, index or job is created by the refusal. The original base and decisions stay unchanged. Do not delete those records as a workaround.
+
+The source base's mutation lock covers the eligibility check and rebuild, so a decision accepted before the rebuild's turn cannot be silently dropped. Untouched bases remain restorable, including when another base has decisions. Existing-base index rebuild and explicit review remain separate operations. This guard prevents unsupported transfer; it does not complete backup/restore acceptance or provide cross-base recovery. Native restore and whole-app archive round-trip acceptance still need verification.
