@@ -13,6 +13,7 @@ import { application } from '@application'
 import { CLI_INSTALL_TOOL_NAME, registerCliTools } from '@main/ai/mcp/servers/cherryCliTools'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 
 import { BinaryManager } from '../BinaryManager'
 
@@ -126,6 +127,33 @@ if (command === 'use') {
     ;(service as any).isolatedEnv = { env: { ...shellEnvRef.current }, usesDefaultChinaPipIndex: false }
     return service
   }
+
+  it('skips a PATH symlink into the old managed installation and finds the next system command', async () => {
+    const legacy = path.join(tempDir, 'legacy')
+    const aliasDir = path.join(tempDir, 'bin')
+    const systemDir = path.join(tempDir, 'system')
+    fs.mkdirSync(legacy)
+    fs.mkdirSync(systemDir)
+    const commands = LOCAL_AGENT_PRESETS.map((preset) => preset.executable)
+    for (const name of commands) {
+      const managed = path.join(legacy, name)
+      fs.writeFileSync(managed, '', { mode: 0o755 })
+      fs.writeFileSync(path.join(systemDir, name), '', { mode: 0o755 })
+      fs.symlinkSync(managed, path.join(aliasDir, name))
+    }
+    shellEnvRef.current = { PATH: [aliasDir, systemDir].join(path.delimiter) }
+    vi.mocked(application.getPath).mockImplementation((key, filename) =>
+      path.join(key === 'feature.binary.data' ? legacy : path.join(tempDir, key), filename ?? '')
+    )
+    const service = new BinaryManager()
+    const installed = await service.getToolSnapshots(commands)
+    for (const name of commands) {
+      expect(installed[name].availability).toEqual({ source: 'system', path: path.join(systemDir, name) })
+    }
+    fs.rmSync(systemDir, { recursive: true })
+    const removed = await service.getToolSnapshots(commands)
+    for (const name of commands) expect(removed[name].availability).toEqual({ source: 'none' })
+  })
 
   it('returns a real MCP tool error for an unmet bundled target and recovers on a name-only request', async () => {
     const bundledDir = path.join(tempDir, 'bundled')

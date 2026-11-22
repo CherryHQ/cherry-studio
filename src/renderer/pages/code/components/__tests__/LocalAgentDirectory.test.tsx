@@ -425,6 +425,25 @@ describe('local agent settings navigation', () => {
     expect(within(program).getByRole('status')).toHaveTextContent('已安装')
   })
 
+  it('offers a system installation after a legacy Agent fails its protocol check', async () => {
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect')
+        return [{ presetId: 'claude', source: 'mise', path: '/legacy/claude' }] as never
+      if (route === 'ai.local_agents.check')
+        return { ok: false, status: 'incompatible', error: 'Method not found' } as never
+      if (route === 'ai.local_agents.install') return { ok: true, path: '/user/bin/claude' } as never
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: '检查连接' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^安装$/ }))
+    await screen.findByText(/\/user\/bin\/claude/)
+    expect(ipcApi.request).toHaveBeenCalledWith(
+      'ai.local_agents.install',
+      expect.objectContaining({ presetId: 'claude', systemOnly: true })
+    )
+  })
+
   it.each(['failed', 'authentication-required'])('keeps unsuccessful check feedback visible: %s', async (status) => {
     vi.mocked(ipcApi.request).mockImplementation(
       async (route) =>

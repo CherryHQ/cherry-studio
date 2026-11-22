@@ -206,9 +206,13 @@ Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
 
 ## Installation and connection
 
-Explicit executable overrides take precedence. Agent Services CLIs prefer a system
-installation over an existing managed copy; other ACP presets retain their
-existing installation discovery order. Codex requires its own executable. DeepSeek Harness
+All local Agent presets and their terminal commands prefer a system executable or
+the user-directory install entry over a legacy mise shim. Each managed command
+must match the requested executable or a declared alias. Discovery follows symbolic
+links so a user-directory link back to a managed copy retains its managed origin.
+If a managed command fails its protocol check, Agent Services offers a system install
+alongside it. Authentication and recognized connection timeouts keep their own recovery flow.
+Explicit executable overrides take precedence. DeepSeek Harness
 releases older than `0.1.2-alpha.2` lack the packaged ACP profile and are skipped
 when their version is known. Explicit paths fail without fallback. Every connection
 resolves installation facts again, so upgrades do not pin an old version path.

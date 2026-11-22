@@ -290,6 +290,16 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(fs.existsSync(path.join(state.root, 'pi'))).toBe(false)
   })
 
+  it('reports a failed system repair when only the old managed Pi remains after installation', async () => {
+    state.name = 'pi-acp'
+    state.env = { SKIP_NATIVE: '1' }
+    state.managed.pi = '/managed/pi'
+    expect(await new LocalAgentInstallService().install('pi-acp', undefined, true)).toMatchObject({
+      ok: false,
+      reason: 'not_detected'
+    })
+  })
+
   it('does not install the Pi adapter after its native CLI installation fails', async () => {
     state.name = 'pi-acp'
     state.exit = '1'
@@ -463,6 +473,18 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       path: state.existing
     })
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it('installs a system copy alongside an incompatible managed Agent', async () => {
+    state.existing = path.join(state.root, 'legacy', 'kilo')
+    await mkdir(path.dirname(state.existing))
+    await writeFile(state.existing, 'legacy installation')
+    expect(await new LocalAgentInstallService().install('kilo', undefined, true)).toMatchObject({
+      ok: true,
+      reused: false,
+      path: path.join(state.root, 'kilo')
+    })
+    expect(await readFile(state.existing, 'utf8')).toBe('legacy installation')
   })
 
   it('runs a persistent global install once for concurrent callers and requires rediscovery', async () => {

@@ -21,11 +21,12 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getBinaryName } from '@main/utils/binaryResolver'
+import { getBinaryName, isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { isOutsidePath } from '@main/utils/file'
 import { CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX, CHINA_NPM_REGISTRY } from '@main/utils/packageRegistry'
 import { getInteractiveShellEnv, getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEY,
@@ -184,7 +185,7 @@ function pipIndexEnv(index: string): Record<string, string> {
 
 /** Comparable base name for a shim or bin file — Windows carries an extension and ignores case. */
 function toShimStem(file: string): string {
-  return isWin ? path.basename(file, path.extname(file)).toLowerCase() : file
+  return isWin ? file.toLowerCase().replace(/\.(?:exe|cmd|bat)$/u, '') : file
 }
 
 /** Whether a shim file is present and executable, by the platform's rules. */
@@ -285,6 +286,28 @@ const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> =>
   } catch {
     return false
   }
+}
+
+const agentCommands = new Set([
+  ...CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable),
+  ...LOCAL_AGENT_PRESETS.flatMap((preset) => [
+    preset.executable,
+    ...(preset.aliases ?? []),
+    ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+  ])
+])
+
+async function findCommandShim(
+  name: string,
+  isRunnable: (file: string) => Promise<boolean>
+): Promise<string | undefined> {
+  const filenames =
+    isWin && agentCommands.has(name) ? [getBinaryName(name), name + '.cmd', name + '.bat'] : [getBinaryName(name)]
+  for (const filename of filenames) {
+    const shim = path.join(getBinaryShimsDir(), filename)
+    if (await isRunnable(shim)) return shim
+  }
+  return undefined
 }
 
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
@@ -482,15 +505,27 @@ export class BinaryManager extends BaseService {
 
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
-        let resolved = isWin
-          ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
-          : await findCommandInShellEnv(name, shellEnv)
-        if (!resolved && SYSTEM_TOOL_LOCATIONS[name]) {
-          const installed = application.getPath(SYSTEM_TOOL_LOCATIONS[name])
-          if (await hasExecutableCandidateShim(installed)) resolved = installed
+        let env = shellEnv
+        const skipped = new Set<string>()
+        for (;;) {
+          const resolved = isWin
+            ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env })
+            : await findCommandInShellEnv(name, env)
+          if (!resolved || skipped.has(resolved)) break
+          if (!agentCommands.has(name)) {
+            return cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved))) ? null : [name, resolved]
+          }
+          if (!(await isManagedBinaryPath(resolved, cherryDirs))) return [name, resolved]
+          skipped.add(resolved)
+          env = mergePathSuffixes(env, [], [path.dirname(resolved)])
         }
-        if (!resolved || cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved)))) return null
-        return [name, resolved]
+        if (SYSTEM_TOOL_LOCATIONS[name]) {
+          const installed = application.getPath(SYSTEM_TOOL_LOCATIONS[name])
+          if ((await hasExecutableCandidateShim(installed)) && !(await isManagedBinaryPath(installed, cherryDirs))) {
+            return [name, installed]
+          }
+        }
+        return null
       })
     )
     const found = Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
@@ -587,7 +622,6 @@ export class BinaryManager extends BaseService {
       if (isRuntimeDependency(spec)) names.add(name)
     }
     const bundled = this.probeBundled()
-    const shimsDir = getBinaryShimsDir()
 
     // The application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
@@ -607,13 +641,9 @@ export class BinaryManager extends BaseService {
       const tool = candidates.get(name)
       if (!tool) return {}
 
-      const shimPath = path.join(shimsDir, getBinaryName(name))
       if (backendUnknown) {
-        if (
-          this.miseBin &&
-          (await hasExecutableCandidateShim(shimPath)) &&
-          (await this.resolveManagedBinaryPath(name))
-        ) {
+        const shimPath = this.miseBin && (await findCommandShim(name, hasExecutableCandidateShim))
+        if (shimPath && (await this.resolveManagedBinaryPath(name))) {
           return { application: backendUnknown, mise: { path: shimPath } }
         }
         return { application: backendUnknown }
@@ -653,7 +683,8 @@ export class BinaryManager extends BaseService {
         }
       }
 
-      if (!(await hasExecutableCandidateShim(shimPath))) return { application: { status: 'absent' } }
+      const shimPath = await findCommandShim(name, hasExecutableCandidateShim)
+      if (!shimPath) return { application: { status: 'absent' } }
       if (await this.resolveManagedBinaryPath(name)) {
         return { application: { status: 'conflict' }, mise: { path: shimPath } }
       }
@@ -664,9 +695,7 @@ export class BinaryManager extends BaseService {
 
     const derived = new Map(await Promise.all([...names].map(async (name) => [name, await derive(name)] as const)))
     const system = await this.probeSystem(
-      [...names].filter(
-        (name) => CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name] || (!derived.get(name)?.mise && !(name in bundled))
-      ),
+      [...names].filter((name) => agentCommands.has(name) || (!derived.get(name)?.mise && !(name in bundled))),
       new Set([...names].filter((name) => derived.get(name)?.mise || name in bundled))
     )
     const snapshots: Record<string, BinaryToolSnapshot> = {}
@@ -674,7 +703,7 @@ export class BinaryManager extends BaseService {
       const derivedTool = derived.get(name)!
       const mise = derivedTool.mise
       const availability: BinaryAvailability =
-        CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name] && system[name]
+        agentCommands.has(name) && system[name]
           ? { source: 'system', path: system[name] }
           : mise
             ? {
@@ -928,6 +957,7 @@ export class BinaryManager extends BaseService {
       const tool = definitions.get(name)?.tool
       return (
         tool !== undefined &&
+        !agentCommands.has(name) &&
         !(name in bundled) &&
         !shimNames.has(toShimStem(name)) &&
         installedFor(tool)?.some((entry) => entry.active) === true
@@ -1339,12 +1369,13 @@ export class BinaryManager extends BaseService {
    */
   private async resolveRunnableShim(name: string, tool: string): Promise<{ path: string; canonical: string } | null> {
     const shimsDir = getBinaryShimsDir()
-    const ownShim = path.join(shimsDir, getBinaryName(name))
-    if (await isExecutableShim(ownShim)) {
+    const shim = await findCommandShim(name, isExecutableShim)
+    if (shim) {
       const canonical = await this.resolveManagedBinaryPath(name)
-      return canonical ? { path: ownShim, canonical } : null
+      return canonical ? { path: shim, canonical } : null
     }
-
+    // Agents launch a specific command. Only generic tools may be represented by a sibling binary.
+    if (agentCommands.has(name)) return null
     const shims = new Map<string, string>()
     try {
       for (const entry of await fsp.readdir(shimsDir)) shims.set(toShimStem(entry), path.join(shimsDir, entry))

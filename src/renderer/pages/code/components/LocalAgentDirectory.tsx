@@ -157,10 +157,10 @@ export function LocalAgentDirectory({
   const [selected, setSelected] = useState(requestedId ?? 'claude')
   const [pendingSelection, setPendingSelection] = useState<string>()
   const [installingAgents, setInstallingAgents] = useState<Map<string, string | undefined>>(() => new Map())
-  const installAgent = useCallback(async (presetId: string, targetVersion?: string) => {
+  const installAgent = useCallback(async (presetId: string, targetVersion?: string, systemOnly?: boolean) => {
     setInstallingAgents((current) => new Map(current).set(presetId, targetVersion))
     try {
-      return await ipcApi.request('ai.local_agents.install', { presetId, targetVersion })
+      return await ipcApi.request('ai.local_agents.install', { presetId, targetVersion, systemOnly })
     } finally {
       setInstallingAgents((current) => {
         const next = new Map(current)
@@ -458,7 +458,7 @@ export function LocalAgentDetails({
 }: {
   installing: boolean
   upgradeTargetVersion?: string
-  onInstall: (presetId: string, targetVersion?: string) => Promise<LocalAgentInstallResult>
+  onInstall: (presetId: string, targetVersion?: string, systemOnly?: boolean) => Promise<LocalAgentInstallResult>
   cliConfigEntry?: ReactNode
   pendingSelection?: string
   onNavigate: () => void
@@ -679,11 +679,12 @@ export function LocalAgentDetails({
       setBusyAction(undefined)
     }
   }
-  const install = async (targetVersion?: string) => {
+  const install = async (targetVersion?: string, systemOnly?: boolean) => {
     if (!preset || busy) return
     clearResult()
     try {
-      const response = await onInstall(preset.id, targetVersion)
+      const response = await onInstall(preset.id, targetVersion, systemOnly)
+      if (response.ok) setConnection(undefined)
       setResult({
         ok: response.ok,
         message: response.ok
@@ -826,6 +827,7 @@ export function LocalAgentDetails({
       if (configuration.enabled || (!preset && !agent)) {
         const response = await ipcApi.request('ai.local_agents.check', configuration)
         if (!response.ok) {
+          setConnection({ status: response.status })
           showError(checkError(response))
           return false
         }
@@ -869,6 +871,15 @@ export function LocalAgentDetails({
             ? t('local_agents.auth_region_unavailable')
             : classifiedError?.message}
       </p>
+      {!result.ok &&
+        !initial.executableOverride &&
+        detection?.source === 'mise' &&
+        (connection?.status === 'incompatible' ||
+          (connection?.status === 'failed' && classifiedError?.kind === 'unknown')) && (
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void install(undefined, true)}>
+            {t('code.install')}
+          </Button>
+        )}
     </div>
   )
   return (

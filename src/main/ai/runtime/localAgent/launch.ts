@@ -6,13 +6,12 @@ import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
 import { application } from '@application'
-import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
+import { isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { mergeEnvironment } from '@main/utils/env'
-import { isOutsidePath } from '@main/utils/file'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
@@ -20,7 +19,6 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
-import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 import type { InputFor } from '@shared/ipc/types'
 import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
@@ -39,16 +37,9 @@ async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvail
 }
 
 async function selectInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
-  const codeCli = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.executable]
   const candidates = await Promise.all(
     [preset.executable, ...(preset.aliases ?? [])].map(async (name) => {
       const candidate = snapshots[name]?.availability
-      if (codeCli && candidate?.source === 'mise') {
-        // A mise package can expose a helper when its main command is missing.
-        const file = path.basename(candidate.path)
-        const command = isWin ? file.toLowerCase().replace(/\.(exe|cmd|bat)$/u, '') : file
-        if (command !== name) return undefined
-      }
       if (candidate && !(await supportsAgentCommand(preset, candidate))) return undefined
       if (preset.executable === 'cursor-agent' && name === 'agent' && candidate && candidate.source !== 'none') {
         const target = await resolveInstalledExecutable(candidate.path).catch(() => '')
@@ -57,9 +48,8 @@ async function selectInstallation(preset: AgentCommand, snapshots: Record<string
       return candidate
     })
   )
-  const preferredSource = codeCli ? 'system' : 'mise'
   return (
-    candidates.find((value) => value?.source === preferredSource) ??
+    candidates.find((value) => value?.source === 'system') ??
     candidates.find((value) => value && value.source !== 'none') ?? { source: 'none' as const }
   )
 }
@@ -76,11 +66,19 @@ export function systemAgentWrapper(command: string): string {
 
 export async function selectAvailableInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
   const installed = await selectInstallation(preset, snapshots)
-  if (installed.source !== 'none') return installed
+  if (installed.source === 'system' || installed.source === 'bundled') return installed
   const entry = systemAgentEntry(preset.executable)
   try {
     if (!(await fs.stat(entry)).isFile()) return installed
     await fs.access(entry, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
+    if (
+      await isManagedBinaryPath(entry, [
+        application.getPath('feature.binary.data'),
+        application.getPath('cherry.bin'),
+        application.getPath('app.root')
+      ])
+    )
+      return installed
     const candidate = { source: 'system' as const, path: entry }
     return (await supportsAgentCommand(preset, candidate)) ? candidate : installed
   } catch {
@@ -147,7 +145,7 @@ export async function resolveLocalAgentLaunch(
     if (!(await fs.stat(executable)).isFile()) throw new Error('Local agent executable is not a file')
     await fs.access(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
     const root = application.getPath('feature.binary.data')
-    if (!isOutsidePath(path.relative(root, executable))) source = 'mise'
+    if (await isManagedBinaryPath(executable, [root])) source = 'mise'
   } else if (preset) {
     const names = [preset.executable, ...(preset.aliases ?? [])]
     const canUseNative = !terminal && preset.id === 'antigravity-acp' && !config.args.length

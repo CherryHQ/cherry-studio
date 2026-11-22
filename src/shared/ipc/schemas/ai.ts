@@ -490,7 +490,11 @@ export const aiRequestSchemas = {
     output: z.object({ current: z.string().optional(), latest: z.string().optional(), canUpgrade: z.boolean() })
   }),
   'ai.local_agents.install': defineRoute({
-    input: z.object({ presetId: z.string().min(1), targetVersion: z.string().optional() }),
+    input: z.object({
+      presetId: z.string().min(1),
+      targetVersion: z.string().optional(),
+      systemOnly: z.boolean().optional()
+    }),
     output: LocalAgentInstallResultSchema
   }),
   'ai.local_agents.auth_status': defineRoute({

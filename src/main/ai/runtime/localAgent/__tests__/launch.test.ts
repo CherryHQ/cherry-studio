@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type * as Platform from '@main/core/platform'
 import type * as ShellEnv from '@main/utils/shellEnv'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { LOCAL_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } from '../launch'
+import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch, systemAgentEntry } from '../launch'
 
 const inventory = vi.hoisted(() => ({
   getRawShellEnv: vi.fn(),
@@ -69,22 +69,48 @@ describe('local agent installation resolution', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  it.each([
-    ['codex', 'codex', 'codex', '/mise/shims/codex-code-mode-host'],
-    ['minimax', 'acp', 'mcode', '/mise/shims/mcode-tools'],
-    ['hermes', 'acp', 'hermes', '/mise/shims/hermes-agent'],
-    ['qoder', 'acp', 'qoderclicn', '/mise/shims/qodercn'],
-    ['deepseek-harness', 'acp', 'dsh', '/mise/shims/dsh']
-  ] as const)(
-    'rejects an incompatible legacy %s installation during detection and launch',
-    async (presetId, protocol, name, path) => {
-      inventory.snapshots[name] = { name, availability: { source: 'mise', path, version: '0.1.0-rc.7' } }
-      expect((await detectLocalAgents()).find((entry) => entry.presetId === presetId)?.source).toBe('none')
-      await expect(resolveLocalAgentLaunch({ ...config, protocol, presetId })).rejects.toMatchObject({
-        code: 'LOCAL_AGENT_NOT_INSTALLED'
+  it.each(LOCAL_AGENT_PRESETS)('selects the current installation for $id over a legacy shim', async (preset) => {
+    const name = preset.executable
+    const entry = systemAgentEntry(name)
+    await mkdir(path.dirname(entry), { recursive: true })
+    await writeFile(entry, '', { mode: 0o755 })
+    inventory.snapshots[name] = { name, availability: { source: 'mise', path: path.join(directory, 'shims', name) } }
+    inventory.snapshots.node = { name: 'node', availability: { source: 'system', path: '/runtime/node' } }
+    expect((await detectLocalAgents()).find((agent) => agent.presetId === preset.id)?.path).toBe(entry)
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId: preset.id, protocol: preset.protocol })
+    expect(preset.id === 'pi-acp' ? launch.env.PI_ACP_PI_COMMAND : launch.executable).toBe(entry)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'does not reclassify a user-bin link to an old managed command as system',
+    async () => {
+      const managed = application.getPath('feature.binary.data', 'codex')
+      const entry = systemAgentEntry('codex')
+      await mkdir(path.dirname(managed), { recursive: true })
+      await mkdir(path.dirname(entry), { recursive: true })
+      await writeFile(managed, '', { mode: 0o755 })
+      await symlink(managed, entry)
+      inventory.snapshots.codex = { name: 'codex', availability: { source: 'mise', path: managed } }
+      expect((await detectLocalAgents()).find((agent) => agent.presetId === 'codex')).toMatchObject({
+        source: 'mise',
+        path: managed
       })
+      expect((await resolveLocalAgentLaunch(config)).executable).toBe(managed)
     }
   )
+
+  it('rejects a DeepSeek installation without the ACP profile during detection and launch', async () => {
+    inventory.snapshots.dsh = {
+      name: 'dsh',
+      availability: { source: 'mise', path: '/mise/shims/dsh', version: '0.1.0-rc.7' }
+    }
+    expect((await detectLocalAgents()).find((entry) => entry.presetId === 'deepseek-harness')?.source).toBe('none')
+    await expect(
+      resolveLocalAgentLaunch({ ...config, presetId: 'deepseek-harness', protocol: 'acp' })
+    ).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_NOT_INSTALLED'
+    })
+  })
 
   it('routes Antigravity WebSockets through the configured HTTP proxy without replacing explicit routes', async () => {
     inventory.snapshots['agy_acp_server.par'] = {

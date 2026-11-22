@@ -11,8 +11,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { regionService } from '@main/services/RegionService'
+import { isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
-import { isOutsidePath } from '@main/utils/file'
 import { CHINA_NPM_REGISTRY, CHINA_PIP_INDEXES } from '@main/utils/packageRegistry'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -52,7 +52,10 @@ const REGISTRY_URL = 'https://cdn.agentclientprotocol.com/registry/v1/latest/reg
 @ServicePhase(Phase.Background)
 @DependsOn(['BinaryManager'])
 export class LocalAgentInstallService extends BaseService {
-  private readonly operations = new Map<string, { version?: string; promise: Promise<LocalAgentInstallResult> }>()
+  private readonly operations = new Map<
+    string,
+    { version?: string; systemOnly: boolean; promise: Promise<LocalAgentInstallResult> }
+  >()
   private readonly removals = new Map<string, Promise<LocalAgentUninstallResult>>()
   private readonly children = new Set<ChildProcess>()
   private abort = new AbortController()
@@ -61,9 +64,11 @@ export class LocalAgentInstallService extends BaseService {
     this.abort = new AbortController()
   }
 
-  install(presetId: string, targetVersion?: string): Promise<LocalAgentInstallResult> {
+  install(presetId: string, targetVersion?: string, systemOnly = false): Promise<LocalAgentInstallResult> {
     const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    return target ? this.installTarget(target, targetVersion) : Promise.resolve({ ok: false, reason: 'unsupported' })
+    return target
+      ? this.installTarget(target, targetVersion, systemOnly)
+      : Promise.resolve({ ok: false, reason: 'unsupported' })
   }
 
   installCli({ name, targetVersion }: BinaryInstallByNameRequest): Promise<LocalAgentInstallResult> {
@@ -73,15 +78,21 @@ export class LocalAgentInstallService extends BaseService {
       : Promise.resolve({ ok: false, reason: 'unsupported' })
   }
 
-  private installTarget(target: InstallTarget, targetVersion?: string): Promise<LocalAgentInstallResult> {
+  private installTarget(
+    target: InstallTarget,
+    targetVersion?: string,
+    systemOnly = false
+  ): Promise<LocalAgentInstallResult> {
     if (this.removals.size) return Promise.resolve({ ok: false, reason: 'failed' })
     const pending = this.operations.get(target.executable)
     if (pending)
-      return pending.version === targetVersion ? pending.promise : Promise.resolve({ ok: false, reason: 'failed' })
-    const operation = this.performInstall(target, targetVersion).finally(() =>
+      return pending.version === targetVersion && pending.systemOnly === systemOnly
+        ? pending.promise
+        : Promise.resolve({ ok: false, reason: 'failed' })
+    const operation = this.performInstall(target, targetVersion, systemOnly).finally(() =>
       this.operations.delete(target.executable)
     )
-    this.operations.set(target.executable, { version: targetVersion, promise: operation })
+    this.operations.set(target.executable, { version: targetVersion, systemOnly, promise: operation })
     return operation
   }
 
@@ -163,11 +174,12 @@ export class LocalAgentInstallService extends BaseService {
     return operation
   }
 
-  private async detect(target: InstallTarget) {
+  private async detect(target: InstallTarget, systemOnly = false) {
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots([target.executable, ...(target.aliases ?? [])])
-    return selectAvailableInstallation(target, snapshots)
+    const installed = await selectAvailableInstallation(target, snapshots)
+    return systemOnly && installed.source === 'mise' ? { source: 'none' as const } : installed
   }
 
   private closeIdleAgentSessions(presetIds: readonly string[]): Promise<boolean> {
@@ -509,17 +521,25 @@ export class LocalAgentInstallService extends BaseService {
     ])
   }
 
-  private async performInstall(preset: InstallTarget, targetVersion?: string): Promise<LocalAgentInstallResult> {
+  private async performInstall(
+    preset: InstallTarget,
+    targetVersion: string | undefined,
+    systemOnly: boolean
+  ): Promise<LocalAgentInstallResult> {
     const presetId = preset.id
     if (preset.executable === 'hermes' && targetVersion) return { ok: false, reason: 'unsupported' }
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      const existing = await this.detect(preset)
+      const existing = await this.detect(preset, systemOnly)
       let env = await getRawShellEnv(this.abort.signal)
       const nativeCli = preset.terminalExecutable && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalExecutable]
       if (nativeCli) {
-        const result = await this.installCli({ name: nativeCli.executable })
+        const result = await this.installTarget(
+          { id: nativeCli.id, executable: nativeCli.executable, cli: nativeCli },
+          undefined,
+          systemOnly
+        )
         if (!result.ok) return result
         env = await getRawShellEnv(this.abort.signal)
       }
@@ -534,7 +554,9 @@ export class LocalAgentInstallService extends BaseService {
         const runtime =
           preset.requiredRuntime?.executable === dependency.executable ? preset.requiredRuntime : undefined
         const available = async () =>
-          runtime ? !!(await resolveRequiredRuntime(runtime, env)) : (await this.detect(target)).source !== 'none'
+          runtime
+            ? !!(await resolveRequiredRuntime(runtime, env))
+            : (await this.detect(target, systemOnly)).source !== 'none'
         if (await available()) continue
         const failure = await this.installPackage(
           { manager: 'npm', package: dependency.package, args: ['install', '--global', dependency.package] },
@@ -584,7 +606,7 @@ export class LocalAgentInstallService extends BaseService {
         if (!command) return { ok: false, reason: 'unsupported' }
         await this.run(command, recipe.args, env)
         await refreshShellEnv()
-        const installed = await this.detect(preset)
+        const installed = await this.detect(preset, systemOnly)
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return installed.source === 'none'
           ? { ok: false, reason: 'not_detected' }
@@ -593,7 +615,7 @@ export class LocalAgentInstallService extends BaseService {
       const failure = await this.installPackage(recipe, env)
       if (failure) return failure
       await refreshShellEnv()
-      const detected = await this.detect(preset)
+      const detected = await this.detect(preset, systemOnly)
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
       if (detected.source === 'none') return { ok: false, reason: 'not_detected', manager: recipe.manager }
       const dependencyFailure = await this.ensureModelDependencies(preset, detected.path, env)
@@ -713,10 +735,10 @@ export class LocalAgentInstallService extends BaseService {
 
   private async isManagedPath(candidate: string): Promise<boolean> {
     if (!path.isAbsolute(candidate)) throw new Error('Package manager returned an invalid system path')
-    const resolved = await realpath(candidate).catch(() => candidate)
-    return [application.getPath('cherry.home'), application.getPath('feature.binary.data')].some(
-      (root) => !isOutsidePath(path.relative(root, candidate)) || !isOutsidePath(path.relative(root, resolved))
-    )
+    return isManagedBinaryPath(candidate, [
+      application.getPath('cherry.home'),
+      application.getPath('feature.binary.data')
+    ])
   }
 
   private run(

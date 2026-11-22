@@ -5,6 +5,8 @@ import type * as NodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
@@ -958,6 +960,68 @@ describe('BinaryManager', () => {
         )
       }
     )
+
+    it('uses the exact Windows command wrapper for an Agent whose name contains a dot', async () => {
+      platformMock.isWin = true
+      const name = 'agy_acp_server.par'
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      const shim = path.join('/mock/feature.binary.data', 'shims', name + '.cmd')
+      ;(mockFsp.access as any).mockImplementation(async (file: string) => {
+        if (file.endsWith('.exe')) throw new Error('ENOENT')
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
+        stdout:
+          args[0] === 'ls' ? JSON.stringify({ [name]: [{ version: '1.0.0', active: true }] }) : '/mock/bin/' + name,
+        stderr: ''
+      }))
+      expect((await service.getToolSnapshots([name]))[name].availability).toMatchObject({ source: 'mise', path: shim })
+    })
+
+    it.each([
+      ...new Set(
+        LOCAL_AGENT_PRESETS.flatMap((preset) => [
+          preset.executable,
+          ...(preset.aliases ?? []),
+          ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+        ])
+      )
+    ])('requires the actual %s command and discovers a matching system install', async (name) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      const oldHelpers: Record<string, string> = {
+        codex: 'codex-code-mode-host',
+        mcode: 'mcode-tools',
+        hermes: 'hermes-agent',
+        qoderclicn: 'qodercn'
+      }
+      const helper = oldHelpers[name] ?? name + '-helper'
+      const tool = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name]?.miseTool ?? name
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
+        stdout:
+          args[0] === 'ls'
+            ? JSON.stringify({ [tool]: [{ version: '1.0.0', active: true }] })
+            : args[0] === 'bin-paths'
+              ? JSON.stringify([{ name: helper }])
+              : '/mock/bin/' + args[1],
+        stderr: ''
+      }))
+      const shim = path.join('/mock/feature.binary.data', 'shims', name)
+      ;(mockFsp.access as any).mockImplementation(async (file: string) => {
+        if (file === shim) throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockResolvedValue([helper])
+      expect((await service.getToolSnapshots([name]))[name].availability).toEqual({ source: 'none' })
+
+      mockFsp.access.mockResolvedValue(undefined)
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/' + name)
+      expect((await service.getToolSnapshots([name]))[name].availability).toEqual({
+        source: 'system',
+        path: '/usr/local/bin/' + name
+      })
+    })
 
     it('uses a system CLI over a legacy managed copy while preserving cleanup metadata', async () => {
       const service = new BinaryManager()
