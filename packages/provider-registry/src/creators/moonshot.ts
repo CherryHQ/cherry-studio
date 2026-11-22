@@ -16,6 +16,10 @@ export default defineCreator({
   models: [
     {
       id: 'kimi-k3',
+      // Preserve the 128k Messages cap: upstream now reports a 1M output ceiling
+      // that would otherwise become the default `max_tokens` on the Anthropic
+      // endpoint and leave no prompt headroom (see resolveOutputReservation).
+      maxOutputTokens: 131072,
       parameterSupport: {
         ...fixedSamplingParameterSupport,
         topK: { supported: false },
@@ -77,6 +81,31 @@ export default defineCreator({
         systemMessage: true
       },
       reasoning: { controls: [{ kind: 'effort', values: ['low', 'high', 'max'], default: 'max' }] }
+    },
+    // K2.7 Code Highspeed stays budget-only: upstream briefly reported an effort
+    // vocabulary (none/low/medium/high) that would expose an Off selection the
+    // Moonshot Chat Completions endpoint rejects (K2.7-code accepts only
+    // thinking.type 'enabled'). Pinning budget-only preserves the existing
+    // Moonshot contract; any TokenHub-specific vocabulary belongs on the
+    // TokenHub offer, not the shared row.
+    {
+      id: 'kimi-k2-7-code-highspeed',
+      name: 'Kimi K2.7 Code HighSpeed',
+      family: 'kimi-code',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144,
+      maxOutputTokens: 262144,
+      openWeights: true,
+      reasoning: { controls: [{ kind: 'budget', min: 0, max: 30720 }] }
     }
   ],
   reasoningFamilies: [

@@ -14977,16 +14977,11 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high"]
-          },
-          {
             "kind": "budget",
             "max": 30720,
             "min": 0
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
@@ -15095,7 +15090,7 @@
       "family": "kimi",
       "id": "kimi-k3",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 1048576,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Kimi K3",
       "openWeights": true,
@@ -20396,10 +20391,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -24162,5 +24157,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "3afc2aac3ecb1663"
+  "version": "6a6a80c02c1f6a2c"
 }
