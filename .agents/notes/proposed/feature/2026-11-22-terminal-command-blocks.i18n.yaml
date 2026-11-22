@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-terminal-command-blocks.md
+2026-11-22-terminal-command-blocks.md: 1d51c5a52f0d2e2b61fccce89271e8ecdea7b157
+2026-11-22-terminal-command-blocks.zh.md: 1e8bec9af7774bd6e5fc2ecc5e980a0e5c39f5c4
