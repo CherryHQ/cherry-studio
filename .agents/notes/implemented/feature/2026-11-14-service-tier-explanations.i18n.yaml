@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-14-service-tier-explanations.md
+2026-11-14-service-tier-explanations.md: 4e2f219a200f8374a053f43dc14f32a4d776df68
+2026-11-14-service-tier-explanations.zh.md: eac5019b436c22a061c0794d923d8b261dd0db9b

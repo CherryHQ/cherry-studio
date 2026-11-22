@@ -1,14 +1,15 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
-import { REGRESSION_CASES, selectCases, supportsPlatform } from './cases'
+import { parseTaskSelection, REGRESSION_CASES, selectCases, serializeTaskSelection, supportsPlatform } from './cases'
 import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
-  const selected = selectCases(metadata.task)
+  const selection = parseTaskSelection(metadata.task)
+  const selected = selectCases(selection)
   const selectedIds = new Set(selected.map(({ id }) => id))
   return {
     schemaVersion: 2,
-    metadata: { providerMode: 'real', ...metadata },
+    metadata: { providerMode: 'mock', ...metadata, task: serializeTaskSelection(selection) },
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
@@ -115,28 +116,26 @@ export function updateRunMetadata(run: RegressionRun, metadata: Partial<RunMetad
 
 export function getRunVerdict(run: RegressionRun): RunVerdict {
   const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
-  const prefix = run.metadata.providerMode === 'mock' ? 'mock' : run.metadata.mode === 'tag' ? 'release' : 'development'
-  if (!['real', 'mock'].includes(run.metadata.providerMode ?? '')) return `${prefix}_blocked`
-  if (run.metadata.providerMode === 'mock' && !run.metadata.mockVersion) return 'mock_blocked'
+  if (run.metadata.providerMode !== 'mock' || !run.metadata.mockVersion) return 'mock_blocked'
   const phases = Object.values(run.phases)
   // A task whose every case is unsupported on this platform has nothing to execute here;
   // excluding it is a correct result, not a blocked one.
   if (applicable.length === 0 && phases.length === 0) {
-    return `${prefix}_not_applicable`
+    return 'mock_not_applicable'
   }
   if (
     phases.some(({ status, errors }) => status === 'failed' || (errors.length > 0 && status !== 'blocked')) ||
     applicable.some(({ status }) => status === 'failed')
   )
-    return `${prefix}_failed`
+    return 'mock_failed'
   if (
     phases.length === 0 ||
     phases.some(({ status }) => status !== 'passed') ||
     applicable.length === 0 ||
     applicable.some(({ status }) => status !== 'passed')
   )
-    return `${prefix}_blocked`
-  return `${prefix}_pass`
+    return 'mock_blocked'
+  return 'mock_pass'
 }
 
 export function readRun(filePath: string): RegressionRun {
@@ -159,6 +158,29 @@ export function writeRun(filePath: string, run: RegressionRun): void {
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * 2 ** attempt)
     }
+  }
+}
+
+/**
+ * Record the case ids one Playwright execution actually collected for a phase (TOOL-20261117-01).
+ *
+ * The reporter calls this when execution starts, so the ids come from the same run that produced
+ * the per-case statuses. A `--grep` rerun is then judged against this list instead of a separate
+ * `--list` collected before/after it, which could see a different registration set.
+ */
+export function recordSelection(
+  run: RegressionRun,
+  phaseId: string,
+  caseIds: string[],
+  recordedAt = new Date().toISOString()
+): RegressionRun {
+  const phase = run.phases[phaseId]
+  if (!phase) throw new Error(`Unknown or unselected regression phase: ${phaseId}`)
+  if (caseIds.length === 0) throw new Error(`Phase ${phaseId} execution collected no cases`)
+  if (new Set(caseIds).size !== caseIds.length) throw new Error(`Phase ${phaseId} execution collected duplicate cases`)
+  return {
+    ...run,
+    selections: { ...run.selections, [phaseId]: { ids: [...caseIds], recordedAt } }
   }
 }
 

@@ -469,6 +469,32 @@ describe('AnthropicMessageConverter tool_result media', () => {
     return part.output
   }
 
+  it('carries Claude Code ToolSearch matches using the same names as the upstream tool schemas', () => {
+    const name = 'mcp__calendar__events.list'
+    const search = { name: 'ToolSearch', input_schema: { type: 'object' as const } }
+    const first = params({ tools: [search] })
+    expect(Object.keys(converter.toAiSdkTools(first) ?? {})).toEqual(['ToolSearch'])
+
+    const next = params({
+      tools: [search, { name, input_schema: { type: 'object' }, defer_loading: true }],
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'search', name: 'ToolSearch', input: {} }] },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'search', content: [{ type: 'tool_reference', tool_name: name }] }
+          ]
+        }
+      ]
+    })
+    const output = toolPartOutput(next)
+    const names = Object.keys(converter.toAiSdkTools(next) ?? {})
+    const upstreamName = names.find((candidate) => candidate !== 'ToolSearch')
+    expect(upstreamName).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
+    expect(output).toBe(`Tool available: ${upstreamName}`)
+    expect(converter.toClientToolName(upstreamName!)).toBe(name)
+  })
+
   // A nested tool_result image never rides inside the tool output — it is relocated into
   // the carrying user message as a `file` part (covered by the relocation tests above),
   // so the output keeps only text plus the anchor placeholder.

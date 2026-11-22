@@ -351,10 +351,13 @@ for limits, cleanup and real-runtime acceptance.
 
 ## Runtime ownership and presentation
 
-Agent browser resources belong to their session and declared app-tab owners. The window composition
+Agent browser page collections belong to their session and declared app-tab owners. Each page has its own
+guest and a stable page identity; main issues a fresh binding generation when that guest is replaced.
+Visible selection is independent of an Agent handle’s target. Ordinary chat Topics use the same page model. The window composition
 provides a stable renderer host outside page Activities; it does not keep chat pages active. A pane
 supplies the display rectangle and view-only controls. Hiding it preserves the same native guest,
-binding, document and viewport. Closing its owners or deleting the session releases the resource.
+binding, document and viewport for every retained page. Closing a page revokes only its binding; closing
+its owners or deleting the session releases the collection, subject to active Agent-turn retention.
 
 Creation is requested at the stable host, independently of revealing the pane. Tool execution holds
 a temporary background-throttling lease; screenshots hold a bounded native frame subscription.

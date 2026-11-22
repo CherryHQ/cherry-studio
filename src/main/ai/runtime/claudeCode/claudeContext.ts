@@ -92,17 +92,16 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
       if (!nativeId || existing.nativeThreadId === nativeId) return existing
     }
     const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
-    // After a stale-resume reset the pre-reset root binding is hidden from
-    // `branchTx` but still occupies `(sessionId, root)`. Reserving a second row
-    // at root would violate `agent_session_context_anchor_uniq`, so anchor the
-    // fresh branch at the failed head. Sibling paths exclude the boundary row
-    // and keep resolving to the retained root binding.
-    const anchorForFresh = existing ? anchor : resetBoundaryId !== undefined ? anchor : root
+    // Fresh branches anchor at the requested head (`anchor`, main). After a
+    // stale-resume reset the pre-reset root binding is hidden from `branchTx`
+    // but still occupies `(sessionId, root)`, so the boundary marker is
+    // recorded; sibling paths exclude the boundary row and keep resolving to
+    // the retained root binding.
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: anchorForFresh,
+      anchorMessageId: anchor,
       ...(resetBoundaryId !== undefined ? { checkpointMapping: { staleResetHandled: resetBoundaryId } } : {})
     })
   })

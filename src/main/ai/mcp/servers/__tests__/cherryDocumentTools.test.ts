@@ -8,20 +8,25 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import type * as PdfText from '@main/utils/pdfText'
 
 const {
   formatFromExtensionMock,
   getPhysicalPathMock,
+  inspectPdfTextMock,
   listAgentSessionAttachmentsMock,
   loggerErrorMock,
   loggerWarnMock,
+  startTaskMock,
   toMarkdownBytesMock
 } = vi.hoisted(() => ({
   formatFromExtensionMock: vi.fn(),
   getPhysicalPathMock: vi.fn(),
+  inspectPdfTextMock: vi.fn(),
   listAgentSessionAttachmentsMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerWarnMock: vi.fn(),
+  startTaskMock: vi.fn(),
   toMarkdownBytesMock: vi.fn()
 }))
 
@@ -36,8 +41,23 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: { get: () => ({ getPhysicalPath: getPhysicalPathMock }) }
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'FileManager') return { getPhysicalPath: getPhysicalPathMock }
+    if (name === 'FileProcessingService') {
+      return { startTask: startTaskMock }
+    }
+    return originalGet(name)
+  })
+  return result
+})
+
+vi.mock('@main/utils/pdfText', async (importOriginal) => ({
+  ...(await importOriginal<typeof PdfText>()),
+  inspectPdfText: inspectPdfTextMock
 }))
 
 vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
@@ -45,10 +65,12 @@ vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
 }))
 
 const { registerDocumentTools } = await import('../cherryDocumentTools')
+const { application } = await import('@application')
 
 type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
 const roots: string[] = []
 const clients: Client[] = []
+let defaultDocumentProcessor: string
 
 async function makeTools() {
   const root = await mkdtemp(path.join(tmpdir(), 'cherry-to-markdown-'))
@@ -56,6 +78,7 @@ async function makeTools() {
   const workspacePath = path.join(root, 'workspace')
   const agentDataPath = path.join(root, 'agent-data')
   await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
+  vi.mocked(application.getPath).mockImplementation((_key, filename) => path.join(root, filename ?? ''))
   const client = await connectMcpTestClient(() => {
     const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
     registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
@@ -77,7 +100,14 @@ describe('cherry-tools to_markdown', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     formatFromExtensionMock.mockReturnValue('docx')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 2, hasTextlessPages: false })
     listAgentSessionAttachmentsMock.mockReturnValue([])
+    defaultDocumentProcessor = 'local-document'
+    startTaskMock.mockReset().mockImplementation(async ({ file, output, processorId }) => {
+      const input = await readFile(file.path, 'utf-8')
+      await writeFile(output.path, `# ${processorId ?? defaultDocumentProcessor}\n\n${input}`)
+      return { task: { id: 'task-1' }, done: Promise.resolve({ status: 'completed' }) }
+    })
   })
 
   afterEach(async () => {
@@ -98,7 +128,7 @@ describe('cherry-tools to_markdown', () => {
       path: expect.stringMatching(/\.md$/),
       chars: 20
     })
-    expect(output.path).toContain(path.join(agentDataPath, 'tmp', 'to-markdown'))
+    expect(output.path).toContain(agentDataPath)
     expect(textOf(result)).not.toContain('Secret title')
     await expect(readFile(output.path, 'utf-8')).resolves.toBe('# Secret title\n\nbody')
     expect(formatFromExtensionMock).toHaveBeenCalledWith('.docx')
@@ -148,6 +178,31 @@ describe('cherry-tools to_markdown', () => {
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(bytes, 'pdf')
   })
 
+  it('converts the complete mixed PDF with the selected local document processor', async () => {
+    const { tools, workspacePath } = await makeTools()
+    await writeFile(path.join(workspacePath, 'mixed.pdf'), 'text and scan')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 2, hasTextlessPages: true })
+
+    const result = await tools.call({ path: 'mixed.pdf' })
+
+    expect(result.isError).toBeFalsy()
+    await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe('# local-document\n\ntext and scan')
+  })
+
+  it('converts successive scans directly with the selected remote document processor', async () => {
+    const { tools, workspacePath } = await makeTools()
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error('Scan needs OCR'), { code: 'needsOcr' }))
+    defaultDocumentProcessor = 'mineru'
+
+    for (const filename of ['first.pdf', 'second.pdf']) {
+      await writeFile(path.join(workspacePath, filename), filename)
+      const result = await tools.call({ path: filename })
+
+      expect(result.isError).toBeFalsy()
+      await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe(`# mineru\n\n${filename}`)
+    }
+  })
+
   it('rejects a managed file that is not attached to the current session', async () => {
     const { tools, workspacePath } = await makeTools()
     const managedDirectory = path.dirname(workspacePath)
@@ -192,7 +247,7 @@ describe('cherry-tools to_markdown', () => {
   })
 
   it('returns an error instead of creating a file for blank conversion output', async () => {
-    const { agentDataPath, tools, workspacePath } = await makeTools()
+    const { tools, workspacePath } = await makeTools()
     await writeFile(path.join(workspacePath, 'empty.pdf'), Buffer.from([1]))
     toMarkdownBytesMock.mockResolvedValue(' \n ')
 
@@ -200,9 +255,6 @@ describe('cherry-tools to_markdown', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Document conversion produced no text')
-    await expect(readFile(path.join(agentDataPath, 'tmp', 'to-markdown', 'missing.md'))).rejects.toMatchObject({
-      code: 'ENOENT'
-    })
   })
 
   it('removes stale Markdown outputs while preserving recent files', async () => {

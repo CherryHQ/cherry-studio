@@ -40,7 +40,7 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
   }
   testInfo.annotations.push({
     type: 'data-source',
-    description: 'Real local BM25 note indexing and configured live chat provider; no mocked recall or answers.'
+    description: 'Real local BM25 indexing and chat tool retrieval, with a scripted model in mock provider mode.'
   })
   let baseId: string | undefined
   let assistantId: string | undefined
@@ -135,7 +135,7 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
           path: '/providers',
           body: {
             providerId,
-            name: 'MP79 live provider',
+            name: 'MP79 note recall provider',
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: { 'openai-chat-completions': { baseUrl: config.baseUrl } },
             apiKeys: [{ id: 'mp79-key', key: config.apiKey, isEnabled: true }]

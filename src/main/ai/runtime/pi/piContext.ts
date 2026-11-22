@@ -54,13 +54,13 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
         throw new Error('Requested Pi identity does not match the captured branch')
       return existing
     }
-    // Hidden root binding still occupies `(sessionId, root)` — anchor fresh at
-    // the failed head so siblings keep the root binding.
-    const freshAnchor = resetBoundaryId !== undefined ? anchor : root
+    // Fresh branches anchor at the requested head (`anchor`, main). The hidden
+    // root binding still occupies `(sessionId, root)` after a stale reset, so
+    // the boundary marker is recorded and siblings keep the root binding.
     return reservePiBranchTx(
       tx,
       sessionId,
-      freshAnchor,
+      anchor,
       nativeId ?? uuid(),
       resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : undefined
     )

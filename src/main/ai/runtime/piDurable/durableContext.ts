@@ -48,9 +48,9 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
       return existing
     }
     const backend = allocateDurableBackendTx(tx)
-    // Hidden root binding still occupies `(sessionId, root)` after a stale
-    // reset — anchor fresh at the failed head so siblings keep root.
-    const hasReset = contexts.hasStaleResetBoundaryTx(tx, sessionId, anchor)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: hasReset ? anchor : root })
+    // Fresh branches anchor at the requested head (`anchor`, main). The hidden
+    // root binding still occupies `(sessionId, root)` after a stale reset, so
+    // anchoring at the failed head keeps siblings on root.
+    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: anchor })
   })
 }

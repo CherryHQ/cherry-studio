@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -20,6 +21,7 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
+  type MessageUserProfile,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
@@ -76,6 +78,16 @@ function withTerminalErrorFallback(
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.importedHistory) {
+      if (status === 'error' || !hasVisiblePart) {
+        if (next === partsByMessageId) next = { ...partsByMessageId }
+        next[message.id] = [
+          ...parts,
+          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
+        ]
+      }
+      continue
+    }
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
@@ -109,10 +121,7 @@ interface AgentMessageListParams {
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean
@@ -447,6 +456,10 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(
+    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -461,8 +474,8 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
-      listKey: resolvedAgentId,
-      renderConfig,
+      listKey: topic.id,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -486,7 +499,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -494,9 +507,22 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const restoreUnsentMessage = useCallback(
+    (message: MessageListItem, send: boolean) =>
+      void EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+        topicId: topic.id,
+        messageId: message.id,
+        parts: partsByMessageId[message.id] ?? [],
+        send
+      }),
+    [partsByMessageId, topic.id]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
+      resendUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, true) : undefined,
+      editUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, false) : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled &&
@@ -582,20 +608,27 @@ export function useAgentMessageListProviderValue({
       openPath,
       respondToolApproval,
       resolvePath,
+      restoreUnsentMessage,
       selectionController.actions,
       updateRenderConfig
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

@@ -83,9 +83,10 @@ export function PdfOutline({ className, items, onNavigate, status }: PdfOutlineP
         {t('file_preview.pdf.outline.title')}
       </h2>
       <ScrollArea
+        contentProps={{ className: 'px-2 py-2' }}
         className="min-h-0 flex-1"
         viewportProps={{
-          className: 'px-2 py-2',
+          className: '',
           style:
             options?.bottomInset === 'content'
               ? { paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))' }
