@@ -327,17 +327,27 @@ export function assertRoutedAgentImageLimit(
  * `toClaudeImageMediaType`: only JPEG/PNG/GIF/WebP can become Anthropic image
  * blocks. Anything else (AVIF, HEIC, TIFF, BMP …) takes the local-path
  * fallback and must not count toward the native image cap.
+ *
+ * Legacy aliases (`image/x-png`, `image/pjpeg` …) resolve to their canonical
+ * types so pre-send admission agrees with managed-file materialization, which
+ * reports on-disk MIME (`image/png` for both `image/png` and `image/x-png`
+ * labels) before the driver's native-block guard runs.
  */
 export function toClaudeNativeMediaType(value: string | undefined | null): string | null {
   switch (value?.toLowerCase()) {
     case 'image/jpg':
     case 'image/jpeg':
+    case 'image/pjpeg':
+    case 'image/x-jpeg':
       return 'image/jpeg'
     case 'image/png':
+    case 'image/x-png':
       return 'image/png'
     case 'image/gif':
+    case 'image/x-gif':
       return 'image/gif'
     case 'image/webp':
+    case 'image/x-webp':
       return 'image/webp'
     default:
       return null

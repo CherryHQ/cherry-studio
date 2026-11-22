@@ -85,6 +85,7 @@ import {
   countAgentImageFileParts,
   countClaudeNativeFileParts,
   countClaudeNativeImageAttachments,
+  isManualCompactParts,
   resolveMaxAgentImages
 } from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -1348,8 +1349,13 @@ const AgentComposerInner = ({
         // Resend reaches here with prebuilt parts that bypass the draft count).
         // Claude counts only native-block candidates (TIFF/AVIF take the path
         // fallback in the driver), so PNG+TIFF fits a one-image native cap.
+        // Manual `/compact` on Pi / Pi-Durable compacts without submitting
+        // images or replay (both drivers short-circuit), so it never gates —
+        // matching `beginTurn`/`admitTurn` and `send`.
+        const isManualCompact =
+          (agent?.type === 'pi' || agent?.type === 'pi-durable') && isManualCompactParts(payload.userMessageParts)
         const drainMaxImages = resolveMaxAgentImages(model)
-        if (drainMaxImages !== undefined) {
+        if (drainMaxImages !== undefined && !isManualCompact) {
           const isClaudeNative = agent?.type === 'claude-code'
           const drainImageCount = isClaudeNative
             ? countClaudeNativeImageAttachments(attachments) + countClaudeNativeFileParts(payload.userMessageParts)
@@ -1584,13 +1590,20 @@ const AgentComposerInner = ({
         toast.error(workspaceWarning)
         return
       }
+      const payload = buildQueuedPayload(draft)
+      if (!payload) return
       // Capability-driven multi-image guard (#20030): block before anything is
       // sent when the attached images exceed the model's limit. The draft stays
       // intact so retry preserves attachments and instructions. Claude counts
       // only native-block candidates (TIFF/AVIF take the path fallback in the
-      // driver), so PNG+TIFF fits a one-image native cap.
+      // driver), so PNG+TIFF fits a one-image native cap. Manual `/compact` on
+      // Pi / Pi-Durable compacts without submitting images or replay, so it
+      // never gates — matching `beginTurn`/`admitTurn`, `send`, and the drain
+      // gate above.
+      const isManualCompact =
+        (agent?.type === 'pi' || agent?.type === 'pi-durable') && isManualCompactParts(payload.userMessageParts)
       const maxImages = resolveMaxAgentImages(model)
-      if (maxImages !== undefined) {
+      if (maxImages !== undefined && !isManualCompact) {
         const imageCount =
           agent?.type === 'claude-code' ? countClaudeNativeImageAttachments(files) : countAgentImageAttachments(files)
         if (imageCount > maxImages) {
@@ -1598,8 +1611,6 @@ const AgentComposerInner = ({
           return
         }
       }
-      const payload = buildQueuedPayload(draft)
-      if (!payload) return
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and

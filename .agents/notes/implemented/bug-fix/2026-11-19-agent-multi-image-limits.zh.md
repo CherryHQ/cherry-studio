@@ -16,7 +16,7 @@ Status: implemented
 
 ## 备选方案
 
-后续加固（PR #24918 评论）：`isManualCompactParts` 按 `\n` 连接全部文本后对修剪结果匹配 `^\/compact`，并带 `systemReminder`/`hasDelivery` 守卫，与 `buildAgentUserContent` 一致（`Compare these` + `/compact` 分片与带投递前缀的 `/compact` 按普通轮次拦截，真正的 `/compact` 仍走压缩）；编辑分发先只校验新分片，历史校验延后到事务内保留前缀检查（初检 tip 包含被替换消息，纯文本删除工作区 PNG 可通过）；Claude composer 门控只计原生块候选（`countClaudeNativeImageAttachments` / `countClaudeNativeFileParts` 经 `canBeClaudeNativeImagePart`，无 MIME 时已知非原生扩展同样不计数，PNG+TIFF 可通过单图原生上限）；`consumePendingImageCount` 无关失败按 FIFO（`shift`，与 turn-complete 一致）结算，保留等待中的 steer 零值供下次上限使用；无上限模型直接返回并跳过历史扫描（有限上限不存在时两次检查均为无操作，零 SQLite 路径读取）。
+后续加固（PR #24918 评论）：`isManualCompactParts` 按 `\n` 连接全部文本后对修剪结果匹配 `^\/compact`，并带 `systemReminder`/`hasDelivery` 守卫，与 `buildAgentUserContent` 一致（`Compare these` + `/compact` 分片与带投递前缀的 `/compact` 按普通轮次拦截，真正的 `/compact` 仍走压缩）；编辑分发先只校验新分片，历史校验延后到事务内保留前缀检查（初检 tip 包含被替换消息，纯文本删除工作区 PNG 可通过）；Claude composer 门控只计原生块候选（`countClaudeNativeImageAttachments` / `countClaudeNativeFileParts` 经 `canBeClaudeNativeImagePart`，无 MIME 时已知非原生扩展同样不计数，PNG+TIFF 可通过单图原生上限）；`consumePendingImageCount` 无关失败按 FIFO（`shift`，与 turn-complete 一致）结算，保留等待中的 steer 零值供下次上限使用；无上限模型直接返回并跳过历史扫描（有限上限不存在时两次检查均为无操作，零 SQLite 路径读取）。第 6 轮加固：历史图片 MIME 别名（`image/x-png`、`image/pjpeg`、`image/x-jpeg`、`image/x-gif`、`image/x-webp`）归一化为标准 Claude 原生类型，使发送前准入计数与托管文件物化结果一致，建行前即拦截（inv_975d0894b156ac2a）；`admitTurn` 复用轮次受理时捕获的 `admittedMaxImages`（`beginTurn`/`enqueueUserMessage` 捕获，经排队 `startNextTurn` 传递），已受理轮次打开期间发布的新上限不得在持久化与清草稿确认后驳回（inv_512fd59aaedb2023）；最早的带图提交仍在解析上限内时（提交后可能经工具追加图片导致实际数量未知），`consumePendingImageCount` 保留队列与提供商原文，仅跳过首个纯文本零以定位已放置的图片请求（inv_a864552df4a4112d）；composer 空闲（`handleSendDraft`）与排空（`sendQueuedPayload`）两处门控对 Pi/Pi-Durable 真正 `/compact` 均跳过，与 `beginTurn`/`admitTurn`/`send` 一致（inv_151778bef122ee04）。
 
 - 静默丢弃或降采样多余图片：未经用户同意丢失数据；已拒绝。
 - 按轮次自动拆分发送：破坏需要同屏对比与多截屏的语义；最终选择带上限提示的拦截。
@@ -43,6 +43,10 @@ Status: implemented
 - Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：Pi/Pi-Durable 对分片与带投递前缀的 `/compact` 按普通轮次拒绝（inv_a799a7c78eb893f7）。
 - Regression — `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`：分片/投递 `/compact` 拦截而真正 `/compact` 放行（inv_a799a7c78eb893f7）；删除工作区 PNG 的纯文本编辑经新分片初检 + 保留前缀事务检查通过（inv_e5b3b1538d5182fc）；无上限空闲发送跳过历史扫描（零 `readAgentSessionPath` 调用；inv_c23ccc3159f3a2b9）。
 - Regression — `src/renderer/components/composer/variants/__tests__/AgentComposer.test.tsx`：Claude PNG+TIFF 通过单图原生上限（inv_129fa9c831baabe0）。
+- Regression — `src/shared/ai/__tests__/agentImageLimits.test.ts`：历史 MIME 别名（`image/x-png`、`image/pjpeg`）计入 Claude 原生，使准入计数与托管文件物化一致（inv_975d0894b156ac2a）。
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：已受理轮次打开期间出现新上限时沿用受理时的能力（inv_512fd59aaedb2023）。
+- Regression — `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`：提交后经工具增长时保留未放置 steer 与提供商原文（inv_a864552df4a4112d）。
+- Regression — `src/renderer/components/composer/variants/__tests__/AgentComposer.test.tsx`：Pi 手动 `/compact` 携带图片时跳过两处 composer 门控（inv_151778bef122ee04）。
 - Regression — `src/main/ipc/handlers/__tests__/ai.test.ts`：`ai.stream.open` 经 `AI_REQUEST_FAILED` 与 `aiErrorDetail` 保留 limit/count。
 - Regression — `src/main/ai/channels/__tests__/ChannelMessageHandler.test.ts`：通道准入发送主目录本地化上限文案并携带 limit/count（含 zh-CN 非英文断言）。
 - Regression — `src/main/ai/runtime/claudeCode/__tests__/desktopRuntime.integration.test.ts`：纯文本准入路径不变。

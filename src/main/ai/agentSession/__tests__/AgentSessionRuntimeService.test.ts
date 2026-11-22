@@ -1026,6 +1026,56 @@ describe('AgentSessionRuntimeService', () => {
         expect(error).toBeInstanceOf(AgentImageLimitError)
       }
     })
+
+    it('keeps the admitted capability when a cap appears while the turn is opening (inv_512fd59aaedb2023)', async () => {
+      // Submit two images to an uncapped model, then publish a one-image cap
+      // for the same model ID while the accepted turn is opening. Admit must
+      // use the captured uncapped capability, not a fresh lookup, so it does
+      // not reject after persistence and the ack that clears the draft.
+      const uncappedModel = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Uncapped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = { ...uncappedModel, maxAgentImages: 1 }
+      vi.mocked(modelService.getByKey).mockReturnValue(uncappedModel as never)
+      const connection = {
+        ...createAsyncQueue<any>(),
+        send: vi.fn().mockResolvedValue(undefined),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+        }
+      })
+      const admittedTurn = (service as any).currentTurn(getEntry(service))
+      expect(admittedTurn.admittedMaxImages).toBeUndefined()
+      // Catalog refresh publishes a cap for the same model ID after acceptance.
+      vi.mocked(modelService.getByKey).mockReturnValue(cappedModel as never)
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      await reader.cancel().catch(() => undefined)
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(
@@ -2857,6 +2907,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {
+    vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -2885,12 +2936,14 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
-        steer: true
+        steer: true,
+        admittedMaxImages: undefined
       }
     ])
   })
 
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
+    vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, fastMode: true })
     const entry = getEntry(service)
@@ -2914,7 +2967,8 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
-        steer: true
+        steer: true,
+        admittedMaxImages: undefined
       }
     ])
   })
@@ -6282,6 +6336,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
       const events = createAsyncQueue<any>()
       const redirect = vi.fn().mockReturnValue(true)
       const connection = {
@@ -6322,7 +6377,8 @@ describe('AgentSessionRuntimeService', () => {
           serviceTier: 'standard',
           knowledgeBaseIds: ['kb-2'],
           fastMode: false,
-          steer: true
+          steer: true,
+          admittedMaxImages: undefined
         }
       ])
       void service.closeSession('session-1')

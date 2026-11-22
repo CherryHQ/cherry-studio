@@ -467,4 +467,21 @@ describe('runtime-specific replay gates (#20030 follow-up)', () => {
     expect(countAgentImageFileParts(fileParts)).toBe(2)
     expect(countClaudeNativeFileParts(fileParts)).toBe(1)
   })
+
+  it('normalizes legacy image MIME aliases consistently for admission and routing (inv_975d0894b156ac2a)', () => {
+    // A channel may label a valid managed PNG as `image/x-png` while
+    // managed-file materialization reports on-disk `image/png` for both.
+    // Admission must count both as native so it rejects before row creation,
+    // matching the driver's post-materialization guard.
+    expect(canBeClaudeNativeImagePart({ type: 'file', mediaType: 'image/png', filename: 'a.png' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'file', mediaType: 'image/x-png', filename: 'b.png' })).toBe(true)
+    expect(canBeClaudeNativeImagePart({ type: 'file', mediaType: 'image/pjpeg', filename: 'c.jpg' })).toBe(true)
+    const parts = [
+      { type: 'file', mediaType: 'image/png', filename: 'a.png' },
+      { type: 'file', mediaType: 'image/x-png', filename: 'b.png' }
+    ]
+    expect(countClaudeNativeImageParts(parts)).toBe(2)
+    expect(countClaudeNativeFileParts(parts)).toBe(2)
+    expect(() => assertClaudeAgentImageLimit(parts, single)).toThrow(AgentImageLimitError)
+  })
 })

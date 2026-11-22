@@ -402,12 +402,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   /**
    * Consume the pending image count that best matches a provider `result`
-   * failure (first count exceeding the parsed limit in submission order, else
-   * the most recent). Submission order matters: when a two-image request fails
-   * while a five-image steer is still queued unplaced, the failure belongs to
-   * the earlier submission — reporting the queued maximum would misattribute
-   * the count and drop the steer's entry. Returns undefined when no pending
-   * submission exists.
+   * failure (oldest over-limit wins; a leading text-only zero is skipped).
+   * Submission order matters: when a two-image request fails while a
+   * five-image steer is still queued unplaced, the failure belongs to the
+   * earlier submission — reporting the queued maximum would misattribute the
+   * count and drop the steer's entry. When the oldest carries images but stays
+   * within the parsed limit, the request may have grown via tools after
+   * submission, so the actual count is unknown and the queue is preserved so
+   * the caller keeps the provider's own text. Returns undefined when no
+   * pending submission exists or when attribution is unknown.
    *
    * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
    * `requesting` membership from the 0.3.311 adapter) instead of order when
@@ -1138,13 +1141,22 @@ function normalizeImageLimitRejection(message: string | undefined, parts: readon
  * Consume the pending image count that best matches a provider `result`
  * failure. Exported for regression coverage: the queue holds submitted native
  * block counts in order, and a later `result` failure names only the limit.
- * First over-limit in submission order wins (not the maximum), so a two-image
+ * The oldest over-limit submission wins (not the maximum), so a two-image
  * failure while a five-image steer is still queued unplaced reports two and
  * preserves the steer's entry. Unrelated failures (no parsed limit) settle
  * the oldest submission (FIFO, matching turn-complete `shift`), so an
  * unrelated failure settling a five-image request while a text steer waits
  * drops five and preserves the steer's zero for the next limit failure.
  * Mutates `pending` in place (splice/shift).
+ *
+ * When the oldest submission cannot explain the failure (it carries images
+ * but stays within the parsed limit), the request may have grown after
+ * submission — a tool can attach another image mid-turn — so the actual sent
+ * count is unknown. Claiming a later unplaced steer's count would misattribute
+ * the failure and consume its entry, so this preserves the queue and returns
+ * `undefined` so the caller keeps the provider's own limit text. A leading
+ * text-only entry (`0`) can never fail with an image cap, so the search skips
+ * it to find the placed image request it precedes.
  *
  * TODO(#20030): correlate with native request UUIDs (`input-boundary` /
  * `requesting` membership from the 0.3.311 adapter) instead of order when
@@ -1162,15 +1174,29 @@ export function consumePendingImageCount(pending: number[], failure: unknown): n
           : undefined
   const limit = parseUpstreamImageLimit(message)
   if (limit !== undefined) {
-    // First over-limit in submission order: the provider reports the placed
-    // request, and queued steers have not been placed yet (see placement
-    // contract in packages/agent-runtime-claude-code/README).
-    for (let i = 0; i < pending.length; i++) {
-      if (pending[i] > limit) {
-        const [count] = pending.splice(i, 1)
-        return count
+    // Oldest-first: the provider reports the placed request, and queued
+    // steers have not been placed yet (see placement contract in
+    // packages/agent-runtime-claude-code/README).
+    if (pending[0] > limit) {
+      const [count] = pending.splice(0, 1)
+      return count
+    }
+    // A leading text-only entry can never trip an image cap, so a later
+    // over-limit must be the placed image request it precedes.
+    if (pending[0] === 0) {
+      for (let i = 1; i < pending.length; i++) {
+        if (pending[i] > limit) {
+          const [count] = pending.splice(i, 1)
+          return count
+        }
       }
     }
+    // Otherwise the oldest carries images but stays within the parsed limit:
+    // it may have grown via tools after submission, so the actual sent count
+    // is unknown. Preserve the queue (notably an unplaced steer's count) and
+    // let the caller keep the provider's limit text instead of claiming an
+    // unplaced count was sent.
+    return undefined
   }
   return pending.shift()
 }
@@ -1485,12 +1511,17 @@ function toClaudeImageMediaType(value: string | undefined) {
   switch (value?.toLowerCase()) {
     case 'image/jpg':
     case 'image/jpeg':
+    case 'image/pjpeg':
+    case 'image/x-jpeg':
       return 'image/jpeg'
     case 'image/png':
+    case 'image/x-png':
       return 'image/png'
     case 'image/gif':
+    case 'image/x-gif':
       return 'image/gif'
     case 'image/webp':
+    case 'image/x-webp':
       return 'image/webp'
     default:
       return null
