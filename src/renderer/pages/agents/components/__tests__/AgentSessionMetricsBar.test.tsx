@@ -113,6 +113,31 @@ describe('AgentSessionMetricsBar', () => {
     )
   })
 
+  it('marks rates and timings approximate when copied fork turns have no stats', () => {
+    const forked = [
+      { id: 'c', role: 'assistant', parts: [], metadata: { status: 'success' } },
+      {
+        id: 'n',
+        role: 'assistant',
+        parts: [],
+        metadata: {
+          status: 'success',
+          stats: {
+            inputTokens: 1000,
+            outputTokens: 100,
+            timeFirstTokenMs: 500,
+            inputTokenDetails: { cacheReadTokens: 900 }
+          }
+        }
+      }
+    ] as unknown as CherryUIMessage[]
+    render(<AgentSessionMetricsBar messages={forked} partsByMessageId={{}} />)
+
+    const text = screen.getByRole('button').textContent ?? ''
+    expect(text).toContain('~90%')
+    expect(text).toContain('~0.5s')
+  })
+
   it('shows no partial-history note when the whole session is loaded', () => {
     render(<AgentSessionMetricsBar messages={messages} partsByMessageId={{}} />)
 

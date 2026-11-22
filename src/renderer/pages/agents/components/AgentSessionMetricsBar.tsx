@@ -47,8 +47,9 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = f
     value === undefined
       ? unavailable
       : `${tokenAtLeast}${(partial || metrics.usageIncomplete ? exactFormatter : compactFormatter).format(value)}`
-  // Rates and timings average over the loaded messages only; mark them approximate while history is partial.
-  const approx = partial ? '~' : ''
+  // Rates and timings average over the loaded messages only, and skip turns with no recorded stats
+  // (copied fork history); mark them approximate in both cases.
+  const approx = partial || metrics.usageIncomplete ? '~' : ''
   const formatFirstToken = (ms?: number) =>
     ms === undefined ? unavailable : `${approx}${decimalFormatter.format(ms / 1000)}s`
   const formatThroughput = (value?: number) =>
