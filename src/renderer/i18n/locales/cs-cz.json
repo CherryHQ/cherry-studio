@@ -1003,6 +1003,7 @@
   "chat.message.token_details.waiting_first_token": "Čeká se",
   "chat.message.useful.label": "Nastavit jako kontext",
   "chat.message.useful.tip": "V této skupině zpráv bude tato zpráva vybrána pro zařazení do kontextu",
+  "chat.multiple.select.delete_above": "[to be translated]:Delete loaded messages above",
   "chat.multiple.select.empty": "Nejsou vybrány žádné zprávy",
   "chat.multiple.select.label": "Vícenásobný výběr",
   "chat.navigation.anchor.jump_to_turn": "Přejít na {{number}}. kolo konverzace",
