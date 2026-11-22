@@ -4,6 +4,8 @@
 
 The initial artifacts and bindings come from [T3 Code at the pinned revision](https://github.com/pingdotgg/t3code/tree/0a8aaa3ccb944dadb70054ae4ef2e29897b0db03/apps/web/src/terminal/ghostty). Its [VERSION](https://github.com/pingdotgg/t3code/blob/0a8aaa3ccb944dadb70054ae4ef2e29897b0db03/native/libghostty-vt/VERSION) identifies the Ghostty source used to build the WASM. The older revision cited in the architecture research is not this artifact's build identity.
 
+The current engine is rebuilt directly from Ghostty revision `6d244209978e599277904ff3ced7b8a2ebcc528d` with Zig `0.17.1`. The original T3 revision remains adaptation provenance, independently of this build identity. The callback trampoline also exposes Cherry's allocator callbacks for bounded native search allocations.
+
 Licenses shipped with these assets:
 
 - `LICENSE-GHOSTTY` — Ghostty, MIT; copyright 2024 Mitchell Hashimoto and Ghostty contributors.

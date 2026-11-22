@@ -45,7 +45,7 @@ The harness covers transport and process behavior. Stream checks exercise real M
 | --- | --- |
 | `independent-single-generation-instances` | Distinct processes receive their own init data; stopping one leaves its sibling alive; stopped/crashed handles cannot spawn another generation |
 | `terminal-production-pipe-pty-and-headless-reply` | The production terminal entry preserves a real pipe exit code and, on POSIX, answers a PTY query without a renderer; native dependencies and the scope helper load in both layouts |
-| `headless-ghostty-assets-and-replies` | The child reads pinned WASM from each app layout and produces Unicode cells, replies, mode-aware input, alternate-screen restoration, resize, and sibling core isolation without a renderer |
+| `headless-ghostty-assets-and-replies` | The child reads pinned WASM from each app layout and produces Unicode cells, replies, native search with allocator callbacks, mode-aware input, alternate-screen restoration, resize, and sibling core isolation without a renderer |
 | `stream-duplex-slow-consumer` | Ordered bidirectional data and EOF under delayed consumption; measured outstanding byte/frame peaks in each direction |
 | `stream-cooperative-cancel` | A blocked producer cleans up and acknowledges cancellation over the real port |
 | `stream-terminate-cancel` | Native-style termination closes the stream only after process exit |
