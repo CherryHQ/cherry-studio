@@ -105,8 +105,13 @@
         "**/__tests__/**",
         "**/__mocks__/**",
         "**/tests/**",
+        "**/test_utils/**",
+        "packages/agent-behavior/src/contract/**",
+        "packages/agent-behavior/src/fake/**",
         "scripts/e2e/**",
+        "scripts/test-doc2x-e2e.ts",
         "scripts/utility-process-smoke/**",
+        "scripts/voice-runtime-smoke/**",
         "**/*.{test,spec}.{js,jsx,ts,tsx,cjs,mjs,cts,mts}"
       ],
       "rules": {
@@ -161,6 +166,7 @@
     "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-known-value-widening": "error",
     "anti-slop/no-shape-in-symbol-names": "off",
     "no-array-constructor": "off",
     "no-caller": "error",
