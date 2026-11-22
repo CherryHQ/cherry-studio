@@ -1,5 +1,5 @@
 import { ChevronDown, Dices } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip, usePortalContainer } from '@cherrystudio/ui'
@@ -16,12 +16,17 @@ const SelectionActionIconPicker = ({ value, onChange }: SelectionActionIconPicke
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const portalContainer = usePortalContainer()
+  // Any newer choice invalidates a dice roll that is still loading the icon list.
+  const choiceRef = useRef(0)
   const selectIcon = (icon: string) => {
+    choiceRef.current += 1
     onChange(icon)
     setOpen(false)
   }
   const selectRandomIcon = async () => {
+    const choice = ++choiceRef.current
     const { iconNames } = await import('lucide-react/dynamic')
+    if (choice !== choiceRef.current) return
     selectIcon(iconNames[Math.floor(Math.random() * iconNames.length)])
   }
 

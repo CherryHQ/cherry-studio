@@ -54,4 +54,15 @@ describe('SelectionActionIcon', () => {
     await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith('custom-icon'))
     expect(icon).toHaveAttribute('data-icon-name', 'custom-icon')
   })
+
+  it.each(['__proto__', 'constructor', 'toString'])(
+    'does not treat the inherited name %s as a built-in icon',
+    async (name) => {
+      dynamicIconState.render.mockClear()
+
+      render(<SelectionActionIcon name={name} />)
+
+      await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith(name))
+    }
+  )
 })

@@ -30,7 +30,9 @@ type SelectionActionIconProps = ComponentProps<StaticSelectionActionIcon> & {
 }
 
 const SelectionActionIcon: FC<SelectionActionIconProps> = ({ fallback, name, ...props }) => {
-  const BuiltInIcon = name ? BUILT_IN_SELECTION_ACTION_ICONS[name] : undefined
+  // Own properties only: a saved name like `__proto__` must reach the fallback, not Object.prototype.
+  const BuiltInIcon =
+    name && Object.hasOwn(BUILT_IN_SELECTION_ACTION_ICONS, name) ? BUILT_IN_SELECTION_ACTION_ICONS[name] : undefined
 
   if (BuiltInIcon) {
     return <BuiltInIcon {...props} />
