@@ -326,6 +326,65 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://x.example/a%5Cb?x=1&amp;copy;=2&y=3%0Az)')
   })
 
+  it('closes a tilde fence only with a run at least as long as the opener', () => {
+    const longCloser = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '~~~text\ncode\n~~~~\n\nEvidence [cite:web-a].' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(longCloser)).toBe('[1] [Alpha](https://a.example)')
+
+    const shortCloser = legacyMessage('~~~~text\n~~~\n[1]\n~~~~')
+    expect(getCitedWebSources(shortCloser)).toEqual([])
+  })
+
+  it('keeps literal HTML-like text in titles', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: '<div>: The Content Division element', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Cited [cite:web-a].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [\\<div\\>: The Content Division element](https://a.example)')
+  })
+
+  it('copies the page the renderer resolves when migrated references share a number', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: 'Claim [1]',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: { groundingChunks: [{ web: { uri: 'https://one.example', title: 'One' } }] } }
+              },
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: { groundingChunks: [{ web: { uri: 'https://two.example', title: 'Two' } }] } }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+
+    expect(getCitedWebSources(message).map((c) => c.url)).toEqual(['https://two.example'])
+  })
+
   it('lists a webpage once when several migrated text parts cite the same URL', () => {
     const first = legacyMessage('One [1]')
     const second = legacyMessage('Two [1]')

@@ -222,20 +222,29 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
       for (const match of text.matchAll(CITATION_MARKER_PATTERN)) numbers.add(Number(match[2]))
       return text
     })
-    for (const citation of legacy) if (numbers.has(citation.number)) add(citation)
+    // A number shared by several references resolves to the last one, like the renderer's marker lookup.
+    const byNumber = new Map(legacy.map((c) => [c.number, c]))
+    for (const citation of legacy)
+      if (numbers.has(citation.number) && byNumber.get(citation.number) === citation) add(citation)
   }
   return cited.filter((citation) => citation.type === 'websearch' && WEB_SOURCE_URL.test(citation.url))
 }
 
-const escapeLinkText = (text: string): string => text.replace(/[\\[\]]/g, '\\$&')
+// Escape everything CommonMark would read as syntax inside link text, so a title like `<div>` stays literal.
+const escapeLinkText = (text: string): string => text.replace(/[\\[\]<>&]/g, '\\$&')
 // Percent-encode what would end or split the destination (whitespace, controls, brackets, backslash)
 // and write `&` as `&amp;` where a Markdown parser would read a character reference (`&copy;`).
+const needsPercentEncoding = (character: string): boolean => {
+  const code = character.charCodeAt(0)
+  return code <= 0x20 || code === 0x7f || /[()<>\\\u00a0]/.test(character)
+}
 const escapeLinkDestination = (url: string): string =>
-  url
-    .replace(
-      /[\u0000-\u0020\u007f ()<>\\]/g,
-      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
-    )
+  Array.from(url, (character) =>
+    needsPercentEncoding(character)
+      ? `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+      : character
+  )
+    .join('')
     .replace(/&(?=#\d+;|#x[\da-f]+;|[a-z][a-z\d]*;)/gi, '&amp;')
 
 /** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
