@@ -27,7 +27,12 @@ const chunkKnowledgeItemIds = (itemIds: string[]) => {
 }
 
 const hasNonTerminalItem = (pages?: KnowledgeItemListResponse[]) =>
-  pages?.some((page) => page.items.some((item) => !TERMINAL_STATUSES.has(item.status))) ?? false
+  pages?.some((page) =>
+    page.items.some(
+      (item) =>
+        !TERMINAL_STATUSES.has(item.status) || (item.type === 'url' && (item.data.crawlProgress?.active ?? 0) > 0)
+    )
+  ) ?? false
 
 const normalizeKnowledgeError = (error: unknown): Error => {
   if (error instanceof Error) {

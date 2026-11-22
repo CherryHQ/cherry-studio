@@ -62,21 +62,20 @@ const KnowledgePageDetailSection = () => {
     [selectedBaseId]
   )
 
-  // Directory drill-down: the stack holds the directory items descended into (empty = base root).
-  // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
-  const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
-  const currentDirectory = directoryStack.at(-1) ?? null
+  // The stack holds directory or opt-in URL owners; groupId lists their direct children.
+  const [groupStack, setGroupStack] = useState<KnowledgeItemOf<'directory' | 'url'>[]>([])
+  const currentGroup = groupStack.at(-1) ?? null
 
   // Every base selection starts from that base's root, including re-selecting the current base.
   useEffect(() => {
-    setDirectoryStack([])
+    setGroupStack([])
   }, [baseNavigationVersion])
 
-  const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
-    setDirectoryStack((prev) => [...prev, item])
+  const drillIntoGroup = useCallback((item: KnowledgeItemOf<'directory' | 'url'>) => {
+    setGroupStack((prev) => [...prev, item])
   }, [])
   const navigateUp = useCallback(() => {
-    setDirectoryStack((prev) => prev.slice(0, -1))
+    setGroupStack((prev) => prev.slice(0, -1))
   }, [])
 
   const {
@@ -86,7 +85,7 @@ const KnowledgePageDetailSection = () => {
     hasMore: hasMoreItems,
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
-  } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null, itemSort)
+  } = useKnowledgeItems(selectedBaseId, currentGroup?.id ?? null, itemSort)
   const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -131,7 +130,7 @@ const KnowledgePageDetailSection = () => {
                     onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>
-                  <span className="min-w-0 flex-1 truncate text-foreground text-sm">{filePreview.fileName}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{filePreview.fileName}</span>
                 </>
               }
             />
@@ -152,8 +151,8 @@ const KnowledgePageDetailSection = () => {
             onPreviewFile={openFilePreview}
             onItemClick={openItemChunks}
             onViewNoteContent={openItemContent}
-            onDrillIntoDirectory={drillIntoDirectory}
-            currentDirectory={currentDirectory}
+            onDrillIntoGroup={drillIntoGroup}
+            currentGroup={currentGroup}
             onNavigateUp={navigateUp}
             onDelete={deleteItem}
             onDeleteItems={deleteItems}

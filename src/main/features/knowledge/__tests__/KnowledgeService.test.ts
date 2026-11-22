@@ -1086,6 +1086,83 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restores an opt-in URL owner and its captured children under the new owner without recrawling', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    const owner = {
+      ...createNoteItem('source-owner', 'source-kb'),
+      type: 'url' as const,
+      data: {
+        source: 'https://example.com/root',
+        url: 'https://example.com/root',
+        crawl: true,
+        crawlExpanded: true,
+        relativePath: 'root.md' as PosixRelativeFilePath
+      }
+    }
+    const child = {
+      ...createNoteItem('source-child', 'source-kb'),
+      groupId: owner.id,
+      type: 'url' as const,
+      data: {
+        source: 'https://example.com/child',
+        url: 'https://example.com/child',
+        relativePath: 'child.md' as PosixRelativeFilePath
+      }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([owner])
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([child])
+    knowledgeItemCreateActiveMock
+      .mockReturnValueOnce({ ...owner, id: 'new-owner', baseId: restoredBase.id })
+      .mockReturnValueOnce({ ...child, id: 'new-child', groupId: 'new-owner', baseId: restoredBase.id })
+    knowledgeItemGetByIdMock.mockImplementation((id: string) =>
+      id === 'new-owner'
+        ? { ...owner, id, baseId: restoredBase.id }
+        : { ...child, id, groupId: 'new-owner', baseId: restoredBase.id }
+    )
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+    expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(
+      1,
+      'restored-kb',
+      expect.objectContaining({
+        type: 'url',
+        data: expect.objectContaining({ crawl: true, crawlExpanded: true, relativePath: 'root.md' })
+      }),
+      { awaitingCopy: false }
+    )
+    expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(
+      2,
+      'restored-kb',
+      expect.objectContaining({
+        groupId: 'new-owner',
+        type: 'url',
+        data: expect.objectContaining({ relativePath: 'child.md' })
+      }),
+      { awaitingCopy: false }
+    )
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.stringContaining('root.md'),
+      'root.md'
+    )
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.stringContaining('child.md'),
+      'child.md'
+    )
+    expect(Math.max(...copyFileIntoKnowledgeBaseAtMock.mock.invocationCallOrder)).toBeLessThan(
+      enqueueMock.mock.invocationCallOrder[0]
+    )
+  })
+
   it('preserves a website name through base restore and snapshot copying', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb' })

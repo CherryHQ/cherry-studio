@@ -1,5 +1,6 @@
-import '../tasks/jobTypes'
 import { application } from '@application'
+
+import '../tasks/jobTypes'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
@@ -37,6 +38,7 @@ import {
   reserveImportedFileRelativePath
 } from '../pathStorage'
 import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
+import { enqueueKnowledgeIndexing } from '../tasks/enqueueIndexing'
 import type { KnowledgeSourceCopy } from '../tasks/jobTypes'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import {
@@ -44,7 +46,6 @@ import {
   knowledgeCopySourcesIdempotencyKey,
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeFileProcessingCheckIdempotencyKey,
-  knowledgeIndexIdempotencyKey,
   type KnowledgeItemId,
   knowledgePrepareIdempotencyKey,
   knowledgeQueueName,
@@ -90,6 +91,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * lock, then resolve. Source bytes are copied afterwards by one `knowledge.copy-sources` job per
    * item, off the lock.
    *
+   * @param options.deferScheduling - Restore accepts the complete hierarchy and copies all bytes before scheduling provider work.
+   * @param options.onAccepted - Capture accepted item identities for restore owner remapping.
    * @param options.copyInline - Copy the bytes inside this call instead, so a failure rolls back
    *   the whole batch. Restore uses it: its target base is brand new, so holding the lock blocks
    *   nothing, and restore relies on all-or-nothing.
@@ -98,8 +101,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     baseId: string,
     inputs: KnowledgeAddItemInput[],
     conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
-    options: { copyInline?: boolean } = {}
+    options: {
+      copyInline?: boolean
+      onAccepted?: (items: readonly KnowledgeItem[]) => void
+      deferScheduling?: boolean
+    } = {}
   ): Promise<KnowledgeAddItemsResult> {
+    if (options.deferScheduling && !options.copyInline)
+      throw new Error('Deferred restore scheduling requires inline copies')
     const base = assertBaseCanRunRuntimeOperation(baseId, 'addItems')
 
     if (inputs.length === 0) {
@@ -190,6 +199,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     })
 
+    if (options.deferScheduling) {
+      options.onAccepted?.(acceptedItems.map(({ item }) => item))
+      return { status: 'added' }
+    }
+
     const completedSchedulingItemIds = new Set<string>()
     try {
       for (const { item, pendingCopies } of acceptedItems) {
@@ -210,6 +224,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       throw error
     }
 
+    options.onAccepted?.(acceptedItems.map(({ item }) => item))
     return { status: 'added' }
   }
 
@@ -498,16 +513,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     itemId: KnowledgeItemId,
     parentJobId: string | null = null
   ): Promise<void> {
-    const jobManager = application.get('JobManager')
-    jobManager.enqueue(
-      'knowledge.index-documents',
-      { baseId, itemId },
-      {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
-        queue: knowledgeQueueName(baseId),
-        parentId: parentJobId ?? undefined
-      }
-    )
+    enqueueKnowledgeIndexing(baseId, itemId, parentJobId)
   }
 
   /**
@@ -687,6 +693,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
             source: input.data.source,
             url: input.data.url,
             ...(input.data.name !== undefined ? { name: input.data.name } : {}),
+            ...(input.data.crawl ? { crawl: true, crawlExpanded: true } : {}),
             relativePath
           }
         },

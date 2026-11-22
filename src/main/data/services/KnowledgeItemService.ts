@@ -19,6 +19,7 @@ import {
   type KnowledgeItemData,
   KnowledgeItemSchema,
   type KnowledgeItemStatus,
+  KNOWLEDGE_URL_CRAWL_MAX_ITEMS,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
@@ -389,7 +390,7 @@ export class KnowledgeItemService {
     const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
-      this.validateGroupOwnerTx(tx, baseId, item.groupId)
+      this.validateGroupOwnerTx(tx, baseId, item.groupId, item)
 
       const [insertedRow] = withSqliteErrors(
         () =>
@@ -442,7 +443,12 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  private validateGroupOwnerTx(db: Pick<DbType, 'select'>, baseId: string, groupId: string | null | undefined): void {
+  private validateGroupOwnerTx(
+    db: Pick<DbType, 'select'>,
+    baseId: string,
+    groupId: string | null | undefined,
+    child: CreateKnowledgeItemDto
+  ): void {
     if (groupId == null) {
       return
     }
@@ -456,6 +462,7 @@ export class KnowledgeItemService {
     const [owner] = db
       .select({
         type: knowledgeItemTable.type,
+        data: knowledgeItemTable.data,
         status: knowledgeItemTable.status
       })
       .from(knowledgeItemTable)
@@ -469,9 +476,10 @@ export class KnowledgeItemService {
       })
     }
 
-    if (owner.type !== 'directory') {
+    const crawlOwner = owner.type === 'url' && 'crawl' in owner.data && owner.data.crawl === true
+    if (owner.type !== 'directory' && !crawlOwner) {
       throw DataApiErrorFactory.validation({
-        groupId: [`Knowledge item group owner must be a directory: ${groupId}`]
+        groupId: [`Knowledge item group owner must be a directory or opt-in URL: ${groupId}`]
       })
     }
 
@@ -480,6 +488,96 @@ export class KnowledgeItemService {
         groupId: [`Knowledge item group owner is being deleted: ${groupId}`]
       })
     }
+    if (crawlOwner) {
+      const children = db
+        .select({ data: knowledgeItemTable.data })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, groupId)))
+        .all()
+      let valid = false
+      try {
+        if (child.type === 'url' && !child.data.crawl && 'url' in owner.data) {
+          const url = new URL(child.data.url)
+          const root = new URL(owner.data.url)
+          url.hash = root.hash = ''
+          valid =
+            ['http:', 'https:'].includes(url.protocol) &&
+            url.origin === root.origin &&
+            !url.username &&
+            !url.password &&
+            url.href !== root.href &&
+            !children.some(({ data }) => {
+              if (!('url' in data)) return false
+              try {
+                const existing = new URL(data.url)
+                existing.hash = ''
+                return existing.href === url.href
+              } catch {
+                return false
+              }
+            })
+        }
+      } catch {
+        /* Invalid URL ownership is rejected below. */
+      }
+      if (!valid || children.length >= KNOWLEDGE_URL_CRAWL_MAX_ITEMS - 1)
+        throw DataApiErrorFactory.validation({
+          groupId: ['Crawl children must be unique same-origin URLs within the upload limit']
+        })
+    }
+  }
+
+  prepareUrlCrawl(baseId: string, id: string, urls: string[]): KnowledgeItem[] {
+    return application.get('DbService').withWriteTx((tx) => {
+      const owner = this.getById(id)
+      if (owner.baseId !== baseId || owner.type !== 'url' || !owner.data.crawl || owner.status === 'deleting')
+        throw DataApiErrorFactory.invalidOperation('crawl URL', 'Crawl owner is unavailable')
+      if (owner.data.crawlExpanded) return []
+      const root = new URL(owner.data.url)
+      root.hash = ''
+      const existingChildren = tx
+        .select({ data: knowledgeItemTable.data })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, id)))
+        .all()
+      const seen = new Set([root.href])
+      for (const { data } of existingChildren) {
+        if ('url' in data) {
+          try {
+            const url = new URL(data.url)
+            url.hash = ''
+            seen.add(url.href)
+          } catch {
+            /* Preserve legacy rows without crawling them. */
+          }
+        }
+      }
+      const children: KnowledgeItem[] = []
+      for (const value of urls) {
+        const url = new URL(value)
+        url.hash = ''
+        if (
+          !['http:', 'https:'].includes(url.protocol) ||
+          url.origin !== root.origin ||
+          url.username ||
+          url.password ||
+          seen.has(url.href)
+        )
+          continue
+        if (children.length + existingChildren.length >= KNOWLEDGE_URL_CRAWL_MAX_ITEMS - 1) break
+        seen.add(url.href)
+        children.push(
+          this.createActive(baseId, { groupId: id, type: 'url', data: { source: url.href, url: url.href } })
+        )
+      }
+      const latest = this.getById(id)
+      tx.update(knowledgeItemTable)
+        .set({ data: { ...latest.data, crawlExpanded: true } })
+        .where(eq(knowledgeItemTable.id, id))
+        .run()
+      this.reconcileContainersTx(tx, baseId, [id])
+      return children
+    })
   }
 
   getById(id: string): KnowledgeItem {
@@ -880,13 +978,29 @@ export class KnowledgeItemService {
         .limit(1)
         .all()
 
-      if (!containerRow || containerRow.type !== 'directory') {
+      if (!containerRow || containerRow.status === 'deleting') continue
+      if (containerRow.type === 'url' && 'crawl' in containerRow.data && containerRow.data.crawl === true) {
+        const children = tx
+          .select({ status: knowledgeItemTable.status })
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
+          .all()
+          .filter((child) => child.status !== 'deleting')
+        const completed = children.filter((child) => child.status === 'completed').length
+        const failed = children.filter((child) => child.status === 'failed').length
+        tx.update(knowledgeItemTable)
+          .set({
+            data: {
+              ...containerRow.data,
+              crawlProgress: { total: children.length, completed, failed, active: children.length - completed - failed }
+            }
+          })
+          .where(eq(knowledgeItemTable.id, containerId))
+          .run()
+        if (containerRow.groupId) queue.push(containerRow.groupId)
         continue
       }
-
-      if (containerRow.status === 'deleting') {
-        continue
-      }
+      if (containerRow.type !== 'directory') continue
 
       if (containerRow.status === 'preparing') {
         if (containerRow.groupId) {
@@ -897,8 +1011,8 @@ export class KnowledgeItemService {
 
       const [stats] = tx
         .select({
-          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
-          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') or (${knowledgeItemTable.type} = 'url' and ${knowledgeItemTable.status} != 'deleting' and coalesce(json_extract(${knowledgeItemTable.data}, '$.crawlProgress.active'), 0) > 0) then 1 else 0 end)`,
+          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' or (${knowledgeItemTable.type} = 'url' and ${knowledgeItemTable.status} != 'deleting' and coalesce(json_extract(${knowledgeItemTable.data}, '$.crawlProgress.failed'), 0) > 0) then 1 else 0 end)`
         })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))

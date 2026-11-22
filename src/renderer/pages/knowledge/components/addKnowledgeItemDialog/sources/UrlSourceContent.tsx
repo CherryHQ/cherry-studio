@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next'
 
-import { Input, Textarea } from '@cherrystudio/ui'
+import { Checkbox, Input, Textarea } from '@cherrystudio/ui'
 
 import type { KnowledgeUrlEntry } from '../../../utils/parseKnowledgeUrls'
 
 interface UrlSourceContentProps {
   value: string
+  crawl: boolean
+  onCrawlChange: (crawl: boolean) => void
   name: string
   onNameChange: (name: string) => void
   onValueChange: (value: string) => void
@@ -18,6 +20,8 @@ const UrlSourceContent = ({
   value,
   onValueChange,
   name,
+  crawl,
+  onCrawlChange,
   onNameChange,
   urlValid,
   urlErrors,
@@ -59,6 +63,18 @@ const UrlSourceContent = ({
         placeholder={t('knowledge.data_source.add_dialog.url.name_placeholder')}
         className="w-full"
       />
+      <label className="mt-3 flex items-start gap-2 text-sm">
+        <Checkbox
+          checked={crawl}
+          onCheckedChange={(value) => onCrawlChange(value === true)}
+          disabled={disabled}
+          aria-describedby="knowledge-url-crawl-help"
+        />
+        <span>{t('knowledge.data_source.add_dialog.url.crawl_label')}</span>
+      </label>
+      <p id="knowledge-url-crawl-help" className="mt-1 text-xs leading-4 text-muted-foreground">
+        {t('knowledge.data_source.add_dialog.url.crawl_help')}
+      </p>
       {showValidPreview ? (
         <ul id="knowledge-source-url-valid" className="mt-2 max-h-32 overflow-y-auto text-xs leading-4">
           <li className="break-all">{t('knowledge.data_source.add_dialog.url.valid_preview')}</li>

@@ -20,6 +20,7 @@ import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionS
 import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
+import { toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
@@ -152,7 +153,7 @@ export class KnowledgeBaseAdminService {
       }
       restorableRootItems.push(item)
     }
-    const skippedMissingSourceCount = rootItems.length - restorableRootItems.length
+    let skippedMissingSourceCount = rootItems.length - restorableRootItems.length
     if (skippedMissingSourceCount > 0) {
       logger.info('Restore skipped knowledge items whose source no longer exists', {
         sourceBaseId: sourceBase.id,
@@ -161,10 +162,56 @@ export class KnowledgeBaseAdminService {
       })
     }
 
-    const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
+    const crawlRoots = restorableRootItems.filter((item) => item.type === 'url' && item.data.crawl)
+    const inputs = restorableRootItems
+      .filter((item) => !crawlRoots.includes(item))
+      .map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
+    const acceptedItems: KnowledgeItem[] = []
     try {
-      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
+      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, {
+        copyInline: true,
+        deferScheduling: true,
+        onAccepted: (items) => {
+          acceptedItems.push(...items)
+        }
+      })
+      for (const owner of crawlRoots) {
+        let restoredOwnerId: string | undefined
+        await this.ingestionService.addItems(
+          restoredBase.id,
+          [this.toRestoreRuntimeInput(sourceBase.id, owner)],
+          undefined,
+          {
+            copyInline: true,
+            deferScheduling: true,
+            onAccepted: (items) => {
+              acceptedItems.push(...items)
+              restoredOwnerId = items[0]?.id
+            }
+          }
+        )
+        if (!restoredOwnerId) throw new Error('Restored URL owner was not accepted')
+        const childInputs: KnowledgeAddItemInput[] = []
+        for (const child of knowledgeItemService.getSubtreeItems(sourceBase.id, [owner.id])) {
+          if (child.groupId !== owner.id || child.status === 'deleting') continue
+          if ((await classifyKnowledgeItemRestoreSource(sourceBase.id, child)) === 'missing') {
+            skippedMissingSourceCount += 1
+            continue
+          }
+          childInputs.push({ ...this.toRestoreRuntimeInput(sourceBase.id, child), groupId: restoredOwnerId })
+        }
+        await this.ingestionService.addItems(restoredBase.id, childInputs, undefined, {
+          copyInline: true,
+          deferScheduling: true,
+          onAccepted: (items) => {
+            acceptedItems.push(...items)
+          }
+        })
+      }
+      for (const item of acceptedItems) {
+        await this.ingestionService.scheduleItem(toKnowledgeBaseId(item.baseId), toKnowledgeItemId(item.id))
+      }
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)
@@ -231,6 +278,7 @@ export class KnowledgeBaseAdminService {
             source: item.data.source,
             url: item.data.url,
             ...(item.data.name !== undefined ? { name: item.data.name } : {}),
+            ...(item.data.crawl ? { crawl: true } : {}),
             // Carry the captured snapshot across so the restored URL indexes offline
             // instead of re-fetching the live page (which may have changed or died).
             // If the source never captured one, omit it and let the first index capture.

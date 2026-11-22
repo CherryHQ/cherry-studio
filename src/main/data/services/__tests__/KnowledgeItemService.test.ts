@@ -76,6 +76,144 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('opt-in URL crawl ownership', () => {
+    const addOwner = (crawl = true) =>
+      service.createActive(KNOWLEDGE_BASE_ID, {
+        type: 'url',
+        data: { source: 'https://example.com/root', url: 'https://example.com/root', crawl }
+      })
+    it('atomically creates only 19 deduplicated same-origin children and expands only once', () => {
+      const root = addOwner()
+      const urls = [
+        'https://example.com/root#self',
+        'https://other.example/skip',
+        ...Array.from({ length: 40 }, (_, i) => `https://example.com/${i}`)
+      ]
+      const children = service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, urls)
+      expect(children).toHaveLength(19)
+      expect(children.every((child) => child.groupId === root.id && child.type === 'url' && !child.data.crawl)).toBe(
+        true
+      )
+      expect(service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, urls)).toEqual([])
+      expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [root.id], { includeRoots: true })).toHaveLength(20)
+      expect(service.getById(root.id)).toMatchObject({
+        data: { crawlExpanded: true, crawlProgress: { total: 19, active: 19, completed: 0, failed: 0 } }
+      })
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          groupId: root.id,
+          type: 'url',
+          data: { source: 'https://example.com/overflow', url: 'https://example.com/overflow' }
+        })
+      ).toThrow()
+    })
+    it('includes pre-existing owned children in deduplication and the global upload cap', () => {
+      const root = addOwner()
+      service.createActive(KNOWLEDGE_BASE_ID, {
+        type: 'url',
+        groupId: root.id,
+        data: { source: 'https://example.com/0', url: 'https://example.com/0' }
+      })
+      expect(
+        service.prepareUrlCrawl(
+          KNOWLEDGE_BASE_ID,
+          root.id,
+          Array.from({ length: 40 }, (_, i) => `https://example.com/${i}`)
+        )
+      ).toHaveLength(18)
+      expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [root.id], { includeRoots: true })).toHaveLength(20)
+    })
+    it('keeps directory ancestors active for pending crawl descendants without changing the URL outcome', async () => {
+      const directory = await seedItem({ type: 'directory', data: { source: '/docs' }, status: 'completed' })
+      const root = service.createActive(KNOWLEDGE_BASE_ID, {
+        type: 'url',
+        groupId: directory.id,
+        data: { source: 'https://example.com/root', url: 'https://example.com/root', crawl: true }
+      })
+      const [child] = service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/child'])
+      service.updateStatus(root.id, 'completed')
+      expect(service.getById(directory.id).status).toBe('processing')
+      service.updateStatus(child.id, 'failed', { error: 'unavailable' })
+      expect(service.getById(root.id).status).toBe('completed')
+      expect(service.getById(directory.id).status).toBe('failed')
+      service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [child.id])
+      expect(service.getById(directory.id).status).toBe('completed')
+    })
+    it('rolls back all children and the expansion marker on a mid-expansion error', () => {
+      const root = addOwner()
+      expect(() =>
+        service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/first', 'not a URL'])
+      ).toThrow()
+      expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [root.id])).toEqual([])
+      expect(service.getById(root.id).data).not.toHaveProperty('crawlExpanded')
+      expect(service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/first'])).toHaveLength(1)
+    })
+    it('reconciles child status and removal without replacing the root indexing outcome', () => {
+      const root = addOwner()
+      const children = service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, [
+        'https://example.com/a',
+        'https://example.com/b'
+      ])
+      service.updateStatus(root.id, 'completed')
+      service.updateStatus(children[0].id, 'failed', { error: 'website unavailable' })
+      service.updateStatus(children[1].id, 'completed')
+      expect(service.getById(root.id)).toMatchObject({
+        status: 'completed',
+        error: null,
+        data: { crawlProgress: { total: 2, active: 0, completed: 1, failed: 1 } }
+      })
+      service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [children[0].id])
+      expect(service.getById(root.id)).toMatchObject({
+        status: 'completed',
+        data: { crawlProgress: { total: 1, active: 0, completed: 1, failed: 0 } }
+      })
+    })
+    it('rejects cross-base, cross-origin, recursive, duplicate, and self children', () => {
+      const root = addOwner()
+      const child = {
+        groupId: root.id,
+        type: 'url' as const,
+        data: { source: 'https://example.com/a', url: 'https://example.com/a' }
+      }
+      expect(() => service.createActive('another-base', child)).toThrow()
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, { ...child, data: { ...child.data, url: 'https://other.example/a' } })
+      ).toThrow()
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, { ...child, data: { ...child.data, crawl: true } })
+      ).toThrow()
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          ...child,
+          data: { ...child.data, url: 'https://example.com/root#self' }
+        })
+      ).toThrow()
+      service.createActive(KNOWLEDGE_BASE_ID, child)
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          ...child,
+          data: { ...child.data, url: 'https://example.com:443/a#duplicate' }
+        })
+      ).toThrow()
+      expect(() => service.prepareUrlCrawl('another-base', root.id, [])).toThrow()
+    })
+    it('rejects non-opt-in and deleting URL owners without creating work', () => {
+      const plain = addOwner(false)
+      expect(() => service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, plain.id, ['https://example.com/a'])).toThrow()
+      const root = addOwner()
+      service.updateStatus(root.id, 'deleting')
+      expect(() => service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/a'])).toThrow()
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          groupId: root.id,
+          type: 'url',
+          data: { source: 'https://example.com/a', url: 'https://example.com/a' }
+        })
+      ).toThrow()
+      expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [root.id])).toEqual([])
+    })
+  })
+
   it('keeps a website name in its persisted JSON across a service reload', () => {
     const item = service.createActive(KNOWLEDGE_BASE_ID, {
       type: 'url',
@@ -677,7 +815,7 @@ describe('KnowledgeItemService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            groupId: [`Knowledge item group owner must be a directory: ${NOTE_OWNER_ID}`]
+            groupId: [`Knowledge item group owner must be a directory or opt-in URL: ${NOTE_OWNER_ID}`]
           }
         }
       })

@@ -133,8 +133,8 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
-  // Every row's primary click views its original content in-app: files/URLs delegate
-  // preview/fallback/error handling to `previewSource`, directories drill into their children, and
+  // Primary activation is delegated: ordinary files/URLs use source preview,
+  // directories and opt-in URL owners drill into their children, and
   // notes open their stored `data.content`. All are status-independent — a note's text is present
   // from creation, well before its chunk view (`completed`) exists.
   const canActivate = true
@@ -254,6 +254,15 @@ const KnowledgeItemRow = ({
             <span className="truncate text-sm text-foreground" title={fullTitle}>
               {title}
             </span>
+            {item.type === 'url' && item.data.crawlProgress ? (
+              <span className="line-clamp-2 text-xs text-muted-foreground">
+                {t('knowledge.data_source.add_dialog.url.crawl_progress', {
+                  count: item.data.crawlProgress.total,
+                  completed: item.data.crawlProgress.completed,
+                  failed: item.data.crawlProgress.failed
+                })}
+              </span>
+            ) : null}
             {item.status === 'failed' ? (
               <span className="line-clamp-1 text-xs text-muted-foreground">{failureReason}</span>
             ) : null}

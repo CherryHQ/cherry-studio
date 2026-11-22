@@ -301,6 +301,7 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.url.valid_preview': 'Parsed URLs to add:',
       'knowledge.data_source.add_dialog.url.more_entries': `+${options?.count} more`,
       'knowledge.data_source.add_dialog.url.more_errors': `+${options?.count} more`,
+      'knowledge.data_source.add_dialog.url.crawl_label': '同时抓取链接页面',
       'knowledge.data_source.add_dialog.url.help':
         '使用换行、英文逗号或空白字符分隔链接。英文逗号会分隔链接；链接本身包含逗号时请用 %2C。仅接受完整的 HTTP 或 HTTPS URL。非法项会跳过，合法项将进入处理队列。',
       'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
@@ -885,6 +886,27 @@ describe('AddKnowledgeItemDialog', () => {
     const urlInput = () => screen.getByRole('textbox', { name: '输入网页链接：' })
     const urlItems = (urls: string[]) => urls.map((url) => ({ type: 'url', data: { source: url, url } }))
     const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}`)
+
+    it('defaults crawl off, submits the explicit opt-in, and resets it on reopening', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      const crawl = screen.getByRole('checkbox', { name: '同时抓取链接页面' })
+      expect(crawl).not.toBeChecked()
+      await user.type(urlInput(), 'https://example.com/root')
+      await user.click(crawl)
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() =>
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'url', data: { source: 'https://example.com/root', url: 'https://example.com/root', crawl: true } }],
+          'detect'
+        )
+      )
+      rerender(<AddKnowledgeItemDialog open={false} onOpenChange={onOpenChange} />)
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByRole('checkbox', { name: '同时抓取链接页面' })).not.toBeChecked()
+    })
 
     it('submits the explicitly shared name for every URL without changing their identities', async () => {
       setPendingAddSource('url')

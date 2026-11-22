@@ -1,6 +1,7 @@
-import './jobTypes'
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+
+import './jobTypes'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
@@ -24,10 +25,12 @@ import { refineLocalEmbeddingChunks } from '../pipeline/indexing/localEmbeddingT
 import { loadKnowledgeItemDocuments } from '../pipeline/readers/KnowledgeReader'
 import { captureNoteSnapshotFile } from '../pipeline/sources/noteSnapshot'
 import { fetchKnowledgeWebPage } from '../pipeline/sources/url'
+import { collectKnowledgeUrlLinks } from '../pipeline/sources/urlLinks'
 import { captureUrlSnapshotFile } from '../pipeline/sources/urlSnapshot'
 import { hashEmbeddingText } from '../pipeline/vectorstore/indexStore/hashing'
 import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
-import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
+import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
+import { enqueueKnowledgeIndexing } from './enqueueIndexing'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
@@ -97,6 +100,26 @@ export function createIndexDocumentsJobHandler(
       // lock; these phases can be slow and do not mutate shared state.
       const readableItem = await ensureSnapshot(ctx, item, knowledgeLockManager)
       const documents = await readItemDocuments(ctx, readableItem)
+      if (readableItem.type === 'url' && readableItem.data.crawl && !readableItem.data.crawlExpanded) {
+        const urls = collectKnowledgeUrlLinks(
+          documents.map((document) => document.text).join('\n'),
+          readableItem.data.url
+        )
+        await knowledgeLockManager.runExclusive(ctx.input.baseId, () => {
+          ctx.signal.throwIfAborted()
+          const children = knowledgeItemService.prepareUrlCrawl(ctx.input.baseId, readableItem.id, urls)
+          for (const child of children) {
+            try {
+              enqueueKnowledgeIndexing(toKnowledgeBaseId(child.baseId), toKnowledgeItemId(child.id))
+            } catch (error) {
+              knowledgeItemService.updateStatus(child.id, 'failed', {
+                error: error instanceof Error ? error.message : String(error)
+              })
+            }
+          }
+        })
+      }
+
       const chunked = await chunkItemDocuments(base, documents, ctx.signal)
       if (chunked.chunks.length === 0) {
         // Completing here would make a scanned/image-only PDF look searchable while

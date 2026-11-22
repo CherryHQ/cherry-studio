@@ -272,6 +272,27 @@ describe('useKnowledgeItems', () => {
     expect(result.current.hasMore).toBe(false)
   })
 
+  it('keeps polling linked-page progress after the owner itself completes', () => {
+    mockUseInfiniteQuery.mockReturnValue(createQueryResult({ pages: [] }))
+    renderHook(() => useKnowledgeItems('base-1'))
+    const refreshInterval = mockUseInfiniteQuery.mock.calls[0][1].swrOptions.refreshInterval
+    const owner = {
+      ...makeItem(),
+      type: 'url',
+      status: 'completed',
+      data: {
+        source: 'https://example.com',
+        url: 'https://example.com',
+        crawl: true,
+        crawlProgress: { total: 2, active: 1, completed: 1, failed: 0 }
+      }
+    }
+    expect(refreshInterval([{ items: [owner], total: 1 }])).toBe(2000)
+    owner.data.crawlProgress.active = 0
+    owner.data.crawlProgress.completed = 2
+    expect(refreshInterval([{ items: [owner], total: 1 }])).toBe(0)
+  })
+
   it('polls while any returned item is non-terminal and stops when all terminal', () => {
     mockUseInfiniteQuery.mockReturnValue(createQueryResult({ pages: [] }))
 
