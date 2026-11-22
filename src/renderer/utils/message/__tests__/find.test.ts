@@ -234,6 +234,45 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[3] [Third](https://third.com)\n\n[1] [First](https://first.com)')
   })
 
+  it('exposes migrated sources when the only marker sits in a later text part', () => {
+    const first = legacyMessage('Intro without markers.')
+    const second = legacyMessage('Later [2]')
+    const message = createExportView([...first.parts, ...second.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[2] [Second](https://second.com)')
+  })
+
+  it('does not let a backtick fence opened in one part hide a citation in the next', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Open fence ```' },
+      { type: 'text', text: 'Cited [cite:web-a] after.\n```' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('ignores a citation that only appears inside a tilde-fenced code block', () => {
+    const message = legacyMessage('Example:\n~~~text\n[1]\n~~~')
+
+    expect(getCitedWebSources(message)).toEqual([])
+    expect(getWebSourcesMarkdown(message)).toBe('')
+  })
+
+  it('lists a webpage once when several migrated text parts cite the same URL', () => {
+    const first = legacyMessage('One [1]')
+    const second = legacyMessage('Two [1]')
+    const message = createExportView([...first.parts, ...second.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
   it('lists only webpages the answer cites, once each, in citation order', () => {
     const message = createExportView([
       {

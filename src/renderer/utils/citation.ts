@@ -16,7 +16,7 @@ import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
+const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/gm
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
 export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {

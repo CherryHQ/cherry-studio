@@ -589,7 +589,7 @@ export function toExportableCitations(
   }
 }
 
-function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): boolean {
+export function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): boolean {
   let unresolved = false
   mapMarkdownOutsideCode(content, (text) => {
     if (!unresolved) {

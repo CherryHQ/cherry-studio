@@ -18,7 +18,12 @@ import type { CherryMessagePart, ContentReference } from '@shared/data/types/mes
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { toExportableCitations } from './citations'
+import {
+  hasUnresolvedMarker,
+  resolveCitationMarkerParts,
+  resolveMessageCitations,
+  toExportableCitations
+} from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -176,39 +181,60 @@ const WEB_SOURCE_URL = /^https?:\/\//i
  */
 export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
   const parts = getParts(message)
-  let hasLegacyCitations = false
-  const legacyCitations: Citation[] = []
-  const seen = new Set<string>()
+  const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+  // Mirror MessagePartsRenderer: a text part whose own references yield citations is legacy and
+  // resolves against them; every other text part resolves natively. Native parts resolve
+  // independently (no Markdown state leaks across parts) but share one display-number sequence.
+  const legacyByPart = new Map<CherryMessagePart, Citation[]>()
+  const nativeParts: CherryMessagePart[] = []
   for (const part of parts) {
     if (part.type !== 'text') continue
     const references = (readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []
     const citations = convertReferencesToCitations(references)
-    if (citations.length === 0) continue
-    hasLegacyCitations = true
+    if (citations.length > 0) legacyByPart.set(part, citations)
+    else nativeParts.push(part)
+  }
+  let messageCitations = resolveMessageCitations(parts)
+  let nativeResolutions = resolveCitationMarkerParts(
+    nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
+    messageCitations
+  )
+  // Earlier turns only answer ids this message does not mint, so fold them in on an unresolved marker.
+  if (priorParts.length > 0 && nativeResolutions.some(hasUnresolvedMarker)) {
+    messageCitations = resolveMessageCitations(parts, priorParts)
+    nativeResolutions = resolveCitationMarkerParts(
+      nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
+      messageCitations
+    )
+  }
+  const nativeByPart = new Map(nativeParts.map((part, index) => [part, nativeResolutions[index].cited]))
+
+  const cited: Citation[] = []
+  const seen = new Set<string>()
+  const add = (citation: Citation) => {
+    // A URL is one source however many parts cite it; keep the first occurrence and its number.
+    const key = citation.url ? `${citation.type}:${citation.url}` : `${citation.type}:${citation.number}`
+    if (seen.has(key)) return
+    seen.add(key)
+    cited.push(citation)
+  }
+  for (const part of parts) {
+    if (part.type !== 'text') continue
+    const legacy = legacyByPart.get(part)
+    if (!legacy) {
+      for (const citation of nativeByPart.get(part) ?? []) add(citation)
+      continue
+    }
+    const references = (readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []
     const source = determineCitationSource(convertReferencesToCitationReferences(references, ''))
-    const normalized = normalizeCitationMarks(part.text ?? '', new Map(citations.map((c) => [c.number, c])), source)
+    const normalized = normalizeCitationMarks(part.text ?? '', new Map(legacy.map((c) => [c.number, c])), source)
     const numbers = new Set<number>()
     mapMarkdownOutsideCode(normalized, (text) => {
       for (const match of text.matchAll(CITATION_MARKER_PATTERN)) numbers.add(Number(match[2]))
       return text
     })
-    for (const citation of citations) {
-      const key = `${citation.type}:${citation.number}:${citation.url}`
-      if (!numbers.has(citation.number) || seen.has(key)) continue
-      seen.add(key)
-      legacyCitations.push(citation)
-    }
+    for (const citation of legacy) if (numbers.has(citation.number)) add(citation)
   }
-  const cited = hasLegacyCitations
-    ? legacyCitations
-    : toExportableCitations(
-        parts
-          .filter((part) => part.type === 'text')
-          .map((part) => part.text ?? '')
-          .join('\n\n'),
-        parts,
-        'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
-      ).cited
   return cited.filter((citation) => citation.type === 'websearch' && WEB_SOURCE_URL.test(citation.url))
 }
 
