@@ -678,7 +678,11 @@ const AgentChatSessionCenter = ({
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
       {!isMultiSelectMode && (
-        <AgentSessionMetricsBar messages={runtime.uiMessages} partsByMessageId={runtime.partsByMessageId} />
+        <AgentSessionMetricsBar
+          messages={runtime.uiMessages}
+          partsByMessageId={runtime.partsByMessageId}
+          partial={runtime.hasOlder}
+        />
       )}
       <AgentComposerSlot
         editBusy={runtime.editBusy}

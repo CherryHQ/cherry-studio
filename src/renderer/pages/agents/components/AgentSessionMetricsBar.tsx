@@ -11,9 +11,11 @@ import { buildAgentSessionMetrics } from '../sessionMetrics'
 interface AgentSessionMetricsBarProps {
   messages: readonly CherryUIMessage[]
   partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[]>>
+  /** Older history is not loaded yet, so counts and token sums cover only the loaded messages. */
+  partial?: boolean
 }
 
-export function AgentSessionMetricsBar({ messages, partsByMessageId }: AgentSessionMetricsBarProps) {
+export function AgentSessionMetricsBar({ messages, partsByMessageId, partial = false }: AgentSessionMetricsBarProps) {
   const { t, i18n } = useTranslation()
   const [showMetricsBar] = usePreference('agent.session.show_metrics_bar')
   const [expanded, setExpanded] = useState(false)
@@ -35,7 +37,10 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId }: AgentSess
   if (!showMetricsBar || messages.length === 0) return null
 
   const unavailable = t('chat.message.token_details.unavailable')
-  const formatTokens = (value?: number) => (value === undefined ? unavailable : compactFormatter.format(value))
+  // While older history is unloaded the sums are lower bounds, so mark them as such.
+  const atLeast = partial ? '≥' : ''
+  const formatTokens = (value?: number) =>
+    value === undefined ? unavailable : `${atLeast}${compactFormatter.format(value)}`
   const formatFirstToken = (ms?: number) => (ms === undefined ? unavailable : `${decimalFormatter.format(ms / 1000)}s`)
   const formatThroughput = (value?: number) =>
     value === undefined
@@ -44,8 +49,8 @@ export function AgentSessionMetricsBar({ messages, partsByMessageId }: AgentSess
   const formatCacheHit = (value?: number) => (value === undefined ? unavailable : percentFormatter.format(value))
 
   const summary = [
-    t('agent.session.metrics.turns', { value: metrics.turns }),
-    t('agent.session.metrics.steps', { value: metrics.toolSteps }),
+    t('agent.session.metrics.turns', { value: `${atLeast}${metrics.turns}` }),
+    t('agent.session.metrics.steps', { value: `${atLeast}${metrics.toolSteps}` }),
     t('agent.session.metrics.input', { value: formatTokens(metrics.inputTokens) }),
     t('agent.session.metrics.cache_hit', { value: formatCacheHit(metrics.cacheHitRate) }),
     t('agent.session.metrics.first_token', { value: formatFirstToken(metrics.timeFirstTokenMs) }),
