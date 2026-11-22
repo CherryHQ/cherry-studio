@@ -54,6 +54,29 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
+  it.each(['codex', 'claude', 'kimi', 'pi-acp'])('starts sign-in from the installed %s card', async (presetId) => {
+    navigation.search = { id: presetId }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
+      return { models: [], authMethods: [], success: true } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    if (presetId === 'pi-acp') {
+      const dialog = within(screen.getByRole('dialog'))
+      await userEvent.type(dialog.getByRole('combobox'), 'openai-codex')
+      await userEvent.click(dialog.getByRole('button', { name: '登录' }))
+    }
+    expect(ipcApi.request).toHaveBeenCalledWith(
+      'ai.local_agents.open_terminal',
+      expect.objectContaining({
+        presetId,
+        login: presetId === 'pi-acp' ? { provider: 'openai-codex' } : true
+      })
+    )
+    expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
+  })
+
   it('keeps sign-in as an action when a background model refresh proves session readiness', async () => {
     navigation.search = { id: 'opencode' }
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
@@ -69,6 +92,53 @@ describe('local agent settings navigation', () => {
     render(<LocalAgentSettingsPage />)
     expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
     expect(screen.queryByRole('button', { name: '会话就绪' })).not.toBeInTheDocument()
+  })
+
+  it('recognizes an existing Antigravity session and clears its status after authentication is rejected', async () => {
+    navigation.search = { id: 'antigravity-acp' }
+    const methods = [{ id: 'oauth-personal', name: 'Google', type: 'agent' }]
+    let failure: string | undefined
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
+      if (route === 'ai.local_agents.models') {
+        if (failure) throw new Error(failure)
+        return { models: [{ id: 'gemini', name: 'Gemini' }], authMethods: methods } as never
+      }
+      if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      return { protocolInfo: { authMethods: methods } } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    expect(await screen.findByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: /已登录.*重新登录/ }))
+    expect(screen.getByRole('heading', { name: /重新登录/ })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '取消' }))
+    failure = 'Authentication required'
+    fireEvent(window, new Event('focus'))
+    expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
+    failure = 'Network offline'
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(screen.getByRole('button', { name: '登录' })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.authenticate', expect.anything())
+  })
+
+  it('closes the sign-in dialog and reports a model refresh failure on the card after successful OAuth', async () => {
+    navigation.search = { id: 'antigravity-acp' }
+    let authenticated = false
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
+      if (route === 'ai.local_agents.authenticate') authenticated = true
+      if (route === 'ai.local_agents.models' && authenticated) throw new Error('catalog offline')
+      if (route === 'ai.local_agents.models') throw new Error('Authentication required')
+      return { protocolInfo: { authMethods: [{ id: 'oauth-personal', name: 'Google', type: 'agent' }] } } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByText(/拉取模型失败/)).toBeVisible()
+    expect(await screen.findByText('catalog offline')).toBeVisible()
+    expect(screen.getByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
+    expect(toast.success).toHaveBeenCalledWith('已登录')
   })
 
   it('saves sign-in credentials without overwriting the model or enablement from an earlier configuration', async () => {
@@ -99,9 +169,9 @@ describe('local agent settings navigation', () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
       if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      if (route === 'ai.local_agents.models') throw new Error('Authentication required')
       return {
-        models: [],
-        authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }]
+        protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
       } as never
     })
     render(<LocalAgentSettingsPage />)

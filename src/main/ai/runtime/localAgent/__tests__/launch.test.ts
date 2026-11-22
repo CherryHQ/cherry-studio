@@ -69,6 +69,66 @@ describe('local agent installation resolution', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it.each([
+    ['codex', 'codex', 'codex', '/mise/shims/codex-code-mode-host'],
+    ['minimax', 'acp', 'mcode', '/mise/shims/mcode-tools'],
+    ['hermes', 'acp', 'hermes', '/mise/shims/hermes-agent'],
+    ['qoder', 'acp', 'qoderclicn', '/mise/shims/qodercn'],
+    ['deepseek-harness', 'acp', 'dsh', '/mise/shims/dsh']
+  ] as const)(
+    'rejects an incompatible legacy %s installation during detection and launch',
+    async (presetId, protocol, name, path) => {
+      inventory.snapshots[name] = { name, availability: { source: 'mise', path, version: '0.1.0-rc.7' } }
+      expect((await detectLocalAgents()).find((entry) => entry.presetId === presetId)?.source).toBe('none')
+      await expect(resolveLocalAgentLaunch({ ...config, protocol, presetId })).rejects.toMatchObject({
+        code: 'LOCAL_AGENT_NOT_INSTALLED'
+      })
+    }
+  )
+
+  it('routes Antigravity WebSockets through the configured HTTP proxy without replacing explicit routes', async () => {
+    inventory.snapshots['agy_acp_server.par'] = {
+      name: 'agy_acp_server.par',
+      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
+    }
+    inventory.getRawShellEnv.mockResolvedValue({ HTTPS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
+    const agent = { ...config, presetId: 'antigravity-acp', protocol: 'acp' as const }
+    const { env } = await resolveLocalAgentLaunch(agent)
+    expect(env).toMatchObject({ WSS_PROXY: 'http://proxy:8100', WS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
+    const custom = await resolveLocalAgentLaunch({ ...agent, env: { WSS_PROXY: 'http://websocket:8123' } })
+    expect(custom.env.WSS_PROXY).toBe('http://websocket:8123')
+    const socks = await resolveLocalAgentLaunch({ ...agent, env: { ALL_PROXY: 'socks5://proxy:1080' } })
+    expect(socks.env.WSS_PROXY).toBeUndefined()
+  })
+
+  it('uses the applied Cherry proxy when the Antigravity shell snapshot predates proxy initialization', async () => {
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'http://desktop:9123')
+    vi.stubEnv('HTTPS_PROXY', 'http://desktop:9123')
+    vi.stubEnv('https_proxy', 'http://desktop:9123')
+    vi.stubEnv('no_proxy', 'localhost')
+    inventory.snapshots['agy_acp_server.par'] = {
+      name: 'agy_acp_server.par',
+      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
+    }
+    try {
+      const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp', protocol: 'acp' })
+      expect(env).toMatchObject({ WSS_PROXY: 'http://desktop:9123', no_proxy: 'localhost' })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('starts the native ACP server when only terminal Antigravity is installed', async () => {
+    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' } }
+    expect((await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')?.path).toBe(
+      '/user/bin/agy'
+    )
+    expect(await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId: 'antigravity-acp' })).toMatchObject({
+      executable: '/user/bin/agy',
+      args: ['acp']
+    })
+  })
+
   it('uses the environment promoted during discovery when launching a system CLI', async () => {
     inventory.getRawShellEnv
       .mockResolvedValueOnce({ PATH: '/usr/bin' })
@@ -237,14 +297,28 @@ agent_servers:
     expect(launch.env.HOME).toBe('/user/home')
   })
 
-  it('launches the fixed Poolside login command and rejects unsupported native login requests', async () => {
-    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
-    await openLocalAgentTerminal({ ...config, presetId: 'poolside', protocol: 'acp', login: true })
-    expect(inventory.openTerminal).toHaveBeenCalledWith(
-      expect.objectContaining({ executable: '/user/bin/pool', args: ['login'] })
+  it.each([
+    ['codex', 'codex', 'codex', ['login']],
+    ['claude', 'claude', 'claude', ['auth', 'login']],
+    ['kimi', 'acp', 'kimi', ['login']],
+    ['pi-acp', 'acp', 'pi', ['auth', 'login', 'openai-codex']],
+    ['poolside', 'acp', 'pool', ['login']]
+  ] as const)('opens the native %s sign-in with its login arguments', async (presetId, protocol, executable, args) => {
+    const path = `/user/bin/${executable}`
+    inventory.snapshots[executable] = { name: executable, availability: { source: 'system', path } }
+    await openLocalAgentTerminal({
+      ...config,
+      presetId,
+      protocol,
+      login: presetId === 'pi-acp' ? { provider: 'openai-codex' } : true
+    })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(expect.objectContaining({ executable: path, args }))
+  })
+
+  it('rejects login for a CLI without a terminal login command', async () => {
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'qwen', protocol: 'acp', login: true })).rejects.toThrow(
+      'supported terminal login'
     )
-    inventory.openTerminal.mockClear()
-    await expect(openLocalAgentTerminal({ ...config, login: true })).rejects.toThrow('supported terminal login')
     expect(inventory.openTerminal).not.toHaveBeenCalled()
   })
 
@@ -395,12 +469,20 @@ agent_servers:
     })
   })
 
-  it('prefers managed aliases and leaves missing presets visible during passive discovery', async () => {
-    inventory.snapshots.qoderclicn = { name: 'qoderclicn', availability: { source: 'system', path: '/system/qoder' } }
-    inventory.snapshots.qoder = { name: 'qoder', availability: { source: 'mise', path: '/managed/qoder' } }
+  it('prefers the system Qoder CLI to its old Code Mate installation across command names', async () => {
+    inventory.snapshots.qoderclicn = {
+      name: 'qoderclicn',
+      availability: { source: 'mise', path: '/managed/qoderclicn' }
+    }
+    inventory.snapshots.qodercli = { name: 'qodercli', availability: { source: 'system', path: '/system/qodercli' } }
     const found = await detectLocalAgents()
-    expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({ source: 'mise', path: '/managed/qoder' })
-    expect(found.find((entry) => entry.presetId === 'codex')).toMatchObject({ source: 'none' })
+    expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({
+      source: 'system',
+      path: '/system/qodercli'
+    })
+    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder', protocol: 'acp' })).executable).toBe(
+      '/system/qodercli'
+    )
   })
 
   it('detects the Antigravity adapter and interactive CLI independently', async () => {

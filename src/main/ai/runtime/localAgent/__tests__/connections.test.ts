@@ -927,6 +927,34 @@ describe('local protocol processes', () => {
     ).toBe(false)
   })
 
+  it('loads terminal Antigravity models when the separate adapter has no sign-in', async () => {
+    const commands: Record<string, string> = {}
+    for (const [name, scenario] of [
+      ['agy_acp_server.par', 'auth-unconfigured'],
+      ['agy', 'normal']
+    ]) {
+      const windows = process.platform === 'win32'
+      const command = path.join(cwd, windows ? name + '.cmd' : name)
+      const invoke = `"${process.execPath}" "${fixture}" acp ${scenario}`
+      await writeFile(command, windows ? `@echo off\r\n${invoke}\r\n` : `#!/bin/sh\nexec ${invoke}\n`, { mode: 0o755 })
+      commands[name] = command
+    }
+    MockApplicationUtils.setService('BinaryManager', {
+      getToolSnapshots: async () =>
+        Object.fromEntries(
+          Object.entries(commands).map(([name, path]) => [name, { name, availability: { source: 'system', path } }])
+        )
+    })
+    const catalog = await listLocalAgentModels({
+      protocol: 'acp',
+      presetId: 'antigravity-acp',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    expect(catalog.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
+  })
+
   it('keeps an empty catalog when an ACP agent does not advertise model selection', async () => {
     const { connection } = create('acp', 'no-models')
     await connection.start(cwd, undefined, 'models')

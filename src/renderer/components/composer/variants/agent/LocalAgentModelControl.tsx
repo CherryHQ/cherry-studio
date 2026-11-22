@@ -12,7 +12,6 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
-import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import {
@@ -93,7 +92,7 @@ export function LocalAgentModelControl({
         ) : undefined
       }
       footer={
-        !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? ''] ? (
+        selection.sourceRestrictions?.native ? (
           <p className="text-xs text-muted-foreground">{t('local_agents.global_model_unavailable')}</p>
         ) : info?.resume === false ? (
           <p className="text-xs text-muted-foreground">{t('local_agents.no_resume')}</p>

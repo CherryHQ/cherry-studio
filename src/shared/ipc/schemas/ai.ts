@@ -516,7 +516,9 @@ export const aiRequestSchemas = {
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.open_terminal': defineRoute({
     input: LocalAgentConfigurationSchema.extend({
-      login: z.boolean().optional(),
+      login: z
+        .union([z.boolean(), z.strictObject({ provider: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/) })])
+        .optional(),
       directory: AbsoluteFilePathSchema.optional(),
       terminal: z.string().optional()
     }),

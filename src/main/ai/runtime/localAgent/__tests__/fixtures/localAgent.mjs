@@ -239,6 +239,16 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
     reply(id, {})
   } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
+    if (scenario === 'auth-unconfigured') {
+      return emit({
+        id,
+        error: {
+          code: -32000,
+          message: 'Authentication required',
+          data: { details: 'No authentication method selected' }
+        }
+      })
+    }
     if (method === 'session/resume' && scenario === 'resume-error') {
       return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
     }

@@ -106,6 +106,16 @@ it('offers only native models and Cherry models through the gateway', () => {
   ])
 })
 
+it('selects advertised Antigravity models while keeping gateway models unavailable', async () => {
+  const config = { ...agent.configuration!.localRuntime!, presetId: 'antigravity-acp' }
+  const { result } = renderHook(() => useLocalAgentModelSelection(config, [{ id: 'gemini', name: 'Gemini' }]))
+  expect(result.current.sourceRestrictions?.native).toBeUndefined()
+  expect(result.current.sourceRestrictions?.gateway).toBeTruthy()
+  const selected = await result.current.select(agent, 'gemini')
+  expect(selected?.configuration?.localRuntime?.nativeModel).toBe('gemini')
+  await expect(result.current.select(agent, 'gateway-model:missing')).rejects.toThrow()
+})
+
 it('rejects stale direct-provider selections without changing CLI files', async () => {
   const { result } = renderHook(() => useLocalAgentModelSelection(agent.configuration!.localRuntime, []))
   await expect(result.current.select(agent, `cherry-model:${model.id}`)).rejects.toThrow()

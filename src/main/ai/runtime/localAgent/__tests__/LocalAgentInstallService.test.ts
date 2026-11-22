@@ -795,6 +795,14 @@ else process.exit(1);
     }
   )
 
+  it('lists only the terminal CLI when Antigravity has no standalone adapter', async () => {
+    const cli = path.join(state.root, 'agy')
+    await writeFile(cli, 'terminal CLI')
+    expect(await new LocalAgentInstallService().getUninstallComponents('antigravity-acp', cli)).toEqual([
+      { executable: 'agy', path: cli }
+    ])
+  })
+
   it.skipIf(process.platform === 'win32')(
     'removes Antigravity ACP and its verified standalone CLI without touching configuration',
     async () => {

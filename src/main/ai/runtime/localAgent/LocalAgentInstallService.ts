@@ -119,7 +119,10 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async resolveUninstallComponents(target: InstallTarget, expectedPath: string) {
-    const primary = await this.detect(target)
+    let primary = await this.detect(target)
+    if (primary.source === 'none' && target.id === 'antigravity-acp' && target.terminalExecutable) {
+      primary = await this.detect({ id: target.id, executable: target.terminalExecutable })
+    }
     if (primary.source === 'none' || primary.path !== expectedPath) return []
     const presets = target.cli
       ? LOCAL_AGENT_PRESETS.filter(

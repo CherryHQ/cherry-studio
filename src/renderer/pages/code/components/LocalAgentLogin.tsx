@@ -1,17 +1,36 @@
-import { CheckCircle2, Loader2, LogIn } from 'lucide-react'
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  CircleUserRound,
+  Cloud,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  LogIn
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
-import type { LocalAgentAuthMethod, LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentAuthMethod, LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
+
+const antigravityMethodIcons: Partial<Record<string, typeof LogIn>> = {
+  'oauth-personal': CircleUserRound,
+  'oauth-business': Building2,
+  'gemini-api-key': KeyRound,
+  'agent-platform': Cloud
+}
 
 export function LocalAgentLogin({
   config,
   authMethods,
   modelsLoading,
+  freshCatalog,
   authenticationError,
   onRefresh,
   available,
@@ -23,12 +42,13 @@ export function LocalAgentLogin({
   config: LocalAgentConfiguration
   authMethods?: LocalAgentAuthMethod[]
   modelsLoading: boolean
+  freshCatalog?: LocalAgentModelCatalog
   authenticationError?: string
   onRefresh?: () => Promise<void>
   available: boolean
   disabled: boolean
   helpUrl?: string
-  onTerminalLogin?: () => Promise<void>
+  onTerminalLogin?: (provider?: string) => Promise<void>
   onAuthenticated: (config: LocalAgentConfiguration) => Promise<void>
 }) {
   const { t } = useTranslation()
@@ -66,6 +86,8 @@ export function LocalAgentLogin({
     ?.filter((method) => method.type === 'agent')
     .map((method) => ({ ...method, name: methodNames[config.presetId ?? '']?.[method.id] ?? method.name }))
   const canAuthenticate = !!usableMethods?.length
+  const needsProvider = !canAuthenticate && config.presetId === 'pi-acp' && !!onTerminalLogin
+  const [provider, setProvider] = useState('')
   const [authStatus, setAuthStatus] = useState<{
     signature: string
     status: OutputFor<'ai.local_agents.auth_status'>
@@ -74,12 +96,26 @@ export function LocalAgentLogin({
   const status = authFailed ? 'signed-out' : authStatus?.signature === signature ? authStatus.status : 'unknown'
   const signedIn = status === 'signed-in'
   const needsLogin = !signedIn
+  const sessionRequiresLogin =
+    config.presetId === 'antigravity-acp' &&
+    config.protocol === 'acp' &&
+    !config.executableOverride &&
+    !config.args.length
+
+  // Antigravity requires credentials for session/new, which produces the live model catalog.
+  useEffect(() => {
+    if (sessionRequiresLogin && freshCatalog) setAuthStatus({ signature, status: 'signed-in' })
+  }, [sessionRequiresLogin, freshCatalog, signature])
+  useEffect(() => {
+    if (sessionRequiresLogin && authFailed) setAuthStatus({ signature, status: 'signed-out' })
+  }, [sessionRequiresLogin, authFailed, signature])
+
   useEffect(() => {
     if (!available || busy) return
     let active = true
     let pending = false
     const refresh = async () => {
-      if (!canAuthenticate || pending) return
+      if (sessionRequiresLogin || !canAuthenticate || pending) return
       pending = true
       const status = await ipcApi
         .request('ai.local_agents.auth_status', JSON.parse(signature))
@@ -97,7 +133,7 @@ export function LocalAgentLogin({
       active = false
       window.removeEventListener('focus', onFocus)
     }
-  }, [available, canAuthenticate, busy, signature, authenticationError, onRefresh])
+  }, [available, canAuthenticate, busy, signature, authenticationError, onRefresh, sessionRequiresLogin])
   useEffect(() => {
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
@@ -135,6 +171,7 @@ export function LocalAgentLogin({
   }
   useEffect(() => {
     setOpen(false)
+    setProvider('')
     setBusy(false)
     setMethod(undefined)
     setApiKey('')
@@ -192,7 +229,9 @@ export function LocalAgentLogin({
       request.current = undefined
       await onAuthenticated(nextConfig)
       if (generation.current !== current) return
+      if (sessionRequiresLogin) setAuthStatus({ signature, status: 'signed-in' })
       setApiKey('')
+      setMethod(undefined)
       setOpen(false)
     } catch (failure) {
       if (generation.current === current) {
@@ -211,7 +250,7 @@ export function LocalAgentLogin({
     setBusy(true)
     setError(undefined)
     try {
-      await onTerminalLogin?.()
+      await onTerminalLogin?.(needsProvider ? provider.trim() : undefined)
       if (generation.current === current) setOpen(false)
     } catch (error) {
       if (generation.current === current) {
@@ -222,49 +261,97 @@ export function LocalAgentLogin({
       if (generation.current === current) setBusy(false)
     }
   }
-  if (!available || (!canAuthenticate && !onTerminalLogin)) return null
+  if (!available) return null
+  if (sessionRequiresLogin && status === 'unknown' && modelsLoading && !open) {
+    return (
+      <Badge variant="outline" role="status">
+        <Loader2 className="animate-spin" />
+        {t('common.loading')}
+      </Badge>
+    )
+  }
+  if (!canAuthenticate && !onTerminalLogin) {
+    return signedIn ? (
+      <Badge variant="outline" role="status">
+        <CheckCircle2 />
+        {t('local_agents.signed_in')}
+      </Badge>
+    ) : null
+  }
   return (
     <>
-      <Tooltip content={t(signedIn ? 'local_agents.reauthenticate' : 'local_agents.sign_in')}>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-8 shrink-0 rounded-lg border-border-subtle shadow-none"
-          aria-label={t(signedIn ? 'local_agents.signed_in' : 'local_agents.sign_in')}
-          disabled={disabled || busy}
-          onClick={() => {
-            if (!canAuthenticate && onTerminalLogin) void terminalLogin()
-            else if (needsLogin && usableMethods?.length === 1) chooseMethod(usableMethods[0].id)
-            else {
-              setError(undefined)
-              setOpen(true)
-            }
-          }}>
-          {!needsLogin ? (
-            <CheckCircle2 className="lucide-custom size-3.5 text-muted-foreground" />
-          ) : (
-            <LogIn className="lucide-custom size-3.5 text-muted-foreground" />
-          )}
-        </Button>
-      </Tooltip>
+      <Button
+        variant={needsLogin ? 'default' : 'outline'}
+        size="sm"
+        className="shrink-0 gap-2"
+        disabled={disabled || busy}
+        onClick={() => {
+          if (!canAuthenticate && onTerminalLogin && !needsProvider) void terminalLogin()
+          else if (needsLogin && usableMethods?.length === 1) chooseMethod(usableMethods[0].id)
+          else {
+            setError(undefined)
+            setOpen(true)
+          }
+        }}>
+        {!needsLogin ? <CheckCircle2 className="size-4" /> : <LogIn className="size-4" />}
+        {signedIn && (
+          <span className="text-muted-foreground">
+            {t('local_agents.signed_in')} <span aria-hidden="true">·</span>
+          </span>
+        )}
+        {t(signedIn ? 'local_agents.reauthenticate' : 'local_agents.sign_in')}
+      </Button>
       <Dialog
         open={open}
         onOpenChange={(next) => {
           if (!next) cancel()
           setOpen(next)
         }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t(needsLogin ? 'local_agents.sign_in' : 'local_agents.reauthenticate')}</DialogTitle>
+            <DialogTitle>
+              {!method && config.presetId === 'antigravity-acp' && 'Google Antigravity · '}
+              {usableMethods?.find((entry) => entry.id === method)?.name ??
+                t(needsLogin ? 'local_agents.sign_in' : 'local_agents.reauthenticate')}
+            </DialogTitle>
           </DialogHeader>
           {busy ? (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               {t('local_agents.auth_waiting')}
             </p>
+          ) : needsProvider ? (
+            <form
+              id="pi-provider-login"
+              className="space-y-1.5"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void terminalLogin()
+              }}>
+              <Label htmlFor="pi-login-provider">{t('error.providerId')}</Label>
+              <Input
+                id="pi-login-provider"
+                list="pi-login-providers"
+                placeholder="openai-codex"
+                required
+                pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]*"
+                value={provider}
+                onChange={(event) => setProvider(event.target.value)}
+              />
+              <datalist id="pi-login-providers">
+                {['openai-codex', 'github-copilot', 'anthropic', 'openai'].map((id) => (
+                  <option key={id} value={id} />
+                ))}
+              </datalist>
+            </form>
           ) : method ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium">{usableMethods?.find((entry) => entry.id === method)?.name}</p>
+            <form
+              id="local-agent-auth-form"
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void authenticate(method)
+              }}>
               {(needsKey || platform) && (
                 <div className="space-y-1.5">
                   <Label htmlFor="local-agent-login-key">{t('settings.models.api_key')}</Label>
@@ -283,53 +370,53 @@ export function LocalAgentLogin({
                     {t('local_agents.auth_platform_hint')}
                   </p>
                   {!apiKey.trim() && (
-                    <>
-                      <Label htmlFor="local-agent-login-project">{t('local_agents.auth_project')}</Label>
-                      <Input
-                        id="local-agent-login-project"
-                        value={project}
-                        onChange={(event) => setProject(event.target.value)}
-                      />
-                      <Label htmlFor="local-agent-login-location">{t('local_agents.auth_location')}</Label>
-                      <Input
-                        id="local-agent-login-location"
-                        value={location}
-                        onChange={(event) => setLocation(event.target.value)}
-                      />
-                    </>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="local-agent-login-project">{t('local_agents.auth_project')}</Label>
+                        <Input
+                          id="local-agent-login-project"
+                          value={project}
+                          onChange={(event) => setProject(event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="local-agent-login-location">{t('local_agents.auth_location')}</Label>
+                        <Input
+                          id="local-agent-login-location"
+                          value={location}
+                          onChange={(event) => setLocation(event.target.value)}
+                        />
+                      </div>
+                    </div>
                   )}
                 </>
               )}
               {business && (
                 <p className="text-sm leading-relaxed text-muted-foreground">{t('local_agents.auth_business_hint')}</p>
               )}
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setMethod(undefined)
-                    setApiKey('')
-                    setError(undefined)
-                  }}>
-                  {t('common.back')}
-                </Button>
-                <Button
-                  disabled={
-                    (needsKey && !apiKey.trim()) ||
-                    (platform && !apiKey.trim() && (!project.trim() || !location.trim()))
-                  }
-                  onClick={() => void authenticate(method)}>
-                  {t('local_agents.sign_in')}
-                </Button>
-              </div>
-            </div>
+            </form>
           ) : (
             <div className="flex flex-col gap-2">
-              {usableMethods?.map((method) => (
-                <Button key={method.id} variant="outline" onClick={() => chooseMethod(method.id)}>
-                  {method.name}
-                </Button>
-              ))}
+              {usableMethods?.map((method) => {
+                const Icon =
+                  (config.presetId === 'antigravity-acp' &&
+                    Object.hasOwn(antigravityMethodIcons, method.id) &&
+                    antigravityMethodIcons[method.id]) ||
+                  LogIn
+                return (
+                  <Button
+                    key={method.id}
+                    variant="outline"
+                    className="h-auto min-h-12 justify-start gap-3 whitespace-normal px-3 py-2 text-left"
+                    onClick={() => chooseMethod(method.id)}>
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="flex-1">{method.name}</span>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </Button>
+                )
+              })}
               {!canAuthenticate && onTerminalLogin && (
                 <Button variant="outline" onClick={() => void terminalLogin()}>
                   {t('local_agents.sign_in')}
@@ -342,15 +429,30 @@ export function LocalAgentLogin({
               {error}
             </p>
           )}
-          <div className="flex justify-end gap-2">
-            {helpUrl && (
+          <div className="flex items-center gap-2 border-t pt-4">
+            {method && !busy && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMethod(undefined)
+                  setApiKey('')
+                  setError(undefined)
+                }}>
+                <ArrowLeft className="size-4" />
+                {t('common.back')}
+              </Button>
+            )}
+            {helpUrl && !method && (
               <Button asChild variant="ghost" size="sm">
                 <a href={helpUrl} target="_blank" rel="noreferrer">
                   {t('local_agents.login_help')}
+                  <ExternalLink className="size-3.5" />
                 </a>
               </Button>
             )}
             <Button
+              className="ml-auto"
               variant="outline"
               size="sm"
               onClick={() => {
@@ -359,6 +461,19 @@ export function LocalAgentLogin({
               }}>
               {t('common.cancel')}
             </Button>
+            {(method || needsProvider) && !busy && (
+              <Button
+                type="submit"
+                form={needsProvider ? 'pi-provider-login' : 'local-agent-auth-form'}
+                size="sm"
+                disabled={
+                  (needsProvider && !provider.trim()) ||
+                  (needsKey && !apiKey.trim()) ||
+                  (platform && !apiKey.trim() && (!project.trim() || !location.trim()))
+                }>
+                {t('local_agents.sign_in')}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

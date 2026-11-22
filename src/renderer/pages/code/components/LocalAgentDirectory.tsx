@@ -508,7 +508,7 @@ export function LocalAgentDetails({
       : undefined
   const modelSavingClass =
     busyAction === 'model' ? '[&_button:disabled]:pointer-events-auto [&_button:disabled]:opacity-100' : undefined
-  const [result, setResult] = useState<{ message?: string; ok: boolean }>({ ok: false })
+  const [result, setResult] = useState<{ message?: string; ok: boolean; modelRefreshFailed?: boolean }>({ ok: false })
   const clearResult = () => setResult(({ ok }) => ({ ok }))
   const showError = (error: unknown) => setResult({ ok: false, message: String(error) })
   const [connection, setConnection] = useState<Pick<LocalAgentCheckResult, 'status' | 'version'>>()
@@ -660,7 +660,7 @@ export function LocalAgentDetails({
     try {
       await refreshModels()
     } catch (error) {
-      showError(error)
+      setResult({ ok: false, message: String(error), modelRefreshFailed: true })
     }
   }
   const selectModel = async (nativeModel?: string) => {
@@ -862,6 +862,7 @@ export function LocalAgentDetails({
       )}>
       {result.ok ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
       <p className="min-w-0 whitespace-pre-wrap break-words">
+        {result.modelRefreshFailed && <span className="block">{t('settings.models.manage.sync_pull_failed')}</span>}
         {classifiedError?.kind === 'authentication'
           ? t('local_agents.sign_in_required')
           : classifiedError?.kind === 'region'
@@ -968,11 +969,14 @@ export function LocalAgentDetails({
                 <>
                   {available ? (
                     <>
-                      {initial.protocol === 'acp' && (
+                      {(initial.protocol === 'acp' || preset?.loginArgs) && (
                         <LocalAgentLogin
                           config={initial}
-                          authMethods={freshCatalog?.authMethods ?? catalog?.authMethods}
+                          authMethods={
+                            initial.protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []
+                          }
                           modelsLoading={modelsLoading}
+                          freshCatalog={freshCatalog}
                           authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
                           onRefresh={refreshModels}
                           available={available}
@@ -980,10 +984,10 @@ export function LocalAgentDetails({
                           helpUrl={preset?.helpUrl}
                           onTerminalLogin={
                             preset?.loginArgs
-                              ? async () => {
+                              ? async (provider) => {
                                   const response = await ipcApi.request('ai.local_agents.open_terminal', {
                                     ...initial,
-                                    login: true
+                                    login: provider ? { provider } : true
                                   })
                                   if (!response.success) throw new Error(response.message ?? t('common.error'))
                                 }
@@ -996,7 +1000,8 @@ export function LocalAgentDetails({
                               const updated = await persistLocalRuntime({ env: localRuntime.env })
                               if (!updated) throw new Error(t('common.error'))
                               await onSaved(updated.id)
-                            } else await refreshModels()
+                            } else void loadModels()
+                            toast.success(t('local_agents.signed_in'))
                           }}
                         />
                       )}

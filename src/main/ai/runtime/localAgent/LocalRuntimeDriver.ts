@@ -60,20 +60,58 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
     const config = LocalAgentConfigurationSchema.parse(
       agentService.getAgent(input.agentId)?.configuration?.localRuntime
     )
-    const live = await connection(input.sessionId, input.agentId, config)
-    try {
-      return await startWithTimeout(live, session.workspace.path, input.resumeToken)
-    } catch (error) {
-      await live.close()
+    return startLocalSession(input.sessionId, input.agentId, config, session.workspace.path, input.resumeToken)
+  }
+}
+
+async function startLocalSession(
+  sessionId: string,
+  agentId: string,
+  config: LocalAgentConfiguration,
+  cwd: string,
+  resume?: string,
+  probe: false | 'models' = false
+) {
+  const live = await connection(sessionId, agentId, config)
+  try {
+    return await startWithTimeout(live, cwd, resume, probe)
+  } catch (error) {
+    await live.close()
+    if (
+      config.presetId !== 'antigravity-acp' ||
+      config.executableOverride ||
+      config.args.length ||
+      !(error instanceof Error && /no authentication method selected/i.test(error.message))
+    )
       throw error
+
+    // The standalone adapter and terminal CLI own separate sign-ins.
+    const terminal = await resolveLocalAgentLaunch(config, undefined, true).catch(() => undefined)
+    if (!terminal) throw error
+    const native = await connection(sessionId, agentId, {
+      ...config,
+      executableOverride: terminal.executable,
+      args: ['acp']
+    })
+    try {
+      return await startWithTimeout(native, cwd, resume, probe)
+    } catch (nativeError) {
+      await native.close()
+      throw nativeError
     }
   }
 }
 
 export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
-  const live = await connection(`local-agent-models:${randomUUID()}`, '', { ...config, nativeModel: undefined })
+  const live = await startLocalSession(
+    `local-agent-models:${randomUUID()}`,
+    '',
+    { ...config, nativeModel: undefined },
+    application.getPath('cherry.bin'),
+    undefined,
+    'models'
+  )
   try {
-    await startWithTimeout(live, application.getPath('cherry.bin'), undefined, 'models')
     return {
       models: live.localSessionInfo.models,
       activeModel: live.localSessionInfo.activeModel,

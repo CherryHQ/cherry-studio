@@ -63,9 +63,20 @@ export async function selectLocalAgentModel(
   const agent = agentService.getAgent(agentId)
   const config = agent?.configuration?.localRuntime
   const native = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
-  if (!agent || agent.type !== 'local' || !config || !native) {
+  if (!agent || agent.type !== 'local' || !config) {
     throw new Error(t('code_cli.model.unsupported'))
   }
+  if (
+    config.presetId === 'antigravity-acp' &&
+    !selection.sourceModelId &&
+    !selection.files?.length &&
+    !selection.sourceModelViaGateway
+  ) {
+    const updated = agentService.updateAgent(agentId, { configuration: { localRuntime: { nativeModel } } })
+    if (!updated) throw new Error(t('code_cli.model.agent_missing'))
+    return updated
+  }
+  if (!native) throw new Error(t('code_cli.model.unsupported'))
   const shellEnv = await getRawShellEnv()
   if (hasConfigOverrides(config.env, shellEnv)) {
     throw new Error(t('code_cli.model.environment_mismatch'))

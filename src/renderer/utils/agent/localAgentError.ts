@@ -6,7 +6,7 @@ export function classifyLocalAgentError(error: unknown): {
   if (/not (?:currently )?available in your (?:location|region)|unsupported (?:location|region)/i.test(message)) {
     return { kind: 'region', message }
   }
-  if (/authentication required|not authenticated|login required/i.test(message)) {
+  if (/authentication required|no authentication method selected|not authenticated|login required/i.test(message)) {
     return { kind: 'authentication', message }
   }
   if (/timed out/i.test(message)) return { kind: 'timeout', message }

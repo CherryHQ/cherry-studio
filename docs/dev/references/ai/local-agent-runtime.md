@@ -144,7 +144,7 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   capability, not by runtime type. Main accumulates the content chunks and publishes
   the same shared message projections to desktop consumers; persistence ownership
   is unchanged.
-- The CLI owns authentication, project settings, MCP and Skills. Selecting a native
+- The CLI owns authentication, project settings, MCP and Skills. For presets with a writable CLI default, selecting a native
   model writes its default configuration and the Agent record together; failure
   restores the file. Gateway selections retain their Cherry model identity separately from the native
   model identifier. Switching back removes injected gateway credentials while
@@ -155,11 +155,13 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   No Cherry prompts, knowledge bases or tools are injected.
 - Native default persistence currently supports Claude, Codex, OpenCode, Qwen,
   Kimi, Pi, Hermes, MiniMax, CodeBuddy, Kilo, Factory Droid, Mistral Vibe and
-  GitHub Copilot. Other presets and custom ACP agents show an explicit
-  limitation instead of claiming a session-only change is global. Defaults apply
+  GitHub Copilot. These defaults apply
   to newly started CLI sessions, including manual terminal launches. Explicit
   model arguments, environment overrides and project settings can take precedence.
   Existing interactive CLI sessions are not forcibly switched.
+- Antigravity saves the selected ACP model on the Cherry Agent and applies it when
+  opening or resuming a session. Its interactive terminal keeps its own default.
+  Other presets and custom ACP agents show a limitation when model selection is unavailable.
 - Kilo shares OpenCode's provider configuration format. Droid uses `customModels`
   and `sessionDefaultSettings.model`; Vibe uses model aliases in `config.toml`
   with a Cherry-owned key in `.env`; Copilot uses `providers.json` and
@@ -206,7 +208,9 @@ Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
 
 Explicit executable overrides take precedence. Agent Services CLIs prefer a system
 installation over an existing managed copy; other ACP presets retain their
-existing installation discovery order. Explicit paths fail without fallback. Every connection
+existing installation discovery order. Codex requires its own executable. DeepSeek Harness
+releases older than `0.1.2-alpha.2` lack the packaged ACP profile and are skipped
+when their version is known. Explicit paths fail without fallback. Every connection
 resolves installation facts again, so upgrades do not pin an old version path.
 Managed installations use the shared binary execution environment; system CLIs
 retain the user's shell environment. Explicit environment overrides apply last and
@@ -341,8 +345,7 @@ Configuration labels, descriptions, choice groups and recognized values follow t
 interface language. Model names, model groups and unknown custom text remain native.
 The complete configuration snapshot retains native categories and priority order;
 unknown option types are ignored. Model parameters (`model_config`) appear in the
-model picker and remain session-owned. Model selection continues to save the global
-CLI default. Confirmed snapshots replace removed options and model catalogs.
+model picker and remain session-owned. Model selection uses the preset-specific defaults described above. Confirmed snapshots replace removed options and model catalogs.
 Mode and reasoning changes share an in-flight guard; confirmed notifications refresh
 the controls, and failed requests preserve the last confirmed value. Modes remain
 session-owned and do not change Cherry's permission policy or the global Agent.
@@ -535,20 +538,32 @@ Agent Services shows sign-in for installed ACP Agents that advertise a protocol-
 only the user's explicit action sends `authenticate` with an advertised method ID.
 Agents offering terminal-only authentication keep their native terminal/help flow;
 Cherry does not advertise ACP terminal-auth support or send `authenticate` for those methods.
-Poolside also exposes its verified native `pool login` command through the sign-in
-action and the existing system-terminal launcher. Opening the terminal is not
-reported as successful authentication; returning to Cherry refreshes the model catalog.
+The sign-in action opens the native terminal for Codex (`codex login`), Claude Code
+(`claude auth login`), Kimi (`kimi login`), Amp (`amp login`) and Poolside (`pool login`).
+For Pi, select or enter a provider ID to launch `pi auth login <provider>`.
+The CLI completes account authorization. Returning to Cherry refreshes the model catalog.
+
+Antigravity can run directly through the terminal CLI's `agy acp` command.
+When the standalone adapter is installed, Cherry uses it first to preserve its sign-in.
+If it reports that no authentication method was selected, chat and model discovery try
+the native CLI with its existing terminal sign-in. Explicit launch overrides keep their
+configured command. The standalone adapter uses configured HTTP proxies for its WebSocket
+connections and preserves explicit WebSocket proxy settings.
 
 The sign-in dialog supports the Agent's browser flow. Antigravity API-key methods
 collect a masked key; Agent Platform also supports a project and region with
 existing Application Default Credentials. Only environment overrides explicitly
 entered for sign-in are saved to the Agent; CLI-owned account credentials are not
 read or copied. Completing OAuth without changing overrides does not rewrite the
-Agent configuration.
+Agent configuration. If the subsequent model refresh fails, the Agent card shows the
+catalog error and the user can retry the refresh there.
 
 Cursor's native account-status command can verify an existing sign-in and show
-“Signed in”. Other Agents retain the “Sign in” action; model refresh and successful
-session creation do not change its label or icon. Neither a cached model list nor
+“Signed in”. The built-in Antigravity preset also shows “Signed in” after successful
+sign-in or a live model refresh, because its adapter and native CLI require authentication
+to open that session. When reauthentication is available, one button displays both
+“Signed in” and “Sign in again”. An authentication rejection restores the sign-in action.
+Other Agents retain the “Sign in” action unless they can verify account status. Neither a cached model list nor
 a protocol handshake proves account authentication or model access. Background
 checks remain quiet; explicit sign-in errors remain visible, including region
 restrictions.

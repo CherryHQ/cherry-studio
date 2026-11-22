@@ -2,10 +2,13 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
 import { application } from '@application'
+import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { mergeEnvironment } from '@main/utils/env'
@@ -17,20 +20,36 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 import type { InputFor } from '@shared/ipc/types'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
 import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
-async function selectInstallation(
-  preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
-  snapshots: Record<string, BinaryToolSnapshot>
-) {
+type AgentCommand = Pick<LocalAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalAgentPreset, 'protocol'>>
+
+async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvailability) {
+  if (preset.executable !== 'dsh' || preset.protocol !== 'acp' || candidate.source === 'none') return true
+  const version =
+    valid('version' in candidate ? candidate.version : undefined) ?? (await readInstalledPackageVersion(candidate.path))
+  // This is the first dsh package that includes the ACP profile.
+  return !version || !lt(version, '0.1.2-alpha.2')
+}
+
+async function selectInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
+  const codeCli = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.executable]
   const candidates = await Promise.all(
     [preset.executable, ...(preset.aliases ?? [])].map(async (name) => {
       const candidate = snapshots[name]?.availability
+      if (codeCli && candidate?.source === 'mise') {
+        // A mise package can expose a helper when its main command is missing.
+        const file = path.basename(candidate.path)
+        const command = isWin ? file.toLowerCase().replace(/\.(exe|cmd|bat)$/u, '') : file
+        if (command !== name) return undefined
+      }
+      if (candidate && !(await supportsAgentCommand(preset, candidate))) return undefined
       if (preset.executable === 'cursor-agent' && name === 'agent' && candidate && candidate.source !== 'none') {
         const target = await resolveInstalledExecutable(candidate.path).catch(() => '')
         if (!/^cursor-agent(?:\.exe|\.cmd)?$/i.test(path.basename(target))) return undefined
@@ -38,8 +57,9 @@ async function selectInstallation(
       return candidate
     })
   )
+  const preferredSource = codeCli ? 'system' : 'mise'
   return (
-    candidates.find((value) => value?.source === 'mise') ??
+    candidates.find((value) => value?.source === preferredSource) ??
     candidates.find((value) => value && value.source !== 'none') ?? { source: 'none' as const }
   )
 }
@@ -54,17 +74,15 @@ export function systemAgentWrapper(command: string): string {
     : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
 }
 
-export async function selectAvailableInstallation(
-  preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
-  snapshots: Record<string, BinaryToolSnapshot>
-) {
+export async function selectAvailableInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
   const installed = await selectInstallation(preset, snapshots)
   if (installed.source !== 'none') return installed
   const entry = systemAgentEntry(preset.executable)
   try {
     if (!(await fs.stat(entry)).isFile()) return installed
     await fs.access(entry, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
-    return { source: 'system' as const, path: entry }
+    const candidate = { source: 'system' as const, path: entry }
+    return (await supportsAgentCommand(preset, candidate)) ? candidate : installed
   } catch {
     return installed
   }
@@ -82,10 +100,11 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
     )
   return Promise.all(
     LOCAL_AGENT_PRESETS.map(async (preset) => {
-      const installed = await selectAvailableInstallation(preset, snapshots)
+      const adapter = await selectAvailableInstallation(preset, snapshots)
       const terminal = preset.terminalExecutable
         ? await selectAvailableInstallation({ executable: preset.terminalExecutable }, snapshots)
-        : installed
+        : adapter
+      const installed = preset.id === 'antigravity-acp' && adapter.source === 'none' ? terminal : adapter
       return {
         presetId: preset.id,
         ...installed,
@@ -119,6 +138,7 @@ export async function resolveLocalAgentLaunch(
   let lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
   let executable: string | undefined
   let source = 'system'
+  let nativeAntigravity = false
   if (config.executableOverride && !(terminal && (definition?.terminalExecutable || config.presetId === 'pi-acp'))) {
     executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
@@ -129,10 +149,15 @@ export async function resolveLocalAgentLaunch(
     const root = application.getPath('feature.binary.data')
     if (!isOutsidePath(path.relative(root, executable))) source = 'mise'
   } else if (preset) {
-    const snapshots = await application
-      .get('BinaryManager')
-      .getToolSnapshots([preset.executable, ...(preset.aliases ?? [])])
-    const installation = await selectAvailableInstallation(preset, snapshots)
+    const names = [preset.executable, ...(preset.aliases ?? [])]
+    const canUseNative = !terminal && preset.id === 'antigravity-acp' && !config.args.length
+    if (canUseNative) names.push('agy')
+    const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
+    let installation = await selectAvailableInstallation(preset, snapshots)
+    if (canUseNative && installation.source === 'none') {
+      installation = await selectAvailableInstallation({ executable: 'agy' }, snapshots)
+      nativeAntigravity = true
+    }
     executable = installation.source !== 'none' ? installation.path : undefined
     source = installation.source
   }
@@ -212,22 +237,50 @@ export async function resolveLocalAgentLaunch(
       }
     }
   }
+  let childEnv = mergeEnvironment(env, preset?.env, config.env)
+  if (preset?.id === 'antigravity-acp' && !terminal && !nativeAntigravity && !config.executableOverride) {
+    // The adapter's WebSocket client prefers macOS SOCKS settings over HTTPS_PROXY, but ships without python-socks.
+    const agentProxy = Object.keys(config.env).some((key) => /^(https?|all|socks)_proxy$/i.test(key))
+    const appliedProxy = getProxyEnvironment()
+    const useAppliedProxy = !agentProxy && !!appliedProxy[CHERRY_NODE_PROXY_RULES_ENV]
+    if (useAppliedProxy) childEnv = mergeEnvironment(childEnv, appliedProxy, config.env)
+    const proxyEnv = agentProxy ? mergeEnvironment(config.env) : useAppliedProxy ? appliedProxy : childEnv
+    const secureProxy = proxyEnv.https_proxy ?? proxyEnv.HTTPS_PROXY
+    const generalProxy = proxyEnv.all_proxy ?? proxyEnv.ALL_PROXY
+    const websocketProxies = {
+      WS_PROXY: secureProxy ?? proxyEnv.http_proxy ?? proxyEnv.HTTP_PROXY ?? generalProxy,
+      WSS_PROXY: secureProxy ?? generalProxy
+    }
+    for (const [key, proxy] of Object.entries(websocketProxies)) {
+      if (!(key in childEnv) && !(key.toLowerCase() in childEnv) && proxy && /^https?:\/\//i.test(proxy)) {
+        childEnv[key] = proxy
+      }
+    }
+  }
   return {
     executable,
     ...(nativeModel ? { nativeModel } : {}),
     source,
-    args: config.args.length
-      ? config.args
-      : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
-    env: mergeEnvironment(env, preset?.env, config.env)
+    args: nativeAntigravity
+      ? ['acp']
+      : config.args.length
+        ? config.args
+        : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
+    env: childEnv
   }
 }
 
 export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
-  const args = config.login ? preset.loginArgs : preset.terminalArgs
+  let args = config.login ? preset.loginArgs : preset.terminalArgs
   if (!args) throw new Error('This agent does not have a supported terminal login command')
+  if (typeof config.login === 'object') {
+    if (preset.id !== 'pi-acp') throw new Error('Only Pi accepts a login provider')
+    args = [...args, config.login.provider]
+  } else if (config.login && preset.id === 'pi-acp') {
+    throw new Error('Pi login requires a provider')
+  }
   const launch = await resolveLocalAgentLaunch(config, undefined, true)
   const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env))])
   const env = Object.fromEntries(

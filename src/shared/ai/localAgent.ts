@@ -35,6 +35,7 @@ export interface LocalAgentPreset {
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'claude',
+    loginArgs: ['auth', 'login'],
     terminalArgs: [],
     name: 'Claude Code',
     protocol: 'claude',
@@ -44,6 +45,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'codex',
+    loginArgs: ['login'],
     terminalArgs: [],
     name: 'Codex',
     protocol: 'codex',
@@ -83,6 +85,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'kimi',
+    loginArgs: ['login'],
     terminalArgs: [],
     name: 'Kimi',
     protocol: 'acp',
@@ -276,6 +279,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'pi-acp',
+    loginArgs: ['auth', 'login'],
     terminalArgs: [],
     name: 'Pi',
     protocol: 'acp',

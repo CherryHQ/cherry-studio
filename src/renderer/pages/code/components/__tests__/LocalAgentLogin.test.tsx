@@ -223,7 +223,7 @@ describe('external authentication', () => {
     await act(async () => pending.resolve())
     expect(onTerminalLogin).toHaveBeenCalledOnce()
     expect(onAuthenticated).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: '已登录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
     expect(request).not.toHaveBeenCalled()
   })
 
@@ -262,12 +262,26 @@ describe('external authentication', () => {
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     expect(ipcApi.request).not.toHaveBeenCalled()
   })
+  it('waits for a live Antigravity session before offering login for a cached authentication method', () => {
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'antigravity-acp' }}
+        modelsLoading
+        authMethods={[{ id: 'oauth-personal', name: 'Google', type: 'agent' }]}
+      />
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('加载中')
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+  })
+
   it('detects an existing login without authentication, rechecks on focus and clears stale success on failure', async () => {
     statusRequest.mockResolvedValue('signed-in')
     render(<LocalAgentLogin {...props} authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]} />)
-    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+    const signInAgain = await screen.findByRole('button', { name: /已登录.*重新登录/ })
+    expect(signInAgain).toHaveTextContent(/已登录.*重新登录/)
     expect(request).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: '已登录' }))
+    await userEvent.click(signInAgain)
     expect(screen.getByRole('heading', { name: '重新登录' })).toBeVisible()
     expect(request).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: '取消' }))
@@ -276,7 +290,7 @@ describe('external authentication', () => {
     expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
     statusRequest.mockResolvedValue('signed-out')
     fireEvent(window, new Event('focus'))
-    await waitFor(() => expect(screen.queryByRole('button', { name: '已登录' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument())
   })
 
   it('rechecks native status after authentication instead of remembering success', async () => {
@@ -293,7 +307,7 @@ describe('external authentication', () => {
       />
     )
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
-    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+    expect(await screen.findByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
   })
 
   it('refreshes the ACP session when returning from external login without launching authentication', async () => {
@@ -323,6 +337,6 @@ describe('external authentication', () => {
     rerender(<LocalAgentLogin {...loginProps} config={{ ...config, executableOverride: '/other/agent' }} />)
     await act(async () => resolve('signed-in'))
     expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: '已登录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
   })
 })

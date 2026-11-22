@@ -48,7 +48,7 @@ export function useLocalAgentModelSelection(
   const sourceRestrictions: LocalAgentModelSourceRestrictions | undefined = native
     ? undefined
     : {
-        native: t('local_agents.global_model_unavailable'),
+        native: config?.presetId === 'antigravity-acp' ? undefined : t('local_agents.global_model_unavailable'),
         gateway: t(
           config?.presetId === 'cursor'
             ? 'local_agents.model_sources.cursor_provider_unsupported'
@@ -84,6 +84,10 @@ export function useLocalAgentModelSelection(
     })
   }
   const select = async (agent: AgentEntity, id?: string) => {
+    if (config?.presetId === 'antigravity-acp') {
+      if (id && !nativeModels.some((model) => model.id === id)) throw new Error(t('local_agents.models_unavailable'))
+      return updateNativeModel(agent.id, id)
+    }
     if (!native) throw new Error(t('local_agents.global_model_unavailable'))
     if (id?.startsWith('cherry-model:')) throw new Error(t('local_agents.models_unavailable'))
     if (id && config?.sourceModelId && !viaGateway && id === config.nativeModel) return agent
