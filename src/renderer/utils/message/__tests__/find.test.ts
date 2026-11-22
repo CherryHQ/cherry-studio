@@ -422,6 +422,36 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://a.example/x%C2%A0y)')
   })
 
+  it('closes a top-level tilde fence with an outdented closer', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '  ~~~text\n  sample\n~~~\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('keeps literal emphasis characters in titles', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Compare *foo* with _bar_', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Compare \\*foo\\* with \\_bar\\_](https://a.example)')
+  })
+
   it('keeps literal HTML-like text in titles', () => {
     const message = createExportView([
       {

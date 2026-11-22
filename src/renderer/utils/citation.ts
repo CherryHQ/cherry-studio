@@ -16,26 +16,64 @@ import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-// A tilde fence is a block construct: it opens at the start of a line (any indent, so list-nested
-// fences count). Its body is every following blank line or line indented at least as far as the
-// opener, so a fence inside a list item ends where the item does. It ends early at a closing line of
-// at least as many tildes as the opener, and an unclosed top-level fence runs to the end of the text.
-const MARKDOWN_CODE_PATTERN =
-  /```[\s\S]*?```|^([ \t]*)(~{3,})[^\n]*(?:\n(?!\1[ \t]*\2~*[ \t]*$)(?:[ \t]*$|\1[^\n]*))*(?:\n\1[ \t]*\2~*[ \t]*$)?|`[^`\n]*`/gm
+// Backtick fences and inline code. Tilde fences are block constructs and need line context, so
+// `findMarkdownCodeRanges` scans them separately.
+const BACKTICK_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/g
+const TILDE_OPENER_PATTERN = /^([ \t]*)(~{3,})[^\n]*$/gm
+
+/**
+ * End offset of a tilde fence whose opener line starts at `start`. The fence closes at a line of at
+ * least as many tildes (any indent up to 3, so an outdented closer counts), or ends where its
+ * container does: a non-blank line indented less than the opener. A fence opened at column 0 that
+ * is never closed runs to the end of the text.
+ */
+function findTildeFenceEnd(content: string, start: number, indent: number, tildes: number): number {
+  let lineStart = content.indexOf('\n', start)
+  while (lineStart !== -1) {
+    const bodyStart = lineStart + 1
+    const nextBreak = content.indexOf('\n', bodyStart)
+    const lineEnd = nextBreak === -1 ? content.length : nextBreak
+    const line = content.slice(bodyStart, lineEnd)
+    const closer = /^( {0,3})(~{3,})[ \t]*$/.exec(line)
+    if (closer && closer[2].length >= tildes) return lineEnd
+    if (line.trim() !== '' && indent > 0 && line.length - line.trimStart().length < indent) return lineStart
+    lineStart = nextBreak
+  }
+  return content.length
+}
+
+/** Ranges of code (fenced or inline) that citation markers must not be read from. */
+export function findMarkdownCodeRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  let position = 0
+  while (position < content.length) {
+    BACKTICK_CODE_PATTERN.lastIndex = position
+    TILDE_OPENER_PATTERN.lastIndex = position
+    const backtick = BACKTICK_CODE_PATTERN.exec(content)
+    const tilde = TILDE_OPENER_PATTERN.exec(content)
+    if (!backtick && !tilde) break
+    if (tilde && (!backtick || tilde.index <= backtick.index)) {
+      const indent = tilde[1].replace(/\t/g, '    ').length
+      const end = findTildeFenceEnd(content, tilde.index, indent, tilde[2].length)
+      ranges.push({ start: tilde.index, end })
+      position = Math.max(end, tilde.index + 1)
+    } else if (backtick) {
+      ranges.push({ start: backtick.index, end: backtick.index + backtick[0].length })
+      position = backtick.index + Math.max(backtick[0].length, 1)
+    }
+  }
+  return ranges
+}
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
 export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
-  MARKDOWN_CODE_PATTERN.lastIndex = 0
   let cursor = 0
   let result = ''
-  let match: RegExpExecArray | null
-
-  while ((match = MARKDOWN_CODE_PATTERN.exec(content)) !== null) {
-    result += transform(content.slice(cursor, match.index))
-    result += match[0]
-    cursor = match.index + match[0].length
+  for (const { start, end } of findMarkdownCodeRanges(content)) {
+    result += transform(content.slice(cursor, start))
+    result += content.slice(start, end)
+    cursor = end
   }
-
   return result + transform(content.slice(cursor))
 }
 
@@ -83,21 +121,7 @@ export function normalizeCitationMarks(
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
-  const codeBlockRegex = MARKDOWN_CODE_PATTERN
-  const getSkipRanges = () => {
-    const skipRanges: Array<{ start: number; end: number }> = []
-
-    codeBlockRegex.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      skipRanges.push({
-        start: match.index,
-        end: match.index + match[0].length
-      })
-    }
-
-    return skipRanges
-  }
+  const getSkipRanges = () => findMarkdownCodeRanges(content)
 
   // 检查位置是否在代码块内
   const shouldSkip = (pos: number, skipRanges = getSkipRanges()): boolean => {

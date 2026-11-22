@@ -234,7 +234,7 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
 }
 
 // Escape everything CommonMark would read as syntax inside link text, so a title like `<div>` stays literal.
-const escapeLinkText = (text: string): string => text.replace(/[\\[\]<>&]/g, '\\$&')
+const escapeLinkText = (text: string): string => text.replace(/[\\[\]<>&*_`~|]/g, '\\$&')
 // Percent-encode what would end or split the destination (whitespace, controls, brackets, backslash)
 // and write `&` as `&amp;` where a Markdown parser would read a character reference (`&copy;`).
 const needsPercentEncoding = (character: string): boolean => {
