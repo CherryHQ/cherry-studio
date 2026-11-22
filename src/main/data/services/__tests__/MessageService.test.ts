@@ -351,7 +351,7 @@ describe('MessageService', () => {
       },
       {
         name: 'resetAssistantForRetry',
-        run: ({ assistant }) => messageService.resetAssistantForRetry(assistant.id)
+        run: ({ assistant }) => messageService.resetAssistantForRetry(assistant.id, [])
       },
       { name: 'deleteReplyGroup', run: ({ assistant }) => messageService.deleteReplyGroup(assistant.id) },
       { name: 'delete', run: ({ user }) => messageService.delete(user.id) },
@@ -534,6 +534,109 @@ describe('MessageService', () => {
   }
 
   describe('resetAssistantForRetry', () => {
+    it.each([
+      'reply-content',
+      'reply-model',
+      'reply-controls',
+      'reply-parent',
+      'parent-content',
+      'ancestor-content',
+      'ancestor-status',
+      'ancestor-deletion'
+    ])('rejects a stale %s without changing persisted retry state', async (change) => {
+      await seedMultiModelTree()
+      dbh.db
+        .update(messageTable)
+        .set({ parentId: 'm-follow', status: 'error', data: mainText('partial to preserve') })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+      const sourcePath = messageService.getPathToNode('m-a1')
+
+      switch (change) {
+        case 'reply-content':
+          dbh.db
+            .update(messageTable)
+            .set({ data: mainText('new partial') })
+            .where(eq(messageTable.id, 'm-a1'))
+            .run()
+          break
+        case 'reply-model':
+          dbh.db
+            .update(messageTable)
+            .set({ modelId: createUniqueModelId('provider-b', 'model-B') })
+            .where(eq(messageTable.id, 'm-a1'))
+            .run()
+          break
+        case 'reply-controls':
+          dbh.db
+            .update(messageTable)
+            .set({ data: { ...mainText('partial to preserve'), turnOptions: { fastMode: true } } })
+            .where(eq(messageTable.id, 'm-a1'))
+            .run()
+          break
+        case 'reply-parent':
+          dbh.db.update(messageTable).set({ parentId: 'm-root' }).where(eq(messageTable.id, 'm-a1')).run()
+          break
+        case 'parent-content':
+          dbh.db
+            .update(messageTable)
+            .set({ data: mainText('edited follow up') })
+            .where(eq(messageTable.id, 'm-follow'))
+            .run()
+          break
+        case 'ancestor-content':
+          dbh.db
+            .update(messageTable)
+            .set({ data: mainText('edited initial question') })
+            .where(eq(messageTable.id, 'm-root'))
+            .run()
+          break
+        case 'ancestor-status':
+          dbh.db.update(messageTable).set({ status: 'paused' }).where(eq(messageTable.id, 'm-a2')).run()
+          break
+        case 'ancestor-deletion':
+          dbh.db.update(messageTable).set({ deletedAt: 500 }).where(eq(messageTable.id, 'm-root')).run()
+          break
+      }
+
+      const messagesBefore = dbh.db.select().from(messageTable).all()
+      const topicsBefore = dbh.db.select().from(topicTable).all()
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(() => messageService.resetAssistantForRetry('m-a1', sourcePath)).toThrow('retry source changed')
+      expect(dbh.db.select().from(messageTable).all()).toEqual(messagesBefore)
+      expect(dbh.db.select().from(topicTable).all()).toEqual(topicsBefore)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('allows context projection and unrelated sibling changes without activating the retried branch', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .update(messageTable)
+        .set({ status: 'error', data: mainText('partial') })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+      const sourcePath = messageService.getPathToNode('m-a1')
+      dbh.db
+        .update(messageTable)
+        .set({ compactionSummary: 'fresh summary', stats: { contextTokens: 23 }, updatedAt: 999 })
+        .where(eq(messageTable.id, 'm-root'))
+        .run()
+      dbh.db
+        .update(messageTable)
+        .set({ data: mainText('unrelated sibling update') })
+        .where(eq(messageTable.id, 'm-a2'))
+        .run()
+
+      const reset = messageService.resetAssistantForRetry('m-a1', sourcePath)
+
+      expect(reset.status).toBe('pending')
+      expect(reset.data.parts).toEqual([])
+      expect(messageService.getById('m-a2').data).toEqual(mainText('unrelated sibling update'))
+      expect(topicService.getById('topic-1').activeNodeId).toBe('m-follow')
+      expect(messageService.getById('m-root').compactionSummary).toBe('fresh summary')
+    })
+
     it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
       await seedMultiModelTree()
       await dbh.db.insert(messageTable).values([
@@ -581,7 +684,7 @@ describe('MessageService', () => {
         .run()
 
       const before = messageService.getById('m-a1')
-      const reset = messageService.resetAssistantForRetry('m-a1')
+      const reset = messageService.resetAssistantForRetry('m-a1', messageService.getPathToNode('m-a1'))
       const topic = dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1')).get()
       const invalidatedRows = dbh.db
         .select({
@@ -4448,7 +4551,7 @@ describe('MessageService', () => {
     expect(readRefs(id)).toEqual(expected)
     messageService.finalizeAssistantMessage(id, { data: mainText('failed'), status: 'error' })
     expect(readRefs(id)).toEqual(expected)
-    messageService.resetAssistantForRetry(id)
+    messageService.resetAssistantForRetry(id, messageService.getPathToNode(id))
     expect(readRefs(id)).toEqual(expected)
     expect(messageService.getById(id).messageSnapshot).toEqual(snapshot)
     messageService.delete(id)

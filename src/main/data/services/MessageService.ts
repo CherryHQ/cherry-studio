@@ -8,6 +8,8 @@
  * - Cascade delete and reparenting
  */
 
+import { isDeepStrictEqual } from 'node:util'
+
 import { isToolUIPart } from 'ai'
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
@@ -336,6 +338,10 @@ function replaceChatMessageFileRefsTx(
       .values(rows.slice(i, i + SQLITE_INSERT_CHUNK))
       .run()
   }
+}
+
+function toRetrySourceState({ id, topicId, parentId, role, status, siblingsGroupId, modelId, data }: Message) {
+  return { id, topicId, parentId, role, status, siblingsGroupId, modelId, data }
 }
 
 /**
@@ -1484,11 +1490,16 @@ export class MessageService {
    * The row identity, parent, sibling group, descendants, and topic active node are deliberately
    * untouched. Usage/cost projection fields stay intact; attempt-local runtime timing and all
    * descendant compaction/context anchors are cleared so later turns cannot reuse context derived
-   * from the failed attempt.
+   * from the failed attempt. `expectedPath` captures source content before asynchronous preparation;
+   * source edits/reparenting reject in the same write transaction, while compaction/usage projections do not.
    */
-  resetAssistantForRetry(id: string): Message {
+  resetAssistantForRetry(id: string, expectedPath: readonly Message[]): Message {
     const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
       const row = this.getAddressableMessageRowTx(tx, id)
+      const currentPath = this.getPathRowsToNodeTx(tx, id, { topicId: row.topicId }).map(rowToMessage)
+      if (!isDeepStrictEqual(currentPath.map(toRetrySourceState), expectedPath.map(toRetrySourceState))) {
+        throw DataApiErrorFactory.invalidOperation('retry message', 'retry source changed; retry the current message')
+      }
       if (row.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation('retry message', 'only assistant messages can be retried')
       }

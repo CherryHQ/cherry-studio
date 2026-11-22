@@ -539,6 +539,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' parentAnchorId must identify a user message in the topic`)
     }
 
+    const sourcePath = messageService.getPathToNode(target.id)
     const targetModelId = (target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
     if (req.mentionedModelIds && (req.mentionedModelIds.length !== 1 || req.mentionedModelIds[0] !== targetModelId)) {
       throw new Error('In-place retry cannot change the assistant model')
@@ -605,7 +606,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // Reset only after all async context preparation and the final admission succeed. This atomic
       // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
       // activate it.
-      const resetMessage = messageService.resetAssistantForRetry(target.id)
+      const resetMessage = messageService.resetAssistantForRetry(target.id, sourcePath)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({

@@ -148,6 +148,64 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it.each(['parent edit', 'parent deletion'])(
+    'rejects retry after a %s during asynchronous preparation',
+    async (change) => {
+      aiStreamManager.awaitExecutionRetry.mockReset().mockResolvedValue({ mode: 'start-new' })
+      aiStreamManager.awaitExecutionRetry
+        .mockResolvedValueOnce({ mode: 'start-new' })
+        .mockImplementationOnce(async () => {
+          if (change === 'parent edit') {
+            messageService.update('u1', { data: { parts: [{ type: 'text', text: 'edited question' }] } })
+          } else {
+            messageService.delete('u1')
+          }
+          return { mode: 'start-new' }
+        })
+
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          { trigger: 'regenerate-message', topicId: 'topic-1', parentAnchorId: 'u1', retryMessageId: 'a1' },
+          { hasLiveStream: false }
+        )
+      ).rejects.toThrow('retry source changed')
+
+      expect(messageService.getById('a1')).toMatchObject({
+        status: 'paused',
+        data: { parts: [{ type: 'text', text: PARTIAL }] }
+      })
+      if (change === 'parent edit') {
+        expect(messageService.getById('u1').data.parts).toEqual([{ type: 'text', text: 'edited question' }])
+      }
+    }
+  )
+
+  it('retries the original reply with its saved controls and selected ancestor history', async () => {
+    aiStreamManager.awaitExecutionRetry.mockReset().mockResolvedValue({ mode: 'start-new' })
+    dbh.db
+      .update(messageTable)
+      .set({ data: { parts: [{ type: 'text', text: PARTIAL }], turnOptions: { fastMode: true } } })
+      .where(eq(messageTable.id, 'a1'))
+      .run()
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'regenerate-message', topicId: 'topic-1', parentAnchorId: 'u1', retryMessageId: 'a1' },
+      { hasLiveStream: false }
+    )
+
+    expect(flatten(prepared.models[0].request.messages!)).toEqual([{ role: 'user', text: 'first question' }])
+    expect(prepared.models[0].modelId).toBe(MODEL_ID)
+    expect(prepared.models[0].request.fastMode).toBe(true)
+    expect(prepared.preserveActiveNode).toBe(true)
+    expect(messageService.getById('a1')).toMatchObject({
+      status: 'pending',
+      data: { parts: [], turnOptions: { fastMode: true } }
+    })
+    expect(topicService.getById('topic-1').activeNodeId).toBe('a1')
+  })
+
   it('rejects duplicate mentioned models before reserving any rows', async () => {
     const childrenBefore = messageService.getChildrenByParentId('a1')
 
