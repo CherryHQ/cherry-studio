@@ -28,6 +28,11 @@ import * as workspaceAccess from '@main/utils/isDirectoryAccessible'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
+const recoveryMocks = vi.hoisted(() => ({ recover: vi.fn() }))
+vi.mock('@main/ai/runtime/claudeCode', () => ({
+  recoverClaudeWorkspaceHistory: recoveryMocks.recover
+}))
+
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
@@ -50,6 +55,7 @@ describe('AgentSessionService', () => {
   beforeEach(async () => {
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
     notifyDataApiDataChangeMock.mockClear()
+    recoveryMocks.recover.mockReset().mockResolvedValue(undefined)
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -1302,6 +1308,36 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('does not save renamed Claude recovery unless its native history reopens from the replacement cwd', async () => {
+    const configDir = workspacePath('native-recovery-config')
+    const previous = process.env.CLAUDE_CONFIG_DIR
+    process.env.CLAUDE_CONFIG_DIR = configDir
+    try {
+      const { session, replacement, missing } = await createMessagedSessionWithBackend('claude-native-recovery', {
+        version: 1,
+        kind: 'claude-code',
+        configDir
+      })
+      recoveryMocks.recover.mockRejectedValueOnce(new Error('native reopen failed'))
+      await expect(
+        agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+      ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
+      expect(recoveryMocks.recover).toHaveBeenCalledWith({
+        configDir,
+        targetCwd: replacement.path,
+        sourceCwd: missing.path,
+        nativeThreadId: 'native-thread-1'
+      })
+      await expect(
+        agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+      ).resolves.toMatchObject({ workspaceId: replacement.id })
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+      else process.env.CLAUDE_CONFIG_DIR = previous
+    }
+  })
+
   it('accepts a Claude branch saved under the managed config root', async () => {
     const managedRoot = workspacePath('managed-claude-root')
     await mkdir(managedRoot, { recursive: true })
@@ -1318,11 +1354,11 @@ describe('AgentSessionService', () => {
         kind: 'claude-code',
         configDir: managedRoot
       })
-      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
-        {
-          workspaceId: replacement.id
-        }
-      )
+      expect(
+        await agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+      ).toMatchObject({
+        workspaceId: replacement.id
+      })
     } finally {
       if (previous !== undefined) process.env.CLAUDE_CONFIG_DIR = previous
       if (original) getPath.mockImplementation(original)
@@ -1355,8 +1391,27 @@ describe('AgentSessionService', () => {
       await mkdir(path.join(managedRoot, 'projects', 'project-a'), { recursive: true })
       await writeFile(path.join(managedRoot, 'projects', 'project-a', 'native-thread-1.jsonl'), '')
       const restored = await createMessagedSessionWithBackend('claude-restore-ok', sourceLocator)
+      await dbh.db
+        .update(agentSessionMessageTable)
+        .set({
+          data: {
+            parts: [{ type: 'text', text: 'old reply' }],
+            runtimeAnchor: {
+              checkpoint: {
+                runtime: 'claude-code',
+                runtimeSessionId: 'native-thread-1',
+                messageUuid: 'message-uuid',
+                configDir: sourceLocator.configDir
+              }
+            }
+          } as never
+        })
+        .where(eq(agentSessionMessageTable.sessionId, restored.session.id))
       expect(
-        agentSessionService.setWorkspace(restored.session.id, { type: 'user', workspaceId: restored.replacement.id })
+        await agentSessionService.setWorkspaceRecovering(restored.session.id, {
+          type: 'user',
+          workspaceId: restored.replacement.id
+        })
       ).toMatchObject({ workspaceId: restored.replacement.id })
       const [backend] = await dbh.db
         .select({ locator: agentRuntimeBackendTable.locator })
@@ -1364,6 +1419,15 @@ describe('AgentSessionService', () => {
         .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
         .where(eq(agentSessionContextTable.sessionId, restored.session.id))
       expect(backend.locator).toEqual({ version: 1, kind: 'claude-code', configDir: managedRoot })
+      const [reply] = await dbh.db
+        .select({ data: agentSessionMessageTable.data })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, 'message-claude-restore-ok'))
+      expect(reply.data).toMatchObject({
+        runtimeAnchor: {
+          checkpoint: { configDir: managedRoot, runtimeSessionId: 'native-thread-1', messageUuid: 'message-uuid' }
+        }
+      })
     } finally {
       if (previous !== undefined) process.env.CLAUDE_CONFIG_DIR = previous
       if (original) getPath.mockImplementation(original)
@@ -1518,6 +1582,32 @@ describe('AgentSessionService', () => {
     try {
       agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })
       expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('rechecks a replacement that disconnects while the final original-folder check is pending', async () => {
+    const missing = await createWorkspace('disconnect-original')
+    const replacement = await createWorkspace('disconnect-replacement')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Disconnected replacement', missing.id)
+    await insertSessionMessage(session.id, 'message-disconnect-target')
+    let originalChecks = 0
+    let targetConnected = true
+    const spy = vi.spyOn(workspaceAccess, 'isDirectoryAccessibleAsync').mockImplementation(async (folder) => {
+      if (folder === missing.path) {
+        originalChecks++
+        if (originalChecks === 2) targetConnected = false
+        return false
+      }
+      return targetConnected
+    })
+    try {
+      await expect(
+        agentSessionService.setWorkspaceRecovering(session.id, { type: 'user', workspaceId: replacement.id })
+      ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: missing.id })
     } finally {
       spy.mockRestore()
     }

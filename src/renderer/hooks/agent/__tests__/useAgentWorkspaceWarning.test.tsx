@@ -51,3 +51,32 @@ it('keeps availability pending until the response and discards a previous path o
   rerender({ path: '/second', revision: 1 })
   expect(result.current.available).toBeUndefined()
 })
+
+it('does not reuse the previous positive result when revisiting A before B settles', async () => {
+  const replies: Array<(available: boolean) => void> = []
+  request.mockImplementation(
+    () =>
+      new Promise<boolean>((resolve) => {
+        replies.push(resolve)
+      })
+  )
+  const { result, rerender } = renderHook(({ path }) => useAgentWorkspaceStatus(path), {
+    initialProps: { path: '/a' }
+  })
+  await act(async () => {
+    replies[0](true)
+  })
+  expect(result.current.available).toBe(true)
+  rerender({ path: '/b' })
+  expect(result.current.available).toBeUndefined()
+  rerender({ path: '/a' })
+  expect(result.current.available).toBeUndefined()
+  await act(async () => {
+    replies[1](true)
+  })
+  expect(result.current.available).toBeUndefined()
+  await act(async () => {
+    replies[2](false)
+  })
+  expect(result.current.available).toBe(false)
+})

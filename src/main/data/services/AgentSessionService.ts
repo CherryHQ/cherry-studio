@@ -210,6 +210,7 @@ function isManagedClaudeConfigDir(dir: string): boolean {
 type NativeHistoryProbe =
   | {
       kind: 'claude-code'
+      configDir: string
       foreignConfigDir: boolean
       /** A managed-root branch from another profile path; its history may have been restored under ours. */
       relocatable: boolean
@@ -1166,6 +1167,15 @@ export class AgentSessionService {
           if (historyProblem) {
             throw DataApiErrorFactory.invalidOperation('update session workspace', historyProblem)
           }
+          if (
+            !preflight &&
+            this.listNativeHistoryProbes(id).some((probe) => probe.kind === 'claude-code' && probe.nativeThreadId)
+          ) {
+            throw DataApiErrorFactory.invalidOperation(
+              'update session workspace',
+              'Claude history recovery requires asynchronous native verification'
+            )
+          }
         }
         application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
       },
@@ -1198,18 +1208,38 @@ export class AgentSessionService {
     if (await isDirectoryAccessibleAsync(current.workspace.path)) {
       return this.setWorkspace(id, source, { currentAccessible: true, targetAccessible: true, expectedWorkspaceId })
     }
+    const targetInitiallyAccessible =
+      target.id === current.session.workspaceId || (await isDirectoryAccessibleAsync(target.path))
+    if (!targetInitiallyAccessible) {
+      return this.setWorkspace(id, source, { currentAccessible: false, targetAccessible: false, expectedWorkspaceId })
+    }
     const probes = this.listNativeHistoryProbes(id)
     let historyProblem: string | undefined
     for (const probe of probes) {
       historyProblem = this.describeHistoryProblem(probe, await this.probeHistoryAsync(probe))
       if (historyProblem) break
+      if (probe.kind === 'claude-code' && probe.nativeThreadId) {
+        try {
+          const { recoverClaudeWorkspaceHistory } = await import('@main/ai/runtime/claudeCode')
+          await recoverClaudeWorkspaceHistory({
+            configDir: probe.foreignConfigDir ? probe.managedRoot : probe.configDir,
+            targetCwd: target.path,
+            sourceCwd: current.workspace.path,
+            nativeThreadId: probe.nativeThreadId
+          })
+        } catch {
+          historyProblem =
+            "this conversation's Claude Code history cannot be reopened from the replacement workspace; the original binding is unchanged"
+          break
+        }
+      }
     }
-    // Finish validating the replacement first, then probe the original folder last, right before the
-    // write, so a drive that reconnected while the replacement was being checked is not judged by an
-    // older answer.
+    // Recheck both folders after native-history work. These are best-effort filesystem observations,
+    // not a lock against a drive being detached immediately after the check.
+    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
+    // Do not carry a successful target probe across a potentially stalled original-folder check.
     const targetAccessible =
       target.id === current.session.workspaceId ? true : await isDirectoryAccessibleAsync(target.path)
-    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
     return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem, expectedWorkspaceId })
   }
 
@@ -1249,6 +1279,7 @@ export class AgentSessionService {
           return [
             {
               kind: 'claude-code',
+              configDir: locator.configDir,
               foreignConfigDir: !configDirs.has(path.resolve(locator.configDir)),
               relocatable: isManagedClaudeConfigDir(locator.configDir),
               managedRoot: application.getPath('feature.agents.claude.root'),
@@ -1454,6 +1485,21 @@ export class AgentSessionService {
         tx.update(agentSessionContextTable)
           .set({ backendId: backend.id })
           .where(eq(agentSessionContextTable.id, contextId))
+          .run()
+        // Fork checkpoints are adapter-owned addresses too; keeping the old profile path would
+        // break forks from replies made before the restore even though the backend was rebound.
+        tx.update(agentSessionMessageTable)
+          .set({
+            data: sql`json_set(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.configDir', ${managedRoot})`,
+            updatedAt: agentSessionMessageTable.updatedAt
+          })
+          .where(
+            and(
+              eq(agentSessionMessageTable.sessionId, sessionId),
+              sql`json_extract(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.runtime') = 'claude-code'`,
+              sql`json_extract(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.configDir') = ${locator.configDir}`
+            )
+          )
           .run()
       }
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -9,7 +9,9 @@ const logger = loggerService.withContext('useAgentWorkspaceWarning')
 
 export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
   const { t } = useTranslation()
-  const [result, setResult] = useState<{ path: string; revision: number; available: boolean }>()
+  // Each visit/check has its own identity, including A -> B -> A with the same refresh key.
+  const check = useMemo(() => ({ workspacePath, enabled, refreshKey }), [workspacePath, enabled, refreshKey])
+  const [result, setResult] = useState<{ check: typeof check; available: boolean }>()
 
   useEffect(() => {
     if (!enabled) return
@@ -25,7 +27,7 @@ export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabl
           path: AbsoluteFilePathSchema.parse(workspacePath)
         })
         if (cancelled) return
-        setResult({ path: workspacePath, revision: refreshKey, available: accessible })
+        setResult({ check, available: accessible })
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
         if (!cancelled) setResult(undefined)
@@ -35,13 +37,9 @@ export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabl
     return () => {
       cancelled = true
     }
-  }, [enabled, refreshKey, t, workspacePath])
+  }, [check, enabled, workspacePath])
 
-  const available = !workspacePath
-    ? true
-    : enabled && result?.path === workspacePath && result.revision === refreshKey
-      ? result.available
-      : undefined
+  const available = !workspacePath ? true : enabled && result?.check === check ? result.available : undefined
   return {
     available,
     warning: available === false ? t('agent.session.workspace_status.inaccessible', { path: workspacePath }) : undefined
