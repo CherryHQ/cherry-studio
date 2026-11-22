@@ -119,7 +119,7 @@ describe('MessageMenuBar delete affordance', () => {
   it.each([false, true])('includes and executes source copy in native mode (source-only: %s)', async (sourceOnly) => {
     const show = vi.fn().mockResolvedValue({ type: 'custom', id: 'export.copy-web-sources' })
     const previous = window.api.command
-    window.api.command = { showNativePopupMenu: show } as unknown as typeof window.api.command
+    window.api.command = { showNativePopupMenu: show }
     try {
       const { actions } = renderToolbar('assistant', undefined, false, sourceOnly, true)
       await userEvent.setup().click(screen.getByRole('button', { name: 'More actions' }))
