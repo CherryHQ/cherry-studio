@@ -58,28 +58,30 @@ export const getLanguageCode = async () => {
 }
 
 // Map i18n language codes to dayjs locale codes
-const dayjsLocaleMap: Record<string, string> = {
-  'en-US': 'en',
-  'ja-JP': 'ja',
-  'ru-RU': 'ru',
-  'zh-CN': 'zh-cn',
-  'zh-TW': 'zh-tw',
-  'cs-CZ': 'cs',
-  'de-DE': 'de',
-  'el-GR': 'el',
-  'es-ES': 'es',
-  'fr-FR': 'fr',
-  'it-IT': 'it',
-  'pl-PL': 'pl',
-  'pt-PT': 'pt',
-  'ro-RO': 'ro',
-  'th-TH': 'th',
-  'vi-VN': 'vi',
-  'tr-TR': 'tr'
-}
+const dayjsLocaleMap = new Map(
+  Object.entries({
+    'en-US': 'en',
+    'ja-JP': 'ja',
+    'ru-RU': 'ru',
+    'zh-CN': 'zh-cn',
+    'zh-TW': 'zh-tw',
+    'cs-CZ': 'cs',
+    'de-DE': 'de',
+    'el-GR': 'el',
+    'es-ES': 'es',
+    'fr-FR': 'fr',
+    'it-IT': 'it',
+    'pl-PL': 'pl',
+    'pt-PT': 'pt',
+    'ro-RO': 'ro',
+    'th-TH': 'th',
+    'vi-VN': 'vi',
+    'tr-TR': 'tr'
+  } satisfies Record<LanguageVarious, string>)
+)
 
 export const setDayjsLocale = (language: string) => {
-  const dayjsLocale = dayjsLocaleMap[language] || 'en'
+  const dayjsLocale = dayjsLocaleMap.get(language) || 'en'
   dayjs.locale(dayjsLocale)
 }
 
