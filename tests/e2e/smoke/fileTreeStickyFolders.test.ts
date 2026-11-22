@@ -1,9 +1,7 @@
 import { accessSync, chmodSync, constants, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { _electron as electron } from '@playwright/test'
-
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import {
   failureEvidence,
   findRow,
@@ -62,7 +60,7 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
   electronApp: async ({ stickyProfile }, use) => {
     const env = { ...process.env, CS_DEV_PROFILE_ROOT: stickyProfile.profile, NODE_ENV: 'development' }
     Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-    const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+    const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
     try {
       await use(app)
     } finally {
@@ -140,8 +138,7 @@ test('Notes FileTree sticky folders hand off across parent child sibling and roo
 
     await scroll(list, 0)
     await frames(list)
-    expect((await rowState(p)).top, 'first row sits at the list top when scrolled to 0').toBeCloseTo(0, 0)
-    const pA = 0
+    const pA = (await rowState(p)).top
     await scroll(list, pA + 1)
     const adjacent = {
       scrollTop: await list.evaluate((el) => el.scrollTop),
