@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "第 {{line}} 行，第 {{index}} 項：{{value}} — 請輸入完整的 HTTP 或 HTTPS URL。",
   "knowledge.data_source.add_dialog.url.more_entries": "另有 {{count}} 項",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} 項",
+  "knowledge.data_source.add_dialog.url.name_label": "這些連結的名稱（選填）",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "留空以使用網頁標題",
   "knowledge.data_source.add_dialog.url.partial_success": "已接受 {{accepted}} 項 / 待修正 {{invalid}} 項。",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "解析後待新增的連結：",

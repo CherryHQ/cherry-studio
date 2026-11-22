@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Line {{line}}, entry {{index}}: {{value}} — enter a complete HTTP or HTTPS URL.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} more",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} more",
+  "knowledge.data_source.add_dialog.url.name_label": "Name for these URLs (optional)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Use the page title if left blank",
   "knowledge.data_source.add_dialog.url.partial_success": "Accepted {{accepted}} items / {{invalid}} entries to correct.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Parsed URLs to add:",

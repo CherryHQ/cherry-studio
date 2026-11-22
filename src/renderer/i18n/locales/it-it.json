@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Riga {{line}}, voce {{index}}: {{value}} — inserisci un URL HTTP o HTTPS completo.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} in più",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} in più",
+  "knowledge.data_source.add_dialog.url.name_label": "Nome per questi URL (facoltativo)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Lascia vuoto per usare il titolo della pagina",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} elementi accettati / {{invalid}} voci da correggere.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "URL analizzati da aggiungere:",

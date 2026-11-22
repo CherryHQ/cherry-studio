@@ -88,6 +88,15 @@ path guards reject absolute, escaping, and `.cherry/**` paths. Directory imports
 retain their subtree below one reserved top-level prefix. URL and note snapshots
 are Markdown with OKF frontmatter, which readers strip before indexing.
 
+Website uploads accept an optional `data.name`. A non-empty name supplies the
+snapshot's frontmatter title; its sanitized first 80 characters supply the file
+stem, with the existing collision suffixes. Blank or absent names keep the fetched
+page-title, Markdown-title, and URL fallback order. The source URL remains the
+fetch target and duplicate-detection key. The dialog's name field explicitly
+applies to every URL in the submitted batch, while each URL remains a separate
+item. Base restore and subsequent snapshot
+capture preserve the stored name. This does not enable linked-page crawling.
+
 The per-base index is a rebuildable seven-table SQLite projection (`meta`,
 `material`, `content`, `search_unit`, `search_text`, `embedding`, and
 `search_text_fts`). `knowledge_item` remains authoritative for visibility and

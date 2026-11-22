@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Dòng {{line}}, mục {{index}}: {{value}} — hãy nhập URL HTTP hoặc HTTPS đầy đủ.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} mục khác",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} mục nữa",
+  "knowledge.data_source.add_dialog.url.name_label": "Tên cho các URL này (không bắt buộc)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Để trống để dùng tiêu đề trang",
   "knowledge.data_source.add_dialog.url.partial_success": "Đã tiếp nhận {{accepted}} mục / {{invalid}} mục cần sửa.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "URL đã phân tích để thêm:",

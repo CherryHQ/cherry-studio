@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "{{line}} 行目、{{index}} 番目：{{value}} — 完全な HTTP または HTTPS URL を入力してください。",
   "knowledge.data_source.add_dialog.url.more_entries": "他 {{count}} 件",
   "knowledge.data_source.add_dialog.url.more_errors": "ほか {{count}} 件",
+  "knowledge.data_source.add_dialog.url.name_label": "これらのURLの名前（任意）",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "空欄の場合はページのタイトルを使用",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} 件を受け付けました / {{invalid}} 件の修正が必要です。",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "追加する解析済み URL:",

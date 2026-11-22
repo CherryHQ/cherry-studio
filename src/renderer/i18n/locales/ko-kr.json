@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "{{line}}행, 항목 {{index}}: {{value}} — 완전한 HTTP 또는 HTTPS URL을 입력하세요.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}}개 더 보기",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}}개 더 보기",
+  "knowledge.data_source.add_dialog.url.name_label": "모든 URL의 이름(선택 사항)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "비워 두면 페이지 제목을 사용합니다",
   "knowledge.data_source.add_dialog.url.partial_success": "항목 {{accepted}}개 허용 / {{invalid}}개 수정 필요.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "추가할 URL:",

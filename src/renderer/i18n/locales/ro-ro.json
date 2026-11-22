@@ -1949,6 +1949,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Rândul {{line}}, intrarea {{index}}: {{value}} — introduceți o adresă HTTP sau HTTPS completă.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} în plus",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} în plus",
+  "knowledge.data_source.add_dialog.url.name_label": "Nume pentru aceste URL-uri (opțional)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Lăsați gol pentru a folosi titlul paginii",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} elemente acceptate / {{invalid}} intrări de corectat.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "URL-uri analizate de adăugat:",

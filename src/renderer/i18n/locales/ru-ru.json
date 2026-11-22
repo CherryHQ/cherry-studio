@@ -1950,6 +1950,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Строка {{line}}, запись {{index}}: {{value}} — введите полный адрес HTTP или HTTPS.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} ещё",
   "knowledge.data_source.add_dialog.url.more_errors": "Ещё {{count}}",
+  "knowledge.data_source.add_dialog.url.name_label": "Название для этих URL (необязательно)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Оставьте пустым, чтобы использовать заголовок страницы",
   "knowledge.data_source.add_dialog.url.partial_success": "Принято элементов: {{accepted}} / записей для исправления: {{invalid}}.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Разобранные URL для добавления:",

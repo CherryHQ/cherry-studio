@@ -1949,6 +1949,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Řádek {{line}}, položka {{index}}: {{value}} — zadejte úplnou adresu HTTP nebo HTTPS.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} navíc",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} navíc",
+  "knowledge.data_source.add_dialog.url.name_label": "Název pro tyto adresy URL (volitelné)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Pokud necháte prázdné, použije se název stránky",
   "knowledge.data_source.add_dialog.url.partial_success": "Přijato {{accepted}} položek / {{invalid}} položek k opravě.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Analyzované URL k přidání:",

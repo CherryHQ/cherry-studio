@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 
 import {
+  KnowledgeAddItemInputSchema,
+  UrlItemDataSchema,
   DirectoryItemDataSchema,
   FileItemDataSchema,
   getKnowledgeItemConflictKey,
@@ -12,6 +14,19 @@ import {
   KnowledgeRelativePathSchema,
   KnowledgeSearchResultSchema
 } from '../knowledge'
+
+describe('URL upload names', () => {
+  it('preserves a trimmed optional name across add and persisted schemas', () => {
+    const data = { source: 'https://example.com', url: 'https://example.com', name: '  Research notes  ' }
+    expect(KnowledgeAddItemInputSchema.parse({ type: 'url', data }).data).toEqual({ ...data, name: 'Research notes' })
+    expect(UrlItemDataSchema.parse(data).name).toBe('Research notes')
+  })
+
+  it('keeps legacy unnamed URL records valid without manufacturing a name', () => {
+    const data = { source: 'https://example.com', url: 'https://example.com' }
+    expect(UrlItemDataSchema.parse(data)).toEqual(data)
+  })
+})
 
 describe('KnowledgeRelativePathSchema', () => {
   it.each([

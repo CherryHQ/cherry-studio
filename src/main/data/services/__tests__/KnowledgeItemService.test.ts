@@ -76,6 +76,20 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  it('keeps a website name in its persisted JSON across a service reload', () => {
+    const item = service.createActive(KNOWLEDGE_BASE_ID, {
+      type: 'url',
+      data: { source: 'https://example.com', url: 'https://example.com', name: 'Research notes' }
+    })
+    service.updateSnapshotRelativePath(item.id, 'url', 'Research notes.md')
+    expect(new KnowledgeItemService().getById(item.id).data).toEqual({
+      source: 'https://example.com',
+      url: 'https://example.com',
+      name: 'Research notes',
+      relativePath: 'Research notes.md'
+    })
+  })
+
   async function seedItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
     const values: typeof knowledgeItemTable.$inferInsert = {
       baseId: KNOWLEDGE_BASE_ID,
