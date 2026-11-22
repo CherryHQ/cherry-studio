@@ -11,7 +11,10 @@
  * artifacts are coordinated by `KnowledgeService` instead.
  */
 
+import * as z from 'zod'
+
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeChunkGovernanceService } from '@data/services/KnowledgeChunkGovernanceService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
@@ -21,8 +24,23 @@ import {
   UpdateKnowledgeBaseSchema
 } from '@shared/data/api/schemas/knowledges'
 import type { HandlersFor } from '@shared/data/api/types'
+import { KnowledgeChunkHistoryQuerySchema } from '@shared/data/types/knowledgeChunkGovernance'
 
 export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
+  '/knowledge-bases/:baseId/items/:itemId/chunks/:unitId/history': {
+    GET: async ({ params, query }) => {
+      const scope = z
+        .strictObject({ baseId: z.uuid(), itemId: z.uuid(), unitId: z.string().regex(/^[a-f0-9]{64}$/) })
+        .parse(params)
+      return knowledgeChunkGovernanceService.readHistoryPage(
+        scope.baseId,
+        scope.itemId,
+        scope.unitId,
+        KnowledgeChunkHistoryQuerySchema.parse(query ?? {})
+      )
+    }
+  },
+
   '/knowledge-bases': {
     GET: async ({ query }) => {
       const parsed = ListKnowledgeBasesQuerySchema.parse(query ?? {})

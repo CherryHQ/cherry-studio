@@ -104,3 +104,36 @@ export type KnowledgeChunkReviewList = z.infer<typeof KnowledgeChunkReviewListSc
 export function hasKnowledgeChunkDecision(state: KnowledgeChunkGovernanceState): boolean {
   return state.excluded || state.labels.length > 0 || state.overrideText !== null
 }
+
+export const KnowledgeChunkHistoryQuerySchema = z.strictObject({
+  beforeRevision: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(25).default(5)
+})
+export type KnowledgeChunkHistoryQuery = z.input<typeof KnowledgeChunkHistoryQuerySchema>
+export const KnowledgeChunkHistoryPageSchema = z.strictObject({
+  binding: z
+    .strictObject({
+      id: z.uuid(),
+      unitId: hashSchema,
+      sourceContentHash: hashSchema,
+      originalText: z.string(),
+      charStart: z.number().int().nonnegative(),
+      charEnd: z.number().int().positive(),
+      revision: z.number().int().positive(),
+      retired: z.boolean()
+    })
+    .nullable(),
+  items: z
+    .array(
+      z.strictObject({
+        operation: z.enum(['edit', 'discard', 'rebind-away', 'rebind-from', 'restore-discard']),
+        relatedGovernanceId: z.uuid().nullable(),
+        revision: z.number().int().positive(),
+        state: KnowledgeChunkGovernanceStateSchema,
+        createdAt: z.number().int().nonnegative().max(8640000000000000)
+      })
+    )
+    .max(25),
+  nextBeforeRevision: z.number().int().positive().optional()
+})
+export type KnowledgeChunkHistoryPage = z.infer<typeof KnowledgeChunkHistoryPageSchema>
