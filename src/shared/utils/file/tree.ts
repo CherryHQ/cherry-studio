@@ -282,7 +282,7 @@ export class TreeFile extends TreeNode {
       path: this._path,
       basename: this._basename
     }
-    if (this._stats) (out as { stats?: TreeNodeStats }).stats = this._stats
+    if (this._stats) Object.assign(out, { stats: this._stats })
     return out
   }
 }
@@ -412,7 +412,7 @@ export class TreeDir extends TreeNode {
       basename: this._basename,
       children
     }
-    if (this._stats) (out as { stats?: TreeNodeStats }).stats = this._stats
+    if (this._stats) Object.assign(out, { stats: this._stats })
     return out
   }
 }
