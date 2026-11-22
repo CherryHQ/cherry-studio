@@ -15,7 +15,7 @@ import type { Root, RootContent } from 'mdast'
 import remarkDefinitionList from 'remark-definition-list'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
-import { unified, type Plugin } from 'unified'
+import { unified } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
@@ -23,10 +23,7 @@ import { cleanMarkdownContent } from '@renderer/utils/formats'
 
 // Same syntax extensions the chat renderer parses with, so table cells, definition lists and
 // strikethrough split code spans exactly as they do on screen.
-const markdownParser = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkDefinitionList as Plugin)
+const markdownParser = unified().use(remarkParse).use(remarkGfm).use(remarkDefinitionList)
 
 type CodeRange = { start: number; end: number }
 
