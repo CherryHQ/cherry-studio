@@ -1,18 +1,28 @@
 import { useTranslation } from 'react-i18next'
 
-import { Textarea } from '@cherrystudio/ui'
+import { Input, Textarea } from '@cherrystudio/ui'
 
 import type { KnowledgeUrlEntry } from '../../../utils/parseKnowledgeUrls'
 
 interface UrlSourceContentProps {
   value: string
+  name: string
+  onNameChange: (name: string) => void
   onValueChange: (value: string) => void
   urlValid: KnowledgeUrlEntry[]
   urlErrors: KnowledgeUrlEntry[]
   disabled: boolean
 }
 
-const UrlSourceContent = ({ value, onValueChange, urlValid, urlErrors, disabled }: UrlSourceContentProps) => {
+const UrlSourceContent = ({
+  value,
+  onValueChange,
+  name,
+  onNameChange,
+  urlValid,
+  urlErrors,
+  disabled
+}: UrlSourceContentProps) => {
   const { t } = useTranslation()
   const showValidPreview = urlValid.length > 0 && urlValid.length + urlErrors.length > 1
 
@@ -33,11 +43,22 @@ const UrlSourceContent = ({ value, onValueChange, urlValid, urlErrors, disabled 
           (urlErrors.length > 0 ? ' knowledge-source-url-errors' : '')
         }
         placeholder={t('knowledge.data_source.add_dialog.url.placeholder')}
-        className="h-32 max-h-48 field-sizing-fixed overflow-y-auto break-all"
+        className="field-sizing-fixed h-32 max-h-48 overflow-y-auto break-all"
       />
       <p id="knowledge-source-url-help" className="mt-1 text-xs leading-4 text-muted-foreground">
         {t('knowledge.data_source.add_dialog.url.help')}
       </p>
+      <label htmlFor="knowledge-source-url-name" className="mt-3 mb-1.5 block text-xs leading-4 text-muted-foreground">
+        {t('knowledge.data_source.add_dialog.url.name_label')}
+      </label>
+      <Input
+        id="knowledge-source-url-name"
+        value={name}
+        onChange={(event) => onNameChange(event.target.value)}
+        disabled={disabled}
+        placeholder={t('knowledge.data_source.add_dialog.url.name_placeholder')}
+        className="w-full"
+      />
       {showValidPreview ? (
         <ul id="knowledge-source-url-valid" className="mt-2 max-h-32 overflow-y-auto text-xs leading-4">
           <li className="break-all">{t('knowledge.data_source.add_dialog.url.valid_preview')}</li>

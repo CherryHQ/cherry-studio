@@ -230,6 +230,7 @@ export class KnowledgeBaseAdminService {
           data: {
             source: item.data.source,
             url: item.data.url,
+            ...(item.data.name !== undefined ? { name: item.data.name } : {}),
             // Carry the captured snapshot across so the restored URL indexes offline
             // instead of re-fetching the live page (which may have changed or died).
             // If the source never captured one, omit it and let the first index capture.

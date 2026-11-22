@@ -241,7 +241,7 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
         return page
       },
       capture: ({ markdown, title }, reservedPaths) =>
-        captureUrlSnapshotFile(baseId, url, markdown, reservedPaths, title)
+        captureUrlSnapshotFile(baseId, url, markdown, reservedPaths, title, item.data.name)
     }
   }
 

@@ -293,6 +293,7 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.title': '添加数据源',
       'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
       'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
+      'knowledge.data_source.add_dialog.url.name_label': '这些链接的名称（可选）',
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
       'knowledge.data_source.add_dialog.footer.selected_urls': `${options?.count} 个合法链接待添加`,
       'knowledge.data_source.add_dialog.url.invalid_entry': `第 ${options?.line} 行，第 ${options?.index} 项：${options?.value} — 请输入完整 HTTP(S) URL。`,
@@ -884,6 +885,31 @@ describe('AddKnowledgeItemDialog', () => {
     const urlInput = () => screen.getByRole('textbox', { name: '输入网页链接：' })
     const urlItems = (urls: string[]) => urls.map((url) => ({ type: 'url', data: { source: url, url } }))
     const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}`)
+
+    it('submits the explicitly shared name for every URL without changing their identities', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste('https://example.com/a\nhttps://example.com/b')
+      await user.type(screen.getByRole('textbox', { name: '这些链接的名称（可选）' }), '  Research notes  ')
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() =>
+        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
+          [
+            {
+              type: 'url',
+              data: { source: 'https://example.com/a', url: 'https://example.com/a', name: 'Research notes' }
+            },
+            {
+              type: 'url',
+              data: { source: 'https://example.com/b', url: 'https://example.com/b', name: 'Research notes' }
+            }
+          ],
+          'detect'
+        )
+      )
+    })
 
     it('shows the parsed target and rejected comma-separated token', async () => {
       setPendingAddSource('url')

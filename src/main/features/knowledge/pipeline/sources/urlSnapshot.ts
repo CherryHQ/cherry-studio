@@ -79,23 +79,28 @@ function decodePathSegment(segment: string | undefined): string | undefined {
  * an OKF frontmatter block recording the source URL and title; reading for indexing
  * strips it back off. Shared by {@link captureUrlSnapshotFile} (native capture) and
  * the v1→v2 vector migrator so both use the same snapshot format and fallback title
- * rules. Native capture may additionally supply the fetched page title. The caller
+ * rules. Native capture may additionally supply a fetched title and a user name;
+ * a non-empty user name wins. The caller
  * supplies the `timestamp` (frontmatter-only, so it never affects a content hash).
  */
 export function buildUrlSnapshotFile(
   url: string,
   markdown: string,
   timestamp: string,
-  pageTitle?: string
+  pageTitle?: string,
+  name?: string
 ): { slug: string; fileText: string } {
+  const customTitle = name?.trim()
   const frontmatter = serializeOkfFrontmatter({
     type: 'URL',
-    title: deriveUrlSnapshotTitle(markdown, url, pageTitle),
+    title: customTitle || deriveUrlSnapshotTitle(markdown, url, pageTitle),
     resource: url,
     timestamp
   })
   return {
-    slug: deriveUrlSnapshotSlug(markdown, url, pageTitle),
+    slug: customTitle
+      ? sanitizeFilename(customTitle.slice(0, SNAPSHOT_TITLE_MAX))
+      : deriveUrlSnapshotSlug(markdown, url, pageTitle),
     fileText: frontmatter + markdown
   }
 }
@@ -111,9 +116,10 @@ export async function captureUrlSnapshotFile(
   url: string,
   markdown: string,
   reservedPaths: Set<string>,
-  pageTitle?: string
+  pageTitle?: string,
+  name?: string
 ): Promise<string> {
-  const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString(), pageTitle)
+  const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString(), pageTitle, name)
   const relativePath = reserveImportedFileRelativePath(`${slug}.md`, false, reservedPaths)
   return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText)
 }

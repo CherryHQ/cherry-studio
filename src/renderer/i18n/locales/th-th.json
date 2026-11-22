@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "บรรทัด {{line}} รายการที่ {{index}}: {{value}} — ป้อน URL แบบเต็มที่เป็น HTTP หรือ HTTPS",
   "knowledge.data_source.add_dialog.url.more_entries": "อีก {{count}} รายการ",
   "knowledge.data_source.add_dialog.url.more_errors": "อีก {{count}} รายการ",
+  "knowledge.data_source.add_dialog.url.name_label": "ชื่อสำหรับ URL เหล่านี้ (ไม่บังคับ)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "เว้นว่างเพื่อใช้ชื่อหน้าเว็บ",
   "knowledge.data_source.add_dialog.url.partial_success": "รับแล้ว {{accepted}} รายการ / ต้องแก้ไข {{invalid}} รายการ",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "URL ที่แยกแล้วเพื่อเพิ่ม:",

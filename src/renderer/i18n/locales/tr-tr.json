@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Satır {{line}}, girdi {{index}}: {{value}} — tam bir HTTP veya HTTPS URL’si girin.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} tane daha",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} daha",
+  "knowledge.data_source.add_dialog.url.name_label": "Bu URL'ler için ad (isteğe bağlı)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Sayfa başlığını kullanmak için boş bırakın",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} öğe kabul edildi / {{invalid}} girdi düzeltilmeli.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Eklenecek ayrıştırılmış URL’ler:",

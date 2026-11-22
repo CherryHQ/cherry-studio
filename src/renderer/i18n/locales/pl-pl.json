@@ -1970,6 +1970,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Wiersz {{line}}, wpis {{index}}: {{value}} — wprowadź pełny adres HTTP lub HTTPS.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} więcej",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} więcej",
+  "knowledge.data_source.add_dialog.url.name_label": "Nazwa dla tych adresów URL (opcjonalna)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Pozostaw puste, aby użyć tytułu strony",
   "knowledge.data_source.add_dialog.url.partial_success": "Przyjęto {{accepted}} elementów / {{invalid}} wpisów do poprawienia.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Przeanalizowane adresy URL do dodania:",

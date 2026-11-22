@@ -1086,6 +1086,45 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('preserves a website name through base restore and snapshot copying', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([
+      {
+        ...createNoteItem('source-url', 'source-kb'),
+        type: 'url',
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          name: 'Research notes',
+          relativePath: 'Research notes.md'
+        }
+      }
+    ])
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({
+        type: 'url',
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          name: 'Research notes',
+          relativePath: 'Research notes.md'
+        }
+      }),
+      { awaitingCopy: false }
+    )
+  })
+
   it('restores a url without a captured snapshot by re-fetching on first index', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb' })

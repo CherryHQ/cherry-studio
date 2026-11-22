@@ -683,7 +683,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         createInput: {
           groupId: input.groupId,
           type: 'url',
-          data: { source: input.data.source, url: input.data.url, relativePath }
+          data: {
+            source: input.data.source,
+            url: input.data.url,
+            ...(input.data.name !== undefined ? { name: input.data.name } : {}),
+            relativePath
+          }
         },
         copies: [{ from: input.data.snapshotPath, relativePath }]
       }

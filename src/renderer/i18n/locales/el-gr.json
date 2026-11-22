@@ -1948,6 +1948,8 @@
   "knowledge.data_source.add_dialog.url.invalid_entry": "Γραμμή {{line}}, καταχώριση {{index}}: {{value}} — εισαγάγετε μια πλήρη διεύθυνση HTTP ή HTTPS.",
   "knowledge.data_source.add_dialog.url.more_entries": "+{{count}} ακόμη",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} ακόμη",
+  "knowledge.data_source.add_dialog.url.name_label": "Όνομα για αυτά τα URL (προαιρετικό)",
+  "knowledge.data_source.add_dialog.url.name_placeholder": "Αφήστε κενό για τον τίτλο της σελίδας",
   "knowledge.data_source.add_dialog.url.partial_success": "Έγιναν δεκτές {{accepted}} καταχωρίσεις / {{invalid}} καταχωρίσεις χρειάζονται διόρθωση.",
   "knowledge.data_source.add_dialog.url.placeholder": "https://example.com/page-1\nhttps://example.com/page-2",
   "knowledge.data_source.add_dialog.url.valid_preview": "Αναλυμένες διευθύνσεις URL προς προσθήκη:",

@@ -14,6 +14,8 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   urlErrors: KnowledgeUrlEntry[]
   disabled: boolean
   urlValue: string
+  urlName: string
+  onUrlNameChange: (name: string) => void
   onNoteModeChange: (mode: NoteSourceMode) => void
   onNoteToggle: (note: NoteItem) => void
   onNoteSelectionChange: (notes: NoteItem[]) => void
@@ -28,6 +30,8 @@ const AddKnowledgeItemDialogSourceTabs = ({
   selectedNotes,
   noteDraft,
   urlValue,
+  urlName,
+  onUrlNameChange,
   urlValid,
   urlErrors,
   disabled,
@@ -58,6 +62,8 @@ const AddKnowledgeItemDialogSourceTabs = ({
         return (
           <UrlSourceContent
             value={urlValue}
+            name={urlName}
+            onNameChange={onUrlNameChange}
             onValueChange={onUrlValueChange}
             urlValid={urlValid}
             urlErrors={urlErrors}

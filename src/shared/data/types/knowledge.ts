@@ -329,6 +329,7 @@ export type FileItemData = z.infer<typeof FileItemDataSchema>
  * URL item data.
  */
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  name: z.string().trim().optional().describe('Optional user-chosen title for the captured website.'),
   url: z.string().trim().min(1).describe('URL to read and index.'),
   // Written lazily by main on first index/refresh, never by raw caller input
   // (add omits it).
@@ -707,6 +708,7 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  name: z.string().trim().optional().describe('Optional user-chosen title for the captured website.'),
   url: z.string().trim().url().describe('URL to read and index.'),
   // Restore-only: absolute path to a captured snapshot markdown in the source base.
   // When present, Knowledge copies it in and pins the item to it so the first index
