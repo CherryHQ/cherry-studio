@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { resolveCitationMarkerParts, resolveMessageCitations } from '../citations'
 import {
   getCitedWebSources,
   getMainTextContent,
@@ -263,6 +265,67 @@ describe('getWebSourcesMarkdown', () => {
 
     expect(getCitedWebSources(message)).toEqual([])
     expect(getWebSourcesMarkdown(message)).toBe('')
+  })
+
+  it('keeps inline tildes as prose and treats an unclosed tilde fence as code to the end', () => {
+    const inline = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'abcdef01-1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Use ~~~ as a delimiter. See [cite:abcdef01-1] for the ~~~ syntax.' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(inline)).toBe('[1] [Alpha](https://a.example)')
+
+    const unclosed = legacyMessage('Example:\n~~~text\n[1]\nstill code')
+    expect(getCitedWebSources(unclosed)).toEqual([])
+  })
+
+  it('resolves a bare marker to the same URL as the renderer when an earlier turn also stored id 1', () => {
+    const message: MessageExportView = {
+      ...createExportView([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'now',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [{ id: 'abcdef01-1', title: 'Current', url: 'https://current.example', content: 'c' }]
+        },
+        { type: 'text', text: 'Read [1].' }
+      ] as MessageExportView['parts']),
+      priorCitationParts: [
+        {
+          type: 'tool-web_search',
+          toolCallId: 'earlier',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [{ id: '1', title: 'Earlier', url: 'https://earlier.example', content: 'e' }]
+        }
+      ] as MessageExportView['parts']
+    }
+    const parts = message.parts as CherryMessagePart[]
+    const citations = resolveMessageCitations(parts, message.priorCitationParts)
+    const rendered = resolveCitationMarkerParts(['Read [1].'], citations)[0].cited.map((c) => c.url)
+
+    expect(getCitedWebSources(message).map((c) => c.url)).toEqual(rendered)
+  })
+
+  it('serializes destinations so line breaks, backslashes and character references survive Markdown', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'A', url: 'https://x.example/a\\b?x=1&copy;=2&y=3\nz', content: 'a' }]
+      },
+      { type: 'text', text: 'Cited [cite:web-a].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://x.example/a%5Cb?x=1&amp;copy;=2&y=3%0Az)')
   })
 
   it('lists a webpage once when several migrated text parts cite the same URL', () => {

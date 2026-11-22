@@ -16,7 +16,9 @@ import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 
-const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/gm
+// A tilde fence is a block construct: it must open at the start of a line (up to 3 spaces of indent)
+// and runs to a closing tilde line, or to the end of the text when it is never closed.
+const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|^ {0,3}~~~[^\n]*(?:\n[\s\S]*?^ {0,3}~~~[ \t]*$|[\s\S]*)|`[^`\n]*`/gm
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
 export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {

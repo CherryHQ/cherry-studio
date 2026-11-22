@@ -194,19 +194,13 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
     if (citations.length > 0) legacyByPart.set(part, citations)
     else nativeParts.push(part)
   }
-  let messageCitations = resolveMessageCitations(parts)
-  let nativeResolutions = resolveCitationMarkerParts(
+  // Same lookup as the renderer: earlier turns always join the message's own sources, so a bare
+  // marker resolves to the same URL on screen and in the copied list.
+  const messageCitations = resolveMessageCitations(parts, priorParts)
+  const nativeResolutions = resolveCitationMarkerParts(
     nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
     messageCitations
   )
-  // Earlier turns only answer ids this message does not mint, so fold them in on an unresolved marker.
-  if (priorParts.length > 0 && nativeResolutions.some(hasUnresolvedMarker)) {
-    messageCitations = resolveMessageCitations(parts, priorParts)
-    nativeResolutions = resolveCitationMarkerParts(
-      nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
-      messageCitations
-    )
-  }
   const nativeByPart = new Map(nativeParts.map((part, index) => [part, nativeResolutions[index].cited]))
 
   const cited: Citation[] = []
@@ -239,8 +233,15 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
 }
 
 const escapeLinkText = (text: string): string => text.replace(/[\\[\]]/g, '\\$&')
+// Percent-encode what would end or split the destination (whitespace, controls, brackets, backslash)
+// and write `&` as `&amp;` where a Markdown parser would read a character reference (`&copy;`).
 const escapeLinkDestination = (url: string): string =>
-  url.replace(/[ ()<>]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
+  url
+    .replace(
+      /[\u0000-\u0020\u007f ()<>\\]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+    )
+    .replace(/&(?=#\d+;|#x[\da-f]+;|[a-z][a-z\d]*;)/gi, '&amp;')
 
 /** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
 export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
