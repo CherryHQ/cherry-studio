@@ -37,6 +37,7 @@ const stateSchema = z.strictObject({
   files: z.record(z.string(), fileSchema),
   cursor: z.string(),
   manual: z.boolean(),
+  manualBatch: z.array(z.string()).max(10).optional(),
   manualAttempts: z.number().int().nonnegative(),
   cancelled: z.boolean(),
   lastScanAt: z.number(),
@@ -55,7 +56,7 @@ export function memoryScopeKey(scope: MemoryScope): string {
 
 function parseState(value: unknown): DreamingState {
   const state = stateSchema.parse(value)
-  for (const target of Object.keys(state.files)) assertMemoryTarget(target)
+  for (const target of [...Object.keys(state.files), ...(state.manualBatch ?? [])]) assertMemoryTarget(target)
   return state
 }
 

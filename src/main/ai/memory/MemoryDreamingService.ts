@@ -30,7 +30,8 @@ const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
 const manualReady = (state: DreamingState, now: number) =>
   state.manual &&
-  (state.manualAttempts === 0 || Object.values(state.files).some((file) => file.attempts < 2 && file.retryAt <= now))
+  (state.manualAttempts === 0 ||
+    (state.manualBatch ?? [MEMORY_ENTRY]).every((target) => (state.files[target]?.retryAt ?? 0) <= now))
 
 @Injectable('MemoryDreamingService')
 @ServicePhase(Phase.WhenReady)
@@ -140,6 +141,7 @@ export class MemoryDreamingService extends BaseService {
     const state = readDreamingState(scope)
     if (this.active && memoryScopeKey(this.active.scope) === memoryScopeKey(scope)) return
     state.manual = true
+    state.manualBatch = undefined
     state.manualAttempts = 0
     state.cancelled = false
     state.status = 'queued'
@@ -305,7 +307,10 @@ export class MemoryDreamingService extends BaseService {
         (left, right) =>
           Number(needsDreaming(state.files[right], Date.now())) - Number(needsDreaming(state.files[left], Date.now()))
       )
-      const selected = [MEMORY_ENTRY, ...rotated.slice(0, 9)]
+      const selected = (start.manual && start.manualAttempts > 0 && start.manualBatch) || [
+        MEMORY_ENTRY,
+        ...rotated.slice(0, 9)
+      ]
       for (const target of selected) {
         readingFiles = true
         const read = await session.read(target)
@@ -357,7 +362,10 @@ export class MemoryDreamingService extends BaseService {
       assertCurrent()
       if (batch && resolved) {
         latest.status = 'running'
-        if (start.manual) latest.manualAttempts++
+        if (start.manual) {
+          latest.manualAttempts++
+          latest.manualBatch = inputs.map((read) => read.path)
+        }
         latest.lastRunAt = Date.now()
         latest.reason = undefined
         for (const read of inputs) {
@@ -417,6 +425,7 @@ export class MemoryDreamingService extends BaseService {
       if (partial) throw new DreamingError('conflict')
       latest = readDreamingState(scope)
       latest.manual = false
+      latest.manualBatch = undefined
       latest.status = 'idle'
       latest.reason = undefined
       latest.lastRunAt = Date.now()
