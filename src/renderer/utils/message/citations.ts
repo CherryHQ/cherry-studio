@@ -437,6 +437,8 @@ export interface ResolvedCitationMarkers {
   byMarker: Map<string, Citation>
   /** The cited subset in first-appearance order, for the citations footer / sources list. */
   cited: Citation[]
+  /** Optional strict prose membership, collected while this part's parsed ranges are still cached. */
+  proseCited?: Citation[]
 }
 
 function createCitationLookup(citations: MessageCitations): {
@@ -506,7 +508,8 @@ function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation
 /** Resolve several text parts in message order while sharing one display-number sequence. */
 export function resolveCitationMarkerParts(
   contents: readonly string[],
-  citations: MessageCitations
+  citations: MessageCitations,
+  options: { collectProseCitations?: boolean } = {}
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
     return contents.map((content) => ({ content: canonicalizeMarkers(content), byMarker: new Map(), cited: [] }))
@@ -539,6 +542,28 @@ export function resolveCitationMarkerParts(
       return collapseMarkerRuns(text, byMarker)
     })
 
+    if (options.collectProseCitations) {
+      const proseCitations = new Set<Citation>()
+      // Resolve eligibility now, before the next part replaces the one-text parse cache. Keep
+      // numbering from the shared renderer/export path, including its deliberate prose fallback.
+      mapMarkdownOutsideCode(
+        normalized,
+        (text) => {
+          for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+            const citation = byMarker.get(match[2])
+            if (citation) proseCitations.add(citation)
+          }
+          return text
+        },
+        true
+      )
+      return {
+        content: collapsed,
+        byMarker,
+        cited,
+        proseCited: cited.filter((citation) => proseCitations.has(citation))
+      }
+    }
     return { content: collapsed, byMarker, cited }
   })
 }

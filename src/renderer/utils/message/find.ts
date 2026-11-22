@@ -197,28 +197,10 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
   if (legacyByPart.size === 0 && messageCitations.all.length === 0) return []
   const nativeResolutions = resolveCitationMarkerParts(
     nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
-    messageCitations
+    messageCitations,
+    { collectProseCitations: true }
   )
-  const nativeByPart = new Map(
-    nativeParts.map((part, index): [CherryMessagePart, Citation[]] => {
-      const resolution = nativeResolutions[index]
-      const proseCitations = new Set<Citation>()
-      // Copy eligibility follows every parsed code boundary, while display numbers continue to
-      // come from the shared renderer/export resolution (including its inherited prose fallback).
-      mapMarkdownOutsideCode(
-        resolution.content,
-        (text) => {
-          for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
-            const citation = resolution.byMarker.get(match[2])
-            if (citation) proseCitations.add(citation)
-          }
-          return text
-        },
-        true
-      )
-      return [part, resolution.cited.filter((citation) => proseCitations.has(citation))]
-    })
-  )
+  const nativeByPart = new Map(nativeParts.map((part, index) => [part, nativeResolutions[index].proseCited ?? []]))
 
   const cited: Citation[] = []
   const seen = new Set<string>()
