@@ -135,6 +135,16 @@ class ReleaseCosTests(unittest.TestCase):
         self.assertEqual({file.name for file in draft.iterdir()}, {"global-windows.bin", "global-mac.bin", "global-linux.bin"})
         self.assertEqual((draft / "global-windows.bin").read_bytes(), b"new")
 
+    def test_partial_retry_requires_the_same_mac_bridge_mode(self):
+        baseline = f"{self.base}/baselines/{os.environ['RELEASE_SHA']}.json"
+        for previous, retry in ((False, "true"), (True, "false")):
+            with self.subTest(previous=previous, retry=retry):
+                release.write_json(self.store, baseline, {"macCnRegionBridge": previous, "files": {}})
+                with patch.dict(os.environ, {"MAC_CN_REGION_BRIDGE": retry}):
+                    with self.assertRaisesRegex(ValueError, "Run an all-platform build"):
+                        release.assemble(self.store, self.base, self.prefix, "windows")
+                self.assertFalse(Path("cos-release.json").exists())
+
     def populate_targets(self):
         for edition in release.EDITIONS:
             product = "Cherry-Studio" if edition == "global" else "Cherry-Studio-CN"
@@ -176,6 +186,18 @@ class ReleaseCosTests(unittest.TestCase):
         downloads = list(Path("github-release-artifacts").iterdir())
         self.assertTrue(any(file.name == "latest-mac.yml" for file in downloads))
         self.assertFalse(any("CN" in file.name for file in downloads))
+
+    def test_unified_build_uses_only_the_global_inventory(self):
+        self.populate_targets()
+        for key in list(self.store.objects):
+            if f"{self.prefix}/cn/" in key or f"{self.prefix}/attempt-1/cn/" in key:
+                del self.store.objects[key]
+        with patch.dict(os.environ, {"UNIFIED_RELEASE": "true"}):
+            release.assemble(self.store, self.base, self.prefix, "all", "manifests")
+        inventory = json.loads(Path("cos-release.json").read_text())
+        self.assertTrue(inventory["files"])
+        self.assertTrue(all(name.startswith("global/") for name in inventory["files"]))
+        self.assertIn("global/mac/latest-mac.yml", inventory["files"])
 
     def test_missing_architecture_cannot_create_a_complete_inventory(self):
         self.populate_targets()

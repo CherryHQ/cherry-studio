@@ -18,7 +18,7 @@ import {
   Signal
 } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getAppEdition, getPackageEdition, isRegionBridgePackage, usesRuntimeAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -42,7 +42,7 @@ import {
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import { Sequencer } from '@shared/utils/async'
 
-import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
+import { cherryAccountCredentialStore, CLOUD_API_ORIGINS, getAccountEdition } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
@@ -58,10 +58,6 @@ import { getMachineCode } from './machineCode'
 import { trackCherryCloudAnalyticsEvent } from './subscriptionAnalytics'
 
 const logger = loggerService.withContext('CherryCloudService')
-const PRODUCTION_API_ORIGINS = {
-  cn: 'https://cloud.cherryai.com.cn',
-  global: 'https://cloud.cherryai.com'
-} as const
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
@@ -93,6 +89,7 @@ type AuthorizationOperation = {
 }
 type LoginSettlement = CherryCloudLoginResult | { outcome: 'failed'; error: unknown }
 type PendingAuthorization = {
+  apiOrigin: string
   authorizationId: string
   state: string
   codeVerifier: string
@@ -100,6 +97,7 @@ type PendingAuthorization = {
   operation: AuthorizationOperation
 }
 type ProductSession = {
+  apiOrigin: string
   accessToken: string
   accessExpiresAt: number
   refreshToken: string
@@ -118,10 +116,13 @@ function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
 
-export function resolveCherryCloudApiOrigin(): string {
+function resolveConfiguredCloudOrigin(): string | undefined {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
-  if (configuredOrigin) return new URL(configuredOrigin).origin
-  return PRODUCTION_API_ORIGINS[getAppEdition()]
+  return configuredOrigin ? new URL(configuredOrigin).origin : undefined
+}
+
+export function resolveCherryCloudApiOrigin(): string {
+  return resolveConfiguredCloudOrigin() ?? CLOUD_API_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -223,7 +224,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['PowerService', 'AnalyticsService'])
+@DependsOn(['PowerService', 'AnalyticsService', 'DesktopRegionService'])
 export class CherryCloudService extends BaseService {
   private readonly _onStatusChanged = new Emitter<CherryCloudStatus>()
   public readonly onStatusChanged: Event<CherryCloudStatus> = this._onStatusChanged.event
@@ -318,12 +319,12 @@ export class CherryCloudService extends BaseService {
   }
 
   public getApiOrigin(): string {
-    return resolveCherryCloudApiOrigin()
+    return this.cloudState.session?.apiOrigin ?? resolveCherryCloudApiOrigin()
   }
 
   // The account center must stay on the API origin, where browser sign-in sets its session cookie.
   public getAccountOrigin(): string {
-    return resolveCherryCloudApiOrigin()
+    return this.getApiOrigin()
   }
 
   public startLogin(): Promise<CherryCloudLoginResult> {
@@ -390,13 +391,23 @@ export class CherryCloudService extends BaseService {
     this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
+    const configuredOrigin = resolveConfiguredCloudOrigin()
+    let apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()]
+    if (!configuredOrigin && usesRuntimeAppEdition()) {
+      const edition = await application.get('DesktopRegionService').confirmLogin(operation.controller.signal)
+      this.assertLifecycleGeneration(lifecycleGeneration)
+      this.assertAuthorizationOperation(operation)
+      if (!edition) throw new CherryCloudLoginUnavailableError()
+      apiOrigin = CLOUD_API_ORIGINS[edition]
+    }
+
     const machineCode = await getMachineCode()
     this.assertLifecycleGeneration(lifecycleGeneration)
     this.assertAuthorizationOperation(operation)
     this.machineCode = machineCode
     const device = this.getOrCreateDevice()
     const secrets = createAuthorizationSecrets()
-    const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
+    const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation, apiOrigin)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       loopbackCallback.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
@@ -418,12 +429,14 @@ export class CherryCloudService extends BaseService {
           ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
         },
         createDesktopAuthorizationResponseSchema,
+        apiOrigin,
         operation.controller.signal
       )
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
       loopbackCallback.setExpiresAt(created.expires_at)
       pending = {
+        apiOrigin,
         authorizationId: created.authorization_id,
         state: secrets.state,
         codeVerifier: secrets.codeVerifier,
@@ -455,13 +468,14 @@ export class CherryCloudService extends BaseService {
 
   private async openLoopbackCallback(
     lifecycleGeneration: number,
-    operation: AuthorizationOperation
+    operation: AuthorizationOperation,
+    apiOrigin: string
   ): Promise<CherryCloudLoopbackCallback> {
     this.loopbackCallback?.dispose()
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
       if (this.loopbackCallback === receiver) this.loopbackCallback = null
-    }, resolveCherryCloudApiOrigin())
+    }, apiOrigin)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       receiver.dispose()
       this.assertLifecycleGeneration(lifecycleGeneration)
@@ -551,6 +565,7 @@ export class CherryCloudService extends BaseService {
           code_verifier: pending.codeVerifier
         },
         exchangeDesktopAuthorizationResponseSchema,
+        pending.apiOrigin,
         pending.operation.controller.signal
       )
       if (
@@ -563,6 +578,7 @@ export class CherryCloudService extends BaseService {
 
       const tokenSet = exchanged.token_set
       const session = {
+        apiOrigin: pending.apiOrigin,
         accessToken: tokenSet.access_token,
         accessExpiresAt: accessExpiresAt(tokenSet.expires_in),
         refreshToken: tokenSet.refresh_token,
@@ -576,6 +592,7 @@ export class CherryCloudService extends BaseService {
       if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
 
       this.persistSession(device, session)
+      this.rememberAccountRegion(session.apiOrigin)
       this.clearPendingExpiryTimer()
       if (this.authorizationOperation === pending.operation) this.authorizationOperation = null
       this.invalidateModelSync()
@@ -993,7 +1010,7 @@ export class CherryCloudService extends BaseService {
     // The entry URL is a bearer credential: never log it or the response body.
     if (!payload.success) throw new CherryCloudAmdEntryError('invalid response')
     const entryUrl = payload.data.entry_url
-    if (new URL(entryUrl).origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
+    if (new URL(entryUrl).origin !== new URL(this.getApiOrigin()).origin) {
       throw new CherryCloudAmdEntryError('entry is not on the Cherry Cloud API origin')
     }
     if (!isSenderCurrent()) return
@@ -1065,7 +1082,7 @@ export class CherryCloudService extends BaseService {
 
   /** The plan catalog needs no session, so the model picker can offer paid models before sign-in. */
   public async getPublicPlans(): Promise<CherryCloudPublicPlanCatalog> {
-    const response = await net.fetch(`${resolveCherryCloudApiOrigin()}/api/v1/public/plans`, {
+    const response = await net.fetch(`${this.getApiOrigin()}/api/v1/public/plans`, {
       redirect: 'error',
       signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     })
@@ -1374,7 +1391,7 @@ export class CherryCloudService extends BaseService {
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
-    const url = this.resolveRequestUrl(path)
+    const url = this.resolveRequestUrl(path, session.apiOrigin)
     const headers = new Headers(init?.headers)
     const idempotencyKey =
       url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
@@ -1476,7 +1493,7 @@ export class CherryCloudService extends BaseService {
     if (!session) return this.currentStatus()
     await this.clearSession(session)
 
-    const url = this.resolveRequestUrl('/api/v1/product-sessions/current')
+    const url = this.resolveRequestUrl('/api/v1/product-sessions/current', session.apiOrigin)
     void this.signedFetch(
       url,
       {
@@ -1535,7 +1552,7 @@ export class CherryCloudService extends BaseService {
 
   private async refreshSession(session: ProductSession): Promise<ProductSession> {
     const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
-    const url = new URL('/api/v1/product-sessions/refresh', `${resolveCherryCloudApiOrigin()}/`)
+    const url = new URL('/api/v1/product-sessions/refresh', session.apiOrigin)
     const response = await this.signedFetch(
       url,
       {
@@ -1605,6 +1622,7 @@ export class CherryCloudService extends BaseService {
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
     if (reason) this.reportSignOut(reason)
 
+    this.rememberAccountRegion(currentSession.apiOrigin)
     cherryAccountCredentialStore.clearSession()
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
@@ -1627,9 +1645,9 @@ export class CherryCloudService extends BaseService {
     }
   }
 
-  private resolveRequestUrl(path: string): URL {
-    const url = new URL(path, `${resolveCherryCloudApiOrigin()}/`)
-    if (url.origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
+  private resolveRequestUrl(path: string, origin = resolveCherryCloudApiOrigin()): URL {
+    const url = new URL(path, `${origin}/`)
+    if (url.origin !== new URL(origin).origin) {
       throw new Error('Cherry Cloud signed requests must stay on the configured API origin')
     }
     return url
@@ -1642,6 +1660,7 @@ export class CherryCloudService extends BaseService {
     options: { bearer: boolean; idempotencyKey?: string }
   ): Promise<Response> {
     init?.signal?.throwIfAborted()
+    if (url.origin !== new URL(session.apiOrigin).origin) throw new Error('Cherry Cloud session origin mismatch')
     const device = this.cloudState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
     const machineCode = this.machineCode ?? (await getMachineCode())
@@ -1700,27 +1719,57 @@ export class CherryCloudService extends BaseService {
     if (!stored) return
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
-    const session = stored.session?.apiOrigin === resolveCherryCloudApiOrigin() ? stored.session : null
+    let apiOrigin = stored.session?.apiOrigin
+    if (apiOrigin) {
+      const configuredOrigin = resolveConfiguredCloudOrigin()
+      const trusted =
+        usesRuntimeAppEdition() && !configuredOrigin
+          ? getAccountEdition(apiOrigin) !== undefined
+          : apiOrigin === (configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()])
+      if (!trusted) apiOrigin = undefined
+    } else if (stored.session) {
+      const configuredOrigin = resolveConfiguredCloudOrigin()
+      if (isRegionBridgePackage()) {
+        apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getPackageEdition()]
+      } else if (!configuredOrigin && usesRuntimeAppEdition()) {
+        const legacyEdition = application.get('DesktopRegionService').getLegacySessionEdition(stored.session.sessionId)
+        if (legacyEdition) apiOrigin = CLOUD_API_ORIGINS[legacyEdition]
+      }
+    }
+    const session = apiOrigin ? stored.session : null
 
     this.cloudState = {
       device,
       pending: null,
-      session: session
-        ? {
-            accessToken: '',
-            accessExpiresAt: 0,
-            refreshToken: session.refreshToken,
-            sessionId: session.sessionId,
-            sessionExpiresAt: session.sessionExpiresAt,
-            deviceId: session.deviceId,
-            accountId: session.accountId,
-            displayName: session.displayName
-          }
-        : null
+      session:
+        session && apiOrigin
+          ? {
+              apiOrigin,
+              accessToken: '',
+              accessExpiresAt: 0,
+              refreshToken: session.refreshToken,
+              sessionId: session.sessionId,
+              sessionExpiresAt: session.sessionExpiresAt,
+              deviceId: session.deviceId,
+              accountId: session.accountId,
+              displayName: session.displayName
+            }
+          : null
     }
     if (this.cloudState.session) this.sessionGeneration += 1
     if (this.cloudState.session) this.scheduleSessionExpiry(this.cloudState.session)
     await this.pruneExpiredState()
+  }
+
+  private rememberAccountRegion(origin: string): void {
+    if (!usesRuntimeAppEdition()) return
+    const edition = getAccountEdition(origin)
+    if (!edition) return
+    try {
+      application.get('DesktopRegionService').rememberAccount(edition)
+    } catch (error) {
+      logger.warn('Failed to save desktop account region', { error })
+    }
   }
 
   private persistSession(device: CherryCloudDevice, session: ProductSession): void {
@@ -1729,7 +1778,7 @@ export class CherryCloudService extends BaseService {
       devicePublicKey: device.publicKey,
       devicePrivateKey: device.privateKey,
       session: {
-        apiOrigin: resolveCherryCloudApiOrigin(),
+        apiOrigin: session.apiOrigin,
         refreshToken: session.refreshToken,
         sessionId: session.sessionId,
         sessionExpiresAt: session.sessionExpiresAt,
@@ -1771,18 +1820,24 @@ export class CherryCloudService extends BaseService {
     return new SignatureClient('cherry-studio', clientSecret).generateSignature(options)
   }
 
-  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+  private async postJson<T>(
+    path: string,
+    body: unknown,
+    schema: ZodType<T>,
+    origin: string,
+    signal: AbortSignal
+  ): Promise<T> {
     const bodyString = JSON.stringify(body)
     const signature = this.clientSignature({ method: 'POST', path, body: bodyString })
     let response: Response
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
-      response = await net.fetch(`${resolveCherryCloudApiOrigin()}${path}`, {
+      response = await net.fetch(`${origin}${path}`, {
         method: 'POST',
         redirect: 'error',
         headers: { 'Content-Type': 'application/json', ...signature },
         body: bodyString,
-        signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+        signal: AbortSignal.any([signal, timeoutSignal])
       })
     } catch (error) {
       if (signal?.aborted) throw error

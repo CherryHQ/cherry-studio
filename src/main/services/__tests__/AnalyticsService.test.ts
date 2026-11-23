@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
 import { BaseService } from '@main/core/lifecycle'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 /**
@@ -70,7 +70,7 @@ vi.mock('@cherrystudio/analytics-client', () => ({
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: vi.fn(() => 'global')
+  getPackageEdition: vi.fn(() => 'global')
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
@@ -106,7 +106,7 @@ beforeEach(() => {
   posthog.capture.mockClear()
   posthog.shutdown.mockClear()
   posthog.constructor.mockClear()
-  vi.mocked(getAppEdition).mockReturnValue('global')
+  vi.mocked(getPackageEdition).mockReturnValue('global')
   for (const key of Object.keys(captured.prefHandlers)) {
     delete captured.prefHandlers[key]
   }
@@ -213,7 +213,7 @@ describe('AnalyticsService data collection preference', () => {
     async (edition, key) => {
       vi.stubEnv('DEV', false)
       vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
-      vi.mocked(getAppEdition).mockReturnValue(edition)
+      vi.mocked(getPackageEdition).mockReturnValue(edition)
       const service = new AnalyticsService()
       await service._doInit()
       await vi.waitFor(() => expect(service.isActivated).toBe(true))
@@ -476,7 +476,7 @@ describe('AnalyticsService package edition delivery', () => {
       const { AnalyticsClient } = await vi.importActual<{
         AnalyticsClient: new (options: AnalyticsClientOptions) => AnalyticsClient
       }>('@cherrystudio/analytics-client')
-      vi.mocked(getAppEdition).mockReturnValue(edition)
+      vi.mocked(getPackageEdition).mockReturnValue(edition)
       const fetch = vi.fn<typeof globalThis.fetch>(
         async () => new Response(JSON.stringify({ success: true, count: 1 }), { status: 200 })
       )
