@@ -24,12 +24,12 @@ on:
       unified:
         default: false
         type: boolean
-      mac-bridge-electron:
-        default: ""
-        type: string
       clean:
         default: false
         type: boolean
+      mac-bridge-electron:
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -147,9 +147,10 @@ jobs:
         if: fromJSON(inputs.target).platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.mac-bridge-electron != '' && '--config electron-builder.region-bridge.config.cjs' || inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
 
         env:
+          CHERRY_REGION_BRIDGE_EDITION: ${{ inputs.mac-bridge-electron != '' && inputs.edition || '' }}
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
@@ -173,10 +174,10 @@ jobs:
         if: fromJSON(inputs.target).platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ steps.mac-bridge.outputs.path != '' && '--config electron-builder.region-bridge.config.cjs' || inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.mac-bridge-electron != '' && '--config electron-builder.region-bridge.config.cjs' || inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
-          CHERRY_REGION_BRIDGE_EDITION: ${{ steps.mac-bridge.outputs.path != '' && 'cn' || '' }}
+          CHERRY_REGION_BRIDGE_EDITION: ${{ inputs.mac-bridge-electron != '' && inputs.edition || '' }}
           CHERRY_MAC_BRIDGE_ELECTRON_DIST: ${{ steps.mac-bridge.outputs.path }}
           CHERRY_MAC_BRIDGE_ELECTRON_SHA256: ${{ steps.mac-bridge.outputs.sha256 }}
           CSC_FOR_PULL_REQUEST: true
@@ -207,8 +208,9 @@ jobs:
       - name: Build Windows
         if: fromJSON(inputs.target).platform == 'windows'
         run: |
-          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.mac-bridge-electron != '' && '--config electron-builder.region-bridge.config.cjs' || inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_REGION_BRIDGE_EDITION: ${{ inputs.mac-bridge-electron != '' && inputs.edition || '' }}
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true

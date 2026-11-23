@@ -57,8 +57,9 @@ export function getAppEdition(): AppEdition {
   return runtimeEdition ?? getPackageEdition()
 }
 
-export function isUnifiedPackage(): boolean {
-  return app.isPackaged ? getPackageMetadata().cherryUnified === true : process.env.CHERRY_UNIFIED_RELEASE === '1'
+export function usesRuntimeAppEdition(): boolean {
+  if (!app.isPackaged) return process.env.CHERRY_UNIFIED_RELEASE === '1'
+  return getPackageMetadata().cherryUnified === true || isRegionBridgePackage()
 }
 
 export function isRegionBridgePackage(): boolean {

@@ -18,7 +18,7 @@ import {
   Signal
 } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { getAppEdition, isRegionBridgePackage, isUnifiedPackage } from '@main/utils/appEdition'
+import { getAppEdition, getPackageEdition, isRegionBridgePackage, usesRuntimeAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -393,7 +393,7 @@ export class CherryCloudService extends BaseService {
 
     const configuredOrigin = resolveConfiguredCloudOrigin()
     let apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()]
-    if (!configuredOrigin && isUnifiedPackage()) {
+    if (!configuredOrigin && usesRuntimeAppEdition()) {
       const edition = await application.get('DesktopRegionService').confirmLogin(operation.controller.signal)
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
@@ -1723,12 +1723,18 @@ export class CherryCloudService extends BaseService {
     if (apiOrigin) {
       const configuredOrigin = resolveConfiguredCloudOrigin()
       const trusted =
-        isUnifiedPackage() && !configuredOrigin
+        usesRuntimeAppEdition() && !configuredOrigin
           ? getAccountEdition(apiOrigin) !== undefined
           : apiOrigin === (configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()])
       if (!trusted) apiOrigin = undefined
-    } else if (isRegionBridgePackage()) {
-      apiOrigin = resolveCherryCloudApiOrigin()
+    } else if (stored.session) {
+      const configuredOrigin = resolveConfiguredCloudOrigin()
+      if (isRegionBridgePackage()) {
+        apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getPackageEdition()]
+      } else if (!configuredOrigin && usesRuntimeAppEdition()) {
+        const legacyEdition = application.get('DesktopRegionService').getLegacySessionEdition(stored.session.sessionId)
+        if (legacyEdition) apiOrigin = CLOUD_API_ORIGINS[legacyEdition]
+      }
     }
     const session = apiOrigin ? stored.session : null
 
@@ -1756,7 +1762,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private rememberAccountRegion(origin: string): void {
-    if (!isUnifiedPackage()) return
+    if (!usesRuntimeAppEdition()) return
     const edition = getAccountEdition(origin)
     if (!edition) return
     try {

@@ -34,7 +34,6 @@ intervals. Temporary files may be evicted by the OS.
 
 ## Desktop region compatibility packages
 
-Package a unified preview with `--config electron-builder.unified.config.cjs`.
 Build the compatibility package from a stable source version above the last
 legacy version and below the unified target. Set
 `CHERRY_REGION_BRIDGE_EDITION` to the original edition and use

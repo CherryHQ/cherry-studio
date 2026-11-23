@@ -12,11 +12,18 @@ import {
   cherryAccountCredentialStore,
   getAccountEdition
 } from '@main/services/cherryCloud/CherryAccountCredentialStore'
-import { getAppEdition, isUnifiedPackage, setRuntimeAppEdition } from '@main/utils/appEdition'
+import {
+  getAppEdition,
+  getPackageEdition,
+  isRegionBridgePackage,
+  setRuntimeAppEdition,
+  usesRuntimeAppEdition
+} from '@main/utils/appEdition'
 import { APP_EDITIONS, type AppEdition } from '@shared/types/appEdition'
 
 const logger = loggerService.withContext('DesktopRegionService')
 const STATE_KEY = 'app:region'
+const LEGACY_SESSION_KEY = 'desktopRegion:legacySession'
 const LEGACY_STATE_KEYS = ['desktop:region', 'desktop.region']
 const RESPONSE_LIMIT = 32 * 1024
 const TIMEOUT = 2_000
@@ -31,6 +38,7 @@ const MAINLAND_TIME_ZONES = new Set([
 ])
 const PLATFORMS = { win32: 'windows', darwin: 'macos', linux: 'linux' } as const
 const decisionSchema = z.object({ region: z.enum(APP_EDITIONS), source: z.enum(['local', 'server', 'account']) })
+const legacySessionSchema = z.object({ sessionId: z.string().min(1), region: z.enum(APP_EDITIONS) })
 const resolveSchema = z.object({ region: z.enum(['CN', 'GLOBAL']) })
 type RegionDecision = z.infer<typeof decisionSchema>
 
@@ -49,14 +57,24 @@ export function inferDesktopEdition(timeZone: string, country: string, locale?: 
 @DependsOn(['ProxyService'])
 export class DesktopRegionService extends BaseService {
   protected async onInit(): Promise<void> {
-    if (!isUnifiedPackage()) return
+    if (!usesRuntimeAppEdition()) return
     const controller = new AbortController()
     this.registerDisposable(() => controller.abort())
 
-    const accountEdition = getAccountEdition(cherryAccountCredentialStore.get()?.session?.apiOrigin)
+    const session = cherryAccountCredentialStore.get()?.session
+    const accountEdition = getAccountEdition(session?.apiOrigin)
     if (accountEdition) {
       setRuntimeAppEdition(accountEdition)
       return
+    }
+    if (session && !session.apiOrigin) {
+      const legacyEdition = isRegionBridgePackage()
+        ? this.recordLegacySessionEdition(session.sessionId)
+        : this.getLegacySessionEdition(session.sessionId)
+      if (legacyEdition) {
+        setRuntimeAppEdition(legacyEdition)
+        return
+      }
     }
 
     const stored = this.read()
@@ -100,6 +118,33 @@ export class DesktopRegionService extends BaseService {
     this.write({ region: edition, source: 'account' })
   }
 
+  getLegacySessionEdition(sessionId: string): AppEdition | undefined {
+    try {
+      const row = application
+        .get('DbService')
+        .getDb()
+        .select({ value: appStateTable.value })
+        .from(appStateTable)
+        .where(eq(appStateTable.key, LEGACY_SESSION_KEY))
+        .get()
+      const legacy = legacySessionSchema.safeParse(row?.value).data
+      return legacy?.sessionId === sessionId ? legacy.region : undefined
+    } catch (error) {
+      logger.warn('Failed to read legacy session region', { error })
+      return undefined
+    }
+  }
+
+  private recordLegacySessionEdition(sessionId: string): AppEdition {
+    const region = getPackageEdition()
+    try {
+      this.write({ region, sessionId }, LEGACY_SESSION_KEY)
+    } catch (error) {
+      logger.warn('Failed to save legacy session region', { error })
+    }
+    return region
+  }
+
   private read(): RegionDecision | undefined {
     const db = application.get('DbService').getDb()
     const state = db.select({ value: appStateTable.value }).from(appStateTable)
@@ -116,12 +161,12 @@ export class DesktopRegionService extends BaseService {
     return undefined
   }
 
-  private write(value: RegionDecision): void {
+  private write(value: RegionDecision | z.infer<typeof legacySessionSchema>, key = STATE_KEY): void {
     application
       .get('DbService')
       .getDb()
       .insert(appStateTable)
-      .values({ key: STATE_KEY, value })
+      .values({ key, value })
       .onConflictDoUpdate({ target: appStateTable.key, set: { value } })
       .run()
   }

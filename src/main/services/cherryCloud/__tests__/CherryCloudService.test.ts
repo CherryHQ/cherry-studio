@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   unified: false,
   rememberAccount: vi.fn(),
   confirmLogin: vi.fn(),
+  getLegacySessionEdition: vi.fn(),
   bridge: false,
   appEdition: 'global' as 'cn' | 'global',
+  packageEdition: 'global' as 'cn' | 'global',
   appIsPackaged: false,
   broadcast: vi.fn(),
   trackEvent: vi.fn(),
@@ -95,14 +97,19 @@ vi.mock('@application', async () => {
     MainWindowService: { showMainWindow: mocks.showMainWindow },
     WindowManager: { getWindow: mocks.windowLookup },
     AnalyticsService: { trackEvent: mocks.trackEvent },
-    DesktopRegionService: { rememberAccount: mocks.rememberAccount, confirmLogin: mocks.confirmLogin }
+    DesktopRegionService: {
+      rememberAccount: mocks.rememberAccount,
+      confirmLogin: mocks.confirmLogin,
+      getLegacySessionEdition: mocks.getLegacySessionEdition
+    }
   }
   return mockApplicationFactory(overrides)
 })
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => mocks.appEdition,
-  isUnifiedPackage: () => mocks.unified,
+  getPackageEdition: () => mocks.packageEdition,
+  usesRuntimeAppEdition: () => mocks.unified || mocks.bridge,
   isRegionBridgePackage: () => mocks.bridge
 }))
 
@@ -374,12 +381,14 @@ describe('CherryCloudService', () => {
   beforeEach(() => {
     mocks.unified = false
     mocks.bridge = false
+    mocks.getLegacySessionEdition.mockReset()
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', 'cloud-login-test-secret')
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     installCloudRouteFixture()
     mocks.appEdition = 'global'
+    mocks.packageEdition = 'global'
     mocks.appIsPackaged = false
     mocks.savedDevice = null
     mocks.savedSession = null
@@ -603,6 +612,8 @@ describe('CherryCloudService', () => {
     await service._doStop()
     delete mocks.savedSession!.apiOrigin
     mocks.bridge = true
+    mocks.packageEdition = 'cn'
+    mocks.appEdition = 'global'
     mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
     mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
     CherryCloudService.resetInstances()
@@ -614,6 +625,54 @@ describe('CherryCloudService', () => {
       'https://cloud.cherryai.com.cn/api/v1/product-sessions/refresh'
     )
   })
+
+  it('uses the confirmed region for bridge login and retains it at sign-out', async () => {
+    mocks.bridge = true
+    mocks.packageEdition = 'cn'
+    mocks.appEdition = 'cn'
+    mocks.confirmLogin.mockResolvedValueOnce('global')
+
+    const service = await createSignedInService()
+    expect(mocks.savedSession?.apiOrigin).toBe('https://cloud.cherryai.com')
+
+    mocks.rememberAccount.mockClear()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    expect(mocks.savedSession).toBeNull()
+    expect(mocks.rememberAccount).toHaveBeenCalledWith('global')
+  })
+
+  it.each([true, false])(
+    'restores an originless session after upgrade only with matching provenance (%s)',
+    async (matches) => {
+      mocks.appEdition = 'cn'
+      const bridge = await createSignedInService()
+      await bridge._doStop()
+      const legacy = mocks.savedSession!
+      delete legacy.apiOrigin
+      const recordedSessionId = matches ? legacy.sessionId : 'different-session'
+      mocks.getLegacySessionEdition.mockImplementation((sessionId) =>
+        sessionId === recordedSessionId ? 'cn' : undefined
+      )
+      mocks.unified = true
+      mocks.appEdition = 'global'
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+      CherryCloudService.resetInstances()
+
+      const unified = await createService()
+      if (matches) {
+        await vi.waitFor(() => expect(mocks.savedSession?.apiOrigin).toBe('https://cloud.cherryai.com.cn'))
+        expect(requestCalls('/api/v1/product-sessions/refresh')[0]?.[0]).toBe(
+          'https://cloud.cherryai.com.cn/api/v1/product-sessions/refresh'
+        )
+      } else {
+        expect(await unified.getStatus()).toMatchObject({ phase: 'signed-out' })
+        expect((await unified.authenticatedFetch('/v1/models')).status).toBe(401)
+        expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+      }
+    }
+  )
 
   it('reads the public plan catalog without a session or signature', async () => {
     const service = await createService()

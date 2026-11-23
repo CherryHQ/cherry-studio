@@ -58,7 +58,8 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 vi.mock('@main/core/platform', () => ({
-  isWin: false
+  isWin: false,
+  isMac: true
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
@@ -131,6 +132,7 @@ import { app, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
 import { application } from '@application'
+import { cherryAccountCredentialStore } from '@main/services/cherryCloud/CherryAccountCredentialStore'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
@@ -269,18 +271,37 @@ describe('AppUpdaterService', () => {
         'X-Edition': 'cn',
         'X-Region': 'global'
       })
+      expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Desktop-Update-Bridge')
     })
 
-    it('sends a CN bridge to the international stable manifest and preserves its test preference', async () => {
+    it('checks the marked CN stable feed even when a bridge session has no origin', async () => {
       appEditionState.current = 'cn'
       appEditionState.bridge = true
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      const credentials = vi.spyOn(cherryAccountCredentialStore, 'get').mockReturnValue({
+        version: 1,
+        devicePublicKey: 'public-key',
+        devicePrivateKey: 'private-key',
+        session: {
+          accountId: 'account',
+          sessionId: 'session',
+          refreshToken: 'token',
+          sessionExpiresAt: Date.now() + 60_000,
+          deviceId: 'device',
+          displayName: null
+        }
+      })
       try {
-        await (appUpdater as any).configureUpdaterForCheck()
-        expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
-        expect(autoUpdater.requestHeaders).toMatchObject({ 'X-Edition': 'global' })
+        await appUpdater.checkForUpdates()
+        expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+        expect(autoUpdater.channel).toBe('latest-cn')
+        expect(autoUpdater.requestHeaders).toMatchObject({
+          'X-Edition': 'cn',
+          'X-Desktop-Update-Bridge': 'cn-macos'
+        })
       } finally {
+        credentials.mockRestore()
         appEditionState.bridge = false
       }
       await (appUpdater as any).configureUpdaterForCheck()

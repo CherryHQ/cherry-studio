@@ -12,10 +12,9 @@ import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
-import { isWin } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
-import { cherryAccountCredentialStore } from '@main/services/cherryCloud/CherryAccountCredentialStore'
 import { regionService } from '@main/services/RegionService'
 import { getPackageEdition, isRegionBridgePackage } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
@@ -284,13 +283,8 @@ export class AppUpdaterService extends BaseService {
 
   private async getUpdateRequest() {
     const currentVersion = app.getVersion()
-    const bridge = isRegionBridgePackage()
-    if (bridge) {
-      const session = cherryAccountCredentialStore.get()?.session
-      if (session && !session.apiOrigin && session.sessionExpiresAt > Date.now()) {
-        throw new CancellationError()
-      }
-    }
+    const edition = getPackageEdition()
+    const bridge = edition === 'cn' && isRegionBridgePackage() && isMac
     const testPlan = !bridge && application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan
       ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
@@ -298,10 +292,12 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
-    const edition = bridge ? 'global' : getPackageEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders({ region, edition })
+    const updateHeaders = {
+      ...getUpdateHeaders({ region, edition }),
+      ...(bridge && { 'X-Desktop-Update-Bridge': 'cn-macos' })
+    }
 
     return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }
