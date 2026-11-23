@@ -65,7 +65,12 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const { agent, isLoading: agentLoading } = useAgent(session?.agentId ?? null)
   const { model, isLoading: modelLoading } = useModelById(session?.model ?? agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
-  const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(workspacePath)
+  const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(
+    workspacePath,
+    true,
+    0,
+    sessionId
+  )
   const runtime = useAgentChatRuntimeState({
     sessionId,
     modelId: model?.id,

@@ -7,10 +7,18 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('useAgentWorkspaceWarning')
 
-export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
+export function useAgentWorkspaceStatus(
+  workspacePath: string | undefined,
+  enabled = true,
+  refreshKey = 0,
+  sessionId?: string
+) {
   const { t } = useTranslation()
   // Each visit/check has its own identity, including A -> B -> A with the same refresh key.
-  const check = useMemo(() => ({ workspacePath, enabled, refreshKey }), [workspacePath, enabled, refreshKey])
+  const check = useMemo(
+    () => ({ workspacePath, enabled, refreshKey, sessionId }),
+    [workspacePath, enabled, refreshKey, sessionId]
+  )
   const [result, setResult] = useState<{ check: typeof check; available: boolean }>()
 
   useEffect(() => {
@@ -46,6 +54,11 @@ export function useAgentWorkspaceStatus(workspacePath: string | undefined, enabl
   }
 }
 
-export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
-  return useAgentWorkspaceStatus(workspacePath, enabled, refreshKey).warning
+export function useAgentWorkspaceWarning(
+  workspacePath: string | undefined,
+  enabled = true,
+  refreshKey = 0,
+  sessionId?: string
+) {
+  return useAgentWorkspaceStatus(workspacePath, enabled, refreshKey, sessionId).warning
 }

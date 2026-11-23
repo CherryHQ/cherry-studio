@@ -80,3 +80,25 @@ it('does not reuse the previous positive result when revisiting A before B settl
   })
   expect(result.current.available).toBe(false)
 })
+
+it('invalidates same-folder availability when the active chat changes', async () => {
+  const replies: Array<(available: boolean) => void> = []
+  request.mockImplementation(() => new Promise<boolean>((resolve) => replies.push(resolve)))
+  const { result, rerender } = renderHook(
+    ({ sessionId }) => useAgentWorkspaceStatus('/shared-drive', true, 0, sessionId),
+    { initialProps: { sessionId: 'a' } }
+  )
+  await act(async () => {
+    replies[0](true)
+  })
+  expect(result.current.available).toBe(true)
+  rerender({ sessionId: 'b' })
+  expect(result.current.available).toBeUndefined()
+  expect(result.current.warning).toBeUndefined()
+  await act(async () => {
+    replies[1](false)
+  })
+  expect(result.current.available).toBe(false)
+  expect(result.current.warning).toBe('agent.session.workspace_status.inaccessible')
+  expect(request).toHaveBeenCalledTimes(2)
+})

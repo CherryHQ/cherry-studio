@@ -257,7 +257,8 @@ const AgentChat = ({
   const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(
     workspacePath,
     true,
-    workspaceCheckRevision
+    workspaceCheckRevision,
+    currentSessionId ?? undefined
   )
   const workspaceUnavailable = Boolean(workspaceWarning)
   const citationPanelCitations =
