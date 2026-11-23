@@ -88,7 +88,7 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
 
 describe('connectRetryDelayMs', () => {
   it('finds a non-retryable SDK failure through arbitrary cause wrappers', () => {
-    const failure = new SseError(403, 'denied')
+    const failure = new UnauthorizedError('sign-in required')
     expect(connectRetryDelayMs({ cause: { cause: failure } }, 1)).toBe(Infinity)
   })
 

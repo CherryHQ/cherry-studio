@@ -157,7 +157,9 @@ describe('FileStorage', () => {
         const result = await fileStorage.batchUploadMarkdownFiles(event, [blocked, good, 'ignored.txt'], target)
 
         expect(result).toMatchObject({ fileCount: 1, failedFiles: 1, skippedFiles: 1 })
-        const exported = fs.readdirSync(target, { recursive: true }).filter((name) => name.endsWith('.md'))
+        const exported = fs
+          .readdirSync(target, { recursive: true, encoding: 'utf8' })
+          .filter((name) => name.endsWith('.md'))
         expect(exported.map((name) => fs.readFileSync(path.join(target, name), 'utf-8'))).toEqual(['exported content'])
       } finally {
         fs.rmSync(root, { recursive: true, force: true })

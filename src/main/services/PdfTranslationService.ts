@@ -327,7 +327,7 @@ export class PdfTranslationService extends BaseService {
       // warn and reserve error for genuine sidecar failures.
       if (!job.cancelled) {
         const level = error instanceof IpcError ? 'warn' : 'error'
-        logger[level]('PDF translation failed', error as Error, { jobId: request.jobId })
+        logger[level]('PDF translation failed', error, { jobId: request.jobId })
       }
 
       throw error
