@@ -38,7 +38,7 @@ import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
-import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
+import { type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import { isTrashTopicPinnedError } from '@shared/ipc/errors/trash'
@@ -208,9 +208,9 @@ export async function getTopicMessages(
     let collected = 0
 
     do {
-      const response = (await dataApiService.get(`/topics/${id}/messages`, {
+      const response = await dataApiService.get(`/topics/${id}/messages`, {
         query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
-      })) as BranchMessagesResponse
+      })
 
       // Topic-level fields are stable across pages; first response wins.
       if (!cursor) assistantId = response.assistantId ?? ''

@@ -190,7 +190,7 @@ const ArchiveSettings: FC = () => {
         if (referenceRequestToken.current !== token) return
         const wave = referencedEntryIds.slice(index, index + 8)
         const results = await Promise.allSettled(
-          wave.map((entryId) => dataApiService.get(`/files/entries/${entryId}/refs`) as Promise<FileRef[]>)
+          wave.map((entryId) => dataApiService.get(`/files/entries/${entryId}/refs`))
         )
         if (referenceRequestToken.current !== token) return
         for (const [offset, result] of results.entries()) {

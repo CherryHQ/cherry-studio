@@ -27,9 +27,9 @@ export async function getTopicImageCaptureMessages(topicId: string): Promise<Che
   let cursor: string | undefined
 
   do {
-    const response = (await dataApiService.get(`/topics/${topicId}/messages`, {
+    const response = await dataApiService.get(`/topics/${topicId}/messages`, {
       query: { limit: TOPIC_CAPTURE_MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
-    })) as BranchMessagesResponse
+    })
 
     pages.push(response.items)
     cursor = response.nextCursor

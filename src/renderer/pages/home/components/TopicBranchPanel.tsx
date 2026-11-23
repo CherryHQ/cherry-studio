@@ -20,7 +20,7 @@ import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
+import type { TreeResponse } from '@shared/data/types/message'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 import { planBranchDeletion } from '../utils/topicBranchDeletion'
@@ -176,9 +176,9 @@ const TopicBranchPanel: FC<Props> = ({
 
       let leafId = messageId
       try {
-        const path = (await dataApiService.get(`/topics/${topicId}/path`, {
+        const path = await dataApiService.get(`/topics/${topicId}/path`, {
           query: { nodeId: messageId }
-        })) as DbMessage[]
+        })
         if (path.length > 0) {
           leafId = path[path.length - 1].id
         }

@@ -29,12 +29,7 @@ import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type {
-  AssistantTurnOptions,
-  BranchMessagesResponse,
-  CherryUIMessage,
-  Message as DbMessage
-} from '@shared/data/types/message'
+import type { AssistantTurnOptions, BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 
@@ -509,9 +504,9 @@ export function useChatWriteActions(params: Params): Result {
     async (throughNodeId) => {
       let leafId = throughNodeId
       try {
-        const path = (await dataApiService.get(`/topics/${topic.id}/path`, {
+        const path = await dataApiService.get(`/topics/${topic.id}/path`, {
           query: { nodeId: throughNodeId }
-        })) as DbMessage[]
+        })
         if (path.length > 0) {
           leafId = path[path.length - 1].id
         }

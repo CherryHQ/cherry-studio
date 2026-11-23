@@ -15,7 +15,6 @@ import {
   type AgentSessionMessageEntity
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -86,9 +85,9 @@ export async function getAgentSessionMessagesForExport(
     const query = cursor
       ? { limit: AGENT_SESSION_MESSAGES_MAX_LIMIT, cursor }
       : { limit: AGENT_SESSION_MESSAGES_MAX_LIMIT }
-    const response = (await dataApiService.get(`/agent-sessions/${session.id}/messages`, {
+    const response = await dataApiService.get(`/agent-sessions/${session.id}/messages`, {
       query
-    })) as CursorPaginationResponse<AgentSessionMessageEntity>
+    })
 
     pages.push(
       response.items.map((row) => agentSessionMessageToExportView(row, session.agentId, options.modelFallback))
