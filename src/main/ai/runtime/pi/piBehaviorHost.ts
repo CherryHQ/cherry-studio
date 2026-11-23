@@ -116,7 +116,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
           const parent = await resolveExistingPath(path.dirname(target))
           const relative = path.relative(cwd, path.join(parent, path.basename(target)))
           if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
-            return { block: 'outside-workspace' }
+            return path.isAbsolute(filePath) ? {} : { block: 'outside-workspace' }
           const result = await application.get('AgentFileSnapshotService').protectWrite({
             round,
             callId: callKey,
@@ -155,6 +155,8 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
             )
               return reject('approval-denied')
           }
+          if (!(await application.get('AgentFileSnapshotService').validateWrite(round, attemptId)))
+            return reject('snapshot-conflict')
           return {}
         } catch (error) {
           logger.error('Failed to protect file write', { error })

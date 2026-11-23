@@ -20,6 +20,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentFileSnapshotService } from '../AgentFileSnapshotService'
@@ -44,6 +45,42 @@ describe('AgentFileSnapshotService', () => {
     vi.restoreAllMocks()
     BaseService.resetInstances()
     await rm(testDir, { recursive: true, force: true })
+  })
+  it.each([
+    ['accepts a trusted restore', true, false, null],
+    ['rejects a restore without evidence', false, false, 'conflict'],
+    ['rejects a trusted restore with changed bytes', true, true, 'conflict']
+  ])('%s', async (_name, trusted, changed, reason) => {
+    const target = path.join(root, 'file')
+    await writeFile(target, 'before')
+    await write(target, 'after', 'restore')
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    vi.spyOn(agentSessionService, 'getById').mockReturnValue({ workspace: { path: root } } as ReturnType<
+      typeof agentSessionService.getById
+    >)
+    const moved = path.join(testDir, 'old-workspace')
+    await rename(root, moved)
+    await mkdir(root)
+    await fs.copyFile(path.join(moved, 'file'), target)
+    await chmod(target, (await stat(path.join(moved, 'file'))).mode & 0o7777)
+    if (changed) await writeFile(target, 'other')
+    if (trusted)
+      await writeFile(
+        path.join(testDir, 'snapshots/trusted-restores.json'),
+        JSON.stringify({
+          version: 1,
+          entries: [{ workspacePath: root, restoredAt: Date.now() + 1, operationId: 'restore' }]
+        })
+      )
+    const state = await service.getUndoState(round.sessionId)
+    expect(state.reason).toBe(reason)
+    const result = await service.undoCurrentRound({
+      sessionId: round.sessionId,
+      replyId: round.replyId,
+      expectedRevision: state.revision!
+    })
+    expect(result.reason).toBe(reason)
+    expect(await readFile(target, 'utf8')).toBe(reason ? (changed ? 'other' : 'after') : 'before')
   })
   it('registers a round without creating snapshot files', async () => {
     await expect(stat(path.join(testDir, 'snapshots'))).rejects.toMatchObject({ code: 'ENOENT' })
@@ -168,6 +205,88 @@ describe('AgentFileSnapshotService', () => {
       expectedRevision: state.revision!
     })
   }
+  it('refuses a second write after a user save and preserves the user bytes', async () => {
+    const target = path.join(root, 'file')
+    await writeFile(target, 'before')
+    await write(target, 'agent', 'first')
+    const userBytes = Buffer.from('user\r\nsave\0')
+    await writeFile(target, userBytes)
+    const attempt = await service.protectWrite({
+      ...call(target, 'second'),
+      intent: { toolName: 'write', input: { content: 'second' } }
+    })
+    expect(await service.validateWrite(round, attempt.attemptId!)).toBe(false)
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const state = await service.getUndoState(round.sessionId)
+    expect(state).toMatchObject({ canUndo: false, reason: 'conflict', files: [{ status: 'conflict' }] })
+    expect(
+      await service.undoCurrentRound({
+        sessionId: round.sessionId,
+        replyId: round.replyId,
+        expectedRevision: state.revision!
+      })
+    ).toMatchObject({ reason: 'conflict' })
+    expect(await readFile(target)).toEqual(userBytes)
+  })
+  it('detects a save during approval before executing the write', async () => {
+    const target = path.join(root, 'file')
+    await writeFile(target, 'before')
+    const attempt = await service.protectWrite(call(target, 'approval'))
+    await writeFile(target, 'user save')
+    expect(await service.validateWrite(round, attempt.attemptId!)).toBe(false)
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const state = await service.getUndoState(round.sessionId)
+    expect(state).toMatchObject({ reason: 'conflict', canUndo: false })
+    expect(
+      await service.undoCurrentRound({
+        sessionId: round.sessionId,
+        replyId: round.replyId,
+        expectedRevision: state.revision!
+      })
+    ).toMatchObject({ reason: 'conflict' })
+    expect(await readFile(target, 'utf8')).toBe('user save')
+  })
+  it.each([false, true])('undoes a NotebookEdit with another verified write: %s', async (mixed) => {
+    const notebook = path.join(root, 'notebook.ipynb')
+    const original = Buffer.from('{"cells":[]}\r\n')
+    await writeFile(notebook, original)
+    const attempt = await service.protectWrite({
+      ...call(notebook, 'notebook'),
+      toolName: 'NotebookEdit',
+      intent: { toolName: 'NotebookEdit', input: {} }
+    })
+    await writeFile(notebook, '{"cells":[1]}')
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
+    const other = path.join(root, 'other')
+    if (mixed) {
+      await writeFile(other, 'before')
+      await write(other, 'after', 'other')
+    }
+    expect((await undo()).reason).toBeNull()
+    expect(await readFile(notebook)).toEqual(original)
+    if (mixed) expect(await readFile(other, 'utf8')).toBe('before')
+  })
+  it('restores verified files while leaving an unknown write untouched', async () => {
+    const unknown = path.join(root, 'unknown')
+    const other = path.join(root, 'other')
+    await writeFile(other, 'before')
+    await write(other, 'after', 'other')
+    const attempt = await service.protectWrite({
+      ...call(unknown, 'unknown'),
+      intent: { toolName: 'NotebookEdit', input: {} }
+    })
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const state = await service.getUndoState(round.sessionId)
+    expect(state.canUndo).toBe(true)
+    const result = await service.undoCurrentRound({
+      sessionId: round.sessionId,
+      replyId: round.replyId,
+      expectedRevision: state.revision!
+    })
+    expect(result).toMatchObject({ reason: 'unknown', files: [{ status: 'restored' }, { status: 'unknown' }] })
+    expect(await readFile(other, 'utf8')).toBe('before')
+  })
   it.skipIf(process.platform === 'win32').each([0o600, 0o755])(
     'keeps snapshot private and restores mode %i',
     async (mode) => {

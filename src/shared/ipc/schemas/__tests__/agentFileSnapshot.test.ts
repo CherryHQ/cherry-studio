@@ -17,6 +17,7 @@ it('accepts every known reason and rejects unknown reasons', () => {
     'large-deletion',
     'undecidable',
     'snapshot-failed',
+    'snapshot-conflict',
     'SNAPSHOT_ROOT_IN_WORKSPACE',
     'turn-active',
     'stale',

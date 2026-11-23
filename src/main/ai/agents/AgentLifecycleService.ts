@@ -52,6 +52,7 @@ export class AgentLifecycleService extends BaseService {
   private readonly sessionLocks = new KeyedMutex()
   private readonly ingressHolds = new Set<symbol>()
   private readonly inFlight = new Map<Promise<unknown>, string>()
+  private readonly pendingSnapshotPurges = new Set<string>()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -213,6 +214,7 @@ export class AgentLifecycleService extends BaseService {
   sweepOrphans(signal?: AbortSignal) {
     return this.runOperation('sweep-agent-orphans', async () => {
       if (hasPendingRestore()) return sweepAgentOrphans(signal)
+      await this.purgeSnapshots([...this.pendingSnapshotPurges])
       for (const { id } of agentSessionService.listSystemWorkspaceSessions()) {
         signal?.throwIfAborted()
         await this.sessionLocks.runExclusive(id, async () => {
@@ -506,7 +508,9 @@ export class AgentLifecycleService extends BaseService {
     for (const id of ids) {
       try {
         await application.get('AgentFileSnapshotService').purgeSessions([id])
+        this.pendingSnapshotPurges.delete(id)
       } catch (error) {
+        this.pendingSnapshotPurges.add(id)
         logger.warn('Failed to remove purged Agent Session snapshots', { sessionId: id, error })
       }
     }
@@ -556,6 +560,8 @@ export class AgentLifecycleService extends BaseService {
       () => agentSessionService.listIdsByWorkspace(workspaceId),
       async () => {
         const result = agentSessionService.deleteWorkspaceCascadeWithImpact(workspaceId)
+        application.get('AgentSessionRuntimeService').revokeSnapshotRounds(result.deletedIds)
+        await this.purgeSnapshots(result.deletedIds)
         await this.finishDeletion(result.deletedIds, result.deliveryResults)
         return { deletedIds: result.deletedIds }
       },

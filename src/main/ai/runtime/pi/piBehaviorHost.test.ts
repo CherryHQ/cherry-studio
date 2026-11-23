@@ -1,10 +1,18 @@
-import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
+import { AgentFileSnapshotService } from '@main/ai/agentSession/AgentFileSnapshotService'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
@@ -89,11 +97,11 @@ describe('Pi behavior host model lookup', () => {
       .run()
   })
 
-  async function createHost() {
+  async function createHost(cwd = process.cwd()) {
     const rootModel = modelService.list({ enabled: true }).find((model) => model.id === 'anthropic::sonnet')!
     const binding = await createTestBinding({ stream: scriptedModel([]).model })
     return createPiBehaviorHost({
-      cwd: process.cwd(),
+      cwd,
       runtime: 'pi',
       input: { sessionId: 'session', agentId: 'agent', modelId: rootModel.id },
       root: () => root,
@@ -123,6 +131,43 @@ describe('Pi behavior host model lookup', () => {
       observe: () => {}
     })
   }
+
+  it('excludes absolute agent data paths, blocks relative escapes, and snapshots workspace paths', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'pi-snapshot-'))
+    const cwd = path.join(dir, 'workspace')
+    const agentData = path.join(dir, 'agent')
+    await mkdir(cwd)
+    await mkdir(agentData)
+    BaseService.resetInstances()
+    const snapshots = new AgentFileSnapshotService()
+    const round = { sessionId: 'session', replyId: 'reply', inputMessageIds: ['input'] }
+    try {
+      vi.spyOn(application, 'getPath').mockReturnValue(path.join(dir, 'snapshots'))
+      vi.spyOn(snapshots, 'workspaceRoots').mockResolvedValue([])
+      MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+      MockApplicationUtils.setService('AgentSessionRuntimeService', { getLiveSnapshotRound: () => round })
+      await snapshots.admitRound(round)
+      const { host } = await createHost(cwd)
+      const protect = (filePath: string, callKey: string) =>
+        host.fileWrites!.protect({
+          thread: root,
+          callKey,
+          tool: 'write',
+          args: { path: filePath, content: 'new' },
+          signal: new AbortController().signal
+        })
+      expect(await protect(path.join(agentData, 'SOUL.md'), 'external')).toEqual({})
+      expect(await protect('../escape', 'escape')).toEqual({ block: 'outside-workspace' })
+      expect(await protect('ordinary', 'ordinary')).toEqual({})
+      const manifest = JSON.parse(await readFile(path.join(dir, 'snapshots/session/reply/manifest.json'), 'utf8'))
+      expect(manifest.files.map((file: { path: string }) => file.path)).toEqual([path.join(cwd, 'ordinary')])
+    } finally {
+      vi.restoreAllMocks()
+      MockApplicationUtils.resetServices()
+      BaseService.resetInstances()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 
   it('selects the provider-qualified model even when the parent uses another provider', async () => {
     const { host } = await createHost()

@@ -21,6 +21,9 @@ export type Attempt = {
   startedAt: string
   afterHash: string | null
   afterSize: string | null
+  beforeState?: FileState
+  beforeParent?: SnapshotFile['parent']
+  preconditionConflict?: boolean
   classification: 'none' | 'empty' | 'large-deletion' | 'undecidable'
   status: 'pending' | 'written' | 'failed' | 'cancelled' | 'unknown' | 'unverifiable'
 }
@@ -32,6 +35,7 @@ export type SnapshotFile = {
   sha256Before: string | null
   modeBefore: number | null
   parent: { dev: string; ino: string; resolvedPath: string; anchorPath?: string }
+  parentMigratedAt?: string
   afterHash: string | null
   afterSize: string | null
   afterMode?: number | null
@@ -47,6 +51,7 @@ export type Manifest = {
   inputMessageIds: string[]
   revision: string
   savedAt: string
+  startedAt?: string
   finishedAt?: string
   files: SnapshotFile[]
 }

@@ -14,6 +14,7 @@ export const snapshotReasonKeys: Record<AgentFileSnapshotReason, string> = {
   'large-deletion': 'agent.file_snapshot.unavailable',
   undecidable: 'agent.file_snapshot.unavailable',
   'snapshot-failed': 'agent.file_snapshot.failed',
+  'snapshot-conflict': 'agent.file_snapshot.state_changed',
   SNAPSHOT_ROOT_IN_WORKSPACE: 'agent.file_snapshot.unavailable',
   'turn-active': 'agent.file_snapshot.pending',
   stale: 'agent.file_snapshot.state_changed',

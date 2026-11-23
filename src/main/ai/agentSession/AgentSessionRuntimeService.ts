@@ -647,7 +647,24 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   attestSnapshotRound(sessionId: string): string | null {
-    return this.snapshotRounds.get(sessionId) ?? null
+    try {
+      agentSessionService.getById(sessionId)
+      const live = this.snapshotRounds.get(sessionId)
+      let cursor: string | undefined
+      do {
+        const page = agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: 200 })
+        const reply = page.items.find((message) => message.role === 'assistant')
+        if (reply) return reply.status === 'pending' || (live && live !== reply.id) ? null : reply.id
+        cursor = page.nextCursor
+      } while (cursor)
+    } catch {
+      return null
+    }
+    return null
+  }
+
+  revokeSnapshotRounds(sessionIds: readonly string[]): void {
+    for (const id of sessionIds) this.snapshotRounds.delete(id)
   }
 
   private finishSnapshotRound(sessionId: string, replyId: string): void {

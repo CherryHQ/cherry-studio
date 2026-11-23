@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { closeSync, existsSync, lstatSync, openSync, realpathSync, unlinkSync } from 'node:fs'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
+import { atomicWrite } from '@main/ai/agentSession/agentFileSnapshot'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { KeyedMutex } from '@shared/utils/async'
 
 import * as storage from './agentWorkspaceStorage'
 
@@ -41,6 +44,47 @@ function probeNameBehavior(directory: string): PathNameBehavior {
 }
 
 class AgentWorkspaceStorageService {
+  private readonly restoreLock = new KeyedMutex()
+
+  async trustedRestoreSince(workspacePath: string): Promise<number | null> {
+    try {
+      const data = JSON.parse(
+        await fs.readFile(
+          path.join(application.getPath('feature.agents.file_snapshots'), 'trusted-restores.json'),
+          'utf8'
+        )
+      )
+      if (data.version !== 1 || !Array.isArray(data.entries)) return null
+      const times = data.entries
+        .filter(
+          (entry: { workspacePath: string; restoredAt: number }) =>
+            entry.workspacePath === workspacePath && Number.isFinite(entry.restoredAt)
+        )
+        .map((entry: { restoredAt: number }) => entry.restoredAt)
+      return times.length ? Math.max(...times) : null
+    } catch {
+      return null
+    }
+  }
+
+  private async recordTrustedRestore(workspacePath: string, operationId: string): Promise<void> {
+    await this.restoreLock.runExclusive('restores', async () => {
+      const dir = application.getPath('feature.agents.file_snapshots')
+      const target = path.join(dir, 'trusted-restores.json')
+      await fs.mkdir(dir, { recursive: true, mode: 0o700 })
+      let entries: { workspacePath: string; restoredAt: number; operationId: string }[] = []
+      try {
+        const data = JSON.parse(await fs.readFile(target, 'utf8'))
+        if (data.version === 1 && Array.isArray(data.entries)) entries = data.entries
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+      if (!entries.some((entry) => entry.operationId === operationId))
+        entries.push({ workspacePath, restoredAt: Date.now(), operationId })
+      await atomicWrite(target, JSON.stringify({ version: 1, entries: entries.slice(-50) }))
+    })
+  }
+
   private readonly blockedRelocations = new Set<string>()
 
   blockRelocation(workspacePath: string): void {
@@ -416,6 +460,7 @@ class AgentWorkspaceStorageService {
     await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz.tmp`)
     await storage.removeWorkspaceArtifact(root, `${workspace}.storage.json.tmp`)
     await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz`)
+    await this.recordTrustedRestore(workspace, record.operationId)
     await storage.clearWorkspaceStorageRecord(workspace)
   }
 

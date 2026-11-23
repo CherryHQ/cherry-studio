@@ -12,6 +12,7 @@ export const agentFileSnapshotReason = z.enum([
   'large-deletion',
   'undecidable',
   'snapshot-failed',
+  'snapshot-conflict',
   'SNAPSHOT_ROOT_IN_WORKSPACE',
   'turn-active',
   'stale',

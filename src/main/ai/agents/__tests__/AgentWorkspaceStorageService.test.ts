@@ -47,6 +47,20 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('persists trusted evidence only after restore commits', async () => {
+    await archive()
+    expect(await service.trustedRestoreSince(workspace.path)).toBeNull()
+    const before = Date.now()
+    await restore()
+    const entries = JSON.parse(await readFile(path.join(root, 'trusted-restores.json'), 'utf8'))
+    expect(entries).toMatchObject({
+      version: 1,
+      entries: [{ workspacePath: workspace.path, operationId: expect.any(String) }]
+    })
+    expect(await service.trustedRestoreSince(workspace.path)).toBeGreaterThanOrEqual(before)
+    expect(await service.trustedRestoreSince(path.join(root, 'other'))).toBeNull()
+  })
+
   it('round trips output, binary and hidden files, and empty directories', async () => {
     await archive()
     expect(existsSync(workspace.path)).toBe(false)

@@ -85,3 +85,12 @@ it('maps every snapshot reason to a translated message', () => {
     expect(i18n.exists(key)).toBe(true)
   }
 })
+
+it('explains that the state changed when a snapshot conflicts', async () => {
+  vi.mocked(window.api.ipcApi.request).mockResolvedValue({
+    ok: true,
+    data: { replyId: 'reply', revision: '2', canUndo: false, reason: 'snapshot-conflict', files: [] }
+  })
+  render(<AgentFileSnapshotUndo sessionId="session" pending={false} />)
+  expect(await screen.findByTitle('The state has changed. Please confirm again.')).toBeInTheDocument()
+})

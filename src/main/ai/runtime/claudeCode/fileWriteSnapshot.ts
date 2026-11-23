@@ -115,6 +115,8 @@ export function createFileWriteSnapshotHooks(
         if (!approved || runtime.getLiveSnapshotRound(sessionId)?.replyId !== round.replyId)
           return await denyProtected('approval-denied')
       }
+      if (!(await application.get('AgentFileSnapshotService').validateWrite(round, attemptId)))
+        return await denyProtected('snapshot-conflict')
       attempts.set(callId, { attemptId, round })
       return {}
     } catch (error) {

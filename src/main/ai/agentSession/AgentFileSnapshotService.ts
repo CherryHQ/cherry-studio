@@ -3,8 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentFileSnapshotReason } from '@shared/ipc/schemas/agentFileSnapshot'
@@ -26,7 +28,11 @@ const logger = loggerService.withContext('AgentFileSnapshotService')
 type AttemptClassification = ReturnType<typeof classifyDestructiveWrite>
 type AttestRound = () => string | null
 
-async function currentFileState(file: SnapshotFile, maxFileBytes: number): Promise<'baseline' | 'after' | 'conflict'> {
+async function currentFileState(
+  file: SnapshotFile,
+  maxFileBytes: number,
+  matchesParent: () => Promise<boolean>
+): Promise<'baseline' | 'after' | 'conflict'> {
   try {
     const state = (await inspectFile(file.path, maxFileBytes)).state
     if (
@@ -41,7 +47,7 @@ async function currentFileState(file: SnapshotFile, maxFileBytes: number): Promi
       state.size === file.afterSize &&
       state.sha256 === file.afterHash &&
       state.mode === (file.afterMode ?? file.modeBefore) &&
-      JSON.stringify(await parentIdentity(file.path, file.parent.anchorPath)) === JSON.stringify(file.parent)
+      (await matchesParent())
     )
       return 'after'
   } catch {
@@ -91,6 +97,32 @@ export type UndoFileResult = {
 export class AgentFileSnapshotService extends BaseService {
   constructor(private readonly options: { maxFileBytes?: number } = {}) {
     super()
+  }
+
+  private async matchesParent(
+    manifest: Manifest,
+    file: SnapshotFile,
+    expected: SnapshotFile['parent']
+  ): Promise<boolean> {
+    try {
+      const parent = await parentIdentity(file.path, expected.anchorPath)
+      if (JSON.stringify(parent) === JSON.stringify(expected)) return true
+      if (parent.resolvedPath !== expected.resolvedPath) return false
+      const workspace = agentSessionService.getById(manifest.sessionId).workspace.path
+      const resolvedWorkspace = await fs.realpath(workspace)
+      const relative = path.relative(resolvedWorkspace, parent.resolvedPath)
+      if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
+        return false
+      const restoredAt = await agentWorkspaceStorageService.trustedRestoreSince(workspace)
+      const startedAt = Date.parse(manifest.startedAt ?? manifest.savedAt)
+      if (restoredAt === null || !Number.isFinite(startedAt) || restoredAt < startedAt) return false
+      file.parent = parent
+      file.parentMigratedAt = new Date().toISOString()
+      await this.save(manifest)
+      return true
+    } catch {
+      return false
+    }
   }
 
   private get maxFileBytes(): number {
@@ -159,6 +191,7 @@ export class AgentFileSnapshotService extends BaseService {
             inputMessageIds: [...round.inputMessageIds],
             revision: '0',
             savedAt: new Date().toISOString(),
+            startedAt: new Date().toISOString(),
             files: []
           },
           persisted: false
@@ -190,6 +223,7 @@ export class AgentFileSnapshotService extends BaseService {
                   inputMessageIds: [...round.inputMessageIds],
                   revision: '0',
                   savedAt: new Date().toISOString(),
+                  startedAt: new Date().toISOString(),
                   files: []
                 }
         }
@@ -339,6 +373,16 @@ export class AgentFileSnapshotService extends BaseService {
         }
         manifest.files.push(file)
       }
+      if (file.attempts.length && file.attempts.every((a) => a.status === 'failed' || a.status === 'cancelled')) {
+        if (file.blob) await fs.rm(path.join(this.roundDir(call.round), 'blobs', file.blob), { force: true })
+        file.existedBefore = before.state.exists
+        file.sizeBefore = before.state.size
+        file.sha256Before = before.state.sha256
+        file.modeBefore = before.state.mode
+        file.parent = parent
+        file.blob = before.bytes ? `${randomUUID()}.bin` : null
+        if (file.blob) await atomicWrite(path.join(this.roundDir(call.round), 'blobs', file.blob), before.bytes!, 0o600)
+      }
       if (file.restoredAt) throw new Error('Cannot write to an undone round')
       const attemptId = randomUUID()
       const candidate = candidateBytesFor(call.intent.toolName, call.intent.input, before.bytes ?? Buffer.alloc(0))
@@ -355,11 +399,51 @@ export class AgentFileSnapshotService extends BaseService {
         startedAt: new Date().toISOString(),
         afterHash: candidate ? createHash('sha256').update(candidate).digest('hex') : null,
         afterSize: candidate ? String(candidate.length) : null,
+        beforeState: before.state,
+        beforeParent: parent,
         classification,
+        ...(file.afterHash && (before.state.sha256 !== file.afterHash || before.state.mode !== file.afterMode)
+          ? { preconditionConflict: true }
+          : {}),
         status: 'pending'
       })
       await this.save(manifest)
       return { attemptId, classification }
+    })
+  }
+  async validateWrite(round: SnapshotRound, attemptId: string): Promise<boolean> {
+    return this.exclusive(round.sessionId, async () => {
+      const manifest = await this.read(round)
+      const file = manifest.files.find((entry) => entry.attempts.some((attempt) => attempt.id === attemptId))
+      const attempt = file?.attempts.find((entry) => entry.id === attemptId)
+      if (!file || !attempt || attempt.status !== 'pending' || !attempt.beforeState || !attempt.beforeParent)
+        return false
+      const matches =
+        !attempt.preconditionConflict &&
+        (await (async () => {
+          try {
+            const state = (await inspectFile(file.path, this.maxFileBytes)).state
+            const parent = await parentIdentity(file.path, attempt.beforeParent!.anchorPath)
+            return (
+              (JSON.stringify(state) === JSON.stringify(attempt.beforeState) &&
+                JSON.stringify(parent) === JSON.stringify(attempt.beforeParent)) ||
+              (state.exists === attempt.beforeState!.exists &&
+                state.size === attempt.beforeState!.size &&
+                state.sha256 === attempt.beforeState!.sha256 &&
+                state.mode === attempt.beforeState!.mode &&
+                JSON.stringify(parent) !== JSON.stringify(attempt.beforeParent) &&
+                (await this.matchesParent(manifest, file, attempt.beforeParent!)))
+            )
+          } catch {
+            return false
+          }
+        })())
+      if (!matches) {
+        attempt.preconditionConflict = true
+        attempt.status = 'written'
+        await this.save(manifest)
+      }
+      return matches
     })
   }
   markRoundFinished(sessionId: string, replyId: string): Promise<void> {
@@ -412,25 +496,30 @@ export class AgentFileSnapshotService extends BaseService {
       const attempt = file.attempts.find((a) => a.id === input.attemptId)!
       if (attempt.status !== 'pending') return
       if (input.outcome === 'success') {
-        file.afterHash = attempt.afterHash
-        file.afterSize = attempt.afterSize
-        file.afterMode = await fs
-          .stat(file.path, { bigint: true })
-          .then((stat) => Number(stat.mode & 0o7777n))
-          .catch(() => null)
+        const observed = await inspectFile(file.path, this.maxFileBytes).catch(() => null)
+        if (attempt.afterSize !== null && Number(attempt.afterSize) > this.maxFileBytes) {
+          attempt.status = 'unverifiable'
+        } else if (attempt.preconditionConflict) {
+          attempt.status = 'written'
+        } else if (attempt.afterHash) {
+          file.afterHash = attempt.afterHash
+          file.afterSize = attempt.afterSize
+          file.afterMode = observed?.state.mode ?? file.modeBefore
+          attempt.status = 'written'
+        } else if (attempt.toolName === 'NotebookEdit' && observed?.state.exists) {
+          attempt.afterHash = observed.state.sha256
+          attempt.afterSize = observed.state.size
+          file.afterHash = observed.state.sha256
+          file.afterSize = observed.state.size
+          file.afterMode = observed.state.mode
+          attempt.status = 'written'
+        } else {
+          attempt.status = 'unknown'
+        }
+      } else {
+        attempt.status =
+          input.outcome === 'failure' ? 'failed' : input.outcome === 'cancelled' ? 'cancelled' : 'unknown'
       }
-      attempt.status =
-        input.outcome === 'success'
-          ? attempt.afterSize !== null && Number(attempt.afterSize) > this.maxFileBytes
-            ? 'unverifiable'
-            : attempt.afterHash
-              ? 'written'
-              : 'unknown'
-          : input.outcome === 'failure'
-            ? 'failed'
-            : input.outcome === 'cancelled'
-              ? 'cancelled'
-              : 'unknown'
       await this.save(manifest)
     })
   }
@@ -501,15 +590,19 @@ export class AgentFileSnapshotService extends BaseService {
           throw error
         }
       const manifest = await this.read({ sessionId, replyId, inputMessageIds: [] })
+      if (manifest.sessionId !== sessionId || manifest.replyId !== replyId) return stale
       if (!(await this.cancelStalePending(manifest, attest))) return stale
       const pendingFiles = manifest.files.filter((f) => !f.restoredAt && f.attempts.some((a) => a.status === 'pending'))
       const files = await Promise.all(
         manifest.files.map(async (file) => {
-          let conflict = false
+          let conflict = file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written')
           if (!file.restoredAt) {
             if (pendingFiles.includes(file)) conflict = !(await pendingMatchesBaseline(file, this.maxFileBytes))
-            else if (file.afterHash && !file.attempts.some((attempt) => attempt.status === 'unverifiable'))
-              conflict = (await currentFileState(file, this.maxFileBytes)) === 'conflict'
+            else if (!conflict && file.afterHash && !file.attempts.some((attempt) => attempt.status === 'unverifiable'))
+              conflict =
+                (await currentFileState(file, this.maxFileBytes, () =>
+                  this.matchesParent(manifest, file, file.parent)
+                )) === 'conflict'
           }
           return {
             ...file,
@@ -532,7 +625,8 @@ export class AgentFileSnapshotService extends BaseService {
             ? 'pending'
             : files.some((file) => file.status === 'conflict')
               ? 'conflict'
-              : manifest.files.some(
+              : !files.some((file) => file.status === 'changed' && file.afterHash) &&
+                  manifest.files.some(
                     (f) =>
                       f.attempts.some((a) => a.status === 'unknown') ||
                       (!f.afterHash && f.attempts.some((a) => a.status === 'written'))
@@ -563,6 +657,8 @@ export class AgentFileSnapshotService extends BaseService {
           ).replyId
       if (current !== input.replyId) return { files: [], reason: attest ? 'stale' : 'round-mismatch' }
       const manifest = await this.read({ ...input, inputMessageIds: [] })
+      if (manifest.sessionId !== input.sessionId || manifest.replyId !== input.replyId)
+        return { files: [], reason: 'stale' }
       if (live?.failed) return { files: [], reason: 'failed' }
       if (!manifest.finishedAt) return { files: [], reason: 'turn-active' }
       if (manifest.revision !== input.expectedRevision) return { files: [], reason: 'revision-mismatch' }
@@ -570,18 +666,20 @@ export class AgentFileSnapshotService extends BaseService {
       if (!(await this.cancelStalePending(manifest, attest))) return { files: [], reason: 'stale' }
       if (manifest.files.some((f) => f.attempts.some((a) => a.status === 'pending')))
         return { files: [], reason: 'pending' }
-      if (
-        manifest.files.some(
-          (f) =>
-            f.attempts.some((a) => a.status === 'unknown') ||
-            (!f.afterHash && f.attempts.some((a) => a.status === 'written'))
-        )
-      )
-        return { files: [], reason: 'unknown' }
+      const unknown = (f: SnapshotFile) =>
+        f.attempts.some((a) => a.status === 'unknown') ||
+        (!f.afterHash && f.attempts.some((a) => a.status === 'written'))
       const conflicts = new Set<string>()
       for (const file of manifest.files) {
-        if (file.restoredAt || !file.afterHash || file.attempts.some((a) => a.status === 'unverifiable')) continue
-        if ((await currentFileState(file, this.maxFileBytes)) === 'conflict') conflicts.add(file.path)
+        if (file.restoredAt || file.attempts.some((a) => a.status === 'unverifiable')) continue
+        if (
+          file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written') ||
+          (file.afterHash &&
+            !unknown(file) &&
+            (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) ===
+              'conflict')
+        )
+          conflicts.add(file.path)
       }
       if (!(await this.isAttested(input.sessionId, attest))) return { files: [], reason: 'stale' }
       if (conflicts.size)
@@ -592,8 +690,14 @@ export class AgentFileSnapshotService extends BaseService {
           })),
           reason: 'conflict'
         }
+      if (!manifest.files.some((f) => f.afterHash && !unknown(f)) && manifest.files.some(unknown))
+        return { files: [], reason: 'unknown' }
       const files: UndoFileResult[] = []
       for (const file of manifest.files) {
+        if (unknown(file)) {
+          files.push({ path: file.path, status: 'unknown' })
+          continue
+        }
         if (file.attempts.some((a) => a.status === 'unverifiable')) {
           files.push({ path: file.path, status: 'unverifiable', reason: 'unverifiable' })
           continue
@@ -602,7 +706,11 @@ export class AgentFileSnapshotService extends BaseService {
           files.push({ path: file.path, status: 'skipped' })
           continue
         }
-        if (file.restoredAt || (await currentFileState(file, this.maxFileBytes)) === 'baseline') {
+        if (
+          file.restoredAt ||
+          (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) ===
+            'baseline'
+        ) {
           files.push({ path: file.path, status: 'already-restored' })
           continue
         }
@@ -616,7 +724,10 @@ export class AgentFileSnapshotService extends BaseService {
               createHash('sha256').update(bytes).digest('hex') !== file.sha256Before)
           )
             throw new Error('Snapshot blob corrupt')
-          if ((await currentFileState(file, this.maxFileBytes)) !== 'after') {
+          if (
+            (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) !==
+            'after'
+          ) {
             files.push({ path: file.path, status: 'conflict' })
             continue
           }
@@ -639,9 +750,11 @@ export class AgentFileSnapshotService extends BaseService {
         files,
         reason: files.some((f) => f.status === 'failed' || f.status === 'conflict')
           ? 'partial'
-          : files.some((f) => f.status === 'unverifiable')
-            ? 'unverifiable'
-            : null
+          : files.some((f) => f.status === 'unknown')
+            ? 'unknown'
+            : files.some((f) => f.status === 'unverifiable')
+              ? 'unverifiable'
+              : null
       }
     })
   }
