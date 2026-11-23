@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
-import { hashEmbeddingText } from '../hashing'
+import { hashContentText, hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
 import type { RebuildMaterialInput } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
@@ -66,6 +66,30 @@ describe('KnowledgeIndexStore', () => {
   // database-construction.md §4). `integrity-check, 1` does the cross-check and throws on a mismatch.
   const ftsIntegrityCheck = () =>
     driver.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
+
+  it.each(['source-text', 'unit-index', 'forged-offsets'] as const)(
+    'pauses a binding whose stored metadata conceals damaged %s evidence',
+    (kind) => {
+      const text = '😀 original target text'
+      store.rebuildMaterial('m1', buildInput(text, [[0, text.length]]))
+      const unit = store.listMaterialUnits('m1')[0]
+      const binding = {
+        ...unit,
+        sourceContentHash: hashContentText(text),
+        originalText: text,
+        excluded: false,
+        pendingOverride: false
+      }
+      if (kind === 'source-text') driver.execute('UPDATE content SET text = ?', ['x'.repeat(text.length)])
+      if (kind === 'unit-index') driver.execute('UPDATE search_unit SET unit_index = 7')
+      if (kind === 'forged-offsets') {
+        driver.execute('UPDATE search_unit SET char_start = 1, char_end = ?', [text.length + 1])
+        binding.charStart = 1
+        binding.charEnd = text.length + 1
+      }
+      expect(store.resolveGovernanceExclusions([binding])).toEqual({ unitIds: [], materialIds: ['m1'] })
+    }
+  )
 
   it('persists material, content, units, search_text and embeddings, then lists units in order', async () => {
     store.rebuildMaterial(

@@ -421,7 +421,7 @@ export class KnowledgeIndexStore {
   resolveGovernanceExclusions(bindings: KnowledgeIndexGovernanceBinding[]): KnowledgeIndexSearchExclusions {
     if (bindings.length === 0) return { unitIds: [], materialIds: [] }
     const rows = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.content_hash, su.char_start, su.char_end,
+      `SELECT su.unit_id, su.material_id, su.content_hash, su.unit_type, su.unit_index, su.char_start, su.char_end,
               st.text AS body, m.current_content_hash
        FROM search_unit su
        JOIN material m ON m.material_id = su.material_id
@@ -431,12 +431,40 @@ export class KnowledgeIndexStore {
       [JSON.stringify(bindings.map((binding) => binding.unitId))]
     ).rows
     const byId = new Map(rows.map((row) => [row.unit_id, row]))
+    const sources = this.driver.execute(
+      `SELECT m.material_id, c.text FROM material m
+       JOIN content c ON c.content_hash = m.current_content_hash
+       WHERE m.material_id IN (SELECT value FROM json_each(?))`,
+      [JSON.stringify([...new Set(bindings.map((binding) => binding.materialId))])]
+    ).rows
+    const sourceById = new Map(
+      sources.map((row) => [
+        row.material_id,
+        {
+          text: row.text as string,
+          hash: hashContentText(row.text as string)
+        }
+      ])
+    )
     const unitIds = new Set<string>()
     const materialIds = new Set<string>()
     for (const binding of bindings) {
       const row = byId.get(binding.unitId)
+      const source = sourceById.get(binding.materialId)
       if (
         !row ||
+        !source ||
+        source.hash !== binding.sourceContentHash ||
+        source.text.slice(binding.charStart, binding.charEnd) !== binding.originalText ||
+        binding.charEnd > source.text.length ||
+        computeUnitId(
+          binding.materialId,
+          binding.sourceContentHash,
+          row.unit_type as string,
+          Number(row.unit_index),
+          binding.charStart,
+          binding.charEnd
+        ) !== binding.unitId ||
         row.material_id !== binding.materialId ||
         row.current_content_hash !== binding.sourceContentHash ||
         row.content_hash !== binding.sourceContentHash ||
