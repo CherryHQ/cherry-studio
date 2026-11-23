@@ -252,11 +252,7 @@ function AssistantEditDialogContent({
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    return diffAssistantSaveIntent(
-      buildAssistantFormState(formBaseline, values),
-      formBaseline,
-      savedResource
-    )
+    return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, savedResource)
   }, [formBaseline, values, savedResource])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
