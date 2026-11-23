@@ -543,6 +543,38 @@ describe('Knowledge governance retrieval authority', () => {
     }
   )
 
+  it.each(['source-text', 'unit-index'] as const)(
+    'pauses only the damaged %s material before all retrieval lanes and exposes review',
+    async (kind) => {
+      const id = material(['😀 target original'])
+      const other = material(['target unaffected'])
+      const record = save(id, 0, { excluded: false, labels: ['kept'], overrideText: null })
+      const driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+      try {
+        if (kind === 'source-text')
+          driver.execute('UPDATE content SET text = ? WHERE content_hash = ?', [
+            'x'.repeat(record.originalText.length),
+            record.sourceContentHash
+          ])
+        else driver.execute('UPDATE search_unit SET unit_index = 7 WHERE material_id = ?', [id])
+      } finally {
+        driver.close()
+      }
+      const snapshot = readKnowledgeGovernanceSearchSnapshot(baseId, store)
+      expect(snapshot.exclusions.materialIds).toEqual([id])
+      for (const mode of ['bm25', 'vector', 'hybrid'] as const) {
+        expect(
+          store
+            .search({ queryText: 'target', queryEmbedding: [1, 0, 0], mode, topK: 10, exclusions: snapshot.exclusions })
+            .map((hit) => hit.materialId)
+        ).toEqual([other])
+      }
+      expect((await service.search(baseId, 'target')).map((hit) => hit.itemId)).toEqual([other])
+      expect(workflow.listReviews(baseId, id).records.map((row) => row.id)).toEqual([record.id])
+      expect(governance.get(baseId, id, record.unitId)).toEqual(record)
+    }
+  )
+
   it('rejects a newly committed exclusion before any stale candidate reaches the reranker', async () => {
     const id = material()
     enableRerank()

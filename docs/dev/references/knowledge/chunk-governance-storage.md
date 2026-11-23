@@ -71,7 +71,7 @@ History shows recorded original text, hash, offsets, operation, revision, time, 
 
 ## Retrieval authority
 
-Before search, `KnowledgeQueryService` reads durable record IDs/revisions and derives exclusions from the actual index. Exact unit/material IDs, source/content hashes, offsets and body text must match. There is no title, ordinal-only or similarity matching.
+Before search, `KnowledgeQueryService` reads durable record IDs/revisions and derives exclusions from the actual index. Exact unit/material IDs, source/content hashes, offsets and body text must match. Reconciliation also hashes the current immutable content row, compares its JavaScript UTF-16 source slice with the stored original, and recomputes unit identity from the current unit type/index. Matching metadata alone is not accepted when the actual source row or unit identity is inconsistent. Each affected material is read and hashed once per synchronous reconciliation snapshot; no original text is logged. There is no title, ordinal-only or similarity matching.
 
 - Exact excluded units are suppressed in every lane.
 - Non-null corrections remain pending and suppressed until effective-text/embedding publication exists.

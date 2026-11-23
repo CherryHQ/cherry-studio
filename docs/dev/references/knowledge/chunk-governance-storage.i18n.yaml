@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write docs/dev/references/knowledge/chunk-governance-storage.md
-chunk-governance-storage.md: 6a36386f2c1ad33fd3ba7a56fdd9aa1219898657
-chunk-governance-storage.zh.md: 6746f436ad2c81688ab0c63410f44ad045d6d183
+chunk-governance-storage.md: 5c197ba99ab261155c60130b450cdb967418f188
+chunk-governance-storage.zh.md: ffcf0d540447a41e025a6c6f293d456401c8f0bb
