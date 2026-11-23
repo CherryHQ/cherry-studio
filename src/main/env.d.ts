@@ -8,5 +8,6 @@ declare global {
     readonly MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET?: string
     readonly MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?: string
     readonly MAIN_VITE_POSTHOG_KEY?: string
+    readonly MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS?: string
   }
 }

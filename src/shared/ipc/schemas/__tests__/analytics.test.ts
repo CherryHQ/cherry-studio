@@ -21,4 +21,39 @@ describe('analytics.track schema', () => {
     ).toBe(false)
     expect(schema.safeParse({ event: 'cherryin_balance_increased', flowId: 'https://example.com' }).success).toBe(false)
   })
+
+  it('accepts usage events built from static identifiers only', () => {
+    expect(
+      schema.safeParse({
+        event: 'ui_clicked',
+        ui: 'chat.message-timeline.action.copy',
+        page: 'chat',
+        element: 'button',
+        input: 'pointer'
+      }).success
+    ).toBe(true)
+    expect(
+      schema.safeParse({ event: 'ui_clicked', ui: 'Copy message', page: 'chat', element: 'button', input: 'pointer' })
+        .success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        event: 'page_viewed',
+        page: 'settings',
+        subpage: 'provider',
+        durationMs: 1200,
+        activeMs: 900,
+        endReason: 'navigate',
+        capped: false
+      }).success
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        event: 'feature_used',
+        feature: 'mini_app',
+        action: 'opened',
+        target: 'https://example.com/app'
+      }).success
+    ).toBe(false)
+  })
 })

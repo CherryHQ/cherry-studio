@@ -443,6 +443,45 @@ describe('AnalyticsService product events', () => {
     })
   })
 
+  it('stamps product events with the local hour and an ISO weekday', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 15, 23, 30) })
+
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    vi.useRealTimers()
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'onboarding_option_selected',
+        properties: expect.objectContaining({ local_hour: 23, local_weekday: 7 })
+      })
+    )
+  })
+
+  it('stamps a replayed event with the local time it was raised, not when it was sent', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 15, 23, 59) })
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    vi.setSystemTime(new Date(2026, 10, 16, 0, 1))
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    vi.useRealTimers()
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'onboarding_option_selected',
+        properties: expect.objectContaining({ local_hour: 23, local_weekday: 7 })
+      })
+    )
+  })
+
   it('replays an event raised between consent and client start-up', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     captured.preferenceValues['app.privacy.policy_version'] = ''
@@ -583,6 +622,48 @@ describe('AnalyticsService product events', () => {
     const events = posthog.capture.mock.calls.map(([message]) => message.event)
     expect(events).not.toContain('onboarding_option_selected')
     expect(events.filter((event) => event === '$identify')).toHaveLength(1)
+  })
+
+  it('marks development traffic and keeps release traffic unmarked', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+    const release = new AnalyticsService()
+    await release._doInit()
+    await vi.waitFor(() => expect(release.isActivated).toBe(true))
+    release.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    expect(posthog.capture.mock.calls.at(-1)?.[0].properties.test).toBe(false)
+
+    BaseService.resetInstances()
+    vi.stubEnv('DEV', true)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const development = new AnalyticsService()
+    await development._doInit()
+    await vi.waitFor(() => expect(development.isActivated).toBe(true))
+    development.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    expect(posthog.capture.mock.calls.at(-1)?.[0].properties.test).toBe(true)
+  })
+
+  it('sends usage-behavior events only when the build enables them', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const click = {
+      event: 'ui_clicked',
+      ui: 'chat.message.action.copy',
+      page: 'chat',
+      element: 'button',
+      input: 'pointer'
+    } as const
+
+    service.trackProductEvent(click)
+    service.trackProductEvent({ event: 'setting_changed', key: 'app.language' })
+    expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'ui_clicked' }))
+    expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'setting_changed' }))
+
+    vi.stubEnv('MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS', 'true')
+    service.trackProductEvent(click)
+    expect(posthog.capture).toHaveBeenCalledWith(expect.objectContaining({ event: 'ui_clicked' }))
   })
 
   it('drops events raised without consent instead of replaying them later', async () => {
