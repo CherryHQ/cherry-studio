@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-import { buildPiLoginPathPrefix, mergePiShellExecutionEnv } from './piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, overlayPiAgentEnvVars } from './piShell'
 
 vi.mock('@main/core/platform', () => ({ isWin: true, isMac: false, isLinux: false, isDev: false, isPortable: false }))
 vi.mock('path', async () => {
@@ -61,5 +61,19 @@ describe('Pi Windows shell environment', () => {
       MISE_SHELL: 'pwsh',
       PSModulePath: 'C:\\User\\Modules'
     })
+  })
+})
+
+describe('overlayPiAgentEnvVars', () => {
+  it('preserves literal values and POSIX spelling without mutating inputs', () => {
+    const env = { Path: 'old', PATH: 'old2' }
+    const vars = { PATH: '', QUOTED: `a 'b' "c"=d` }
+    expect(overlayPiAgentEnvVars(env, vars, 'linux')).toEqual({ Path: 'old', PATH: '', QUOTED: `a 'b' "c"=d` })
+    expect(env).toEqual({ Path: 'old', PATH: 'old2' })
+    expect(vars.PATH).toBe('')
+  })
+  it('replaces Windows collisions using the last Agent spelling', () => {
+    expect(overlayPiAgentEnvVars({ Path: 'old', PATH: 'old2' }, { PATH: 'new' }, 'win32')).toEqual({ PATH: 'new' })
+    expect(overlayPiAgentEnvVars({}, { Path: 'first', PATH: 'second' }, 'win32')).toEqual({ PATH: 'second' })
   })
 })

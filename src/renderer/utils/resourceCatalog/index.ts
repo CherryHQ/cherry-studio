@@ -5,7 +5,8 @@ export {
   applyAgentFormPatch,
   buildInitialAgentFormState,
   diffAgentSaveIntent,
-  diffAgentUpdate
+  diffAgentUpdate,
+  envVarsFromText
 } from './agentForm'
 export {
   type AssistantDiffResult,

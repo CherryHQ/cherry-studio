@@ -85,6 +85,22 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('changes the signature for Agent environment edits but not permission changes', async () => {
+    const baseline = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.getAgent.mockReturnValueOnce({
+      ...agent,
+      configuration: { ...agent.configuration, env_vars: { EXAMPLE: 'value' } }
+    })
+    const changed = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.getAgent.mockReturnValueOnce({
+      ...agent,
+      configuration: { ...agent.configuration, env_vars: { EXAMPLE: 'value' }, permission_mode: 'bypassPermissions' }
+    })
+    const permissionOnly = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    expect(changed).not.toBe(baseline)
+    expect(permissionOnly).toBe(changed)
+  })
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({
