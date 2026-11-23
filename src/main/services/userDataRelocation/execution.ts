@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { settleRelocation } from '@main/services/analyticsPendingReports'
 import { isPathInside } from '@main/utils/file'
 import type { RelocationProgress } from '@shared/types/userDataRelocation'
 
@@ -96,6 +97,7 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
         publish(makeProgress('failed', relocation, 0, 0, message))
         return false
       }
+      settleRelocation(relocation.taskId, 'abandoned')
       clearRelocationState()
     }
     application.relaunch()
@@ -183,6 +185,7 @@ function persistFailedRelocation(pending: PendingRelocation | FailedRelocation, 
     failedAt: new Date().toISOString()
   }
   bootConfigService.set('temp.user_data_relocation', failed)
+  settleRelocation(pending.taskId, 'failed')
   // A BootConfig write failure must not crash preboot before the recovery
   // window can explain the error; flush() is best-effort and only logs.
   bootConfigService.flush()
@@ -409,6 +412,7 @@ function commitUserDataRelocation(targetPath: string): void {
     bootConfigService.set('temp.user_data_relocation', relocation)
     throw error
   }
+  if (relocation) settleRelocation(relocation.taskId, 'completed')
 
   logger.info('userData relocation committed', { exe, targetPath: canonicalTargetPath })
 }

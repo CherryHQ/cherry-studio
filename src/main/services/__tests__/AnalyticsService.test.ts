@@ -76,6 +76,16 @@ vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: vi.fn(() => 'global')
 }))
 
+const launch = vi.hoisted(() => ({
+  kind: vi.fn<() => 'first' | 'upgraded' | 'same'>(() => 'same'),
+  migratedFromV1: vi.fn(() => false),
+  pendingReports: vi.fn((): unknown[] => [])
+}))
+
+vi.mock('../VersionService', () => ({ versionService: { getLaunchKind: launch.kind } }))
+vi.mock('@data/migration/v1MigrationOrigin', () => ({ isMigratedFromV1: launch.migratedFromV1 }))
+vi.mock('../analyticsPendingReports', () => ({ takePendingReports: launch.pendingReports }))
+
 vi.mock('@main/utils/systemInfo', () => ({
   getClientId: vi.fn(() => 'test-client-id'),
   generateUserAgent: vi.fn(() => 'test-user-agent')
@@ -98,6 +108,8 @@ vi.mock('@application', async () => {
   })
 })
 
+import { application } from '@application'
+
 import { AnalyticsService } from '../AnalyticsService'
 
 let destroyResolvers: Array<() => void>
@@ -109,6 +121,7 @@ function changePreference(key: string, value: boolean | string): void {
 
 beforeEach(() => {
   BaseService.resetInstances()
+  MockMainCacheServiceUtils.resetMocks()
   vi.unstubAllEnvs()
   posthog.capture.mockClear()
   posthog.shutdown.mockClear()
@@ -522,8 +535,52 @@ describe('AnalyticsService product events', () => {
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
 
     const events = posthog.capture.mock.calls.map(([call]) => call)
-    expect(events.map(({ event }) => event)).toEqual(['app_opened', 'onboarding_option_selected'])
+    expect(events.map(({ event }) => event)).toEqual(['app_opened', 'onboarding_option_selected', 'app_active'])
     expect(events[0].properties).toMatchObject({ onboarding_status: 'pending' })
+  })
+
+  it('describes the launch in app_opened: first run, v1 origin, and how the previous run ended', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    launch.kind.mockReturnValueOnce('upgraded')
+    launch.migratedFromV1.mockReturnValueOnce(true)
+    const mutableApplication = application as unknown as { lastExit: string }
+    mutableApplication.lastExit = 'unclean'
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    mutableApplication.lastExit = 'unknown'
+
+    const opened = posthog.capture.mock.calls.map(([message]) => message).find(({ event }) => event === 'app_opened')
+    expect(opened.properties).toMatchObject({ launch: 'upgraded', migrated_from_v1: true, last_exit: 'unclean' })
+  })
+
+  it('still reports app_opened when the v1 migration record cannot be read', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    launch.migratedFromV1.mockImplementationOnce(() => {
+      throw new Error('database unavailable')
+    })
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const opened = posthog.capture.mock.calls.map(([message]) => message).find(({ event }) => event === 'app_opened')
+    expect(opened.properties).toMatchObject({ migrated_from_v1: false })
+  })
+
+  it('sends results saved before a relaunch right after app_opened', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    launch.pendingReports.mockReturnValueOnce([
+      { event: 'restore_run', target: 's3', status: 'completed' },
+      { event: 'data_relocation_run', copy: true, status: 'failed' }
+    ])
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const sent = posthog.capture.mock.calls.map(([message]) => message)
+    expect(sent.slice(0, 3).map(({ event }) => event)).toEqual(['app_opened', 'restore_run', 'data_relocation_run'])
+    expect(sent[1].properties).toMatchObject({ target: 's3', status: 'completed' })
+    expect(sent[2].properties).toMatchObject({ copy: true, status: 'failed' })
   })
 
   it('binds product events to a signed-in account and starts a new anonymous id after sign-out', async () => {
@@ -589,7 +646,8 @@ describe('AnalyticsService product events', () => {
 
     expect(posthog.capture.mock.calls.map(([message]) => [message.event, message.distinctId])).toEqual([
       ['$identify', 'cloud-api:cn:production:account:a1'],
-      ['app_opened', 'test-client-id']
+      ['app_opened', 'test-client-id'],
+      ['app_active', 'test-client-id']
     ])
     const [identify] = posthog.capture.mock.calls[0]
     expect(identify.properties.$anon_distinct_id).not.toBe('test-client-id')
@@ -886,6 +944,29 @@ describe('AnalyticsService daily snapshots', () => {
     expect(captures('settings_snapshot')).toEqual([])
     expect(captures('chat_branch_snapshot')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getPersist('analytics.snapshot.last_day')).toBeNull()
+  })
+
+  it('reports daily activity once per local day even while behavior events are off', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: new Date(2026, 10, 17, 9) })
+    await startService('false')
+    BaseService.resetInstances()
+    await startService('false')
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(captures('app_active')).toHaveLength(1)
+
+    // A session left running past midnight counts on the new day without a relaunch.
+    vi.setSystemTime(new Date(2026, 10, 18, 0, 30))
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(captures('app_active')).toHaveLength(2)
+  })
+
+  it('reports daily activity even when the behavior snapshot already ran today', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: new Date(2026, 10, 17, 9) })
+    MockMainCacheServiceExport.cacheService.setPersist('analytics.snapshot.last_day', '2026-11-17')
+    await startService()
+
+    expect(captures('settings_snapshot')).toEqual([])
+    expect(captures('app_active')).toHaveLength(1)
   })
 })
 

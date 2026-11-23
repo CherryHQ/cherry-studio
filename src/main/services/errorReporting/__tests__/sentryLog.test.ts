@@ -19,6 +19,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { PersistenceListener, TerminalPersistenceError } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { BaseService, ErrorHandling, Injectable, LifecycleManager, Phase, ServiceContainer } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
+import type * as PathConstants from '@main/core/paths/constants'
 import { ApiServer } from '@main/data/api/core/ApiServer'
 import { messageTable } from '@main/data/db/schemas/message'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
@@ -53,7 +54,10 @@ const { captureExceptionMock, captureEventMock, preferences, tmpLogsDir } = vi.h
 vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
-vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
+vi.mock('@main/core/paths/constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof PathConstants>()),
+  LOGS_DIR: tmpLogsDir
+}))
 vi.mock('@main/ipc/handlers/ipcHandlers', async () => {
   const { agentHandlers } = await import('@main/ipc/handlers/agent')
   return {

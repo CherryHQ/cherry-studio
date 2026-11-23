@@ -45,6 +45,7 @@ export class Application {
   private quitGuardsPassed = false
   private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
+  private _lastExit: 'clean' | 'unclean' | 'unknown' = 'unknown'
 
   /**
    * Frozen path registry. `null` until `bootstrap()` is invoked, after
@@ -198,6 +199,8 @@ export class Application {
       // If we reach here, user chose "Continue with Defaults"
     }
 
+    this.markRunning()
+
     const bootstrapStart = performance.now()
 
     try {
@@ -283,6 +286,7 @@ export class Application {
     if (unclean) {
       logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
     } else {
+      this.writeRunMarker('clean')
       logger.info(`Shutdown complete (${elapsed})`)
     }
 
@@ -411,6 +415,7 @@ export class Application {
           buttons: ['OK']
         })
       }
+      this.markStoppedForRelaunch()
       app.exit(0)
       return
     }
@@ -430,7 +435,39 @@ export class Application {
     }
 
     app.relaunch(options)
+    this.markStoppedForRelaunch()
     app.exit(0)
+  }
+
+  /** How the previous run ended, read once at bootstrap: graceful quit or relaunch, or not. */
+  public get lastExit(): 'clean' | 'unclean' | 'unknown' {
+    return this._lastExit
+  }
+
+  // Its own per-profile file: BootConfig is shared between installs and must keep a broken file intact.
+  private markRunning(): void {
+    let previous: string | undefined
+    try {
+      previous = fs.readFileSync(this.getPath('app.last_exit_marker_file'), 'utf8')
+    } catch {
+      // No marker yet: first launch, or the previous run predates it.
+    }
+    this._lastExit = previous === 'running' ? 'unclean' : previous === 'clean' ? 'clean' : 'unknown'
+    this.writeRunMarker('running')
+  }
+
+  private writeRunMarker(state: 'running' | 'clean'): void {
+    try {
+      fs.writeFileSync(this.getPath('app.last_exit_marker_file'), state)
+    } catch (error) {
+      logger.warn('Failed to write the run marker', error as Error)
+    }
+  }
+
+  // A relaunch skips shutdown(); pending boot config writes would otherwise be lost too.
+  private markStoppedForRelaunch(): void {
+    this.writeRunMarker('clean')
+    bootConfigService.flush()
   }
 
   /**

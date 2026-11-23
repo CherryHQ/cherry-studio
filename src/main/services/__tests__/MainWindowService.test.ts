@@ -184,6 +184,8 @@ vi.mock('@main/utils/windowUtil', () => ({
 }))
 
 vi.mock('../ContextMenu', () => ({ contextMenu: { contextMenu: vi.fn() } }))
+const trackMainProductEventMock = vi.hoisted(() => vi.fn())
+vi.mock('../productAnalytics', () => ({ trackMainProductEvent: trackMainProductEventMock }))
 vi.mock('../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: vi.fn(() => false) }))
 
 // `?asset` import resolves to a string at build time; in tests we just stub the path.
@@ -1619,6 +1621,20 @@ describe('MainWindowService', () => {
       created({ window: initial })
       initial.emit('ready-to-show')
       expect(initial.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports startup time once, for the first window of the process', async () => {
+      trackMainProductEventMock.mockClear()
+      const { created } = await bootWith(true)
+
+      const initial = createMockWindow()
+      created({ window: initial })
+      initial.emit('ready-to-show')
+      rebuildAndShow(svc, created).emit('ready-to-show')
+
+      expect(trackMainProductEventMock.mock.calls).toEqual([
+        [{ event: 'app_started', startupMs: expect.any(Number), launchToTray: true }]
+      ])
     })
 
     it('clears the flag when the initial window is destroyed before ready-to-show', async () => {

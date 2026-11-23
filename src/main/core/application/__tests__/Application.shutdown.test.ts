@@ -8,6 +8,10 @@
  * that handler, with a real LifecycleManager underneath.
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
@@ -63,6 +67,7 @@ describe('Application shutdown', () => {
 
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
     vi.spyOn(bootConfigService, 'flush').mockImplementation(() => {})
+    vi.spyOn(bootConfigService, 'set').mockImplementation(() => {})
     vi.spyOn(mockMainLoggerService, 'finish').mockImplementation(() => {})
     mockMainLoggerService.info.mockClear()
     mockMainLoggerService.warn.mockClear()
@@ -104,6 +109,27 @@ describe('Application shutdown', () => {
 
     await vi.runAllTimersAsync()
   }
+
+  it.each([
+    ['every service stops', false, 'clean'],
+    ['a service times out', true, 'running']
+  ])('records the run as ended cleanly only when %s', async (_, stuck, marker) => {
+    @Injectable('StopService')
+    class StopService extends BaseService {
+      protected override onStop() {
+        return stuck ? neverSettles() : undefined
+      }
+    }
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'run-marker-')), 'last-exit')
+    fs.writeFileSync(file, 'running')
+    const application = Application.getInstance()
+    application.__setPathMapForTesting({ 'app.last_exit_marker_file': file } as never)
+    ServiceContainer.getInstance().register(StopService)
+
+    await runWillQuit(application)
+
+    expect(fs.readFileSync(file, 'utf8')).toBe(marker)
+  })
 
   it('should not force-exit when a single service times out, and still stop the rest', async () => {
     const stopped: string[] = []

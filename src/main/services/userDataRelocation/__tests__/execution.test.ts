@@ -171,7 +171,9 @@ beforeEach(async () => {
     protectedRoot: makeRoot(),
     'app.temp': appTemp,
     'app.userdata': null,
-    'temp.user_data_relocation': null
+    'temp.user_data_relocation': null,
+    // As queued by the consented request that preboot now settles.
+    'temp.analytics.pending_reports': [{ event: 'data_relocation_run', copy: true, status: 'staged', taskId: TASK_ID }]
   }
   bootConfigGetMock.mockImplementation((key: string) => relocationState[key])
   bootConfigSetMock.mockImplementation((key: string, value: unknown) => {
@@ -615,6 +617,9 @@ describe('userDataRelocation execution', () => {
       error: expect.stringContaining('not enough free space')
     })
     expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
+    expect(relocationState['temp.analytics.pending_reports']).toEqual([
+      { event: 'data_relocation_run', copy: true, status: 'failed', taskId: TASK_ID }
+    ])
   })
 
   it.each(['outside', 'inside'])(
@@ -648,6 +653,9 @@ describe('userDataRelocation execution', () => {
       expect(relocationState['temp.user_data_relocation']).toBeNull()
       expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
       expect(relaunchMock).toHaveBeenCalledTimes(1)
+      expect(relocationState['temp.analytics.pending_reports']).toEqual([
+        { event: 'data_relocation_run', copy: true, status: 'abandoned', taskId: TASK_ID }
+      ])
     }
   )
 
@@ -698,6 +706,9 @@ describe('userDataRelocation execution', () => {
     expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
     expect(fs.existsSync(path.join(target, '.cherry-relocation-owner.json'))).toBe(false)
     expectCommitted(target, { '/other/exe': '/other/data' })
+    expect(relocationState['temp.analytics.pending_reports']).toEqual([
+      { event: 'data_relocation_run', copy: true, status: 'completed', taskId: TASK_ID }
+    ])
   })
 
   it('publishes file-granularity copy progress clamped to the scanned total', async () => {

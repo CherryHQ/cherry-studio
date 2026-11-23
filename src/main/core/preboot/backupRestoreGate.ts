@@ -56,11 +56,16 @@ export function prepareBackupRestoreSession(): boolean {
  * resumable) so the next boot does not retry a promotion that just proved
  * itself poisonous.
  *
+ * `onSettled` receives a restore's terminal outcome once, before its journal is cleaned up.
+ *
  * Refuses to boot if recovery strands the live DB or an isolated launch cannot
  * consume its journal. This preserves repair artifacts and prevents either an
  * empty database boot or an automatic relaunch loop.
  */
-export async function runBackupRestoreGate(isolatedSession = false): Promise<'handled' | 'skipped'> {
+export async function runBackupRestoreGate(
+  isolatedSession = false,
+  onSettled?: (status: 'completed' | 'failed') => void
+): Promise<'handled' | 'skipped'> {
   try {
     await runRestorePromotion()
   } catch (error) {
@@ -77,7 +82,9 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
     }
   }
   const result = readRestoreJournal()
+  if (result.kind === 'ok' && result.journal.state === 'completed') onSettled?.('completed')
   if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
+    onSettled?.('failed')
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
     dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))

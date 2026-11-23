@@ -205,7 +205,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     quit: vi.fn(),
     markQuitting: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
-    isQuitting: false
+    isQuitting: false,
+    // Tests can mutate `application.lastExit` to model how the previous run ended.
+    lastExit: 'unknown' as 'clean' | 'unclean' | 'unknown'
   }
 }
 
