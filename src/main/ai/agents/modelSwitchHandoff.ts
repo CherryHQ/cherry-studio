@@ -60,6 +60,7 @@ export async function generateModelSwitchHandoff(
     const session = agentSessionService.getById(sessionId)
     if (!session.agentId) throw DataApiErrorFactory.invalidOperation('model handoff', 'Session has no Agent')
     const agent = agentService.getAgent(session.agentId)
+    if (!agent) throw DataApiErrorFactory.invalidOperation('model handoff', 'Session Agent no longer exists')
     const env = await buildEnvironment(provider, agent)
     text = await application.get('AiService').runWithAbort(requestId, async (signal) => {
       const { query } = await import('@anthropic-ai/claude-agent-sdk')
