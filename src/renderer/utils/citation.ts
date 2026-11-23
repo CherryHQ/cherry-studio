@@ -14,16 +14,23 @@ import type { GroundingSupport } from '@google/genai'
 import type { Root, RootContent } from 'mdast'
 import remarkDefinitionList from 'remark-definition-list'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 // Same syntax extensions the chat renderer parses with, so table cells, definition lists and
 // strikethrough split code spans exactly as they do on screen.
-const markdownParser = unified().use(remarkParse).use(remarkGfm).use(remarkDefinitionList)
+const markdownParser = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkDefinitionList)
+  .use(remarkMath)
+  .use(remarkLatexMath)
 
 type CodeRange = { start: number; end: number }
 
@@ -64,12 +71,34 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
   const stack: Array<Root | RootContent> = [markdownParser.parse(content)]
   while (stack.length > 0) {
     const node = stack.pop()!
-    if ((node.type === 'code' || node.type === 'inlineCode') && node.position) {
+    if (
+      (node.type === 'code' ||
+        node.type === 'inlineCode' ||
+        node.type === 'math' ||
+        node.type === 'inlineMath' ||
+        (node.type === 'html' && node.value.startsWith('<!--'))) &&
+      node.position
+    ) {
       const { start, end } = node.position
       if (start.offset !== undefined && end.offset !== undefined) {
         const range = { start: start.offset, end: end.offset }
         allCodeRanges.push(range)
-        if (isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
+        if (node.type !== 'code' || isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
+        else {
+          // The stray-indentation fallback remains prose, but its backtick literals are opaque.
+          const raw = content.slice(start.offset, end.offset)
+          const runs = [...raw.matchAll(/`+/g)]
+          for (let i = 0; i < runs.length; i++) {
+            const opener = runs[i]
+            const close = runs.findIndex((run, index) => index > i && run[0].length === opener[0].length)
+            if (close < 0) continue
+            ranges.push({
+              start: start.offset + opener.index,
+              end: start.offset + runs[close].index + runs[close][0].length
+            })
+            i = close
+          }
+        }
       }
       continue
     }

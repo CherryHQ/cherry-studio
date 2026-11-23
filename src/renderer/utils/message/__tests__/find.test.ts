@@ -232,6 +232,40 @@ describe('getWebSourcesMarkdown', () => {
     }
   )
 
+  it('preserves a backtick literal inside the stray-indentation fallback without consuming numbering', () => {
+    const text = '    const marker = `[2]`;\n\nReal claim [cite:1].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content).toContain('const marker = `[2]`;')
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('does not pair backticks across display-math boundaries', () => {
+    const text = '$$\nx = `1\n$$\nReal claim [cite:1].\n`'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('excludes comment-only citations while keeping the same marker eligible in prose', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: 'Visible answer\n\n<!-- [cite:1] -->' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = { type: 'text', text: 'Visible claim [cite:1].' }
+    expect(getCitedWebSources(message)).toHaveLength(1)
+  })
+
   it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
     const message = createExportView([
       { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
