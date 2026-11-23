@@ -1,11 +1,10 @@
-import { Icon } from '@iconify/react'
 import type { Editor } from '@tiptap/core'
 import { Folder } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { FILE_TYPE } from '@renderer/types/file'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
@@ -284,7 +283,7 @@ export function useAgentResourceMentionSource({
                 id: createAgentResourceItemId(filePath),
                 label: getBaseName(filePath),
                 description: relativePath,
-                icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} width={16} height={16} />,
+                icon: <FileIcon path={filePath} width={16} height={16} />,
                 filterText: `${relativePath} ${filePath}`,
                 disabled: files.some(isSelectedFile),
                 command: ({ editor }) => {

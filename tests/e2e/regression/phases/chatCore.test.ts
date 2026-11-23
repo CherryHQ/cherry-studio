@@ -17,7 +17,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { openAttachmentPicker, sendChatMarker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
-import { openSettingsSection } from '../helpers/settings'
+import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
@@ -39,7 +39,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
   const providerId = `mp09-${Date.now()}`
   const assistantName = app.resourceName('Attachment input')
   const topicName = app.resourceName('Attachment conversation')
-  const imageText = `ORCHID ${Date.now()}`
+  const imageText = 'ORCHID 314159265'
   const documentText = `The project is named IRIS. Its launch date is 17 November. Its budget is 731 dollars.`
   const imageName = 'mp09-readable.png'
   const textName = 'mp09-summary.txt'
@@ -66,7 +66,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
         'feature.screenshot.enabled': true
       })
     )
-    // Use the configured real provider: canned answers cannot establish OCR or document comprehension.
+    // Use fixture model decisions to verify image and document transport through the real application.
     const config = app.config.customProvider
     const created = await page.evaluate(
       async ({ providerId, config }) => {
@@ -348,7 +348,10 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     })
     await screenshot('MP-10 scrolled search provider list')
     await page.getByRole('option', { name: 'DuckDuckGo', exact: true }).click()
-    await expect(searchSection()).toContainText('No API key required')
+    await searchSection()
+      .getByRole('img', { name: /No API key required/i })
+      .hover()
+    await expect(page.getByRole('tooltip')).toContainText('No API key required')
     expect(await page.evaluate(() => window.api.preference.get('chat.web_search.default_fetch_urls_provider'))).toBe(
       preferences.fetch
     )
@@ -377,8 +380,9 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     await expect(searchSection().getByRole('combobox')).toHaveText('DuckDuckGo')
     await expect(fetchSection().getByRole('combobox')).toHaveText('fetch')
     await screenshot('MP-10 independently saved providers')
+    await closeSettings(page)
 
-    // Use the configured real model and live DuckDuckGo; no canned replies or search results.
+    // The configured model drives the live DuckDuckGo lookup through the client tool.
     const config = app.config.customProvider
     const created = await page.evaluate(
       async ({ providerId, config }) => {
@@ -408,7 +412,14 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
           id: 'mp10-model',
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId: config.chatModel, endpointTypes: ['openai-chat-completions'] }]
+          body: [
+            {
+              providerId,
+              modelId: config.chatModel,
+              endpointTypes: ['openai-chat-completions'],
+              capabilities: ['function-call']
+            }
+          ]
         })
         return [provider.status, enabled.status, models.status]
       },
@@ -444,7 +455,11 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const row = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), row)
     await row.hover()
     const expand = row.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
@@ -487,7 +502,7 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     expect(searchResults.length, 'The live search must return sources, not just a model-authored URL').toBeGreaterThan(
       0
     )
-    const sources = enabledMessage.locator('a[href^="http"]')
+    const sources = enabledMessage.locator('a[href^="http"]').filter({ has: page.locator('sup[data-citation]') })
     await expect(sources.first(), 'Search-enabled answer must expose a clickable source').toBeVisible()
     expect(new URL((await sources.first().getAttribute('href'))!).protocol).toMatch(/^https?:$/)
     const linkedUrls = await sources.evaluateAll((links) => links.map((link) => link.getAttribute('href')))

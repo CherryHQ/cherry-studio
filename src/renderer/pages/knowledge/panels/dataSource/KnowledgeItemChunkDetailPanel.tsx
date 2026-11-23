@@ -168,12 +168,7 @@ const KnowledgeItemChunkDetailPanel = ({
             <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
           ) : null}
           {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
-            <EmptyState
-              preset="no-file"
-              title={t('knowledge.data_source.empty_description')}
-              compact
-              className="h-full"
-            />
+            <EmptyState title={t('knowledge.data_source.empty_description')} compact className="h-full" />
           ) : null}
         </ScrollArea>
       )}

@@ -13,7 +13,7 @@ it('dispatches one validated platform and retains the machine-readable verdict a
     default: 'clean'
   })
   const run = workflow.jobs.test.steps.find((step: { name?: string }) => step.name === 'Run one test')
-  expect(run.env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY).toBe('${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}')
+  expect(JSON.stringify(workflow)).not.toMatch(/(?:secrets|vars)\.CHERRY_TEST_CUSTOM_PROVIDER_/)
   const preflight = workflow.jobs.resolve.steps.find((step: { id?: string }) => step.id === 'ref')
   expect(preflight.env).toEqual(run.env)
   expect(workflow.jobs.test.strategy).toBeUndefined()

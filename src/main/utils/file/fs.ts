@@ -1,5 +1,3 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-2): compressImage is the last remaining stub; its parameters shape the public signature but are unused until the KnowledgeService consumer migrates. */
-
 /**
  * Core filesystem operations — the ONLY module that imports `node:fs`.
  *
@@ -55,10 +53,6 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import { createContentHasher } from './contentHash'
 
 const logger = loggerService.withContext('utils/file/fs')
-
-const notImplemented = (op: string): never => {
-  throw new Error(`@main/utils/file/fs.${op}: not implemented (deferred to Phase 2)`)
-}
 
 /** Read file content as text with optional encoding detection. */
 export async function read(
@@ -856,11 +850,6 @@ export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
     return
   }
   await fsMkdirPromise(target, { recursive: true })
-}
-
-/** Compress an image (sharp). Returns the output path. */
-export async function compressImage(_input: AbsoluteFilePath | Uint8Array, _output: AbsoluteFilePath): Promise<void> {
-  return notImplemented('compressImage')
 }
 
 /**

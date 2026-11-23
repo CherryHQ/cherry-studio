@@ -92,7 +92,6 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       try {
         const sessionId = await createSelectionAgentSession(target)
         setStage({ kind: 'conversation', sessionId, firstMessage })
-        void ipcApi.request('selection.resize_agent_window', { mode: 'conversation' })
         return null
       } catch (error) {
         logger.error('Failed to create the selection agent session', error as Error)
@@ -160,6 +159,13 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
     observer.observe(shell)
     return () => observer.disconnect()
   }, [isCompose])
+
+  // Driven by the rendered stage, so a session that resolves after a pooled window moved on to the next open
+  // never resizes that open's window.
+  const isConversation = stage.kind === 'conversation'
+  useLayoutEffect(() => {
+    if (isConversation) void ipcApi.request('selection.resize_agent_window', { mode: 'conversation' })
+  }, [isConversation])
 
   const togglePin = () => {
     setIsPinned(!isPinned)
