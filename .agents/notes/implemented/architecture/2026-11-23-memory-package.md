@@ -1,16 +1,16 @@
 # Agent Note: Portable shared memory package
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-23-memory-package.zh.md)
 
 ## Problem
 
-The [shared memory Spec](../feature/2026-10-29-shared-memory.md) defines what an Assistant or Agent can remember. Its [desktop implementation](../../../../src/main/ai/memory/README.md) couples those rules to Electron identities, Node file operations, Drizzle queries and desktop jobs. The [mobile app](https://github.com/CherryHQ/cherry-studio-app/tree/41afc6ecbaa168ef66e23ed75f09851042707e94) has its own session, storage and model services. Reimplementing the rules there would give each client a different place to fix a lost correction, stale write or history leak.
+The [shared memory Spec](../../proposed/feature/2026-10-29-shared-memory.md) defines what an Assistant or Agent can remember. Its [desktop implementation](../../../../src/main/ai/memory/README.md) couples those rules to Electron identities, Node file operations, Drizzle queries and desktop jobs. The [mobile app](https://github.com/CherryHQ/cherry-studio-app/tree/41afc6ecbaa168ef66e23ed75f09851042707e94) has its own session, storage and model services. Reimplementing the rules there would give each client a different place to fix a lost correction, stale write or history leak.
 
-## Proposal
+## Decision
 
-Deliver `@cherrystudio/memory` in `packages/memory`. Use the complete [desktop tree at 8231bf0](https://github.com/CherryHQ/cherry-studio/tree/8231bf06993490cdc7c3e15f0b73d456beef8fc7/src/main/ai/memory) as the behavioral baseline for shared and Agent-private scopes. The package implements the flows below. Desktop cutover, mobile integration and device tests, npm publication and cross-device synchronization are separate deliveries. Desktop retains its legacy FACT upgrade and editor UI.
+Cherry Studio provides `@cherrystudio/memory` in `packages/memory`. Use the complete [desktop tree at 8231bf0](https://github.com/CherryHQ/cherry-studio/tree/8231bf06993490cdc7c3e15f0b73d456beef8fc7/src/main/ai/memory) as the behavioral baseline for shared and Agent-private scopes. The package implements the flows below. Desktop cutover, mobile integration and device tests, npm publication and cross-device synchronization are separate deliveries. Desktop retains its legacy FACT upgrade and editor UI.
 
 ### Host contract
 
@@ -31,29 +31,25 @@ Deliver `@cherrystudio/memory` in `packages/memory`. Use the complete [desktop t
 - Run one maintenance pass on host wakeup. Extraction and Dreaming have independent switches and share the worker. Organization uses ten controlled changes, seven days of pending changes, capacity pressure or a manual request as triggers. Foreground activity defers work. Release the write lock during inference and revalidate inputs at commit. When moving a topic, write its destination and update links before deleting its source.
 - Export the `memory_search` definition and execution. Bind searches and expansions to the trusted owner and selected branches, exclude the current message by ID and count both operations against four calls per answer. Return bounded excerpts with correction and truncation information. Hosts own the FTS query and MCP, AI SDK or runtime tool registration.
 
-### Delivery
-
-P1 defines this contract. P2 delivers neutral public types, formats and byte limits. P3 delivers controlled storage, conversation context and recovery. P4 delivers model-backed extraction, correction and durable admission. P5 delivers Dreaming and shared scheduling. P6 delivers recall. P7 delivers documentation, a source-to-package map and an installable tarball. Use one dependent PR per layer. Compare the source map with upstream fixes before accepting the artifact.
-
 ## Alternatives considered
 
 - Copy the desktop service into mobile. Its file identity, authorization and session lifecycle depend on the desktop process.
 - Share schemas and prompts alone. Each app would still own the decisions that can lose a correction or replay an interrupted write.
 - Migrate both apps in this stack. That couples package review to two runtime integrations. An independent consumer can exercise the public contract first.
 
-## Acceptance criteria
-
-- AC1 — A consumer outside the workspace can install the tarball, resolve the ESM and CJS entries and consume their declarations. (verification: packaged artifact, P7)
-- AC2 — The runtime and declarations resolve without Electron, Node built-ins, React, database drivers or desktop aliases. The React Native export selects the neutral implementation. (verification: packaged artifact dependency and export checks, P2/P7)
-- AC3 — Markdown round trips preserve its bytes. Entry filtering, missing versus empty files and multibyte truncation match the baseline. (verification: unit, P2)
-- AC4 — A stale file or file set, edited proposal, expired receipt, cancellation or revocation before final commit prevents the write. (verification: unit, controlled interleavings, P3)
-- AC5 — An interrupted multi-file commit reports individual outcomes. A new engine can reconcile the backup with actual files and resume eligible recovery. (verification: unit, fault injection, P3)
-- AC6 — Adds and all three correction cases retain quoted evidence, conditions and source-local dates. Fabricated references fail and invalidated copies leave the current view. (verification: unit, fixed model outputs, P3/P4)
-- AC7 — Eight successful turns or local 21:00 make a batch due. Restart resumes without duplicate saves. Foreground activity defers work and revocation invalidates it. Independent switches and organization triggers operate through the shared worker. (verification: unit, controlled clock and restart, P4/P5)
-- AC8 — Recall isolates owners and selected branches, excludes the current message, enforces its call budget and reports expansion, truncation and applicable corrections. (verification: unit, branched conversation fixtures, P6)
-- AC9 — Conversation snapshots stay stable. Invalidation, purpose filtering, forgetting and recovery prevent protected or superseded text from reappearing in current context. (verification: unit, context and recovery scenarios, P3/P4)
-- AC10 — An independent consumer using the installed tarball and a test host completes read, extract, commit, organize, search, clear and recover through public operations. (verification: packaged artifact, P7)
-
-## Risks
+## Consequences
 
 Two implementations will coexist until desktop adoption. Pin source revisions, port behavioral cases and track relevant fixes. A test host can demonstrate ordering and recovery at the package boundary. Native adapters must separately prove file identity, conditional replacement and revocation ordering on their own storage. A JavaScript permission check followed by an asynchronous bridge write leaves an interval in which permission may change.
+
+## Verification
+
+- AC1 — `scripts/check-package.mjs`: The installed tarball resolves both JavaScript entries and their TypeScript declarations.
+- AC2 — `scripts/check-package.mjs`: A standalone browser bundle resolves all runtime dependencies. The installed workflow also runs with the React Native export condition.
+- AC3 — `tests/format.test.mjs`: Markdown round trips, missing and empty views and multibyte line limits pass.
+- AC4 — `tests/store.test.mjs`: A changed file set, a stale receipt or a revoked approval prevents the proposed write.
+- AC5 — `tests/store.test.mjs`: A fresh store restores the committed portion after a simulated multi-file failure.
+- AC6 — `tests/extraction.test.mjs`: Fixed model outputs exercise adds, all three correction reasons, source-local dates, hidden duplicates and invented quotes.
+- AC7 — `tests/dreaming.test.mjs, tests/extraction.test.mjs, tests/workflow.test.mjs`: The tests exercise eight turns, the local daily cutoff, recovery after a file commit, foreground interruption, independent switches, ten changes and seven days.
+- AC8 — `tests/recall.test.mjs`: Branched history tests cover owner isolation, current inputs, the shared search/expansion budget, truncation and correction metadata.
+- AC9 — `tests/dreaming.test.mjs, tests/extraction.test.mjs, tests/workflow.test.mjs`: Context, correction and recovery tests cover stable entry reads, hidden obsolete copies and clear/undo across sessions.
+- AC10 — `scripts/check-package.mjs`: The installed consumer completes extraction, commit, restart, organization, recall, clear and recovery.

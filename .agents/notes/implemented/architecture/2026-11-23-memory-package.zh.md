@@ -1,14 +1,14 @@
 # Agent Note: 跨端共享记忆包
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-23-memory-package.md) | 中文
 
 ## 问题
 
-[共享记忆方案](../feature/2026-10-29-shared-memory.md)定义了助手和智能体可以记住哪些内容。[桌面实现](../../../../src/main/ai/memory/README.md)把这些规则与 Electron 身份、Node 文件操作、Drizzle 查询和后台任务放在一起。[移动端](https://github.com/CherryHQ/cherry-studio-app/tree/41afc6ecbaa168ef66e23ed75f09851042707e94)有自己的会话、存储和模型服务。两端各写一套规则，遇到纠错丢失、旧请求覆盖文件或聊天记录越权时，就要分别修复。
+[共享记忆方案](../../proposed/feature/2026-10-29-shared-memory.md)定义了助手和智能体可以记住哪些内容。[桌面实现](../../../../src/main/ai/memory/README.md)把这些规则与 Electron 身份、Node 文件操作、Drizzle 查询和后台任务放在一起。[移动端](https://github.com/CherryHQ/cherry-studio-app/tree/41afc6ecbaa168ef66e23ed75f09851042707e94)有自己的会话、存储和模型服务。两端各写一套规则，遇到纠错丢失、旧请求覆盖文件或聊天记录越权时，就要分别修复。
 
-## 提案
+## 决策
 
 在 `packages/memory` 下提供 `@cherrystudio/memory`。共享范围和智能体私有范围的行为都以[桌面提交 8231bf0 的完整实现](https://github.com/CherryHQ/cherry-studio/tree/8231bf06993490cdc7c3e15f0b73d456beef8fc7/src/main/ai/memory)为基准。包实现下述流程。桌面切换、移动端接入与设备验证、npm 发布以及跨设备同步分别交付。旧 FACT 升级和编辑器界面由桌面负责。
 
@@ -31,29 +31,25 @@ Status: proposed
 - 宿主唤醒时运行一次维护。提炼和 Dreaming 整理使用独立开关，共用执行器。十次受控修改、待处理变化达到七天、容量预警或人工请求均可触发整理。前台活动使任务延期。推理期间释放写锁，提交时复核输入。转移主题时先写入目标并更新链接，最后删除来源。
 - 导出 `memory_search` 的定义和执行能力。检索与展开都绑定可信归属和选中分支，按消息标识排除当前提问。每次回答合计最多调用四次。返回有长度限制的原文片段，标明相关纠错与截断。宿主负责 FTS 查询以及 MCP、AI SDK 或运行时工具注册。
 
-### 交付顺序
-
-P1 定义契约。P2 提供平台无关的公开类型、格式与字节限制。P3 实现受控存储、会话上下文与恢复。P4 实现模型提炼、纠错及轮次登记的持久化。P5 实现 Dreaming 和共用调度。P6 实现历史检索。P7 交付文档、源码对应清单和可安装的压缩包。每层使用一个依赖直接父层的 PR。验收产物前，按清单核对上游修复。
-
 ## 考虑过的替代方案
 
 - 复制桌面服务到移动端。其文件身份、授权和会话生命周期依赖桌面进程。
 - 只共享数据结构和提示词。两端仍需分别决定如何保存纠错、怎样避免重复执行中断的写入。
 - 在同一栈迁移两个客户端。包的评审会依赖两端运行时接入。独立消费者可以先验证公开契约。
 
-## 验收标准
-
-- AC1 — 工作区外的消费者可安装压缩包，解析 ESM 和 CJS 入口并使用对应类型声明。(verification: packaged artifact, P7)
-- AC2 — 运行时及声明可独立解析，无需 Electron、Node 内置模块、React、数据库驱动或桌面别名。React Native 导出条件指向平台无关实现。(verification: packaged artifact dependency and export checks, P2/P7)
-- AC3 — Markdown 读写保留原始字节。条目过滤、缺失与空文件的区分、多字节截断与基线一致。(verification: unit, P2)
-- AC4 — 文件或文件集变化、审批提案被编辑、读取凭据失效，以及最终提交前取消或撤权，均阻止旧写入。(verification: unit, controlled interleavings, P3)
-- AC5 — 多文件提交中断后返回逐文件结果。新建引擎可核对备份和实际文件，继续恢复符合条件的项目。(verification: unit, fault injection, P3)
-- AC6 — 新增事实和三类明确纠错保留逐字证据、条件和来源当地日期。拒绝伪造引用，当前视图排除失效副本。(verification: unit, fixed model outputs, P3/P4)
-- AC7 — 满八个成功轮次或到当地时间 21:00 触发批次。重启续跑且不重复保存。前台活动使任务延期，撤权使旧任务失效。共用执行器遵守独立开关及整理触发条件。(verification: unit, controlled clock and restart, P4/P5)
-- AC8 — 历史检索按归属及选中分支隔离，排除当前消息，执行调用预算，并标明展开、截断和适用的纠错。(verification: unit, branched conversation fixtures, P6)
-- AC9 — 会话快照保持稳定。失效、用途过滤、遗忘与恢复规则共同阻止受保护或已被替代的正文重新进入当前上下文。(verification: unit, context and recovery scenarios, P3/P4)
-- AC10 — 独立消费者安装压缩包，使用测试宿主通过公开接口完成读取、提炼、提交、整理、检索、清空和恢复。(verification: packaged artifact, P7)
-
-## 风险
+## 影响
 
 桌面接入前会同时保留两份实现。固定来源版本，迁移行为用例，并追踪相关修复。测试宿主可以验证包接口的写入顺序和恢复结果。原生适配器仍需用实际存储验证文件身份、条件替换和撤权顺序。JavaScript 检查权限后再经异步原生桥写入，两步之间权限可能变化。
+
+## 验证
+
+- AC1 — `scripts/check-package.mjs`: 独立安装压缩包后，两个 JavaScript 入口及其 TypeScript 声明均可解析。
+- AC2 — `scripts/check-package.mjs`: 独立浏览器构建可解析运行时依赖，消费者流程在 React Native 导出条件下运行。
+- AC3 — `tests/format.test.mjs`: 普通 Markdown 往返、缺失和空视图、多字节整行截断均通过。
+- AC4 — `tests/store.test.mjs`: 文件集变化、旧读取凭据和审批撤销均阻止写入。
+- AC5 — `tests/store.test.mjs`: 模拟多文件写入中断后，新存储实例恢复已提交的部分。
+- AC6 — `tests/extraction.test.mjs`: 固定模型输出覆盖新增、三种纠错、来源当地日期、失效副本过滤和伪造引文。
+- AC7 — `tests/dreaming.test.mjs, tests/extraction.test.mjs, tests/workflow.test.mjs`: 测试覆盖八个轮次、当地每日截止、文件提交后重启、前台打断、独立开关、十次修改和七天触发。
+- AC8 — `tests/recall.test.mjs`: 分支历史测试覆盖归属隔离、当前输入、检索与展开共用预算、截断与纠错信息。
+- AC9 — `tests/dreaming.test.mjs, tests/extraction.test.mjs, tests/workflow.test.mjs`: 上下文、纠错和恢复测试覆盖入口快照、过期副本过滤、跨会话清空与撤销。
+- AC10 — `scripts/check-package.mjs`: 安装后的消费者完成提炼、提交、重启、整理、检索、清空和恢复。
