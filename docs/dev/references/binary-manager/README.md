@@ -52,6 +52,8 @@ A snapshot obtains live mise data with one `mise ls --json` query and reports a 
 
 Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
+The mise JSON boundary validates the optional version, active flag and install-path fields before deriving these facts. Full listings use tool-keyed arrays; targeted version queries accept the native version array and the previously supported grouped shape. Malformed fields keep the result unknown or block cleanup; they never prove installation or absence.
+
 ### Installed file sizes
 
 The full Environment Dependencies view accepts and renders snapshots before requesting `binary.get_tool_installed_sizes` for preset names and the custom cards it actually displays. Mini mode and boot do not request sizes. This separate batch returns only requested names mapped to bytes or null; pending, null and rejected requests add no badge, placeholder or error UI and do not change installation operations. Availability events and refresh start immediately discard old size responses.

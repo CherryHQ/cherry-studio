@@ -1336,7 +1336,22 @@ describe('BinaryManager', () => {
 
       it.each([
         ['a non-object', JSON.stringify(['not', 'an', 'object']), 'mise ls --json returned a non-object shape'],
-        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd']
+        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd'],
+        [
+          'invalid install version',
+          JSON.stringify({ fd: [{ version: 1 }] }),
+          'mise ls --json returned an invalid install for fd'
+        ],
+        [
+          'invalid active flag',
+          JSON.stringify({ fd: [{ active: 'true' }] }),
+          'mise ls --json returned an invalid install for fd'
+        ],
+        [
+          'invalid install path',
+          JSON.stringify({ fd: [{ install_path: 1 }] }),
+          'mise ls --json returned an invalid install for fd'
+        ]
       ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout, message) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
@@ -1547,26 +1562,40 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
-    it('cleans the backend and then drops the definition for an applied custom tool', async () => {
-      const service = makeService()
-      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
-      let uninstalled = false
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2)
-          return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
-        if (args[0] === 'ls')
-          return { stdout: uninstalled ? '{}' : JSON.stringify({ 'npm:mytool': [{ version: '1.0.0' }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
-        if (args[0] === 'uninstall') uninstalled = true
-        return { stdout: '', stderr: '' }
-      })
+    it.each(['grouped', 'array'])(
+      'cleans the backend before dropping the definition with %s targeted mise output',
+      async (shape) => {
+        const service = makeService()
+        manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+        let uninstalled = false
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2)
+            return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
+          if (args[0] === 'ls')
+            return {
+              stdout: JSON.stringify(
+                shape === 'array'
+                  ? uninstalled
+                    ? []
+                    : [{ version: '1.0.0' }]
+                  : uninstalled
+                    ? {}
+                    : { 'npm:mytool': [{ version: '1.0.0' }] }
+              ),
+              stderr: ''
+            }
+          if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+          if (args[0] === 'uninstall') uninstalled = true
+          return { stdout: '', stderr: '' }
+        })
 
-      await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
+        await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
 
-      expect(miseArgs()).toContainEqual(['unuse', '-g', 'npm:mytool'])
-      expect(miseArgs()).toContainEqual(['uninstall', '--all', 'npm:mytool'])
-      expect(manifestRef.value).toEqual([])
-    })
+        expect(miseArgs()).toContainEqual(['unuse', '-g', 'npm:mytool'])
+        expect(miseArgs()).toContainEqual(['uninstall', '--all', 'npm:mytool'])
+        expect(manifestRef.value).toEqual([])
+      }
+    )
 
     it('blocks with a typed conflict and retains the definition when the recipe conflicts', async () => {
       const service = makeService()
@@ -1712,6 +1741,21 @@ describe('BinaryManager', () => {
       expect(miseArgs()).toContainEqual(['uninstall', '--all', 'core:node'])
     })
 
+    it('retains the custom definition when the post-cleanup listing has invalid fields', async () => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2)
+          return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'ls') return { stdout: JSON.stringify([{ version: 1 }]), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.removeTool({ name: 'mytool' })).resolves.toMatchObject({ status: 'cleanup_blocked' })
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
+    })
+
     it('blocks with cleanup_failed when a cleanup command fails, retaining the custom definition', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
@@ -1815,6 +1859,19 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockRejectedValue(new Error('unexpected argument --json'))
 
       await expect(service.searchRegistry('fd')).rejects.toThrow('unexpected argument --json')
+    })
+
+    it.each([
+      { fd: { short: 'fd', backends: ['aqua:fd'] } },
+      [{ short: 'fd', backends: 'aqua:fd' }],
+      [{ short: 1, backends: ['aqua:fd'] }]
+    ])('rejects malformed registry structure instead of showing an empty search: %j', async (value) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockResolvedValue({ stdout: JSON.stringify(value), stderr: '' })
+
+      await expect(service.searchRegistry('fd')).rejects.toThrow()
     })
 
     it('rejects when the registry returns malformed JSON', async () => {
@@ -3634,24 +3691,27 @@ describe('BinaryManager', () => {
       )
     })
 
-    it('normalizes a leading-v pin from verified mise output', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+    it.each([{ fd: [{ version: '1.2.3', active: true }] }, [{ version: '1.2.3', active: true }]])(
+      'normalizes a leading-v pin from verified mise output %j',
+      async (listing) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({ stdout: JSON.stringify({ fd: [{ version: '1.2.3', active: true }] }), stderr: '' })
+        mockExecFileAsync
+          .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+          .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+          .mockResolvedValueOnce({ stdout: JSON.stringify(listing), stderr: '' })
 
-      // semverValid normalizes 'v1.2.3' -> '1.2.3' before matching mise's output.
-      const version = await (service as any).installWithMise(
-        { name: 'fd', tool: 'fd', requestedVersion: 'v1.2.3' },
-        undefined,
-        []
-      )
-      expect(version).toBe('1.2.3')
-    })
+        // semverValid normalizes 'v1.2.3' -> '1.2.3' before matching mise's output.
+        const version = await (service as any).installWithMise(
+          { name: 'fd', tool: 'fd', requestedVersion: 'v1.2.3' },
+          undefined,
+          []
+        )
+        expect(version).toBe('1.2.3')
+      }
+    )
 
     it.each(['constructor', '__proto__', 'toString'])(
       'does not infer a runtime dependency for the unregistered backend %s',

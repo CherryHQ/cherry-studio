@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -264,7 +265,41 @@ type FixedToolDefinition = {
 type InstallableToolDefinition = CustomToolDefinition &
   Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
 
-type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
+const MiseInstallEntrySchema = z.looseObject({
+  version: z.string().optional(),
+  active: z.boolean().optional(),
+  install_path: z.string().optional()
+})
+
+const MiseListingSchema = z.record(z.string(), z.array(MiseInstallEntrySchema))
+const MiseToolVersionsSchema = z.union([z.array(MiseInstallEntrySchema), MiseListingSchema])
+
+const MiseRegistrySchema = z.array(
+  z.looseObject({ short: z.string().optional(), backends: z.array(z.string()).optional() })
+)
+
+type MiseInstallEntry = z.infer<typeof MiseInstallEntrySchema>
+
+function parseMiseListing(stdout: string): Record<string, MiseInstallEntry[]> {
+  const result = MiseListingSchema.safeParse(JSON.parse(stdout))
+
+  if (!result.success) {
+    const [spec, index] = result.error.issues[0]?.path ?? []
+
+    if (typeof spec !== 'string') throw new Error('mise ls --json returned a non-object shape')
+
+    if (typeof index !== 'number') throw new Error(`mise ls --json returned invalid entries for ${spec}`)
+    throw new Error(`mise ls --json returned an invalid install for ${spec}`)
+  }
+
+  return result.data
+}
+
+function parseMiseToolVersions(stdout: string): MiseInstallEntry[] {
+  const parsed = MiseToolVersionsSchema.parse(JSON.parse(stdout))
+
+  return Array.isArray(parsed) ? parsed : Object.values(parsed).flat()
+}
 
 // One build's env and the facts derived from it, so no caller can pair them
 // with another build's — see the `isolatedEnv` field comment.
@@ -511,23 +546,8 @@ export class BinaryManager extends BaseService {
 
   private async listMiseInstalls(signal?: AbortSignal): Promise<Record<string, MiseInstallEntry[]>> {
     const { stdout } = await this.runMise(['ls', '--json'], { signal })
-    const parsed: unknown = JSON.parse(stdout)
 
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('mise ls --json returned a non-object shape')
-    }
-
-    for (const [spec, entries] of Object.entries(parsed)) {
-      if (!Array.isArray(entries)) throw new Error(`mise ls --json returned invalid entries for ${spec}`)
-
-      for (const entry of entries) {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-          throw new Error(`mise ls --json returned an invalid install for ${spec}`)
-        }
-      }
-    }
-
-    return parsed as Record<string, MiseInstallEntry[]>
+    return parseMiseListing(stdout)
   }
 
   /**
@@ -995,7 +1015,7 @@ export class BinaryManager extends BaseService {
         shimNames.set(toShimStem(entry.name), path.join(shimsDir, entry.name))
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') throw error
     }
 
     signal?.throwIfAborted()
@@ -1423,16 +1443,15 @@ export class BinaryManager extends BaseService {
       return await execFileAsync(this.miseBin, args, options)
     } catch (error) {
       if (error instanceof Error) {
-        // A timeout kill leaves stderr at whatever progress line mise printed
-        // last — worthless as an error headline. Rewrite it; the elapsed check
-        // distinguishes our timeout kill from an external kill (OOM, user).
-        const killed = (error as { killed?: boolean }).killed === true
+        // A timeout kill may leave only a progress line in stderr.
+        // The elapsed check distinguishes our timeout from an external kill.
+        const killed = 'killed' in error && error.killed === true
 
         if (killed && Date.now() - startedAt >= timeoutMs) {
           error.message = `mise ${args[0]} timed out after ${Math.round(timeoutMs / 1000)}s — a slow network or a runtime download can exceed the budget; retry or configure a mirror in install settings`
         }
 
-        const stderr = (error as { stderr?: unknown }).stderr
+        const stderr = 'stderr' in error ? error.stderr : undefined
 
         if (typeof stderr === 'string' && stderr.trim()) {
           const detail = stderr.trim()
@@ -1479,8 +1498,11 @@ export class BinaryManager extends BaseService {
 
       if (!Array.isArray(parsed)) return null
 
-      return parsed.flatMap((entry) =>
-        entry && typeof (entry as { name?: unknown }).name === 'string' ? [(entry as { name: string }).name] : []
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- mise bin-paths JSON leaves each array item unvalidated; only executable names are consumed here.
+      return parsed.flatMap((entry: unknown) =>
+        entry !== null && typeof entry === 'object' && 'name' in entry && typeof entry.name === 'string'
+          ? [entry.name]
+          : []
       )
     } catch {
       signal?.throwIfAborted()
@@ -1551,7 +1573,7 @@ export class BinaryManager extends BaseService {
    */
   private async isRecipeRunnable(name: string, tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = parseMiseToolVersions(stdout)
     const activeEntry = entries.find((entry) => entry.active)
 
     if (!activeEntry) return false
@@ -1713,7 +1735,7 @@ export class BinaryManager extends BaseService {
     dependencies: readonly string[]
   ): Promise<void> {
     const { stdout } = await this.runMise(['ls', '--json', definition.tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = parseMiseToolVersions(stdout)
     const installPath = entries.find((entry) => entry.active)?.install_path
 
     if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
@@ -1869,9 +1891,7 @@ export class BinaryManager extends BaseService {
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
 
-    const entries = Object.values(
-      JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-    ).flat()
+    const entries = parseMiseToolVersions(stdout)
 
     const requestedVersion = requested ? semverValid(requested) : null
 
@@ -1898,7 +1918,7 @@ export class BinaryManager extends BaseService {
 
   private async isMiseToolAbsent(tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
+    const entries = parseMiseToolVersions(stdout)
 
     return entries.length === 0
   }
@@ -2453,7 +2473,7 @@ export class BinaryManager extends BaseService {
     }
 
     const { stdout } = await this.runMise(['registry', '--json'])
-    const parsed = JSON.parse(stdout) as Array<{ short?: string; backends?: string[] }>
+    const parsed = MiseRegistrySchema.parse(JSON.parse(stdout))
 
     const entries = parsed.flatMap((e) =>
       e.short && e.backends?.length ? [{ name: e.short, tool: e.backends[0] }] : []
@@ -2972,18 +2992,17 @@ export class BinaryManager extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted custom-tool entries may be legacy or malformed; reconstruct only checked fields before the caller validates their grammar.
   private reconstructCustomDefinition(entry: unknown): CustomToolDefinition | null {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
-    const source = entry as { name?: unknown; tool?: unknown; requestedVersion?: unknown; version?: unknown }
+    const name = 'name' in entry ? entry.name : undefined
+    const tool = 'tool' in entry ? entry.tool : undefined
 
-    if (typeof source.name !== 'string' || typeof source.tool !== 'string') return null
+    if (typeof name !== 'string' || typeof tool !== 'string') return null
+    const requested = 'requestedVersion' in entry ? entry.requestedVersion : undefined
+    const legacyVersion = 'version' in entry ? entry.version : undefined
 
     const requestedVersion =
-      typeof source.requestedVersion === 'string'
-        ? source.requestedVersion
-        : typeof source.version === 'string'
-          ? source.version
-          : undefined
+      typeof requested === 'string' ? requested : typeof legacyVersion === 'string' ? legacyVersion : undefined
 
-    const definition: CustomToolDefinition = { name: source.name, tool: source.tool }
+    const definition: CustomToolDefinition = { name, tool }
 
     if (requestedVersion) definition.requestedVersion = requestedVersion
 
@@ -2994,7 +3013,7 @@ export class BinaryManager extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Skipped registry entries have not passed reconstruction; use only a verified string name for their diagnostic label.
   private describeSkipped(entry: unknown): string {
     if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-      const name = (entry as { name?: unknown }).name
+      const name = 'name' in entry ? entry.name : undefined
 
       if (typeof name === 'string' && name) return name
     }
@@ -3015,15 +3034,14 @@ export class BinaryManager extends BaseService {
       const stored = raw[index]
 
       if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return false
-      const record = stored as { name?: unknown; tool?: unknown; requestedVersion?: unknown }
       const expectedKeys = definition.requestedVersion ? 3 : 2
 
-      if (Object.keys(record).length !== expectedKeys) return false
+      if (Object.keys(stored).length !== expectedKeys) return false
 
       return (
-        record.name === definition.name &&
-        record.tool === definition.tool &&
-        record.requestedVersion === definition.requestedVersion
+        ('name' in stored ? stored.name : undefined) === definition.name &&
+        ('tool' in stored ? stored.tool : undefined) === definition.tool &&
+        ('requestedVersion' in stored ? stored.requestedVersion : undefined) === definition.requestedVersion
       )
     })
   }
