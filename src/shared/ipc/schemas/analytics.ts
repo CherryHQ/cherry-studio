@@ -44,14 +44,14 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
     source: z.enum(['provider_settings']),
     flowId: flowIdSchema
   }),
-  z.strictObject({ event: z.literal('cherryin_balance_increased'), flowId: flowIdSchema })
+  z.strictObject({ event: z.literal('cherryin_balance_increased'), flowId: flowIdSchema }),
+  z.strictObject({ event: z.literal('agent_session_created'), agentKind: z.enum(['builtin', 'custom']) })
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
 
 /** Events produced inside the main process; typed only, since they never cross IPC. */
 export type MainAnalyticsEvent =
   | { event: 'app_opened'; onboardingStatus: 'pending' | 'completed' | 'skipped' }
-  | { event: 'agent_session_created'; agentKind: 'builtin' | 'custom' }
   | {
       event: 'agent_turn_finished'
       status: 'success' | 'error' | 'stopped'
@@ -60,7 +60,6 @@ export type MainAnalyticsEvent =
       modelSource: AnalyticsModelSource
       durationMs: number
       toolCallCount: number
-      sessionTurnIndex: number
     }
   | { event: 'agent_created'; source: 'manual' | 'assistant_tool' }
   | { event: 'cherryin_quota_error'; composer: 'chat' | 'agent' }

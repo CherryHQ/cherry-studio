@@ -174,6 +174,10 @@ vi.mock('../../privacy/PrivacyPolicyDialog', () => ({
 
 import OnboardingPage from '../OnboardingPage'
 
+function trackedEvents() {
+  return cloudMocks.ipcRequest.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+}
+
 async function openProviderSetup() {
   fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
   await screen.findByTestId('provider-settings')
@@ -192,6 +196,7 @@ describe('OnboardingPage', () => {
     cloudMocks.statusListener = undefined
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'system.shell.open_external_website') return
+      if (route === 'analytics.track') return undefined
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', accountId: null, displayName: null }
       if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', accountId: null, displayName: null }
@@ -657,7 +662,7 @@ describe('OnboardingPage', () => {
     await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
 
     await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
-    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+    expect(cloudMocks.ipcRequest.mock.calls.filter(([route]) => route.startsWith('cherry_cloud.'))).toEqual([])
   })
 
   it('keeps CherryIN in the global edition when Cherry Account onboarding is enabled', async () => {
@@ -667,7 +672,7 @@ describe('OnboardingPage', () => {
     await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
 
     await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
-    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+    expect(cloudMocks.ipcRequest.mock.calls.filter(([route]) => route.startsWith('cherry_cloud.'))).toEqual([])
   })
 
   it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
@@ -957,5 +962,77 @@ describe('OnboardingPage', () => {
       'system.shell.open_external_website',
       'https://open.cherryin.ai/console/token'
     )
+  })
+
+  describe('funnel analytics', () => {
+    it('reports the custom provider path from option to completion', async () => {
+      render(<OnboardingPage />)
+
+      await openModelSelection()
+      fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+      await waitFor(() => expect(trackedEvents()).toHaveLength(4))
+      expect(trackedEvents()).toEqual([
+        { event: 'onboarding_option_selected', option: 'other_provider' },
+        { event: 'onboarding_step_viewed', step: 'provider', fromStep: 'welcome' },
+        { event: 'onboarding_step_viewed', step: 'select_model', fromStep: 'provider' },
+        {
+          event: 'onboarding_completed',
+          status: 'completed',
+          path: 'custom_provider',
+          durationMs: expect.any(Number)
+        }
+      ])
+    })
+
+    it('reports the CherryIN path when CherryIN login leads to completion', async () => {
+      render(<OnboardingPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
+      await screen.findByTestId('model-settings')
+      fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+      await waitFor(() =>
+        expect(trackedEvents()).toContainEqual(
+          expect.objectContaining({ event: 'onboarding_completed', status: 'completed', path: 'cherryin_login' })
+        )
+      )
+      expect(trackedEvents()[0]).toEqual({ event: 'onboarding_option_selected', option: 'cherryin_login' })
+      expect(trackedEvents()).toContainEqual({
+        event: 'onboarding_step_viewed',
+        step: 'select_model',
+        fromStep: 'welcome'
+      })
+    })
+
+    it('reports a skip only after the skipped status is saved', async () => {
+      render(<OnboardingPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+      await waitFor(() =>
+        expect(trackedEvents()).toContainEqual(
+          expect.objectContaining({ event: 'onboarding_completed', status: 'skipped', path: 'skip' })
+        )
+      )
+      expect(trackedEvents()[0]).toEqual({ event: 'onboarding_option_selected', option: 'skip' })
+    })
+
+    it('does not report completion when saving the onboarding status fails', async () => {
+      const updatePreferences = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('write failed'))
+      mockUseMultiplePreferences.mockReturnValueOnce([
+        { providerSetupStatus: 'pending', dataCollectionEnabled: true, policyVersion: '' },
+        updatePreferences
+      ])
+      render(<OnboardingPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+      await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.complete_failed'))
+      expect(trackedEvents()).not.toContainEqual(expect.objectContaining({ event: 'onboarding_completed' }))
+    })
   })
 })

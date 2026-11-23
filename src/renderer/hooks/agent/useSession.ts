@@ -25,6 +25,7 @@ import {
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { trackAgentSessionCreated } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { conversationListSortQuery, getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
@@ -364,6 +365,7 @@ export const useSessions = (
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
+      void trackAgentSessionCreated(agentId)
 
       await refresh().catch((error) => {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))

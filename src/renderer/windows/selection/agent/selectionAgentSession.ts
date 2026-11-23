@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
+import { trackAgentSessionCreated } from '@renderer/services/productAnalytics'
 import { isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { isAgentWorkspaceNotFoundError } from '@shared/ipc/errors/ai'
@@ -25,6 +26,7 @@ export async function createSelectionAgentSession({ agentId, workspace }: Select
     return sessionId
   }
   const session = await dataApiService.post('/agent-sessions', { body: { agentId, name: '', workspace } })
+  void trackAgentSessionCreated(agentId)
   return session.id
 }
 

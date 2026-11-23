@@ -782,6 +782,9 @@ it('keeps an orphan pending when live events cannot prove its archived native re
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
 })
 
+const finishedTurns = (track: ReturnType<typeof vi.fn>) =>
+  track.mock.calls.map(([event]) => event).filter((event) => event.event === 'agent_turn_finished')
+
 // Stop ends the background run that continued a finished input's reply, so that input's outcome is not the reply's.
 it('keeps a reply paused when Stop ends its background continuation', async () => {
   MockApplicationUtils.setService('AiStreamManager', {
@@ -822,6 +825,8 @@ it.each(['before', 'after'] as const)(
       drainRuntimeReply: async () => {},
       pauseRuntimeTurn: () => false
     })
+    const trackProductEvent = vi.fn()
+    MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
     const f = await fixture(async () => {}, true, 'pi-durable')
     const terminals: string[] = []
     f.service.onTurnTerminal((event) => void (event.assistantMessageId === f.reply.id && terminals.push(event.status)))
@@ -857,6 +862,7 @@ it.each(['before', 'after'] as const)(
     )
     // Deliveries finalize on the first terminal, so the paused one must not precede Durable's outcome.
     expect(terminals).toEqual(['success'])
+    expect(finishedTurns(trackProductEvent)).toEqual([expect.objectContaining({ status: 'success' })])
   }
 )
 
@@ -1496,6 +1502,8 @@ it.each([
       drainRuntimeReply: async () => {},
       pauseRuntimeTurn: () => false
     })
+    const trackProductEvent = vi.fn()
+    MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
     const f = await fixture(async () => {}, true, 'pi-durable')
     const terminals: string[] = []
     f.service.onTurnTerminal((event) => void terminals.push(event.status))
@@ -1529,6 +1537,9 @@ it.each([
     expect(saved.status).toBe(status)
     expect(saved.data.parts?.[0]).toEqual(text('', 'Partial steered answer').parts[0])
     expect(terminals).toEqual([status])
+    expect(finishedTurns(trackProductEvent)).toEqual([
+      expect.objectContaining({ status: status === 'paused' ? 'stopped' : status })
+    ])
   }
 )
 
