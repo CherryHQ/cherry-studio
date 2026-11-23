@@ -1,9 +1,11 @@
 import { first } from 'es-toolkit/compat'
+import { Pin } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   ModelSelector,
   ModelSelectorDetailCardContent,
@@ -69,14 +71,19 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     if (open) setActivated(true)
   }, [open])
   const { t } = useTranslation()
-  const { modelFilter, getModelPresentation, availability, prioritizedProviderIds } = useCherryCloudModelSelectorPolicy(
-    {
-      enabled,
-      includeAgentOnlyModels: includeAgentOnlyModels,
-      filter: filter,
-      prioritizedProviderIds: props.prioritizedProviderIds
-    }
-  )
+  const {
+    modelFilter,
+    getModelPresentation,
+    availability,
+    prioritizedProviderIds,
+    isCherryAIPinned,
+    setCherryAIPinned
+  } = useCherryCloudModelSelectorPolicy({
+    enabled,
+    includeAgentOnlyModels: includeAgentOnlyModels,
+    filter: filter,
+    prioritizedProviderIds: props.prioritizedProviderIds
+  })
   const { offers, paidPlan, canOfferSubscription, signedOut } = useCherryCloudModelSelectorOffers(
     enabled,
     includeAgentOnlyModels ?? false,
@@ -204,6 +211,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     amdStatus,
     t
   ])
+  const pinLabel = t(isCherryAIPinned ? 'selector.common.unpin' : 'selector.common.pin')
   const composition = {
     getModelPresentation,
     actions,
@@ -211,6 +219,20 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       {
         id: CHERRYAI_PROVIDER_ID,
         providerIds: CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
+        titleAction: (
+          <Tooltip content={pinLabel} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={pinLabel}
+              aria-pressed={isCherryAIPinned}
+              className="size-4 shrink-0 p-0 text-muted-foreground opacity-0 transition hover:opacity-100! focus-visible:opacity-100! group-hover:opacity-60 [&>svg]:translate-y-[1.5px]"
+              onClick={() => setCherryAIPinned((pinned) => !pinned)}>
+              <Pin className={cn('block size-3', isCherryAIPinned && '-rotate-45')} />
+            </Button>
+          </Tooltip>
+        ),
         trailing: paidPlan ? (
           <span className="truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4">
             {paidPlan.plan.display_name}
