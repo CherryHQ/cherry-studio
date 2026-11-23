@@ -298,7 +298,7 @@ export class ShortcutService extends BaseService {
             try {
               handler(targetWindow)
             } catch (error) {
-              logger.error(`Shortcut handler threw for accelerator: ${accelerator}`, error as Error)
+              logger.error(`Shortcut handler threw for accelerator: ${accelerator}`, error)
             }
           })
 
@@ -310,7 +310,7 @@ export class ShortcutService extends BaseService {
             this.markRegistrationConflict(key, accelerator)
           }
         } catch (error) {
-          logger.error(`Failed to register shortcut ${accelerator}`, error as Error)
+          logger.error(`Failed to register shortcut ${accelerator}`, error)
           this.markRegistrationConflict(key, accelerator)
         }
       }

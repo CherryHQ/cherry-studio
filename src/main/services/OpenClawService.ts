@@ -570,7 +570,7 @@ export class OpenClawService extends BaseService {
     } catch (error) {
       // Unreachable gateways surface as an unhealthy result, not an exception; only
       // unexpected errors land here.
-      logger.warn('OpenClaw gateway health probe failed', error as Error)
+      logger.warn('OpenClaw gateway health probe failed', error)
     }
   }
 
@@ -1042,7 +1042,7 @@ export class OpenClawService extends BaseService {
     } catch (error) {
       this.setGatewayStatus('error')
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to start gateway:', error as Error)
+      logger.error('Failed to start gateway:', error)
 
       return { success: false, message: errorMessage }
     }
@@ -1187,7 +1187,7 @@ export class OpenClawService extends BaseService {
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to stop gateway:', error as Error)
+      logger.error('Failed to stop gateway:', error)
       this.setGatewayStatus('error')
 
       return { success: false, message: errorMessage }
@@ -1401,7 +1401,7 @@ export class OpenClawService extends BaseService {
         }
       }
     } catch (error) {
-      logger.warn('Failed to load auth token from config file', error as Error)
+      logger.warn('Failed to load auth token from config file', error)
     }
   }
 
@@ -1430,7 +1430,7 @@ export class OpenClawService extends BaseService {
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to resolve OpenClaw sync config:', error as Error)
+      logger.error('Failed to resolve OpenClaw sync config:', error)
 
       return { success: false, message: errorMessage }
     }
@@ -1710,7 +1710,7 @@ export class OpenClawService extends BaseService {
             }
           })
         } catch (err) {
-          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err as Error)
+          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err)
         }
       }
 
@@ -1833,7 +1833,7 @@ export class OpenClawService extends BaseService {
         this.gatewayAuthToken = token
       } finally {
         await remove(candidatePath).catch((cleanupError) => {
-          logger.warn('Failed to remove OpenClaw config validation candidate', cleanupError as Error)
+          logger.warn('Failed to remove OpenClaw config validation candidate', cleanupError)
         })
       }
 
@@ -1842,7 +1842,7 @@ export class OpenClawService extends BaseService {
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to sync provider config:', error as Error)
+      logger.error('Failed to sync provider config:', error)
 
       return { success: false, message: errorMessage }
     }

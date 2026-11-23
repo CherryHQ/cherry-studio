@@ -1154,7 +1154,7 @@ export class BinaryManager extends BaseService {
       } catch (err) {
         // Single-tool failure must not abort init — without this, an EBUSY
         // on (e.g.) bun would prevent mise/uv/rg from being extracted at all.
-        logger.error(`Failed to extract bundled ${tool.name}`, err as Error)
+        logger.error(`Failed to extract bundled ${tool.name}`, err)
       }
     }
   }
@@ -2479,7 +2479,7 @@ export class BinaryManager extends BaseService {
       // dump rejects here. Log and rethrow so the IPC route rejects and the
       // renderer's search-error UI surfaces it — swallowing to [] would render a
       // silently empty dropdown that reads as "no such tool in the registry".
-      logger.warn('Failed to load mise registry', err as Error)
+      logger.warn('Failed to load mise registry', err)
       throw err
     }
 

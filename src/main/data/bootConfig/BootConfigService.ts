@@ -216,7 +216,7 @@ export class BootConfigService {
     try {
       this.persist()
     } catch (error) {
-      logger.error(`Failed to flush boot config to ${this.filePath}`, error as Error)
+      logger.error(`Failed to flush boot config to ${this.filePath}`, error)
     }
   }
 
@@ -238,7 +238,7 @@ export class BootConfigService {
       try {
         ;(listener as BootConfigChangeListener<K>)(payload)
       } catch (error) {
-        logger.error(`Error in boot config change listener for key "${key}"`, error as Error)
+        logger.error(`Error in boot config change listener for key "${key}"`, error)
       }
     }
   }
@@ -322,7 +322,7 @@ export class BootConfigService {
       try {
         this.persist()
       } catch (error) {
-        logger.error(`Failed to auto-save boot config to ${this.filePath}`, error as Error)
+        logger.error(`Failed to auto-save boot config to ${this.filePath}`, error)
       }
     }, SAVE_DEBOUNCE_MS)
   }

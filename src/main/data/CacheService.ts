@@ -162,7 +162,7 @@ class CacheNotifier {
       try {
         callback(newValue, oldValue, concreteKey)
       } catch (error) {
-        logger.error(`Error in cache subscription callback for "${concreteKey}":`, error as Error)
+        logger.error(`Error in cache subscription callback for "${concreteKey}":`, error)
       }
     }
   }
@@ -746,7 +746,7 @@ export class CacheService extends BaseService {
         }
       }
     } catch (error) {
-      logger.warn(`Failed to load persist cache from ${this.persistFilePath}, using defaults`, error as Error)
+      logger.warn(`Failed to load persist cache from ${this.persistFilePath}, using defaults`, error)
     }
   }
 
@@ -790,7 +790,7 @@ export class CacheService extends BaseService {
         // Best-effort cleanup; preserve the original persistence error.
       }
 
-      logger.error(`Failed to save persist cache to ${this.persistFilePath}`, error as Error)
+      logger.error(`Failed to save persist cache to ${this.persistFilePath}`, error)
 
       if (options.throwOnError) {
         throw error

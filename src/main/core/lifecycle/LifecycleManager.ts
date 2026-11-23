@@ -228,7 +228,7 @@ export class LifecycleManager extends EventEmitter {
         await cpuProfiler.stopAndWrite(cpuProfilePath)
         logger.info(`[Diagnostics] CPU profile written to ${cpuProfilePath}`)
       } catch (err) {
-        logger.warn('[Diagnostics] Failed to write CPU profile', err as Error)
+        logger.warn('[Diagnostics] Failed to write CPU profile', err)
       }
     }
 
@@ -391,7 +391,7 @@ export class LifecycleManager extends EventEmitter {
     const run = instance._doStop().then(
       (): TeardownOutcome => 'completed',
       (error): TeardownOutcome => {
-        logger.error(`Error stopping service '${serviceName}':`, error as Error)
+        logger.error(`Error stopping service '${serviceName}':`, error)
 
         return 'failed'
       }
@@ -429,7 +429,7 @@ export class LifecycleManager extends EventEmitter {
     const run = instance._doDestroy().then(
       (): TeardownOutcome => 'completed',
       (error): TeardownOutcome => {
-        logger.error(`Error destroying service '${serviceName}':`, error as Error)
+        logger.error(`Error destroying service '${serviceName}':`, error)
 
         return 'failed'
       }
@@ -970,7 +970,7 @@ export class LifecycleManager extends EventEmitter {
         logger.info(`Service '${serviceName}' paused (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
-      logger.error(`Error pausing service '${serviceName}':`, error as Error)
+      logger.error(`Error pausing service '${serviceName}':`, error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
     }
   }
@@ -996,7 +996,7 @@ export class LifecycleManager extends EventEmitter {
         logger.info(`Service '${serviceName}' resumed (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
-      logger.error(`Error resuming service '${serviceName}':`, error as Error)
+      logger.error(`Error resuming service '${serviceName}':`, error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
     }
   }
@@ -1051,7 +1051,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doActivate()
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
     } catch (error) {
-      logger.error(`Error activating '${name}':`, error as Error)
+      logger.error(`Error activating '${name}':`, error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
     }
   }
@@ -1089,7 +1089,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doDeactivate()
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
     } catch (error) {
-      logger.error(`Error deactivating '${name}':`, error as Error)
+      logger.error(`Error deactivating '${name}':`, error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
     }
   }

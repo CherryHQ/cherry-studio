@@ -125,7 +125,7 @@ class PreferenceNotifier {
         try {
           callback(key, newValue, oldValue)
         } catch (error) {
-          logger.error(`Error in preference subscription callback for ${key}:`, error as Error)
+          logger.error(`Error in preference subscription callback for ${key}:`, error)
         }
       })
     }
@@ -238,7 +238,7 @@ export class PreferenceService extends BaseService {
       this.setupWindowCleanup()
       logger.info(`Preference cache initialized with ${results.length} values`)
     } catch (error) {
-      logger.error('Failed to initialize preference cache:', error as Error)
+      logger.error('Failed to initialize preference cache:', error)
       throw error
     }
   }
@@ -438,7 +438,7 @@ export class PreferenceService extends BaseService {
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
     } catch (error) {
-      logger.error(`Failed to set preference ${key}:`, error as Error)
+      logger.error(`Failed to set preference ${key}:`, error)
       throw error
     }
   }
@@ -605,7 +605,7 @@ export class PreferenceService extends BaseService {
         )
       }
     } catch (error) {
-      logger.error('Failed to set multiple preferences:', error as Error)
+      logger.error('Failed to set multiple preferences:', error)
       throw error
     }
   }
@@ -857,7 +857,7 @@ export class PreferenceService extends BaseService {
           this.windowSubscriptions.delete(windowId)
         }
       } catch (error) {
-        logger.error(`Failed to notify window ${windowId}:`, error as Error)
+        logger.error(`Failed to notify window ${windowId}:`, error)
         this.windowSubscriptions.delete(windowId)
       }
     }
