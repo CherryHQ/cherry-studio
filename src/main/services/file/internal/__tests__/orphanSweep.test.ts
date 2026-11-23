@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -14,7 +14,7 @@ import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import type { FileEntryId } from '@shared/data/types/file'
+import { type FileEntryId, FileEntryIdSchema } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -174,6 +174,13 @@ describe('scanOrphanEntries (report-only)', () => {
   })
 })
 
+const sweepFailures = [
+  { label: 'Error', value: new Error('DB unavailable'), message: 'DB unavailable' },
+  { label: 'string', value: 'DB unavailable', message: 'DB unavailable' },
+  { label: 'null', value: null, message: 'null' },
+  { label: 'unprintable', value: { toString: null, valueOf: null }, message: 'Unknown error' }
+]
+
 describe('runDbSweep (umbrella + observability)', () => {
   const dbh = setupTestDatabase()
 
@@ -186,22 +193,22 @@ describe('runDbSweep (umbrella + observability)', () => {
     vi.restoreAllMocks()
   })
 
-  it('reports failed outcome when an outer-level operation throws', async () => {
-    const failingEntryService = {
-      findManualUnreferenced: () => {
-        throw new Error('boom')
-      },
-      listAllIds: fileEntryService.listAllIds.bind(fileEntryService)
-    } as unknown as typeof fileEntryService
+  it.each(sweepFailures)('reports a complete failed outcome for an outer $label failure', ({ value, message }) => {
+    vi.spyOn(fileEntryService, 'findManualUnreferenced').mockImplementationOnce(() => {
+      throw value
+    })
 
     const report = runDbSweep({
-      fileEntryService: failingEntryService,
+      fileEntryService,
       fileRefService
     })
-    expect(report.outcome).toBe('failed')
-    if (report.outcome === 'failed') {
-      expect(report.errorMessage).toMatch(/boom/)
-    }
+
+    expect(report).toMatchObject({
+      outcome: 'failed',
+      errorMessage: message,
+      orphanEntriesByOrigin: {},
+      orphanEntriesTotal: 0
+    })
   })
 })
 
@@ -576,29 +583,47 @@ describe('runFileSweep (FS-level)', () => {
     // which is non-ENOENT and must NOT be silently swallowed as "no files".
     const filePath = path.join(filesDir, 'pretend-this-is-files-dir.bin')
     await writeFile(filePath, 'x')
+    const entry = fileEntryService.create({
+      id: FileEntryIdSchema.parse('019606a0-0000-7000-8000-00000000ee99'),
+      origin: 'internal',
+      name: 'retained',
+      ext: 'txt',
+      size: 1,
+      cleanupPolicy: 'manual'
+    })
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'feature.files.data') return filePath
       return `/mock/${key}`
     })
     const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('failed')
+    expect(report.entriesInDb).toBe(1)
     if (report.outcome === 'failed') {
+      expect(report.errorMessage.startsWith(`readdir ${filePath}: `)).toBe(true)
       expect(report.errorMessage).toMatch(/ENOTDIR|not a directory/i)
     }
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
   })
 
-  it('returns failed outcome when listAllIds throws (DB unavailable mid-startup)', async () => {
-    const failingEntryService = {
-      listAllIds: () => {
-        throw new Error('db-down')
-      }
-    } as unknown as typeof fileEntryService
-    const report = await runFileSweep({ fileEntryService: failingEntryService })
-    expect(report.outcome).toBe('failed')
-    if (report.outcome === 'failed') {
-      expect(report.errorMessage).toMatch(/db-down/)
+  it.each(sweepFailures)(
+    'returns a complete failed outcome when listAllIds throws $label',
+    async ({ value, message }) => {
+      vi.spyOn(fileEntryService, 'listAllIds').mockImplementationOnce(() => {
+        throw value
+      })
+
+      const report = await runFileSweep({ fileEntryService })
+
+      expect(report).toMatchObject({
+        outcome: 'failed',
+        errorMessage: message,
+        entriesInDb: 0,
+        plannedDeleteCount: 0,
+        actualDeleteCount: 0
+      })
+      expect(await readdir(filesDir)).toEqual([])
     }
-  })
+  )
 
   it('cleans a small batch of old orphan files', async () => {
     const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 200).padStart(12, '0')}`)

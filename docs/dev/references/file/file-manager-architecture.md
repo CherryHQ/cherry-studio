@@ -266,6 +266,10 @@ only `ENOENT`, while external-presence checks also recognize `ENOTDIR`. Error in
 replace the original failure or interrupt compensation; privacy-restricted cleanup logs retain
 their code-only `UNKNOWN` fallback.
 
+Batch failure messages use the safe message reader: ordinary Error messages and string rejections
+remain readable, while conversion failures return `Unknown error`. Reporting an unreadable failure
+must neither roll back successful trash/restore updates nor stop later per-entry deletions.
+
 ## 7. Reference Cleanup
 
 `manual` entries with no persistent refs are preserved and can be reported by the DB sweep.
@@ -331,6 +335,11 @@ idle tick with a seven-day floor. Cache Cleanup calls `inspectOrphanFiles()` for
 `cleanupOrphanFiles()` for execution. The legacy `runSweep()` channel composes entry cleanup, file
 sweep, and DB reporting, but currently has no renderer caller. Cache Cleanup explicitly bypasses
 volume thresholds for both preview and execution; all per-file and pending-restore guards remain active.
+
+DB and filesystem sweep failures always return their structured failed report, even when the
+rejection is not an Error or its message cannot be read. A failed directory read retains the
+`readdir` path prefix and the captured database-entry count; message conversion must not discard
+that context by throwing into the outer fallback.
 
 ## 11. DanglingCache
 

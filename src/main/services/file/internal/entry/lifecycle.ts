@@ -20,7 +20,7 @@
 
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { getErrorCode } from '@main/utils/error'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 import { remove as fsRemove } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -216,11 +216,9 @@ function aggregateWriteTx<T>(
         op(tx, id)
         succeeded.push(id)
       } catch (err) {
-        // Wire format only carries `.message` (string), so the stack is lost in
-        // BatchMutationResult. Side-channel through the logger keeps it
-        // available for postmortem without changing the consumer-facing shape.
+        // Batch results expose message text; retain the original failure in the log for diagnosis.
         logger.warn('batch op item failed', { id, err })
-        failed.push({ id, error: (err as Error).message })
+        failed.push({ id, error: getErrorMessage(err, 'Unknown error') })
       }
     }
   })
@@ -249,7 +247,7 @@ async function aggregatePerEntry(
       succeeded.push(id)
     } catch (err) {
       logger.warn('batch op item failed', { id, err })
-      failed.push({ id, error: (err as Error).message })
+      failed.push({ id, error: getErrorMessage(err, 'Unknown error') })
     }
   }
 

@@ -43,7 +43,7 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { getErrorCode } from '@main/utils/error'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
 import { resolvePhysicalPath } from '../utils/pathResolver'
@@ -166,7 +166,7 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,
       outcome: 'failed',
-      errorMessage: (err as Error).message
+      errorMessage: getErrorMessage(err, 'Unknown error')
     }
 
     logger.error('orphan-sweep', { event: 'orphan-sweep', ...failed })
@@ -418,7 +418,7 @@ async function runFileSweepInner(
       return {
         ...zeroStats(idSnapshot.size, startedAt),
         outcome: 'failed',
-        errorMessage: `readdir ${filesDir}: ${(err as Error).message}`
+        errorMessage: `readdir ${filesDir}: ${getErrorMessage(err, 'Unknown error')}`
       }
     }
 
@@ -595,7 +595,7 @@ async function runFileSweepInner(
     return {
       ...zeroStats(0, startedAt),
       outcome: 'failed',
-      errorMessage: (err as Error).message
+      errorMessage: getErrorMessage(err, 'Unknown error')
     }
   }
 }

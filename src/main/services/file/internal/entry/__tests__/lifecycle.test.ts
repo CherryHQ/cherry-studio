@@ -319,6 +319,65 @@ describe('internal/entry/lifecycle', () => {
   })
 
   describe('batch ops', () => {
+    const failures = [
+      {
+        label: 'unreadable message',
+        create: () =>
+          Object.defineProperty(new Error('DB failure'), 'message', {
+            get() {
+              throw new Error('Message unavailable')
+            }
+          }),
+        message: 'Unknown error'
+      },
+      { label: 'string rejection', create: () => 'DB unavailable', message: 'DB unavailable' }
+    ]
+
+    it.each(failures)('commits successful trash updates around a $label', async ({ create, message }) => {
+      const first = await makeInternal()
+      const middle = await makeInternal()
+      const last = await makeInternal()
+      const failure = create()
+      const getByIdTx = fileEntryService.getByIdTx.bind(fileEntryService)
+      vi.spyOn(fileEntryService, 'getByIdTx').mockImplementation((tx, id) => {
+        if (id === middle) throw failure
+
+        return getByIdTx(tx, id)
+      })
+
+      const result = batchTrash(deps, [first, middle, last])
+
+      expect(result).toEqual({ succeeded: [first, last], failed: [{ id: middle, error: message }] })
+      expect(fileEntryService.getById(first)).toMatchObject({ deletedAt: expect.any(Number) })
+      expect(fileEntryService.getById(middle)).not.toHaveProperty('deletedAt')
+      expect(fileEntryService.getById(last)).toMatchObject({ deletedAt: expect.any(Number) })
+    })
+
+    it.each(failures)('deletes later entries after reporting a $label', async ({ create, message }) => {
+      const first = await makeInternal()
+      const middle = await makeInternal()
+      const last = await makeInternal()
+
+      for (const id of [first, middle, last]) trash(deps, id)
+      const failure = create()
+      const getByIdTx = fileEntryService.getByIdTx.bind(fileEntryService)
+      vi.spyOn(fileEntryService, 'getByIdTx').mockImplementation((tx, id) => {
+        if (id === middle) throw failure
+
+        return getByIdTx(tx, id)
+      })
+
+      const result = await batchPermanentDeleteFromTrash(deps, [first, middle, last])
+
+      expect(result).toEqual({ succeeded: [first, last], failed: [{ id: middle, error: message }] })
+      expect(fileEntryService.findById(first)).toBeNull()
+      expect(fileEntryService.findById(middle)).not.toBeNull()
+      expect(fileEntryService.findById(last)).toBeNull()
+      expect(await exists(path.join(filesDir, `${first}.txt`) as AbsoluteFilePath)).toBe(false)
+      expect(await exists(path.join(filesDir, `${middle}.txt`) as AbsoluteFilePath)).toBe(true)
+      expect(await exists(path.join(filesDir, `${last}.txt`) as AbsoluteFilePath)).toBe(false)
+    })
+
     it('batchTrash partitions internal-success / external-failure', async () => {
       const internal = await makeInternal()
       const external = await makeExternal()
