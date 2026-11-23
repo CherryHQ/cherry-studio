@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-11-03T09:21:10.217Z
- * Total icons: 45
+ * Generated at: 2026-11-23T02:39:17.085Z
+ * Total icons: 46
  */
 
 export { AddCategory } from './add-category'
@@ -24,6 +24,7 @@ export { CodebuddyCodeCli } from './codebuddy-code-cli'
 export { CortexCodeCli } from './cortex-code-cli'
 export { CursorCli } from './cursor-cli'
 export { DeepagentsCli } from './deepagents-cli'
+export { DeepseekHarnessCli } from './deepseek-harness-cli'
 export { DevinCli } from './devin-cli'
 export { Emoji } from './emoji'
 export { FactoryDroidCli } from './factory-droid-cli'

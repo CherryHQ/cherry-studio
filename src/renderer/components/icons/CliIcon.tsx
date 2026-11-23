@@ -13,6 +13,7 @@ import {
   MistralVibeCli,
   AmpCli,
   DeepagentsCli,
+  DeepseekHarnessCli,
   GlmAcpAgentCli,
   GrokBuildCli,
   CortexCodeCli,
@@ -33,7 +34,7 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import { Deepseek, Minimax, Nousresearch, Openclaw } from '@cherrystudio/ui/icons/providers'
+import { Minimax, Nousresearch, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@renderer/utils/style'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -50,7 +51,7 @@ export const CLI_TOOLS = [
   { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
   { value: CodeCli.HERMES, label: 'code.cli_tools.hermes', icon: Nousresearch },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
-  { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek },
+  { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: DeepseekHarnessCli },
   { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
@@ -88,7 +89,6 @@ const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
-  [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68',
   [CodeCli.MINIMAX_CODE]: '26 26 68 68'
 }
 
