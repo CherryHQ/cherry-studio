@@ -460,7 +460,11 @@ class AgentWorkspaceStorageService {
     await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz.tmp`)
     await storage.removeWorkspaceArtifact(root, `${workspace}.storage.json.tmp`)
     await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz`)
-    await this.recordTrustedRestore(workspace, record.operationId)
+    try {
+      await this.recordTrustedRestore(workspace, record.operationId)
+    } catch (error) {
+      logger.warn('Failed to record trusted workspace restore', error)
+    }
     await storage.clearWorkspaceStorageRecord(workspace)
   }
 

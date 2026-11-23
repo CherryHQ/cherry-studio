@@ -61,6 +61,19 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     expect(await service.trustedRestoreSince(path.join(root, 'other'))).toBeNull()
   })
 
+  it('commits restore when the trusted evidence path is unavailable', async () => {
+    await archive()
+    vi.mocked(application.getPath).mockImplementation((key) => {
+      if (key === 'feature.agents.file_snapshots') throw new Error('path unavailable')
+      return root
+    })
+
+    await expect(restore()).resolves.toBeUndefined()
+    expect(await output()).toBe('recoverable output')
+    await expect(readFile(`${workspace.path}.storage.json`)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await service.trustedRestoreSince(workspace.path)).toBeNull()
+  })
+
   it('round trips output, binary and hidden files, and empty directories', async () => {
     await archive()
     expect(existsSync(workspace.path)).toBe(false)
