@@ -12,7 +12,7 @@ Status: implemented
 
 `src/renderer/utils/error.ts` 中的 `formatErrorMessageWithPrefix` 和 `localizedErrorDetail` 只在原因与界面语言一致时才附上原因，否则只显示翻译后的摘要。`src/shared/utils/languageScript.ts` 中的 `readsInLanguage` 按书写系统判断：中文、日文、俄文、希腊文和泰文要求出现各自的文字；英文接受拉丁字母文本；其他拉丁字母语言无法与英文区分，因此隐藏原因。`LocalizedError` 标记消息已经翻译过的渲染进程错误，这类错误始终显示。
 
-原先显示 `err.message`、`formatErrorMessage(err)`、`t(key) + cause` 或 `` `${t(key)}: ${cause}` `` 的位置都改用这个工具函数。`common.error` 等笼统前缀以及只显示原始原因的位置补上了具体文案。原先内嵌原因（`{{message}}`、`{{error}}`、`{{reason}}`、`{{details}}`）的 key 不再内嵌；主进程文案在附加 CLI 或服务商诊断前先调用 `readsInLanguage`。错误详情的基本信息只显示翻译后的摘要，不再附带 `(原始原因)`。兜底页和未知类别的 toast 把原始文本放在默认收起的详情控件里。技术详情、复制操作和日志仍保留原始原因。
+原先显示 `err.message`、`formatErrorMessage(err)`、`t(key) + cause` 或 `` `${t(key)}: ${cause}` `` 的位置都改用这个工具函数。`common.error` 等笼统前缀以及只显示原始原因的位置补上了具体文案。原先内嵌原因（`{{message}}`、`{{error}}`、`{{reason}}`、`{{details}}`）的 key 不再内嵌；主进程文案在附加 CLI 或服务商诊断前先调用 `readsInLanguage`。错误详情的基本信息只显示翻译后的摘要，不再附带 `(原始原因)`。兜底页和未知类别的 toast 把原始文本放在默认收起的详情控件里。技术详情、复制操作、日志和预填的诊断报告仍保留原始原因。
 
 ## Alternatives considered
 

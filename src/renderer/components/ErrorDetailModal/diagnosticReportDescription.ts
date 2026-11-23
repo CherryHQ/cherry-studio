@@ -42,6 +42,8 @@ interface DiagnosticReportFieldsInput {
   error?: SerializedError
   localizedErrorMessage?: string
   location?: string
+  /** Appends the raw provider message to a translated summary, for the support report. */
+  keepRawMessage?: boolean
 }
 
 type DiagnosticReportField = {
@@ -61,12 +63,21 @@ function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown):
   return text ? { id, value: text } : undefined
 }
 
-function combineErrorParts(localized: unknown, name: unknown, message: unknown): string | undefined {
+function combineErrorParts(
+  localized: unknown,
+  name: unknown,
+  message: unknown,
+  keepRawMessage: boolean
+): string | undefined {
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
   const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
-  // The raw message stays in the technical detail; the summary never mixes two languages.
-  return nonEmptyText(localized) ?? raw
+  const localizedMessage = nonEmptyText(localized)
+  // The on-screen summary stays in one language; the support report still needs the provider's reason.
+  if (keepRawMessage && localizedMessage && errorMessage && localizedMessage !== errorMessage) {
+    return `${localizedMessage} (${errorMessage})`
+  }
+  return localizedMessage ?? raw
 }
 
 function combineModelParts(provider: unknown, model: unknown): string | undefined {
@@ -95,12 +106,16 @@ export function diagnosticReportFields({
   diagnosisContext,
   error,
   location,
-  localizedErrorMessage
+  localizedErrorMessage,
+  keepRawMessage = false
 }: DiagnosticReportFieldsInput): DiagnosticReportField[] {
   return [
     diagnosticReportField('location', location),
     diagnosticReportField('model', combineModelParts(diagnosisContext?.providerId, diagnosisContext?.modelId)),
-    diagnosticReportField('errorMessage', combineErrorParts(localizedErrorMessage, error?.name, error?.message))
+    diagnosticReportField(
+      'errorMessage',
+      combineErrorParts(localizedErrorMessage, error?.name, error?.message, keepRawMessage)
+    )
   ].filter((field): field is DiagnosticReportField => field !== undefined)
 }
 
@@ -111,9 +126,13 @@ export function buildDiagnosticReportDescription({
   location,
   localizedErrorMessage
 }: BuildDiagnosticReportDescriptionInput): string {
-  const lines = diagnosticReportFields({ diagnosisContext, error, location, localizedErrorMessage }).map(
-    ({ id, value }) => `${labels[id]}: ${value}`
-  )
+  const lines = diagnosticReportFields({
+    diagnosisContext,
+    error,
+    location,
+    localizedErrorMessage,
+    keepRawMessage: true
+  }).map(({ id, value }) => `${labels[id]}: ${value}`)
 
   return truncateUtf8(lines.join('\n'))
 }
