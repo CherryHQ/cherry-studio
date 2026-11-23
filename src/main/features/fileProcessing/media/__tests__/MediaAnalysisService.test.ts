@@ -108,7 +108,8 @@ vi.mock('@application', async () => {
   const mocked = mockApplicationFactory({
     CacheService: {
       get: (key: string) => runtime.cache.get(key),
-      set: (key: string, value: unknown) => runtime.cache.set(key, value)
+      set: (key: string, value: unknown) => runtime.cache.set(key, value),
+      delete: (key: string) => runtime.cache.delete(key)
     }
   })
   const delegated = mocked.application.get.getMockImplementation()
@@ -1384,6 +1385,56 @@ describe('MediaAnalysisService local stages', () => {
     await service.analyze({ kind: 'entry', entryId: 'entry-1' })
 
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
+  })
+
+  describe('a picked file replaced in place with the same size and mtime', () => {
+    const speech = {
+      text: 'replacement speech',
+      segments: [{ text: 'replacement speech', startSecond: 0, endSecond: 1 }]
+    }
+    const silence = { text: '   ', segments: [] }
+    let picked: string
+
+    beforeEach(async () => {
+      picked = join(runtime.tempRoot, 'memo.wav')
+      const copy = join(runtime.tempRoot, 'memo-copy.wav')
+      await writeFile(picked, Buffer.alloc(1024, 1))
+      // A separate stored copy of the original (redacted) recording.
+      await writeFile(copy, Buffer.alloc(1024, 1))
+      const pickedInfo = { ...runtime.fileInfo, path: picked, size: 1024, modifiedAt: 5 }
+      vi.mocked(resolveFileProcessingFileInfo).mockImplementation(
+        async (handle) => (handle.kind === 'entry' ? { ...pickedInfo, path: copy, modifiedAt: 9 } : pickedInfo) as never
+      )
+    })
+
+    const copyTranscript = async () =>
+      (await service.analyze({ kind: 'entry', entryId: 'copy' })).audio?.segments.map((segment) => segment.text) ?? []
+
+    it('keeps the replacement speech out of the original copy after a failed pre-analysis', async () => {
+      runtime.transcribe
+        .mockRejectedValueOnce(new Error('ASR busy'))
+        .mockResolvedValueOnce(speech)
+        .mockResolvedValueOnce(silence)
+
+      await service.prepare(file)
+      await writeFile(picked, Buffer.alloc(1024, 2))
+      await service.prepare(file)
+
+      expect(await copyTranscript()).not.toContain('replacement speech')
+    })
+
+    it('drops a pass whose file is replaced while it runs', async () => {
+      runtime.transcribe
+        .mockImplementationOnce(async () => {
+          await writeFile(picked, Buffer.alloc(1024, 2))
+          return speech
+        })
+        .mockResolvedValueOnce(silence)
+
+      await service.prepare(file)
+
+      expect(await copyTranscript()).not.toContain('replacement speech')
+    })
   })
 
   it('leaves remote OCR for the send instead of uploading frames on attach', async () => {

@@ -160,6 +160,12 @@ export class MediaAnalysisService extends BaseService {
     // Stages key by content: a pre-analysis runs on the picked file, the send on its stored copy.
     const stageKey = (stage: string, identity: unknown) =>
       `media-analysis:${stage}:${contentKey}:${hashIdentity({ identity, pipelineVersion: execution.pipelineVersion })}`
+    const keys: StageCacheKeys = {
+      vision: `${cacheKey}:vision`,
+      transcript: stageKey('asr', execution.asr),
+      framePlan: stageKey('frames', execution.budget),
+      frameText: stageKey('ocr', { ocr: execution.ocr?.identity ?? null, budget: execution.budget })
+    }
     const startedAt = Date.now()
     const jobDir = application.getPath('app.temp', `media-analysis-${randomUUID()}`)
     await mkdir(jobDir, { recursive: true })
@@ -169,12 +175,7 @@ export class MediaAnalysisService extends BaseService {
         fileInfo.ext,
         jobDir,
         execution,
-        {
-          vision: `${cacheKey}:vision`,
-          transcript: stageKey('asr', execution.asr),
-          framePlan: stageKey('frames', execution.budget),
-          frameText: stageKey('ocr', { ocr: execution.ocr?.identity ?? null, budget: execution.budget })
-        },
+        keys,
         signal,
         options.onProgress
       )
@@ -192,6 +193,8 @@ export class MediaAnalysisService extends BaseService {
       if (!retryable) cache.set(cacheKey, analysis, CACHE_TTL_MS)
       return analysis
     } finally {
+      // A picked file can change during the pass; its results must not stay under the content it had before.
+      if (file.kind === 'path') await dropStagesIfContentChanged(fileInfo, contentKey, keys)
       await rm(jobDir, { recursive: true, force: true }).catch(() => {
         logger.warn('Failed to remove media analysis job directory')
       })
@@ -594,20 +597,34 @@ function fileKeyOf(file: FileHandle, fileInfo: FileInfo): string {
 async function contentKeyOf(file: FileHandle, fileInfo: FileInfo, signal?: AbortSignal): Promise<string> {
   const fileKey = fileKeyOf(file, fileInfo)
   const cache = application.get('CacheService')
-  const digestKey = `media-analysis:content:${fileKey}`
-  const known = cache.get<unknown>(digestKey)
+  // A stored entry is never rewritten, so its digest is reused; a picked file can be replaced in place
+  // with the same size and mtime, so it is hashed on every pass.
+  const digestKey = file.kind === 'entry' ? `media-analysis:content:${fileKey}` : undefined
+  const known = digestKey ? cache.get<unknown>(digestKey) : undefined
   if (typeof known === 'string') return known
   try {
     const { contentHash, size } = await hashWithSize(fileInfo.path, signal)
     // A file rewritten while it was read keeps a per-file key instead of sharing results.
     if (size !== fileInfo.size) return fileKey
     const contentKey = `content:${contentHash}:${size}`
-    cache.set(digestKey, contentKey, CACHE_TTL_MS)
+    if (digestKey) cache.set(digestKey, contentKey, CACHE_TTL_MS)
     return contentKey
   } catch {
     signal?.throwIfAborted()
     return fileKey
   }
+}
+
+/** Drops the stage results a pass stored under `contentKey` when the picked file no longer has that content. */
+async function dropStagesIfContentChanged(fileInfo: FileInfo, contentKey: string, keys: StageCacheKeys): Promise<void> {
+  if (!contentKey.startsWith('content:')) return
+  const current = await hashWithSize(fileInfo.path).then(
+    ({ contentHash, size }) => `content:${contentHash}:${size}`,
+    () => null
+  )
+  if (current === contentKey) return
+  const cache = application.get('CacheService')
+  for (const key of [keys.transcript, keys.framePlan, keys.frameText]) cache.delete(key)
 }
 
 function hashIdentity(identity: unknown): string {

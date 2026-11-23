@@ -196,9 +196,11 @@ existing path.
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
 The local stages (transcript, frame plan, per-frame OCR text) are also cached by
-file content (a full-file XXH3 hash, cached per file version), so the stored
-copy a send analyzes reuses work done on the picked file, and two files that
-differ anywhere never share results. A frame whose OCR fails is retried
+file content (a full-file XXH3 hash), so the stored copy a send analyzes reuses
+work done on the picked file, and two files that differ anywhere never share
+results. A stored entry's hash is cached per file version; a picked file is
+hashed on every pass, and a pass whose file changes while it runs drops its
+results. A frame whose OCR fails is retried
 once and otherwise left for the next run; text already read is kept.
 
 Attaching audio or video in the chat composer starts that local pass through
