@@ -11,6 +11,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -527,16 +528,23 @@ describe('ArtifactService', () => {
   })
 })
 
-describe('artifact migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
+describe('0042 migrate-forward', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0042_wise_luckman' })
 
-  it('adds the index to a populated database without changing existing topics', () => {
+  it('adds the artifact index and MCP skill permissions to a populated database', () => {
     dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
+    dbh.sqlite
+      .prepare('INSERT INTO mcp_server (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run('existing-server', 'Existing MCP server', NOW, NOW)
 
     applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
 
     expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'existing')).get()?.name).toBe('Existing topic')
     expect(dbh.db.select().from(artifactTable).all()).toEqual([])
+    expect(dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'existing-server')).get()).toMatchObject({
+      name: 'Existing MCP server',
+      skillPermissions: null
+    })
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })
