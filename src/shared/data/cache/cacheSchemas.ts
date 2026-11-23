@@ -441,6 +441,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover' | 'dialog'
+  'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
   // Set by the composer's "don't ask again" when another surface replaces a non-empty draft.
   'ui.composer.prefill_confirm_hidden': boolean
@@ -532,6 +533,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover',
+  'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
   'ui.composer.prefill_confirm_hidden': false,
   'ui.browser.last_urls': {},

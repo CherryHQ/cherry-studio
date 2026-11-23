@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmojiIcon } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { getProviderDisplayName, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
@@ -28,6 +29,8 @@ export interface ChatConversationControlsProps {
   assistantId: string | null
   assistantName: string
   assistantEmoji?: string
+  /** An uploaded avatar, shown instead of the emoji. */
+  assistantAvatarSrc?: string
   model?: Model
   modelPending?: boolean
   providers: Provider[]
@@ -56,6 +59,7 @@ export function ChatConversationControls({
   assistantId,
   assistantName,
   assistantEmoji,
+  assistantAvatarSrc,
   model,
   modelPending,
   providers,
@@ -129,15 +133,27 @@ export function ChatConversationControls({
     openResourceEditDialog({ kind: 'assistant', id: assistantId })
   }, [assistantId])
 
+  const assistantAvatar = (
+    <AssistantAvatarImage
+      src={assistantAvatarSrc}
+      alt=""
+      size={20}
+      className="shrink-0 rounded-full object-cover"
+      fallback={
+        assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null
+      }
+    />
+  )
+
   const avatarButton =
-    onAvatarClick && assistantId && assistantIcon ? (
+    onAvatarClick && assistantId && (assistantIcon || assistantAvatarSrc) ? (
       <button
         type="button"
         aria-label={t('chat.profile_pane.open', { name: assistantName })}
         aria-pressed={avatarActive}
         onClick={onAvatarClick}
         className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
-        <EmojiIcon emoji={assistantIcon} size={20} />
+        {assistantAvatar}
       </button>
     ) : null
 
@@ -149,11 +165,7 @@ export function ChatConversationControls({
       disabled={assistantTriggerAction === 'edit' && !assistantId}
       aria-label={assistantTriggerAction === 'edit' ? `${t('assistants.edit.title')}: ${assistantName}` : undefined}
       onClick={assistantTriggerAction === 'edit' ? handleAssistantEdit : undefined}>
-      {avatarButton ? null : assistantIcon ? (
-        <EmojiIcon emoji={assistantIcon} size={20} />
-      ) : iconOnly ? (
-        <Bot size={16} aria-hidden />
-      ) : null}
+      {avatarButton ? null : assistantAvatar}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       {assistantTriggerAction === 'edit' ? null : (
         // Beside the avatar, the chevron alone is the icon-only switch control.

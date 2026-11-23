@@ -59,6 +59,7 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
+import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -101,20 +102,31 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
+  session?: Pick<AgentSessionEntity, 'id' | 'name'>
+}
 
-function AgentTopBarControls(props: AgentTopBarControlsProps) {
+function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
   const profilePane = useProfilePaneToggle()
 
   return (
-    <AgentConversationControls
-      {...props}
-      side="bottom"
-      iconOnly={iconOnly}
-      onAvatarClick={profilePane?.toggle}
-      avatarActive={profilePane?.active}
-    />
+    <>
+      <AgentConversationControls
+        {...props}
+        side="bottom"
+        iconOnly={iconOnly}
+        onAvatarClick={profilePane?.toggle}
+        avatarActive={profilePane?.active}
+      />
+      {session && !iconOnly ? (
+        <AgentSessionNameControl
+          sessionId={session.id}
+          sessionName={session.name}
+          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -492,6 +504,7 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
+              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}

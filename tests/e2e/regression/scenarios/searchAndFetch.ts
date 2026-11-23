@@ -1,4 +1,6 @@
+import { once } from 'node:events'
 import { writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
@@ -33,17 +35,50 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
   const providerId = `regression-mp35-${Date.now()}`
   const topicName = app.resourceName('Search and fetch')
   const assistantName = app.resourceName('Search and fetch assistant')
+  const today = new Date().toISOString().slice(0, 10)
+  const bulletin = {
+    title: 'Cedar Harbor opens the east pier',
+    url: 'https://example.com/cedar-harbor-bulletin',
+    content: `Published ${today}. The east pier has reopened to pedestrians.`
+  }
+  const searchServer = createServer((request, response) => {
+    if (request.method !== 'POST' || request.url !== '/search') {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+      JSON.stringify({
+        query: 'latest Cedar Harbor bulletin',
+        request_id: 'mp35',
+        response_time: 0,
+        results: [bulletin]
+      })
+    )
+  })
+  await once(searchServer.listen(0, '127.0.0.1'), 'listening')
+  const address = searchServer.address()
+  if (!address || typeof address === 'string') throw new Error('Search fixture server has no TCP port')
+  testInfo.annotations.push({
+    type: 'data-source',
+    description: 'The Tavily adapter queries a dated loopback bulletin; the fetch adapter retrieves example.com.'
+  })
   let assistantId: string | undefined
 
   try {
-    await page.evaluate(() =>
-      window.api.preference.setMultiple({
-        'topic.naming.enabled': false,
-        'menu.presentation_mode': 'cherry',
-        'chat.web_search.default_search_keywords_provider': 'duckduckgo',
-        'chat.web_search.default_fetch_urls_provider': 'fetch',
-        'chat.web_search.model_tools_preferred': false
-      })
+    await page.evaluate(
+      ({ url, overrides }) =>
+        window.api.preference.setMultiple({
+          'topic.naming.enabled': false,
+          'menu.presentation_mode': 'cherry',
+          'chat.web_search.default_search_keywords_provider': 'tavily',
+          'chat.web_search.default_fetch_urls_provider': 'fetch',
+          'chat.web_search.model_tools_preferred': false,
+          'chat.web_search.provider_overrides': {
+            ...overrides,
+            tavily: { apiKeys: ['mp35-key'], capabilities: { searchKeywords: { apiHost: url } } }
+          }
+        }),
+      { url: `http://127.0.0.1:${address.port}`, overrides: preferences.overrides }
     )
     const provider = await page.evaluate(
       ({ providerId, baseUrl, apiKey }) =>
@@ -53,7 +88,7 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
           path: '/providers',
           body: {
             providerId,
-            name: 'MP35 real provider',
+            name: 'MP35 search and fetch provider',
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: { 'openai-chat-completions': { baseUrl } },
             apiKeys: [{ id: 'mp35-key', key: apiKey, isEnabled: true }]
@@ -79,7 +114,7 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
           id: `${providerId}-model`,
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'], capabilities: ['function-call'] }]
         }),
       { providerId, modelId: config.chatModel }
     )
@@ -158,17 +193,15 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'true')
     await attachScreenshot('MP-35 web search enabled')
-    const today = new Date().toISOString().slice(0, 10)
-    const question = `Today is ${today}. Use web_search to find the latest BBC world news published today or yesterday. Summarize one headline with its publication date in YYYY-MM-DD format and cite the search result using [cite:id]. Do not invent current news.`
+    const question =
+      'Use web_search to find the latest Cedar Harbor bulletin. Summarize the headline with its publication date in YYYY-MM-DD format and cite the search result using [cite:id].'
     const searched = await send(question)
     await attachScreenshot('MP-35 real search result and citations')
     expect.soft(searched.message.status).toBe('success')
     const results = outputs(searched.message, 'web_search')
-    expect.soft(results.length, 'Enabled search must return real provider results').toBeGreaterThan(0)
-    const currentDates = [0, 1].map((days) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10))
-    expect
-      .soft(searched.message.searchableText, 'Answer must date the current news')
-      .toMatch(new RegExp(currentDates.join('|')))
+    expect.soft(results).toEqual([expect.objectContaining(bulletin)])
+    expect.soft(searched.message.searchableText).toContain(bulletin.title)
+    expect.soft(searched.message.searchableText).toContain(today)
     const citations = searched.response.locator('a[href^="http"]').filter({ has: page.locator('sup[data-citation]') })
     await expect
       .soft(citations.first(), 'Search answer must contain a clickable citation')
@@ -214,6 +247,11 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     )
     expect.soft(fetched.message.searchableText).toMatch(/Example Domain/i)
     expect.soft(fetched.message.searchableText).toMatch(/documentation|illustrative|example/i)
+    await expect
+      .soft(
+        fetched.response.locator('a[href="https://example.com/"]').filter({ has: page.locator('sup[data-citation]') })
+      )
+      .toBeVisible()
     await attachScreenshot('MP-35 public URL title and summary')
 
     await page.evaluate(() =>
@@ -226,6 +264,7 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     await expect(page.getByRole('tooltip')).toContainText(/Searxng is unavailable.*query is sent to ExaMCP/i)
     await attachScreenshot('MP-35 unavailable provider fallback notice')
   } finally {
+    await new Promise<void>((resolve, reject) => searchServer.close((error) => (error ? reject(error) : resolve())))
     await page.evaluate(
       async ({ assistantId, providerId, preferences }) => {
         await window.api.preference.setMultiple({
