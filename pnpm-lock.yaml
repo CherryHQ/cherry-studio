@@ -250,7 +250,7 @@ packageExtensionsChecksum: sha256-Id50b6itL1DWUnePZswSWeCJo6dI4ZPzS98UcLvreOc=
 patchedDependencies:
   '@ai-sdk/amazon-bedrock@4.0.96': 7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee
   '@ai-sdk/anthropic': cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c
-  '@ai-sdk/google@3.0.146': bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0
+  '@ai-sdk/google@3.0.146': 20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee
   '@ai-sdk/mistral@3.0.30': b4f34e27858ce5529a661a90832aa51ce76eb2e5b3ab1b174a38e1eb36b2c53e
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771
@@ -452,7 +452,7 @@ importers:
         version: 3.0.116(zod@4.4.3)
       '@ai-sdk/google':
         specifier: 3.0.146
-        version: 3.0.146(patch_hash=bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0)(zod@4.4.3)
+        version: 3.0.146(patch_hash=20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee)(zod@4.4.3)
       '@ai-sdk/google-vertex':
         specifier: ^4.0.188
         version: 4.0.188(supports-color@8.1.1)(zod@4.4.3)
@@ -1828,7 +1828,7 @@ importers:
         version: 3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.4.3)
       '@ai-sdk/google':
         specifier: 3.0.146
-        version: 3.0.146(patch_hash=bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0)(zod@4.4.3)
+        version: 3.0.146(patch_hash=20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.137
         version: 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
@@ -1865,7 +1865,7 @@ importers:
         version: 2.0.62(zod@4.4.3)
       '@ai-sdk/google':
         specifier: 3.0.146
-        version: 3.0.146(patch_hash=bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0)(zod@4.4.3)
+        version: 3.0.146(patch_hash=20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.137
         version: 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
@@ -16310,7 +16310,7 @@ snapshots:
   '@ai-sdk/google-vertex@4.0.188(supports-color@8.1.1)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.4.3)
-      '@ai-sdk/google': 3.0.146(patch_hash=bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0)(zod@4.4.3)
+      '@ai-sdk/google': 3.0.146(patch_hash=20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee)(zod@4.4.3)
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
@@ -16319,7 +16319,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@3.0.146(patch_hash=bf8865881fbbfab61507fcebe6dca4c047380eccef9430a3aae182c53b98e9e0)(zod@4.4.3)':
+  '@ai-sdk/google@3.0.146(patch_hash=20dd0d71bcd9f93389a4a81e55ede25f260b67385d6de1f26d662e86fd481bee)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
