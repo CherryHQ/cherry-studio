@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { Signal } from '../signal'
 
@@ -6,13 +6,12 @@ describe('Signal', () => {
   describe('resolve', () => {
     it('should notify listener on resolve', () => {
       const signal = new Signal<number>()
-      const listener = vi.fn()
+      const received: number[] = []
 
-      signal.onResolved(listener)
+      signal.onResolved((value) => received.push(value))
       signal.resolve(42)
 
-      expect(listener).toHaveBeenCalledWith(42)
-      expect(listener).toHaveBeenCalledTimes(1)
+      expect(received).toEqual([42])
     })
 
     it('should resolve the promise for await', async () => {
@@ -32,13 +31,13 @@ describe('Signal', () => {
 
     it('should be a no-op if disposed before resolve', () => {
       const signal = new Signal<number>()
-      const listener = vi.fn()
+      const received: number[] = []
 
-      signal.onResolved(listener)
+      signal.onResolved((value) => received.push(value))
       signal.dispose()
       signal.resolve(42)
 
-      expect(listener).not.toHaveBeenCalled()
+      expect(received).toEqual([])
       expect(signal.isResolved).toBe(false)
     })
   })
@@ -48,11 +47,10 @@ describe('Signal', () => {
       const signal = new Signal<number>()
       signal.resolve(42)
 
-      const listener = vi.fn()
-      signal.onResolved(listener)
+      const received: number[] = []
+      signal.onResolved((value) => received.push(value))
 
-      expect(listener).toHaveBeenCalledWith(42)
-      expect(listener).toHaveBeenCalledTimes(1)
+      expect(received).toEqual([42])
     })
   })
 
@@ -70,6 +68,25 @@ describe('Signal', () => {
   })
 
   describe('value', () => {
+    it.each([undefined, null, false, 0, ''])(
+      'retains the resolved value %s across every observation path',
+      async (value) => {
+        const signal = new Signal<typeof value>()
+        const early: Array<typeof value> = []
+        const late: Array<typeof value> = []
+
+        signal.onResolved((received) => early.push(received))
+        signal.resolve(value)
+        signal.onResolved((received) => late.push(received))
+
+        expect(signal.isResolved).toBe(true)
+        expect(signal.value).toBe(value)
+        await expect(Promise.resolve(signal)).resolves.toBe(value)
+        expect(early).toEqual([value])
+        expect(late).toEqual([value])
+      }
+    )
+
     it('should return resolved value', () => {
       const signal = new Signal<number>()
       signal.resolve(42)
@@ -108,23 +125,23 @@ describe('Signal', () => {
       const signal = new Signal<number>()
       signal.dispose()
 
-      const listener = vi.fn()
-      signal.onResolved(listener)
+      const received: number[] = []
+      signal.onResolved((value) => received.push(value))
 
-      // Signal is disposed and not resolved, so late-subscriber path doesn't apply
-      expect(listener).not.toHaveBeenCalled()
+      expect(received).toEqual([])
     })
 
-    it('should not call late subscriber if disposed after resolve', () => {
+    it('retains the resolved value after disposal without notifying late subscribers', async () => {
       const signal = new Signal<number>()
       signal.resolve(42)
       signal.dispose()
 
-      const listener = vi.fn()
-      signal.onResolved(listener)
+      const received: number[] = []
+      signal.onResolved((value) => received.push(value))
 
-      // Disposed after resolve: late subscriber should not be called
-      expect(listener).not.toHaveBeenCalled()
+      expect(received).toEqual([])
+      expect(signal.value).toBe(42)
+      await expect(Promise.resolve(signal)).resolves.toBe(42)
     })
   })
 })

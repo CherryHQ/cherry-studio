@@ -317,7 +317,11 @@ A producer service owns an `Emitter<T>` (private) and exposes its `Event<T>` (pu
 
 ### Signal (One-shot)
 
-A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately. The primitive is implemented and unit-tested but currently has no production consumer; introduce one only for a concrete one-shot completion contract, not as speculative service surface.
+A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately while the signal is not disposed. The primitive is implemented and unit-tested but currently has no production consumer; introduce one only for a concrete one-shot completion contract, not as speculative service surface.
+
+Resolution can carry `undefined`, `null`, or any other value allowed by `T`.
+Disposal disables notifications but retains an already-resolved value and promise result.
+A signal disposed before resolution remains pending.
 
 For full usage patterns and code examples, see [Service Events](./lifecycle-usage.md#service-events-emitter--event) and [Signal](./lifecycle-usage.md#signal-one-shot-completion).
 

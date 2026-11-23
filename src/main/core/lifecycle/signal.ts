@@ -22,8 +22,7 @@ import type { Disposable, Event } from './event'
 import { Emitter } from './event'
 
 export class Signal<T> implements Disposable, PromiseLike<T> {
-  private _value: T | undefined
-  private _resolved = false
+  private _state: { resolved: false } | { resolved: true; value: T } = { resolved: false }
   private _disposed = false
   private readonly _emitter = new Emitter<T>()
   private _resolve!: (value: T) => void
@@ -41,8 +40,10 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
    */
   public get onResolved(): Event<T> {
     return (listener: (e: T) => void): Disposable => {
-      if (this._resolved && !this._disposed) {
-        listener(this._value as T)
+      const state = this._state
+
+      if (state.resolved && !this._disposed) {
+        listener(state.value)
 
         return { dispose: () => {} }
       }
@@ -57,14 +58,13 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
    * @throws Error if already resolved
    */
   public resolve(value: T): void {
-    if (this._resolved) {
+    if (this._state.resolved) {
       throw new Error('Signal has already been resolved')
     }
 
     if (this._disposed) return
 
-    this._value = value
-    this._resolved = true
+    this._state = { resolved: true, value }
     this._resolve(value)
     this._emitter.fire(value)
   }
@@ -73,7 +73,7 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
    * Whether the signal has been resolved.
    */
   public get isResolved(): boolean {
-    return this._resolved
+    return this._state.resolved
   }
 
   /**
@@ -81,11 +81,13 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
    * @throws Error if not yet resolved
    */
   public get value(): T {
-    if (!this._resolved) {
+    const state = this._state
+
+    if (!state.resolved) {
       throw new Error('Signal has not been resolved yet')
     }
 
-    return this._value as T
+    return state.value
   }
 
   /**
