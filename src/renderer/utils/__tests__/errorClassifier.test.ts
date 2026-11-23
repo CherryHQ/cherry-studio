@@ -53,6 +53,66 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each([undefined, null, false, 42, 'invalid attempts', { invalid: true }])(
+    'classifies a valid terminal attempt despite a malformed attempt collection: %j',
+    (errors) => {
+      const error = makeRetryError({ message: null, lastError: { statusCode: 401 }, errors })
+
+      expect(classifyError(error, 'provider-key')).toEqual({
+        category: 'auth',
+        i18nKey: 'error.diagnosis.auth',
+        navTarget: '/settings/provider?id=provider-key'
+      })
+    }
+  )
+
+  it('reads partial attempts through their original array iterator without inspecting unrelated fields', () => {
+    const reads: string[] = []
+    let iteratorOwner: object | undefined
+    const attempt = {
+      statusCode: 401,
+      get stack() {
+        throw new Error('classification must not inspect unrelated stack fields')
+      }
+    }
+    const attempts = [attempt]
+    Object.defineProperty(attempts, Symbol.iterator, {
+      get() {
+        reads.push('iterator')
+
+        return function* (this: object) {
+          iteratorOwner = this
+          yield attempt
+        }
+      }
+    })
+    const error = makeRetryError({ message: null, lastError: null, errors: attempts })
+    Object.defineProperties(error, {
+      lastError: {
+        get() {
+          reads.push('lastError')
+
+          return null
+        }
+      },
+      errors: {
+        get() {
+          reads.push('errors')
+
+          return attempts
+        }
+      }
+    })
+
+    expect(classifyError(error, 'provider-key')).toEqual({
+      category: 'auth',
+      i18nKey: 'error.diagnosis.auth',
+      navTarget: '/settings/provider?id=provider-key'
+    })
+    expect(iteratorOwner).toBe(attempts)
+    expect(reads).toEqual(['lastError', 'lastError', 'lastError', 'errors', 'iterator'])
+  })
+
   it.each([
     'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
     'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'

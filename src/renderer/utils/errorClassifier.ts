@@ -1,8 +1,23 @@
-import type { SerializedAiSdkRetryError, SerializedError } from '@renderer/types/error'
-import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import type { SerializedError } from '@renderer/types/error'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
+
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Nested provider failures are partial and may retain native extensions; classification checks only selected fields.
+type RawErrorSource = Readonly<Record<string, unknown>>
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested failures may be primitive or partial; establish only a non-array object before field reads.
+function isRawErrorSource(value: unknown): value is RawErrorSource {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasRetryWrapperFields(error: RawErrorSource): boolean {
+  return 'cause' in error && 'reason' in error && 'lastError' in error && 'errors' in error
+}
+
+function hasRepairWrapperFields(error: RawErrorSource): boolean {
+  return 'cause' in error && 'originalError' in error
+}
 
 export interface ErrorClassification {
   category: ErrorCategory
@@ -49,7 +64,7 @@ function navTargetFor(category: ErrorCategory, providerSuffix: string): string |
  * The category the main process already derived from the subprocess's stderr. The renderer
  * cannot re-derive it: the message crossing IPC is sanitized down to the exit status.
  */
-export function getClaudeCodeExitCategory(error?: SerializedError): ErrorCategory | undefined {
+export function getClaudeCodeExitCategory(error?: RawErrorSource): ErrorCategory | undefined {
   const category = error?.claudeCodeExitCategory
 
   return isErrorCategory(category) ? category : undefined
@@ -75,22 +90,21 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
  * Errors nested inside a serialized AI SDK wrapper may be partial. Readers tolerate absent
  * `message`/`stack` while preserving normalized provider facts when present.
  */
-function unwrapNestedErrors(error: SerializedError): SerializedError[] {
-  const nested = isSerializedAiSdkRetryError(error)
-    ? [error.lastError, ...error.errors]
-    : isSerializedAiSdkToolCallRepairError(error)
-      ? [error.originalError]
-      : []
+function unwrapNestedErrors(error: RawErrorSource): RawErrorSource[] {
+  if (hasRetryWrapperFields(error)) {
+    const lastError = error.lastError
+    const attempts = error.errors
 
-  return nested.filter(
-    (candidate): candidate is SerializedError =>
-      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
-  )
+    return [lastError, ...(Array.isArray(attempts) ? attempts : [])].filter(isRawErrorSource)
+  }
+
+  return hasRepairWrapperFields(error) ? [error.originalError].filter(isRawErrorSource) : []
 }
 
 /** `statusCode` or `status`, numeric or a numeric string. Unparseable values count as absent. */
-function readStructuredStatus(value: SerializedError | SerializedAiSdkRetryError['lastError']): number | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and partial serialized failures carry untrusted status fields; validate only the consumed scalars.
+function readStructuredStatus(value: unknown): number | undefined {
+  if (!isRawErrorSource(value)) return undefined
   const status = value.statusCode ?? value.status
   const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
 
@@ -103,7 +117,7 @@ function readStructuredStatus(value: SerializedError | SerializedAiSdkRetryError
  * act on — a provider 404 body already names the model in its own text. Null for anything else.
  */
 export function getLocalModelResolutionFailure(
-  error?: SerializedError
+  error?: RawErrorSource
 ): { providerId?: string; modelId?: string } | null {
   const message = typeof error?.message === 'string' ? error.message : ''
 
@@ -156,18 +170,18 @@ export function getLocalModelResolutionFailure(
  * A status-less RetryError copies the terminal phrase. Return that attempt's HTTP 5xx;
  * earlier attempts do not supply a status.
  */
-export function getErrorHttpStatus(error: SerializedError): number | undefined {
+export function getErrorHttpStatus(error: RawErrorSource): number | undefined {
   const outer = readStructuredStatus(error)
 
   if (outer !== undefined) return outer
 
-  if (!isSerializedAiSdkRetryError(error)) return undefined
+  if (!hasRetryWrapperFields(error)) return undefined
   const terminalStatus = readStructuredStatus(error.lastError)
 
   return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
 }
 
-export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
+function classifyRawError(error?: RawErrorSource, providerId?: string): ErrorClassification {
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
 
   const classify = (category: ErrorCategory): ErrorClassification => ({
@@ -209,7 +223,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   })
 
   if (
-    isSerializedAiSdkRetryError(error) &&
+    hasRetryWrapperFields(error) &&
     readStructuredStatus(error) === undefined &&
     classifyErrorCategory({ finishReason: String(error.finishReason ?? '') }) === 'unknown'
   ) {
@@ -230,7 +244,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   let nestedRecovery: ErrorClassification | null = null
 
   for (const nested of unwrapNestedErrors(error)) {
-    const nestedClassification = classifyError(nested, providerId)
+    const nestedClassification = classifyRawError(nested, providerId)
 
     if (nestedClassification.category !== 'unknown' && nestedClassification.category !== 'bad_request') {
       return nestedClassification
@@ -246,4 +260,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   return classify(category)
+}
+
+export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
+  return classifyRawError(error, providerId)
 }
