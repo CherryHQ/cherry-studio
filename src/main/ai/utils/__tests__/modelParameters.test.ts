@@ -26,6 +26,29 @@ function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettin
 }
 
 describe('stripUnsupportedModelParams', () => {
+  it.each([
+    ['claude-opus-4-7[1m]', false],
+    ['claude-opus-4-8[1m]', false],
+    ['claude-opus-5[1m]', false],
+    ['claude-opus-4-6[1m]', true],
+    ['claude-sonnet-4-6[1m]', true]
+  ] as const)('respects sampling support for custom model %s', (apiModelId, supportsSampling) => {
+    const model = makeModel({ id: `proxy::${apiModelId}`, providerId: 'proxy', apiModelId })
+    const sampling = { temperature: 0.7, topP: 0.9, topK: 40 }
+    const standardParams = { ...sampling, maxOutputTokens: 4096 }
+
+    expect(getTemperature(makeSampling(sampling), model, OMIT_REASONING)).toBe(supportsSampling ? 0.7 : undefined)
+    expect(
+      getTopP(makeSampling({ ...sampling, enableTemperature: false, enableTopP: true }), model, OMIT_REASONING)
+    ).toBe(supportsSampling ? 0.9 : undefined)
+    expect(filterStandardParams(standardParams, model)).toEqual(
+      supportsSampling ? standardParams : { temperature: 0.7, topP: 0.9, maxOutputTokens: 4096 }
+    )
+    expect(
+      stripUnsupportedModelParams({ standardParams, providerOptions: {}, bodyParams: {} }, model).standardParams
+    ).toEqual(supportsSampling ? standardParams : { maxOutputTokens: 4096 })
+  })
+
   it('removes fixed-sampling Claude overrides from every request container without mutating inputs', () => {
     const parameters = Object.freeze({
       temperature: 0.5,
