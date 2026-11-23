@@ -48,6 +48,7 @@ import {
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
+import McpSkillsSection from './McpSkill'
 import McpToolsSection from './McpTool'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
@@ -55,7 +56,7 @@ import { toUpdateMcpServerDto } from './utils'
 const logger = loggerService.withContext('McpSettings')
 const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
-type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions' | 'skills'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -554,6 +555,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           )}
         </>
       )
+    })
+
+    tabs.push({
+      key: 'skills',
+      label: t('plugins.skills'),
+      children: activeTab === 'skills' ? <McpSkillsSection server={server} updateMcpServer={updateMcpServer} /> : null
     })
 
     tabs.push(

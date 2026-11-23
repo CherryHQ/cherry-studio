@@ -29,6 +29,7 @@ import {
   type Transport
 } from '@modelcontextprotocol/client'
 import { withInputRequired } from '@modelcontextprotocol/client'
+import { SkillsClient } from '@modelcontextprotocol/client/ext/skills'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
 import {
   GetPromptResultSchema,
@@ -36,6 +37,10 @@ import {
   RequestMetaSchema,
   ResultSchema
 } from '@modelcontextprotocol/core'
+import { ListSkillsResultSchema, SKILLS_GET_METHOD, SKILLS_LIST_METHOD } from '@modelcontextprotocol/core/ext/skills'
+
+import { validateMcpSkill } from '@main/ai/skills/mcpSkillContent'
+import type { McpSkill } from '@shared/types/mcpSkills'
 
 import type {
   McpCallToolOptions,
@@ -77,6 +82,7 @@ function requireInteractionContext(active: ActiveInteraction | undefined, capabi
  */
 export class ClientMcpConnection implements McpConnection {
   private readonly client: Client
+  private readonly skills: SkillsClient
   private readonly interactionStorage = new AsyncLocalStorage<ActiveInteraction>()
   private readonly closeHooks: Array<() => Promise<void>> = []
   private readonly activeRequests = new Map<ActiveInteraction, AbortController>()
@@ -108,6 +114,7 @@ export class ClientMcpConnection implements McpConnection {
       }
     })
 
+    this.skills = new SkillsClient(this.client)
     this.resourceObservations = new ResourceObservations(this.client)
     this.client.setNotificationHandler('notifications/resources/updated', async (notification) => {
       events.resourceUpdated(notification.params.uri)
@@ -172,7 +179,13 @@ export class ClientMcpConnection implements McpConnection {
         pending.set(message.id, { active, cleanup })
         active.signal.addEventListener('abort', cleanup, { once: true })
         try {
-          await send(message, sendOptions)
+          // SkillsClient.get has no metadata parameter; preserve the active host capabilities on the wire.
+          await send(
+            message.method === SKILLS_GET_METHOD
+              ? { ...message, params: this.paramsWithLogLevel(message.params ?? {}) }
+              : message,
+            sendOptions
+          )
         } catch (error) {
           cleanup()
           throw error
@@ -317,6 +330,45 @@ export class ClientMcpConnection implements McpConnection {
         }
       }
     }
+  }
+
+  private get supportsSkills(): boolean {
+    return this.era === 'modern' && !!this.serverCapabilities?.resources && this.skills.supported
+  }
+
+  public async listSkills(options?: McpRequestOptions): Promise<McpSkill[]> {
+    if (!this.supportsSkills) return []
+    return this.withRequestContext(options, async (signal) => {
+      const skills: McpSkill[] = []
+      const cursors = new Set<string>()
+      const uris = new Set<string>()
+      let cursor: string | undefined
+      do {
+        const result = await this.client.request(
+          { method: SKILLS_LIST_METHOD, params: this.paramsWithLogLevel({ cursor, _meta: {} }) },
+          ListSkillsResultSchema,
+          { signal, timeout: options?.timeoutMs }
+        )
+        for (const skill of result.skills) {
+          if (uris.has(skill.uri)) throw new Error('Duplicate skill URI in catalog')
+          uris.add(skill.uri)
+          skills.push(validateMcpSkill(skill))
+        }
+        cursor = result.nextCursor
+        if (cursor !== undefined && cursors.has(cursor)) throw new Error('Repeated skill catalog cursor')
+        if (cursor !== undefined) cursors.add(cursor)
+      } while (cursor !== undefined)
+      return skills
+    })
+  }
+
+  public async getSkill(uri: string, options?: McpRequestOptions): Promise<McpSkill> {
+    if (!this.supportsSkills) throw new Error('Server does not advertise MCP Skills')
+    return this.withRequestContext(options, async (signal) => {
+      const { skill } = await this.skills.get(uri, { signal, timeout: options?.timeoutMs })
+      if (skill.uri !== uri) throw new Error('Server returned a different skill URI')
+      return validateMcpSkill(skill)
+    })
   }
 
   public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {

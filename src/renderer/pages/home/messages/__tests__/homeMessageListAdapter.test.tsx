@@ -130,10 +130,6 @@ vi.mock('@renderer/hooks/cherryCloud/useHasCurrentPaidPlan', () => ({
   useHasCurrentPaidPlan: (enabled = true) => enabled && paidPlanMock.current
 }))
 
-vi.mock('@renderer/utils/model', () => ({
-  isVisionModel: vi.fn(() => false)
-}))
-
 vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
   useMessageEditing: () => messageEditingMock
 }))

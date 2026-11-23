@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { SerializedError } from '@renderer/types/error'
 import { IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE } from '@renderer/utils/image'
 
 import type { MessageListActions, MessageListItem } from '../../types'
@@ -397,6 +398,78 @@ required service tier.`
 
     expect(screen.getByText('error.notice.rate_limit.title')).toBeInTheDocument()
     expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
+  // From main #24953: a 429 that is really an exhausted balance must not read as a rate limit.
+  const lowCreditText =
+    'Your credit balance is running low for account organization, please recharge immediately to avoid service disruption.'
+
+  it.each<[string, SerializedError]>([
+    [
+      'normalized quota',
+      {
+        name: 'AI_APICallError',
+        message: lowCreditText,
+        stack: null,
+        statusCode: 429,
+        providerErrorCategory: 'quota',
+        responseBody: null,
+        data: null
+      }
+    ],
+    [
+      'legacy JSON body',
+      {
+        name: 'AI_APICallError',
+        message: 'Too Many Requests',
+        stack: null,
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { message: lowCreditText } })
+      }
+    ]
+  ])('presents a %s 429 as a quota failure, without rate-limit advice', (_case, error) => {
+    mocks.translations = new Map(Object.entries(enUS))
+
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+    expect(screen.getByText(enUS['error.notice.quota.title'])).toBeVisible()
+    expect(screen.queryByText(enUS['error.notice.rate_limit.title'])).toBeNull()
+    expect(screen.queryByText(enUS['error.notice.rate_limit.info'], { exact: false })).toBeNull()
+  })
+
+  it('keeps an ordinary 429 as a rate limit', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    const error = {
+      name: 'AI_APICallError',
+      message: 'Request throughput exceeded. Try again later.',
+      stack: null,
+      statusCode: 429
+    }
+
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+    expect(screen.getByText(enUS['error.notice.rate_limit.title'])).toBeVisible()
+    expect(screen.queryByText(enUS['error.notice.quota.title'])).toBeNull()
+  })
+
+  it('presents a numeric 402 quota error as a quota failure', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: lowCreditText,
+          stack: null,
+          statusCode: 402,
+          providerErrorCategory: 'quota'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.notice.quota.title'])).toBeVisible()
   })
 
   it('presents a Claude Code sign-in failure as such, not as an invalid API key', () => {
